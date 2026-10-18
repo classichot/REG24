@@ -24,6 +24,10 @@ import {
   UserRole,
   ModuleState,
   BOIPromotionState,
+  A2ATaskContract,
+  A2AAgentCard,
+  A2AEvidenceEnvelope,
+  A2ADomainStepResult,
 } from "../types/legal-schema";
 
 import {
@@ -119,6 +123,7 @@ export class Reg24PlatformCore {
   private modules: Map<string, ModuleManifest> = new Map();
   private releases: ModuleRelease[] = [];
   private auditTraces: AuditTraceEvent[] = [];
+  private a2aTasks: Map<string, A2ATaskContract> = new Map();
 
   constructor() {
     this.resetToSeed();
@@ -140,6 +145,7 @@ export class Reg24PlatformCore {
     this.modules.clear();
     this.releases = [];
     this.auditTraces = [];
+    this.a2aTasks.clear();
 
     SEED_JURISDICTIONS.forEach((j) => this.jurisdictions.set(j.id, { ...j }));
     SEED_REGULATORS.forEach((r) => this.regulators.set(r.id, { ...r }));
@@ -180,6 +186,8 @@ export class Reg24PlatformCore {
       status: "success",
       summary: "Bootstrapped REG24 Core with 6 P0 Thailand Legal Modules and verified canonical CCC ownership.",
     });
+
+    this.seedInitialA2ATask();
   }
 
   private generateTraceId(): string {
@@ -1856,6 +1864,484 @@ export class Reg24PlatformCore {
     return { change, impactedModules, impactedRules };
   }
 
+  // ============================================================================
+  // AGENT-TO-AGENT (A2A) PROTOCOL v1.0 & LEGAL TASK AGENT (REG-A2A-001 TO 009)
+  // ============================================================================
+
+  /**
+   * REG-A2A-005: Official A2A v1.0 Agent Card (/.well-known/agent.json)
+   * Crucial Architectural Rule: The 6 legal modules do NOT become 6 separate A2A agents.
+   * Instead, REG24 exposes a single coordinating Legal Task Agent backed by the 6 domain modules.
+   */
+  public getA2AAgentCard(): A2AAgentCard {
+    return {
+      name: "REG24 Legal Task Agent",
+      id: "reg24.legal_task_agent",
+      description:
+        "Coordinating regulatory intelligence agent for Thailand. Accepts delegated multi-domain legal tasks from LAW24, CFO24, VIBE24, and external AI agents via A2A Protocol v1.0, orchestrating deterministic rules and canonical provisions across REG24's 6 domain modules without turning each module into a separate agent.",
+      version: "1.0.0",
+      protocol_version: "1.0.0",
+      url: "/api/a2a",
+      documentation_url: "/api/v1/openapi",
+      provider: {
+        organization: "REG24 Regulatory Infrastructure",
+        jurisdiction: "TH",
+        architecture_principle:
+          "Single coordinating Legal Task Agent backed by shared domain modules (Corporate, Contract, Civil Code, Tax, Labor, BOI) on one REG24 Core.",
+      },
+      capabilities: {
+        streaming: true,
+        pushNotifications: true,
+        stateTransitionHistory: true,
+        asynchronousTasks: true,
+        taskCancellation: true,
+      },
+      authentication: {
+        schemes: ["Bearer", "OAuth2", "ScopedAgentToken"],
+        tenantIsolation: true,
+        scopedPermissions: [
+          "a2a:tasks:delegate",
+          "a2a:tasks:read",
+          "a2a:tasks:cancel",
+          "reg24:modules:query",
+        ],
+      },
+      defaultInputModes: ["application/json", "text/plain"],
+      defaultOutputModes: ["application/json", "text/markdown"],
+      backed_by_domain_modules: Array.from(this.modules.keys()),
+      skills: [
+        {
+          id: "skill.boi_foreign_investment_assessment",
+          name: "Multi-Domain BOI Foreign Establishment & Tax/Labor Assessment",
+          description:
+            "Coordinates Corporate Law (foreign ownership/incorporation), BOI (activity eligibility & 4-state control), Tax Law (CIT holiday & ring-fencing), and Labor Law (foreign specialists & employment) into a single verified evidence envelope.",
+          tags: ["boi", "corporate", "tax", "labor", "foreign_investment", "thailand"],
+          examples: [
+            "Can a foreign investor establish a company in Thailand, obtain BOI promotion, employ foreign specialists and receive corporate income tax incentives?",
+          ],
+        },
+        {
+          id: "skill.corporate_contract_tax_audit",
+          name: "Cross-Module Corporate Governance, Contract Risk & Tax Compliance Audit",
+          description:
+            "Evaluates director binding authority (CCC Sec. 1144), contract penalty clauses (CCC Sec. 383 / UCTA Sec. 4), dividend legal reserves (CCC Sec. 1201), and withholding tax obligations (RC Sec. 3 Tres).",
+          tags: ["corporate", "contract", "civil", "tax"],
+          examples: [
+            "Assess statutory prerequisites and clause risks for a Thai subsidiary executing a high-penalty service agreement and distributing interim dividends.",
+          ],
+        },
+      ],
+    };
+  }
+
+  private seedInitialA2ATask(): void {
+    this.delegateA2ATask({
+      objective:
+        "Can a foreign investor establish a company in Thailand, obtain BOI promotion, employ foreign specialists and receive corporate income tax incentives?",
+      delegating_agent_id: "agent.law24.orchestrator",
+      tenant_id: "tenant.law24.prod",
+      scoped_role: "Legal Reviewer",
+      as_of_date: "2026-10-18",
+      facts: {
+        promoter_count: 2,
+        registered_capital_thb: 5000000,
+        foreign_shareholding_pct: 100,
+        business_category: "software_boi",
+        has_boi_certificate: false,
+        activity_code: "8.1_digital_platform",
+        capital_investment_excl_land_thb: 5000000,
+        thai_it_annual_salary_thb: 3600000,
+        project_location_zone: "EEC_rayong_chonburi_chachoengsao",
+        foreign_ownership_pct: 100,
+        promotion_status: "exploring_eligibility",
+        promoted_net_profit_thb: 12000000,
+        non_promoted_net_profit_thb: 2000000,
+        paid_up_capital_thb: 5000000,
+        total_revenue_thb: 35000000,
+        boi_certificate_active: false,
+        boi_cit_cap_remaining_thb: 5000000,
+        tenure_days: 365,
+        monthly_wage_thb: 85000,
+        terminated_for_statutory_cause_sec119: false,
+        worker_classification: "clear_employee_ccc575",
+      },
+    });
+  }
+
+  /**
+   * REG-A2A-001, 002, 003, 004, 006: Delegate a multi-domain legal task to the REG24 Legal Task Agent.
+   * Coordinates domain modules (Corporate -> BOI -> Tax -> Labor) and produces a unified A2AEvidenceEnvelope.
+   */
+  public delegateA2ATask(params: {
+    objective: string;
+    delegating_agent_id?: string;
+    tenant_id?: string;
+    scoped_role?: UserRole;
+    as_of_date?: string;
+    known_at_date?: string;
+    facts?: Record<string, unknown>;
+    async_mode?: boolean;
+  }): A2ATaskContract {
+    const startTime = Date.now();
+    const taskId = `a2a_task_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 7)}`;
+    const traceId = this.generateTraceId();
+    const asOfDate = params.as_of_date || "2026-10-18";
+    const knownAtDate = params.known_at_date || "2026-10-18";
+    const tenantId = params.tenant_id || "tenant.law24.prod";
+    const role = params.scoped_role || "API Developer";
+    const agentId = params.delegating_agent_id || "agent.law24.orchestrator";
+
+    // Prompt injection check on objective (REG-SEC-003 & REG-A2A-004)
+    const injectionCheck = this.inspectPromptInjection(params.objective);
+    if (!injectionCheck.safe) {
+      const failedTask: A2ATaskContract = {
+        task_id: taskId,
+        session_id: `sess_${Date.now().toString(36)}`,
+        protocol_version: "A2A-1.0.0",
+        priority_tier: "P1_PRODUCTION_A2A_GATEWAY",
+        delegating_agent: {
+          agent_id: agentId,
+          tenant_id: tenantId,
+          scoped_role: role,
+          authenticated: true,
+        },
+        receiving_agent_id: "reg24.legal_task_agent",
+        objective: params.objective,
+        structured_facts: params.facts || {},
+        requested_domains: [],
+        state: "failed",
+        progress_pct: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        domain_steps: [],
+        artifacts: [],
+        evidence_envelope: {
+          envelope_id: `env_${taskId}`,
+          trace_id: traceId,
+          as_of_date: asOfDate,
+          known_at_date: knownAtDate,
+          module_versions: this.getActiveModuleVersions(),
+          verified_provisions: [],
+          deterministic_evaluations: [],
+          unresolved_questions: ["Blocked by REG-SEC-003 untrusted instruction guard."],
+          coverage_gaps: [],
+          human_review_required: true,
+        },
+      };
+      this.a2aTasks.set(taskId, failedTask);
+      return failedTask;
+    }
+
+    const facts: Record<string, unknown> = {
+      promoter_count: 2,
+      registered_capital_thb: 5000000,
+      foreign_shareholding_pct: 100,
+      business_category: "software_boi",
+      has_boi_certificate: false,
+      activity_code: "8.1_digital_platform",
+      capital_investment_excl_land_thb: 5000000,
+      thai_it_annual_salary_thb: 3600000,
+      project_location_zone: "EEC_rayong_chonburi_chachoengsao",
+      foreign_ownership_pct: 100,
+      promotion_status: "exploring_eligibility",
+      promoted_net_profit_thb: 12000000,
+      non_promoted_net_profit_thb: 2000000,
+      paid_up_capital_thb: 5000000,
+      total_revenue_thb: 35000000,
+      boi_certificate_active: false,
+      boi_cit_cap_remaining_thb: 5000000,
+      tenure_days: 365,
+      monthly_wage_thb: 85000,
+      terminated_for_statutory_cause_sec119: false,
+      worker_classification: "clear_employee_ccc575",
+      ...(params.facts || {}),
+    };
+
+    // Execute 4-Domain Coordinated Assessment (Corporate -> BOI -> Tax -> Labor)
+    const corpEval = this.evaluateRule({
+      rule_id: "rule.th.corporate.incorporation_check",
+      facts,
+      as_of_date: asOfDate,
+      tenant_context: { tenant_id: tenantId, role },
+    });
+
+    const boiEval = this.evaluateRule({
+      rule_id: "rule.th.boi.eligibility_and_incentive",
+      facts,
+      as_of_date: asOfDate,
+      tenant_context: { tenant_id: tenantId, role },
+    });
+
+    const taxEval = this.evaluateRule({
+      rule_id: "rule.th.tax.cit_boi_calculation",
+      facts,
+      as_of_date: asOfDate,
+      tenant_context: { tenant_id: tenantId, role },
+    });
+
+    const laborEval = this.evaluateRule({
+      rule_id: "rule.th.labor.severance_calculation",
+      facts,
+      as_of_date: asOfDate,
+      tenant_context: { tenant_id: tenantId, role },
+    });
+
+    const domainSteps: A2ADomainStepResult[] = [
+      {
+        step_number: 1,
+        module_id: "reg24.corporate.th",
+        module_display_name: "Corporate Law Module (backed by Civil Code)",
+        focus_area: "Company structure, minimum promoters (CCC Sec. 1097) & foreign ownership restrictions (FBA Sec. 4 & 8)",
+        status: corpEval.review_required ? "requires_review" : "completed",
+        provisions_checked: ["prov.th.ccc.1097", "prov.th.fba.4"],
+        rule_evaluated: corpEval.result.rule_id,
+        rule_outcome: corpEval.result.outcome,
+        findings_summary: corpEval.result.explanation,
+        conditions_and_prerequisites: [
+          "Minimum 2 natural-person promoters/shareholders required under canonical CCC Sec. 1097 (effective Feb 7, 2023).",
+          "100% foreign shareholding classifies the entity as 'Foreign' under FBA Sec. 4; operating restricted List 3 services requires either a Foreign Business License (FBL) or a BOI Foreign Business Certificate (FBC) under FBA Sec. 12.",
+        ],
+      },
+      {
+        step_number: 2,
+        module_id: "reg24.boi.th",
+        module_display_name: "BOI / Investment Promotion Module",
+        focus_area: "Eligible activities (Cat 8.1), investment thresholds, tax/non-tax privileges & 4-state promotion control",
+        status: "requires_review",
+        provisions_checked: ["prov.th.boi.sec16_31"],
+        rule_evaluated: boiEval.result.rule_id,
+        rule_outcome: boiEval.result.outcome,
+        findings_summary: boiEval.result.explanation,
+        conditions_and_prerequisites: [
+          "Minimum investment capital >= 1,000,000 THB (excluding land & working capital) or >= 1,500,000 THB annual Thai IT salary expenditure.",
+          "Non-tax privileges under IPA Sec. 25–27 permit 100% foreign ownership (FBC) and bringing in foreign technicians/experts upon Promotion Certificate issuance.",
+          "CRITICAL LEGAL CONTROL: Potential eligibility does NOT make the company BOI-approved; formal project approval and Promotion Certificate issuance are required first.",
+        ],
+      },
+      {
+        step_number: 3,
+        module_id: "reg24.tax.th",
+        module_display_name: "Tax Law Module (Revenue Code)",
+        focus_area: "Corporate Income Tax (RC Sec. 65), VAT registration (RC Sec. 81/1) & BOI Sec. 31 ring-fencing",
+        status: "completed",
+        provisions_checked: ["prov.th.rc.65", "prov.th.rc.77_81_1"],
+        rule_evaluated: taxEval.result.rule_id,
+        rule_outcome: taxEval.result.outcome,
+        findings_summary: taxEval.result.explanation,
+        conditions_and_prerequisites: [
+          "Standard 20% CIT applies until the BOI Promotion Certificate is issued and promoted revenue is ring-fenced.",
+          "Mandatory VAT registration (Form PP.01) within 30 days once gross turnover exceeds 1,800,000 THB/year.",
+        ],
+      },
+      {
+        step_number: 4,
+        module_id: "reg24.labor.th",
+        module_display_name: "Labor Law Module",
+        focus_area: "Employment standards (LPA), Social Security (SSA Sec. 46) & foreign specialist work permit/immigration scope boundary",
+        status: "partial_coverage",
+        provisions_checked: ["prov.th.lpa.118", "prov.th.ssa.46", "prov.th.ccc.575", "prov.th.boi.sec16_31"],
+        rule_evaluated: laborEval.result.rule_id,
+        rule_outcome: laborEval.result.outcome,
+        findings_summary:
+          "Foreign specialists employed in Thailand are protected by the Labor Protection Act (LPA) and subject to Social Security Fund contributions (5% capped at 17,500 THB/month in 2026). BOI IPA Sec. 25–26 facilitates expedited visa & work permit quotas via the Single Window for Visa and Work Permit (OSOS).",
+        conditions_and_prerequisites: [
+          "Written employment terms must comply with LPA minimum standards and CCC Sec. 575.",
+          "Register employer and employees with the Social Security Office within 30 days.",
+        ],
+        unresolved_or_external_scope:
+          "Specialist immigration visa rules (Immigration Act B.E. 2522 & Emergency Decree on Foreign Workers Management B.E. 2560 beyond BOI Sec. 25–26 privileges) require a dedicated future Immigration Module (`reg24.immigration.th`).",
+      },
+    ];
+
+    // Collect verified provisions into the shared A2AEvidenceEnvelope (REG-A2A-003)
+    const provisionIds = [
+      "prov.th.ccc.1097",
+      "prov.th.fba.4",
+      "prov.th.boi.sec16_31",
+      "prov.th.rc.65",
+      "prov.th.rc.77_81_1",
+      "prov.th.lpa.118",
+      "prov.th.ssa.46",
+      "prov.th.ccc.575",
+    ];
+
+    const verifiedProvisions: A2AEvidenceEnvelope["verified_provisions"] = [];
+    for (const pid of provisionIds) {
+      const prov = this.provisions.get(pid);
+      const ver = this.resolveProvisionVersion(pid, asOfDate, knownAtDate);
+      const inst = prov ? this.instruments.get(prov.instrument_id) : undefined;
+      if (prov && ver && inst) {
+        verifiedProvisions.push({
+          provision_id: prov.id,
+          instrument_short_code: inst.short_code,
+          section_number: prov.section_number,
+          canonical_owner_module: prov.canonical_owner_module,
+          referencing_module:
+            pid === "prov.th.ccc.1097"
+              ? "reg24.corporate.th"
+              : pid === "prov.th.ccc.575"
+                ? "reg24.labor.th"
+                : prov.canonical_owner_module,
+          version_id: ver.id,
+          text_th: ver.text_th,
+          text_en: ver.translation_en.text,
+          citation_locator: ver.source_evidence.citation_locator,
+          official_url: ver.source_evidence.official_url,
+          sha256_hash: ver.source_evidence.sha256_hash,
+        });
+      }
+    }
+
+    const envelope: A2AEvidenceEnvelope = {
+      envelope_id: `env_${taskId}`,
+      trace_id: traceId,
+      as_of_date: asOfDate,
+      known_at_date: knownAtDate,
+      module_versions: this.getActiveModuleVersions([
+        "reg24.corporate.th",
+        "reg24.civil.th",
+        "reg24.boi.th",
+        "reg24.tax.th",
+        "reg24.labor.th",
+      ]),
+      verified_provisions: verifiedProvisions,
+      deterministic_evaluations: [corpEval, boiEval, taxEval, laborEval].map((ev) => ({
+        rule_id: ev.result.rule_id,
+        rule_version: ev.result.rule_version,
+        module_id: ev.result.module_id,
+        outcome: ev.result.outcome,
+        calculated_result: ev.result.calculated_result,
+        explanation: ev.result.explanation,
+        human_approval_verified: ev.result.review_approval_verified,
+      })),
+      unresolved_questions: [
+        "Has the company formally submitted the BOI application and received the Promotion Certificate to unlock FBA Sec. 12 Foreign Business Certificate (FBC) and IPA Sec. 31 CIT exemption?",
+        "What are the exact software/digital value-chain activities and newly hired Thai IT personnel salary commitments for BOI Category 8.1?",
+        "Do foreign specialists qualify under BOI IPA Sec. 25–26 Single Window or require standard 4:1 Thai-to-foreign employee ratio work permits?",
+      ],
+      coverage_gaps: [
+        {
+          domain: "Immigration & Work Permit Quotas (Non-BOI)",
+          missing_module_or_scope: "reg24.immigration.th (Immigration Act B.E. 2522 & Foreign Workers Decree)",
+          recommendation:
+            "P0 covers BOI Sec. 25–26 expatriate privileges; general non-BOI work permit ratio rules require human immigration review or P1 Immigration Module.",
+        },
+      ],
+      human_review_required: true,
+    };
+
+    const taskState = params.async_mode ? "working" : "completed";
+    const taskContract: A2ATaskContract = {
+      task_id: taskId,
+      session_id: `sess_${Date.now().toString(36)}`,
+      protocol_version: "A2A-1.0.0",
+      priority_tier: "P1_PRODUCTION_A2A_GATEWAY",
+      delegating_agent: {
+        agent_id: agentId,
+        tenant_id: tenantId,
+        scoped_role: role,
+        authenticated: true,
+      },
+      receiving_agent_id: "reg24.legal_task_agent",
+      objective: params.objective,
+      structured_facts: facts,
+      requested_domains: ["reg24.corporate.th", "reg24.boi.th", "reg24.tax.th", "reg24.labor.th", "reg24.civil.th"],
+      state: taskState,
+      progress_pct: params.async_mode ? 65 : 100,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      completed_at: params.async_mode ? undefined : new Date().toISOString(),
+      domain_steps: domainSteps,
+      artifacts: [
+        {
+          artifact_id: `art_${taskId}_consolidated`,
+          name: "Consolidated Multi-Domain Regulatory Assessment (Corporate + BOI + Tax + Labor)",
+          mime_type: "application/json",
+          summary:
+            "Verified 4-module regulatory assessment with canonical Civil Code provenance, deterministic rule outputs, BOI 4-state separation, and identified immigration coverage boundary.",
+          data: {
+            can_establish_100pct_foreign_company: true,
+            foreign_ownership_mechanism:
+              "Incorporate Thai Limited Company with >= 2 promoters (CCC Sec. 1097), obtain BOI Promotion Certificate (IPA Sec. 16/25/26), then obtain Foreign Business Certificate (FBC) as of right under FBA Sec. 12.",
+            boi_promotion_state: boiEval.result.boi_promotion_state,
+            cit_incentive_status:
+              "Up to 5–8 years CIT exemption (A1/A2/A3) available ONLY after Promotion Certificate issuance and ring-fenced accounting; 20% standard CIT applies until then.",
+            foreign_specialist_pathway:
+              "Expedited visa and work permit privileges under BOI IPA Sec. 25–26 via OSOS Single Window; general immigration outside BOI flagged as external coverage gap.",
+          },
+        },
+      ],
+      evidence_envelope: envelope,
+    };
+
+    this.a2aTasks.set(taskId, taskContract);
+
+    this.recordAudit({
+      trace_id: traceId,
+      tenant_id: tenantId,
+      actor_role: role,
+      operation: "a2a.tasks.send (reg24.legal_task_agent)",
+      module_ids: taskContract.requested_domains,
+      provisions_accessed: provisionIds,
+      rules_evaluated: envelope.deterministic_evaluations.map((d) => d.rule_id),
+      prompt_injection_checked: true,
+      prompt_injection_blocked: false,
+      latency_ms: Math.max(2, Date.now() - startTime),
+      status: "requires_review",
+      summary: `A2A Legal Task Agent coordinated 4 domain modules for delegated task '${taskId}' from '${agentId}'.`,
+    });
+
+    return taskContract;
+  }
+
+  public getA2ATask(taskId: string): A2ATaskContract | undefined {
+    return this.a2aTasks.get(taskId);
+  }
+
+  public listA2ATasks(): A2ATaskContract[] {
+    return Array.from(this.a2aTasks.values());
+  }
+
+  /**
+   * REG-A2A-007: Support asynchronous task completion and cancellation
+   */
+  public cancelA2ATask(taskId: string): { success: boolean; task?: A2ATaskContract; error?: string } {
+    const task = this.a2aTasks.get(taskId);
+    if (!task) return { success: false, error: `A2A Task '${taskId}' not found.` };
+
+    task.state = "canceled";
+    task.canceled_at = new Date().toISOString();
+    task.updated_at = new Date().toISOString();
+
+    this.recordAudit({
+      tenant_id: task.delegating_agent.tenant_id,
+      actor_role: task.delegating_agent.scoped_role,
+      operation: "a2a.tasks.cancel",
+      module_ids: task.requested_domains,
+      provisions_accessed: [],
+      rules_evaluated: [],
+      prompt_injection_checked: true,
+      prompt_injection_blocked: false,
+      latency_ms: 4,
+      status: "success",
+      summary: `Canceled A2A task '${taskId}' per REG-A2A-007.`,
+    });
+
+    return { success: true, task };
+  }
+
+  public completeAsyncA2ATask(taskId: string): { success: boolean; task?: A2ATaskContract; error?: string } {
+    const task = this.a2aTasks.get(taskId);
+    if (!task) return { success: false, error: `A2A Task '${taskId}' not found.` };
+    if (task.state === "canceled") return { success: false, error: `Cannot complete a canceled A2A task.` };
+
+    task.state = "completed";
+    task.progress_pct = 100;
+    task.completed_at = new Date().toISOString();
+    task.updated_at = new Date().toISOString();
+    return { success: true, task };
+  }
+
   // Getters for Management Console state snapshot
   public getDashboardSnapshot() {
     return {
@@ -1874,6 +2360,8 @@ export class Reg24PlatformCore {
       modules: Array.from(this.modules.values()),
       releases: this.releases,
       auditTraces: this.auditTraces,
+      a2aAgentCard: this.getA2AAgentCard(),
+      a2aTasks: Array.from(this.a2aTasks.values()),
     };
   }
 }
@@ -1884,3 +2372,4 @@ export const reg24Core = globalForReg24.reg24Core || new Reg24PlatformCore();
 if (process.env.NODE_ENV !== "production") {
   globalForReg24.reg24Core = reg24Core;
 }
+

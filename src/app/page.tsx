@@ -47,6 +47,8 @@ import type {
   AuditTraceEvent,
   UserRole,
   ModuleRelease,
+  A2AAgentCard,
+  A2ATaskContract,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -61,6 +63,8 @@ interface SnapshotData {
   regulatoryChanges: RegulatoryChange[];
   releases: ModuleRelease[];
   auditTraces: AuditTraceEvent[];
+  a2aAgentCard: A2AAgentCard;
+  a2aTasks: A2ATaskContract[];
 }
 
 type ScreenId =
@@ -72,6 +76,7 @@ type ScreenId =
   | "SCREEN_E_RULES"
   | "SCREEN_F_CHANGES"
   | "SCREEN_G_MCP"
+  | "SCREEN_I_A2A"
   | "SCREEN_H_AUDIT";
 
 const SCREEN_CONFIG: {
@@ -89,6 +94,7 @@ const SCREEN_CONFIG: {
   { id: "SCREEN_E_RULES", code: "SCR-E", label: "rule studio", labelTh: "กฎคำนวณอัตโนมัติ (Law-as-Code)", accent: "#6A00FF" },
   { id: "SCREEN_F_CHANGES", code: "SCR-F", label: "change intelligence", labelTh: "ตรวจจับการแก้ไขกฎหมาย", accent: "#D80073" },
   { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST", accent: "#00ABA9" },
+  { id: "SCREEN_I_A2A", code: "SCR-I", label: "a2a agent hub", labelTh: "การมอบหมายงานข้ามเอเจนต์ (A2A v1.0)", accent: "#E51400" },
   { id: "SCREEN_H_AUDIT", code: "SCR-H", label: "trace & audit", labelTh: "ตรวจสอบย้อนกลับ TRACE24", accent: "#647687" },
 ];
 
@@ -159,6 +165,15 @@ export default function Reg24MetroConsole() {
   const [mcpRuleId, setMcpRuleId] = useState<string>("rule.th.boi.eligibility_and_incentive");
   const [mcpResult, setMcpResult] = useState<Record<string, unknown> | null>(null);
   const [mcpLoading, setMcpLoading] = useState<boolean>(false);
+
+  // Screen I — A2A Legal Task Agent states (REG-A2A-001 to 009)
+  const [a2aObjective, setA2aObjective] = useState<string>(
+    "Can a foreign investor establish a company in Thailand, obtain BOI promotion, employ foreign specialists and receive corporate income tax incentives?"
+  );
+  const [a2aDelegatingAgent, setA2aDelegatingAgent] = useState<string>("agent.law24.orchestrator");
+  const [a2aAsyncMode, setA2aAsyncMode] = useState<boolean>(false);
+  const [selectedA2aTaskId, setSelectedA2aTaskId] = useState<string>("");
+  const [a2aLoading, setA2aLoading] = useState<boolean>(false);
 
   const showToast = useCallback((msg: string) => {
     setToastMessage(msg);
@@ -362,6 +377,49 @@ export default function Reg24MetroConsole() {
     setMcpResult(data.result?.structuredContent || data);
     setMcpLoading(false);
     fetchSnapshot();
+  };
+
+  const handleDelegateA2ATask = async () => {
+    setA2aLoading(true);
+    const res = await fetch("/api/a2a", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "delegate_task",
+        objective: a2aObjective,
+        delegating_agent_id: a2aDelegatingAgent,
+        tenant_id: activeTenant,
+        scoped_role: activeRole,
+        async_mode: a2aAsyncMode,
+      }),
+    });
+    const data = await res.json();
+    if (data.snapshot) {
+      setSnapshot(data.snapshot);
+      if (data.task?.task_id) {
+        setSelectedA2aTaskId(data.task.task_id);
+      }
+      showToast(
+        `A2A Task '${data.task?.task_id}' delegated to REG24 Legal Task Agent (${data.task?.state}).`
+      );
+    }
+    setA2aLoading(false);
+  };
+
+  const handleA2ATaskLifecycle = async (
+    action: "cancel_task" | "complete_async_task",
+    taskId: string
+  ) => {
+    const res = await fetch("/api/a2a", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, task_id: taskId }),
+    });
+    const data = await res.json();
+    if (data.snapshot) {
+      setSnapshot(data.snapshot);
+      showToast(`A2A Task '${taskId}' updated -> ${data.task?.state}`);
+    }
   };
 
   if (!snapshot) {
@@ -775,12 +833,100 @@ export default function Reg24MetroConsole() {
                       <h3 className="text-base font-light lowercase mt-1">change radar</h3>
                     </div>
                   </div>
+
+                  {/* Tile: A2A Protocol v1.0 Legal Task Agent (Screen I) */}
+                  <div
+                    onClick={() => setActiveScreen("SCREEN_I_A2A")}
+                    className="metro-tile col-span-2 bg-[#E51400] p-4 flex flex-col justify-between cursor-pointer text-white"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-6 h-6" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
+                          SCREEN I &bull; REG-A2A-001 TO 009 &bull; A2A v1.0
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold uppercase bg-white text-[#E51400] px-2 py-0.5">
+                        {snapshot.a2aTasks?.length || 1} DELEGATED TASKS
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/90 mb-1">
+                        Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 6 domain
+                        modules. Serves LAW24, CFO24, VIBE24 &amp; External AI Agents via A2A v1.0.
+                      </p>
+                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                        agent-to-agent (a2a) legal task hub
+                      </h3>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* ARCHITECTURAL PILLARS BAR (3 NON-NEGOTIABLE DECISIONS) */}
+            {/* THREE COMPLEMENTARY INFRASTRUCTURE PRODUCTS (SECTION 5 COMMERCIAL STRATEGY) */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+              <div
+                onClick={() => setActiveScreen("SCREEN_C_SOURCES")}
+                className="metro-tile bg-[#121216] border-t-4 border-[#A20025] p-4 border-x border-b border-[#262630] cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A20025]">
+                    PRODUCT TIER 01 &bull; P0 MANDATORY
+                  </span>
+                  <Database className="w-4 h-4 text-[#A20025]" />
+                </div>
+                <h3 className="text-lg font-light lowercase text-white mb-1">
+                  reg24 data infrastructure
+                </h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Canonical regulatory knowledge (`reg24.civil.th` shared foundation), historical versions,
+                  cross-module knowledge graph, and machine-readable obligations with SHA-256 provenance.
+                </p>
+              </div>
+
+              <div
+                onClick={() => setActiveScreen("SCREEN_G_MCP")}
+                className="metro-tile bg-[#121216] border-t-4 border-[#0050EF] p-4 border-x border-b border-[#262630] cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#1BA1E2]">
+                    PRODUCT TIER 02 &bull; AGENT-TO-TOOL (MCP)
+                  </span>
+                  <Terminal className="w-4 h-4 text-[#1BA1E2]" />
+                </div>
+                <h3 className="text-lg font-light lowercase text-white mb-1">
+                  reg24 mcp infrastructure
+                </h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  Any supported AI agent can retrieve statutory provisions, verify citations, and execute
+                  human-approved deterministic rules through the 12 `reg24.*` MCP tools.
+                </p>
+              </div>
+
+              <div
+                onClick={() => setActiveScreen("SCREEN_I_A2A")}
+                className="metro-tile bg-[#121216] border-t-4 border-[#E51400] p-4 border-x border-b border-[#262630] cursor-pointer"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E51400]">
+                    PRODUCT TIER 03 &bull; AGENT-TO-AGENT (A2A)
+                  </span>
+                  <Layers className="w-4 h-4 text-[#E51400]" />
+                </div>
+                <h3 className="text-lg font-light lowercase text-white mb-1">
+                  reg24 a2a infrastructure
+                </h3>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  LAW24, CFO24, VIBE24, and third-party AI systems delegate multi-domain regulatory tasks to
+                  the <strong>REG24 Legal Task Agent</strong> and receive consolidated, traceable evidence
+                  envelopes.
+                </p>
+              </div>
+            </div>
+
+            {/* ARCHITECTURAL PILLARS BAR (3 NON-NEGOTIABLE DECISIONS) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-[#121216] border-l-4 border-[#A20025] p-4 border-y border-r border-[#262630]">
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A20025] mb-1">
                   DECISION 01 &bull; REG-CORE-003
@@ -1956,6 +2102,328 @@ export default function Reg24MetroConsole() {
                     ? JSON.stringify(mcpResult, null, 2)
                     : "// Click 'INVOKE UNIFIED MCP GATEWAY' or select a verification scenario on the left to inspect the structured REG24 response."}
                 </pre>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================================
+            SCREEN I — AGENT-TO-AGENT (A2A v1.0) LEGAL TASK AGENT HUB (REG-A2A-001 TO 009)
+            ===================================================================== */}
+        {activeScreen === "SCREEN_I_A2A" && (
+          <div className="space-y-6">
+            <div className="border-b border-[#262630] pb-4 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#E51400]">
+                  CONSOLE SCREEN I &bull; A2A PROTOCOL v1.0 &bull; REG-A2A-001 TO REG-A2A-009
+                </span>
+                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                  reg24 legal task agent &amp; multi-domain delegation hub
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href="/.well-known/agent.json"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-[#1b1b24] hover:bg-[#252532] border border-[#2d2d3a] px-3.5 py-2 text-xs font-mono text-[#1BA1E2] flex items-center gap-1.5"
+                >
+                  <FileCheck2 className="w-4 h-4" />
+                  <span>AGENT CARD (/.well-known/agent.json)</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href="/api/a2a"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-[#E51400] hover:bg-[#c41100] text-white px-3.5 py-2 text-xs font-mono uppercase flex items-center gap-1.5"
+                >
+                  <Code2 className="w-4 h-4" />
+                  <span>A2A GATEWAY (/api/a2a)</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* MCP vs A2A Architectural Distinction Banner */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-[#121216] border border-[#262630] p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#1BA1E2] mb-1">
+                  COMPLEMENTARY STANDARDS
+                </div>
+                <h3 className="text-sm font-semibold text-white mb-1">
+                  MCP (Agent-to-Tool) vs. A2A (Agent-to-Agent)
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  <strong>MCP (P0 Mandatory)</strong> provides direct statutory lookup and rule execution.{" "}
+                  <strong>A2A (P0-Ready / P1 Gateway)</strong> lets LAW24, CFO24, VIBE24, and external AI
+                  agents delegate multi-domain legal investigations and receive consolidated evidence
+                  artifacts.
+                </p>
+              </div>
+
+              <div className="bg-[#121216] border border-[#262630] p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-[#E51400] mb-1">
+                  CRITICAL ARCHITECTURE RULE
+                </div>
+                <h3 className="text-sm font-semibold text-white mb-1">
+                  One Coordinating Agent Backed by 6 Domain Modules
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  The 6 legal modules (`corporate`, `contract`, `civil`, `tax`, `labor`, `boi`) remain domain
+                  modules—not 6 separate agents. `reg24.legal_task_agent` orchestrates them on the shared
+                  REG24 Core to avoid latency and cost bloat.
+                </p>
+              </div>
+
+              <div className="bg-[#121216] border border-[#262630] p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400 mb-1">
+                  REG-A2A-001 TO 009 ROADMAP
+                </div>
+                <h3 className="text-sm font-semibold text-white mb-1">
+                  Durable Task IDs &amp; Shared Evidence Envelope
+                </h3>
+                <p className="text-xs text-zinc-400">
+                  Every delegated A2A task carries a durable `task_id`, lifecycle state (`submitted`,
+                  `working`, `completed`, `canceled`), and a shared `A2AEvidenceEnvelope` with SHA-256
+                  statutory citations and deterministic rule proofs.
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left Column: Task Delegation Form & Agent Card (5 cols) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#E51400]">
+                      DELEGATE MULTI-DOMAIN TASK TO REG24 LEGAL TASK AGENT
+                    </span>
+                    <span className="text-[10px] font-mono bg-[#E51400]/20 text-rose-300 border border-[#E51400] px-2 py-0.5">
+                      A2A-1.0.0
+                    </span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                      DELEGATING CLIENT AGENT (REG-A2A-004 SCOPED IDENTITY)
+                    </label>
+                    <select
+                      value={a2aDelegatingAgent}
+                      onChange={(e) => setA2aDelegatingAgent(e.target.value)}
+                      className="w-full bg-[#0c0c10] border border-[#2d2d3a] px-3 py-2 text-xs font-mono text-white"
+                    >
+                      <option value="agent.law24.orchestrator">LAW24 Legal Research Orchestrator Agent</option>
+                      <option value="agent.cfo24.tax_planner">CFO24 Corporate &amp; Tax Compliance Agent</option>
+                      <option value="agent.vibe24.enterprise">VIBE24 Enterprise Workflow Agent</option>
+                      <option value="agent.external.counsel">Approved 3rd-Party External AI Agent (P2)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                      MULTI-DOMAIN LEGAL TASK OBJECTIVE
+                    </label>
+                    <textarea
+                      rows={4}
+                      value={a2aObjective}
+                      onChange={(e) => setA2aObjective(e.target.value)}
+                      className="w-full bg-[#0c0c10] border border-[#2d2d3a] p-3 text-xs text-white"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between bg-[#0c0c10] border border-[#24242f] p-3 text-xs">
+                    <span>Run in Asynchronous Mode (`state: working` for progress/cancellation test)</span>
+                    <input
+                      type="checkbox"
+                      checked={a2aAsyncMode}
+                      onChange={(e) => setA2aAsyncMode(e.target.checked)}
+                      className="w-4 h-4 accent-[#E51400]"
+                    />
+                  </div>
+
+                  <button
+                    onClick={handleDelegateA2ATask}
+                    disabled={a2aLoading}
+                    className="w-full bg-[#E51400] hover:bg-[#c41100] text-white py-3 text-xs font-bold uppercase tracking-[0.2em] flex items-center justify-center gap-2 cursor-pointer"
+                  >
+                    <Play className="w-4 h-4" />
+                    <span>
+                      {a2aLoading
+                        ? "COORDINATING DOMAIN MODULES..."
+                        : "DELEGATE TASK VIA A2A PROTOCOL (tasks/send)"}
+                    </span>
+                  </button>
+                </div>
+
+                {/* Durable Task Ledger */}
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-300">
+                    DURABLE A2A TASK LEDGER (REG-A2A-002 &amp; REG-A2A-007)
+                  </div>
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {(snapshot.a2aTasks || []).map((t) => {
+                      const isSel =
+                        (selectedA2aTaskId || snapshot.a2aTasks[0]?.task_id) === t.task_id;
+                      return (
+                        <div
+                          key={t.task_id}
+                          onClick={() => setSelectedA2aTaskId(t.task_id)}
+                          className={`p-3 border cursor-pointer ${
+                            isSel
+                              ? "bg-[#1a1a26] border-[#E51400]"
+                              : "bg-[#0c0c10] border-[#262630]"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between text-[10px] font-mono mb-1">
+                            <span className="text-[#1BA1E2]">{t.task_id}</span>
+                            <span
+                              className={`px-2 py-0.5 uppercase font-bold ${
+                                t.state === "completed"
+                                  ? "bg-emerald-950 text-emerald-300 border border-emerald-700"
+                                  : t.state === "working"
+                                    ? "bg-amber-950 text-amber-300 border border-amber-600"
+                                    : "bg-rose-950 text-rose-300 border border-rose-700"
+                              }`}
+                            >
+                              {t.state} ({t.progress_pct}%)
+                            </span>
+                          </div>
+                          <div className="text-xs text-white line-clamp-2">{t.objective}</div>
+                          <div className="text-[10px] text-zinc-400 mt-1 flex items-center justify-between">
+                            <span>FROM: {t.delegating_agent.agent_id}</span>
+                            {t.state === "working" && (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleA2ATaskLifecycle("complete_async_task", t.task_id);
+                                  }}
+                                  className="bg-emerald-800 text-white px-2 py-0.5 text-[9px] uppercase"
+                                >
+                                  COMPLETE
+                                </button>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleA2ATaskLifecycle("cancel_task", t.task_id);
+                                  }}
+                                  className="bg-rose-800 text-white px-2 py-0.5 text-[9px] uppercase"
+                                >
+                                  CANCEL
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Coordinated 4-Module Assessment & Shared Evidence Envelope (7 cols) */}
+              <div className="lg:col-span-7 space-y-4">
+                {(() => {
+                  const activeTask =
+                    snapshot.a2aTasks?.find((t) => t.task_id === selectedA2aTaskId) ||
+                    snapshot.a2aTasks?.[0];
+
+                  if (!activeTask) return null;
+
+                  return (
+                    <div className="bg-[#121216] border border-[#262630] p-5 space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#262630] pb-3">
+                        <div>
+                          <span className="text-[10px] font-mono uppercase text-[#E51400]">
+                            COORDINATED BY: {activeTask.receiving_agent_id} &bull; TASK:{" "}
+                            {activeTask.task_id}
+                          </span>
+                          <h3 className="text-lg font-semibold text-white mt-0.5">
+                            {activeTask.objective}
+                          </h3>
+                        </div>
+                        <span className="text-xs font-mono bg-[#0050EF] text-white px-2.5 py-1">
+                          ENVELOPE: {activeTask.evidence_envelope.envelope_id}
+                        </span>
+                      </div>
+
+                      {/* 4-Domain Step Breakdown (Corporate -> BOI -> Tax -> Labor) */}
+                      <div className="space-y-3">
+                        <div className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400">
+                          MULTI-DOMAIN REGULATORY ASSESSMENT STEPS (4 MODULES + CANONICAL CIVIL CODE)
+                        </div>
+                        {activeTask.domain_steps.map((step) => (
+                          <div
+                            key={step.step_number}
+                            className="bg-[#0c0c10] border-l-4 border-[#0050EF] p-3.5 border-y border-r border-[#24242f] space-y-2"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="bg-[#0050EF] text-white text-[10px] font-bold px-2 py-0.5">
+                                  STEP {step.step_number}
+                                </span>
+                                <span className="text-xs font-bold text-white">
+                                  {step.module_display_name} ({step.module_id})
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-mono uppercase bg-[#181822] border border-[#2d2d3c] px-2 py-0.5 text-[#1BA1E2]">
+                                RULE OUTCOME: {step.rule_outcome || step.status}
+                              </span>
+                            </div>
+
+                            <div className="text-[11px] text-zinc-400 font-medium">
+                              Focus: {step.focus_area}
+                            </div>
+                            <p className="text-xs text-zinc-200 leading-relaxed">
+                              {step.findings_summary}
+                            </p>
+
+                            <div className="flex flex-wrap gap-1.5 pt-1">
+                              {step.provisions_checked.map((pid) => (
+                                <span
+                                  key={pid}
+                                  className="text-[10px] font-mono bg-[#161620] border border-[#2d2d3c] px-2 py-0.5 text-emerald-300"
+                                >
+                                  {pid}
+                                </span>
+                              ))}
+                            </div>
+
+                            {step.unresolved_or_external_scope && (
+                              <div className="bg-amber-950/30 border border-amber-700/50 p-2 text-[11px] text-amber-200">
+                                <strong>External Module Boundary Note:</strong>{" "}
+                                {step.unresolved_or_external_scope}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Unresolved Questions & Required Legal Review */}
+                      <div className="bg-rose-950/25 border border-rose-700/50 p-4 space-y-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300">
+                          UNRESOLVED QUESTIONS &amp; REQUIRED HUMAN LEGAL REVIEW (REG-A2A-003):
+                        </div>
+                        <ul className="text-xs text-zinc-200 space-y-1">
+                          {activeTask.evidence_envelope.unresolved_questions.map((q, idx) => (
+                            <li key={idx}>&bull; {q}</li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Raw Shared Evidence & Citation Envelope JSON */}
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                          SHARED A2A EVIDENCE &amp; CITATION ENVELOPE (REG-A2A-003 JSON ARTIFACT)
+                        </div>
+                        <pre className="bg-[#08080a] border border-[#22222c] p-3.5 text-xs font-mono text-emerald-300 overflow-auto max-h-72">
+                          {JSON.stringify(activeTask.evidence_envelope, null, 2)}
+                        </pre>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

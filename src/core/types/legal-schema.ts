@@ -395,3 +395,147 @@ export interface AuditTraceEvent {
   status: "success" | "blocked" | "requires_review" | "error";
   summary: string;
 }
+
+// ============================================================================
+// AGENT-TO-AGENT (A2A) PROTOCOL v1.0 INFRASTRUCTURE (REG-A2A-001 TO REG-A2A-009)
+// ============================================================================
+
+export type A2ATaskLifecycleState =
+  | "submitted"
+  | "working"
+  | "input_required"
+  | "completed"
+  | "canceled"
+  | "failed";
+
+export type A2APriorityTier = "P0_A2A_READY_FOUNDATION" | "P1_PRODUCTION_A2A_GATEWAY" | "P2_MULTI_AGENT_FEDERATION";
+
+/**
+ * REG-A2A-003: Standard Evidence & Citation Envelope shared across all modules, MCP tools, and A2A tasks
+ */
+export interface A2AEvidenceEnvelope {
+  envelope_id: string;
+  trace_id: string;
+  as_of_date: string;
+  known_at_date: string;
+  module_versions: Record<string, string>;
+  verified_provisions: {
+    provision_id: string;
+    instrument_short_code: string;
+    section_number: string;
+    canonical_owner_module: string;
+    referencing_module: string;
+    version_id: string;
+    text_th: string;
+    text_en: string;
+    citation_locator: string;
+    official_url: string;
+    sha256_hash: string;
+  }[];
+  deterministic_evaluations: {
+    rule_id: string;
+    rule_version: string;
+    module_id: string;
+    outcome: ApplicabilityOutcome;
+    calculated_result: Record<string, unknown>;
+    explanation: string;
+    human_approval_verified: boolean;
+  }[];
+  unresolved_questions: string[];
+  coverage_gaps: {
+    domain: string;
+    missing_module_or_scope: string;
+    recommendation: string;
+  }[];
+  human_review_required: boolean;
+}
+
+export interface A2ADomainStepResult {
+  step_number: number;
+  module_id: string;
+  module_display_name: string;
+  focus_area: string;
+  status: "completed" | "partial_coverage" | "requires_review";
+  provisions_checked: string[];
+  rule_evaluated?: string;
+  rule_outcome?: ApplicabilityOutcome;
+  findings_summary: string;
+  conditions_and_prerequisites: string[];
+  unresolved_or_external_scope?: string;
+}
+
+/**
+ * REG-A2A-001 & REG-A2A-002: Durable A2A Task Contract & Lifecycle State
+ */
+export interface A2ATaskContract {
+  task_id: string; // Durable task ID (REG-A2A-002)
+  session_id: string;
+  protocol_version: "A2A-1.0.0";
+  priority_tier: A2APriorityTier;
+  delegating_agent: {
+    agent_id: string; // e.g., "agent.law24.orchestrator", "agent.cfo24.tax", "agent.vibe24.workflow", "agent.external.counsel"
+    tenant_id: string;
+    scoped_role: UserRole;
+    authenticated: boolean;
+  };
+  receiving_agent_id: "reg24.legal_task_agent"; // Single coordinating Legal Task Agent backed by the 6 domain modules
+  objective: string;
+  structured_facts: Record<string, unknown>;
+  requested_domains: string[];
+  state: A2ATaskLifecycleState;
+  progress_pct: number;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+  canceled_at?: string;
+  domain_steps: A2ADomainStepResult[];
+  artifacts: {
+    artifact_id: string;
+    name: string;
+    mime_type: "application/json" | "text/markdown";
+    summary: string;
+    data: Record<string, unknown>;
+  }[];
+  evidence_envelope: A2AEvidenceEnvelope;
+}
+
+/**
+ * REG-A2A-005: Official A2A v1.0 Agent Card (/.well-known/agent.json)
+ */
+export interface A2AAgentCard {
+  name: string;
+  id: string;
+  description: string;
+  version: string;
+  protocol_version: "1.0.0";
+  url: string;
+  documentation_url: string;
+  provider: {
+    organization: string;
+    jurisdiction: string;
+    architecture_principle: string;
+  };
+  capabilities: {
+    streaming: boolean;
+    pushNotifications: boolean;
+    stateTransitionHistory: boolean;
+    asynchronousTasks: boolean;
+    taskCancellation: boolean;
+  };
+  authentication: {
+    schemes: string[];
+    tenantIsolation: boolean;
+    scopedPermissions: string[];
+  };
+  defaultInputModes: string[];
+  defaultOutputModes: string[];
+  backed_by_domain_modules: string[]; // The 6 modules remain domain modules, NOT 6 separate agents
+  skills: {
+    id: string;
+    name: string;
+    description: string;
+    tags: string[];
+    examples: string[];
+  }[];
+}
+

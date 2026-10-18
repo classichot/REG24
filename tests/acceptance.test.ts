@@ -148,4 +148,47 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     expect(sim.impactedModules).toContain("reg24.corporate.th");
     expect(sim.impactedRules).toContain("rule.th.corporate.incorporation_check");
   });
+
+  it("REG-A2A-001 to 008: Exposes single coordinating Legal Task Agent backed by 6 domain modules, produces shared A2AEvidenceEnvelope, and supports async task cancellation", () => {
+    // 1. Agent Card discovery (REG-A2A-005): Single coordinating agent backed by the 6 domain modules
+    const card = core.getA2AAgentCard();
+    expect(card.id).toBe("reg24.legal_task_agent");
+    expect(card.protocol_version).toBe("1.0.0");
+    expect(card.backed_by_domain_modules.length).toBe(6);
+
+    // 2. Multi-domain BOI foreign establishment delegation (REG-A2A-001, 002, 003, 006)
+    const task = core.delegateA2ATask({
+      objective:
+        "Can a foreign investor establish a company in Thailand, obtain BOI promotion, employ foreign specialists and receive corporate income tax incentives?",
+      delegating_agent_id: "agent.law24.orchestrator",
+      tenant_id: "tenant.law24.prod",
+      scoped_role: "Legal Reviewer",
+    });
+
+    expect(task.state).toBe("completed");
+    expect(task.domain_steps.length).toBe(4);
+    expect(task.domain_steps.map((s) => s.module_id)).toEqual([
+      "reg24.corporate.th",
+      "reg24.boi.th",
+      "reg24.tax.th",
+      "reg24.labor.th",
+    ]);
+    expect(task.evidence_envelope.verified_provisions.length).toBeGreaterThanOrEqual(6);
+    expect(task.evidence_envelope.deterministic_evaluations.length).toBe(4);
+    expect(task.evidence_envelope.coverage_gaps[0].missing_module_or_scope).toContain(
+      "reg24.immigration.th"
+    );
+
+    // 3. Asynchronous task & cancellation support (REG-A2A-007)
+    const asyncTask = core.delegateA2ATask({
+      objective: "Async multi-domain investigation",
+      async_mode: true,
+    });
+    expect(asyncTask.state).toBe("working");
+
+    const cancelRes = core.cancelA2ATask(asyncTask.task_id);
+    expect(cancelRes.success).toBe(true);
+    expect(cancelRes.task?.state).toBe("canceled");
+  });
 });
+
