@@ -32,6 +32,12 @@ export type GraphRelationshipType =
   | "AMENDS"
   | "REPEALS"
   | "SUPERSEDES"
+  | "IMPLEMENTS"
+  | "REFERS_TO"
+  | "TRIGGERS"
+  | "REQUIRES_APPROVAL"
+  | "REQUIRES_DISCLOSURE"
+  | "DEPENDS_ON"
   | "DERIVES_AUTHORITY_FROM"
   | "ISSUED_BY"
   | "APPLIES_TO"
@@ -44,6 +50,14 @@ export type GraphRelationshipType =
   | "CONDITIONAL_ON"
   | "SUPPORTED_BY"
   | "CONFLICTS_WITH";
+
+export type RegulatoryBindingStatus =
+  | "binding_enacted"
+  | "consultation_draft_non_binding"
+  | "repealed"
+  | "superseded";
+
+export type AgenticExecutionMode = "single_agent" | "agent_team" | "agent_swarm";
 
 export type UserRole =
   | "Platform Administrator"
@@ -70,7 +84,7 @@ export interface Jurisdiction {
 
 export interface Regulator {
   id: string;
-  code: string; // e.g., "DBD", "RD", "MOL", "BOI", "OCS"
+  code: string; // e.g., "DBD", "RD", "MOL", "BOI", "OCS", "SEC", "SET", "LED"
   name_th: string;
   name_en: string;
   official_url: string;
@@ -90,6 +104,7 @@ export interface SourceDocument {
   immutable_locked: boolean; // REG-SEC-002
   mime_type: string;
   status: "verified" | "parsing_failed" | "pending_verification";
+  regulatory_binding_status?: RegulatoryBindingStatus; // CORE-03: Separate consultation/draft papers from binding law
 }
 
 export interface SourceEvidence {
@@ -637,4 +652,78 @@ export interface ThreeRGraphRAGResponse {
     uncertainty_flags: string[];
     verified_legal_response_summary: string;
   };
+}
+
+// ============================================================================
+// CAPITAL MARKETS, CORPORATE RESTRUCTURING & INSOLVENCY EXPANSION (v1.0 OCT 2026)
+// REG-SEC (reg24.sec.th) • REG-SET (reg24.set.th) • REG-RESTRUCT (reg24.restruct.th) • REG-INSOLV (reg24.insolv.th)
+// ============================================================================
+
+export interface NonBindingConsultationItem {
+  id: string;
+  regulator_code: string;
+  module_id: string;
+  title_th: string;
+  title_en: string;
+  published_date: string;
+  regulatory_binding_status: "consultation_draft_non_binding";
+  summary_en: string;
+  official_url: string;
+  enforcement_block_reason: string;
+}
+
+export interface CrossModuleRestructuringMissionResult {
+  mission_id: string;
+  trace_id: string;
+  execution_mode: AgenticExecutionMode;
+  scenario_question: string;
+  transaction_date: string;
+  set_mt_rpt_regime_applied: "PRE_JULY_2026_REGIME" | "REVISED_1_JULY_2026_REGIME";
+  activated_modules: {
+    module_id: string;
+    module_code: string;
+    display_name: string;
+    regulator_code: string;
+    question_answered: string;
+    provisions_cited: string[];
+    deterministic_rule_id: string;
+    rule_outcome: ApplicabilityOutcome;
+    calculated_metrics: Record<string, unknown>;
+    legal_findings: string;
+  }[];
+  alternative_structures: {
+    structure_id: string;
+    name: string;
+    feasibility: "HIGH_FEASIBILITY_RECOMMENDED" | "CONDITIONAL_HIGH_EXECUTION_RISK" | "PROHIBITED_OR_INFEASIBLE";
+    governing_laws: string[];
+    required_approvals: string[];
+    tax_implications: string;
+    estimated_duration: string;
+    shareholder_dilution_impact: string;
+    creditor_impact: string;
+    set_listing_preservation: string;
+  }[];
+  dependency_workflow: {
+    step_order: number;
+    phase: string;
+    responsible_party: string;
+    regulator_or_forum: string;
+    trigger_event: string;
+    deadline_calculation: string;
+    governing_provision: string;
+    depends_on_steps: number[];
+    autonomous_submission_blocked: boolean;
+  }[];
+  draft_advisory_documents: {
+    doc_id: string;
+    doc_type: "SETLink_Disclosure_Draft" | "Board_Resolution_Draft" | "Rehabilitation_Plan_Term_Sheet" | "SEC_Exempt_Offering_Checklist";
+    title: string;
+    target_regulator: string;
+    cited_provisions: string[];
+    draft_excerpt: string;
+    human_approval_required: true;
+    autonomous_submission_permitted: false;
+  }[];
+  quarantined_non_binding_consultations: NonBindingConsultationItem[];
+  risk_register_and_escalations: string[];
 }

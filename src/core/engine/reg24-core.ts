@@ -31,6 +31,9 @@ import {
   CourtDecision,
   GraphRAGHopNode,
   ThreeRGraphRAGResponse,
+  AgenticExecutionMode,
+  NonBindingConsultationItem,
+  CrossModuleRestructuringMissionResult,
 } from "../types/legal-schema";
 
 import {
@@ -49,6 +52,22 @@ import {
   SEED_REGULATORY_CHANGES,
   SEED_MODULE_MANIFESTS,
 } from "../data/seed-corpus";
+
+import {
+  EXPANSION_REGULATORS,
+  EXPANSION_SOURCE_DOCUMENTS,
+  EXPANSION_INSTRUMENTS,
+  EXPANSION_PROVISIONS,
+  EXPANSION_PROVISION_VERSIONS,
+  EXPANSION_MODULE_REFERENCES,
+  EXPANSION_CONCEPTS,
+  EXPANSION_OBLIGATIONS,
+  EXPANSION_RULES,
+  EXPANSION_GRAPH_EDGES,
+  EXPANSION_REGULATORY_CHANGES,
+  EXPANSION_MODULE_MANIFESTS,
+  SEED_NON_BINDING_CONSULTATIONS,
+} from "../data/expansion-seed-corpus";
 
 export interface MCPCommonInput {
   jurisdiction?: string;
@@ -126,6 +145,7 @@ export class Reg24PlatformCore {
   private courtDecisions: Map<string, CourtDecision> = new Map();
   private regulatoryChanges: Map<string, RegulatoryChange> = new Map();
   private modules: Map<string, ModuleManifest> = new Map();
+  private nonBindingConsultations: NonBindingConsultationItem[] = [];
   private releases: ModuleRelease[] = [];
   private auditTraces: AuditTraceEvent[] = [];
   private a2aTasks: Map<string, A2ATaskContract> = new Map();
@@ -149,24 +169,26 @@ export class Reg24PlatformCore {
     this.courtDecisions.clear();
     this.regulatoryChanges.clear();
     this.modules.clear();
+    this.nonBindingConsultations = [];
     this.releases = [];
     this.auditTraces = [];
     this.a2aTasks.clear();
 
     SEED_JURISDICTIONS.forEach((j) => this.jurisdictions.set(j.id, { ...j }));
-    SEED_REGULATORS.forEach((r) => this.regulators.set(r.id, { ...r }));
-    SEED_SOURCE_DOCUMENTS.forEach((s) => this.sourceDocuments.set(s.id, { ...s }));
-    SEED_INSTRUMENTS.forEach((i) => this.instruments.set(i.id, { ...i }));
-    SEED_PROVISIONS.forEach((p) => this.provisions.set(p.id, { ...p, version_ids: [...p.version_ids], concept_ids: [...p.concept_ids], executable_rule_ids: [...p.executable_rule_ids] }));
-    SEED_PROVISION_VERSIONS.forEach((v) => this.provisionVersions.set(v.id, { ...v, translation_en: { ...v.translation_en }, source_evidence: { ...v.source_evidence } }));
-    SEED_MODULE_REFERENCES.forEach((m) => this.moduleReferences.set(m.id, { ...m }));
-    SEED_CONCEPTS.forEach((c) => this.concepts.set(c.id, { ...c }));
-    SEED_OBLIGATIONS.forEach((o) => this.obligations.set(o.id, { ...o }));
-    SEED_RULES.forEach((r) => this.rules.set(r.id, JSON.parse(JSON.stringify(r))));
-    SEED_GRAPH_EDGES.forEach((e) => this.graphEdges.set(e.id, { ...e }));
+    [...SEED_REGULATORS, ...EXPANSION_REGULATORS].forEach((r) => this.regulators.set(r.id, { ...r }));
+    [...SEED_SOURCE_DOCUMENTS, ...EXPANSION_SOURCE_DOCUMENTS].forEach((s) => this.sourceDocuments.set(s.id, { ...s }));
+    [...SEED_INSTRUMENTS, ...EXPANSION_INSTRUMENTS].forEach((i) => this.instruments.set(i.id, { ...i }));
+    [...SEED_PROVISIONS, ...EXPANSION_PROVISIONS].forEach((p) => this.provisions.set(p.id, { ...p, version_ids: [...p.version_ids], concept_ids: [...p.concept_ids], executable_rule_ids: [...p.executable_rule_ids] }));
+    [...SEED_PROVISION_VERSIONS, ...EXPANSION_PROVISION_VERSIONS].forEach((v) => this.provisionVersions.set(v.id, { ...v, translation_en: { ...v.translation_en }, source_evidence: { ...v.source_evidence } }));
+    [...SEED_MODULE_REFERENCES, ...EXPANSION_MODULE_REFERENCES].forEach((m) => this.moduleReferences.set(m.id, { ...m }));
+    [...SEED_CONCEPTS, ...EXPANSION_CONCEPTS].forEach((c) => this.concepts.set(c.id, { ...c }));
+    [...SEED_OBLIGATIONS, ...EXPANSION_OBLIGATIONS].forEach((o) => this.obligations.set(o.id, { ...o }));
+    [...SEED_RULES, ...EXPANSION_RULES].forEach((r) => this.rules.set(r.id, JSON.parse(JSON.stringify(r))));
+    [...SEED_GRAPH_EDGES, ...EXPANSION_GRAPH_EDGES].forEach((e) => this.graphEdges.set(e.id, { ...e }));
     SEED_COURT_DECISIONS.forEach((cd) => this.courtDecisions.set(cd.id, { ...cd, interpreted_provision_ids: [...cd.interpreted_provision_ids] }));
-    SEED_REGULATORY_CHANGES.forEach((c) => this.regulatoryChanges.set(c.id, JSON.parse(JSON.stringify(c))));
-    SEED_MODULE_MANIFESTS.forEach((m) => {
+    [...SEED_REGULATORY_CHANGES, ...EXPANSION_REGULATORY_CHANGES].forEach((c) => this.regulatoryChanges.set(c.id, JSON.parse(JSON.stringify(c))));
+    this.nonBindingConsultations = SEED_NON_BINDING_CONSULTATIONS.map((c) => ({ ...c }));
+    [...SEED_MODULE_MANIFESTS, ...EXPANSION_MODULE_MANIFESTS].forEach((m) => {
       this.modules.set(m.module_id, JSON.parse(JSON.stringify(m)));
       this.releases.push({
         release_id: `rel.${m.module_id}.${m.version}`,
@@ -1363,6 +1385,163 @@ export class Reg24PlatformCore {
           ? "Promotion Certificate verified; project may exercise granted incentives subject to e-Monitoring compliance."
           : "WARNING: Project is NOT yet holds an active Promotion Certificate; statutory incentives are potential only and cannot be claimed on PND.50 until certificate issuance."
       }`;
+    } else if (rule.id === "rule.th.sec.tender_offer_and_control") {
+      const prePct = Number(facts.existing_voting_pct || 0);
+      const postPct = Number(facts.post_transaction_voting_pct || 0);
+      const viaRehab = Boolean(facts.acquired_via_court_rehab_plan);
+      const whitewash = Boolean(facts.whitewash_75pct_shareholder_approved);
+
+      const preBlock = Math.floor(prePct / 5);
+      const postBlock = Math.floor(postPct / 5);
+      const form246Required = preBlock !== postBlock;
+
+      const crossed25 = prePct < 25 && postPct >= 25;
+      const crossed50 = prePct < 50 && postPct >= 50;
+      const crossed75 = prePct < 75 && postPct >= 75;
+      const rawMtoTriggered = crossed25 || crossed50 || crossed75;
+      const mtoTriggered = rawMtoTriggered && !viaRehab && !whitewash;
+
+      const dilutionPct = Math.round((postPct - prePct) * 100) / 100;
+      outcome = mtoTriggered ? "applicable" : rawMtoTriggered ? "conditional" : "not_applicable";
+      reviewRequired = rawMtoTriggered;
+
+      calculatedResult = {
+        regulator: "SEC Thailand",
+        pre_transaction_voting_pct: prePct,
+        post_transaction_voting_pct: postPct,
+        existing_shareholder_dilution_pct: dilutionPct,
+        sec_246_five_pct_boundary_crossed: form246Required,
+        form_246_2_required: form246Required,
+        form_246_2_deadline: "Within 3 business days of acquisition/disposition (SEA Sec. 246)",
+        raw_mto_threshold_crossed: crossed75 ? "75%" : crossed50 ? "50%" : crossed25 ? "25%" : "None",
+        mandatory_tender_offer_triggered: mtoTriggered,
+        mto_exemption_applied: viaRehab
+          ? "Court-Approved Business Rehabilitation Plan Exemption (CMSB TorJor. 12/2554 Clause 11 & TorJor. 42/2563)"
+          : whitewash
+            ? "Whitewash Waiver (>= 75% Disinterested Shareholder Resolution)"
+            : "None",
+        non_binding_consultation_excluded: "SEC May 2026 Takeover Consultation Paper excluded per CORE-03",
+      };
+
+      explanation = mtoTriggered
+        ? `Post-transaction voting rights (${postPct}%) cross the ${calculatedResult.raw_mto_threshold_crossed} trigger under SEA Sec. 247 & CMSB TorJor. 12/2554 without an active Whitewash or Court Rehabilitation Plan exemption. Mandatory Tender Offer (Form 247-4) and Form 246-2 reporting are required.`
+        : rawMtoTriggered
+          ? `Post-transaction voting rights (${postPct}%) cross ${calculatedResult.raw_mto_threshold_crossed}, but Mandatory Tender Offer is EXEMPT under [${calculatedResult.mto_exemption_applied}]. Form 246-2 reporting within 3 business days and TorJor. 42/2563 information memorandum disclosure remain mandatory.`
+          : `Post-transaction voting rights (${postPct}%) do not cross the 25%/50%/75% MTO thresholds. Form 246-2 reporting required: ${form246Required}.`;
+    } else if (rule.id === "rule.th.set.mt_rpt_classification") {
+      const txVal = Number(facts.transaction_value_thb || 0);
+      const nta = Number(facts.company_nta_thb || 0);
+      const prior6m = Number(facts.prior_6m_aggregated_size_pct || 0);
+      const isRpt = Boolean(facts.is_related_party_transaction);
+      const underRehab = Boolean(facts.executed_under_court_rehab_plan);
+
+      const isRevisedJuly2026 = asOfDate >= "2026-07-01";
+      const regimeApplied = isRevisedJuly2026 ? "REVISED_1_JULY_2026_REGIME" : "PRE_JULY_2026_REGIME";
+
+      // When NTA <= 0 (distressed negative-equity company), 1 July 2026 revised rules apply distressed governance triggers
+      const rawMtSizePct = nta > 0 ? Math.round((txVal / nta) * 10000) / 100 : 100;
+      const totalAggregatedMtSizePct = Math.round((rawMtSizePct + prior6m) * 100) / 100;
+      const rptThresholdThb = nta > 0 ? Math.max(20000000, nta * 0.03) : 20000000;
+      const isMajorRpt = isRpt && txVal >= rptThresholdThb;
+      const isClass1Mt = totalAggregatedMtSizePct >= 50;
+
+      const shareholder75PctRequired = (isClass1Mt || isMajorRpt) && !underRehab;
+      const ifaRequired = isClass1Mt || isMajorRpt;
+      outcome = "applicable";
+      reviewRequired = true;
+
+      calculatedResult = {
+        regulator: "SET (Stock Exchange of Thailand)",
+        queried_transaction_date: asOfDate,
+        regime_applied: regimeApplied,
+        governing_version_id: isRevisedJuly2026 ? "ver.th.set.mt_rpt.v2026_07" : "ver.th.set.mt_rpt.v2547",
+        standalone_mt_size_pct: rawMtSizePct,
+        six_month_aggregated_mt_size_pct: totalAggregatedMtSizePct,
+        mt_classification: isClass1Mt
+          ? "Class 1 Material Transaction (>= 50%)"
+          : totalAggregatedMtSizePct >= 15
+            ? "Class 2 Material Transaction (>= 15% to < 50%)"
+            : "Below 15% Disclosure Threshold",
+        rpt_classification: isMajorRpt ? "Major Related-Party Transaction (Requires IFA & Shareholder Approval)" : isRpt ? "Medium/Small RPT" : "Not an RPT",
+        audit_committee_review_mandatory: isRevisedJuly2026 && (isRpt || nta <= 0),
+        ifa_opinion_required: ifaRequired,
+        shareholder_75pct_approval_required: shareholder75PctRequired,
+        court_rehab_plan_shareholder_override_sec90_42: underRehab,
+        setlink_disclosure_deadline: "Same day of Board resolution (before next trading session)",
+        autonomous_setlink_submission_permitted: false,
+      };
+
+      explanation = `Applied [${regimeApplied}] for transaction date ${asOfDate} (6M aggregated MT size: ${totalAggregatedMtSizePct}%, NTA: ${nta.toLocaleString()} THB). ${
+        underRehab
+          ? "Same-day SETLink disclosure and Audit Committee review apply; shareholder 75% meeting requirement is overridden by Central Bankruptcy Court Rehabilitation Plan under Bankruptcy Act Sec. 90/42."
+          : `Requires same-day SETLink disclosure, IFA opinion (${ifaRequired}), and >= 75% disinterested shareholder approval (${shareholder75PctRequired}). SET-05 Control: Autonomous SETLink submission is blocked.`
+      }`;
+    } else if (rule.id === "rule.th.restruct.debt_to_equity_feasibility") {
+      const entityType = String(facts.entity_type || "listed_public_company");
+      const debtConverted = Number(facts.debt_to_convert_thb || 0);
+      const debtForgiven = Number(facts.debt_haircut_forgiven_thb || 0);
+      const useRehabPlan = Boolean(facts.use_court_rehab_plan_sec90_42);
+      const has75PctVote = Boolean(facts.can_obtain_75pct_shareholder_vote);
+
+      const isPrivateCo = entityType === "private_limited_company";
+      const dtePermitted = useRehabPlan || (!isPrivateCo && has75PctVote);
+      const citOnHaircutThb = useRehabPlan ? 0 : Math.round(debtForgiven * 0.2);
+      const citSavedOnHaircutThb = useRehabPlan ? Math.round(debtForgiven * 0.2) : 0;
+
+      outcome = dtePermitted ? "applicable" : "not_applicable";
+      reviewRequired = true;
+
+      calculatedResult = {
+        entity_type: entityType,
+        dte_legally_permitted: dtePermitted,
+        legal_authority_basis: useRehabPlan
+          ? "Bankruptcy Act Sec. 90/42 (Court-Approved Rehabilitation Plan overrides CCC Sec. 1119 & PLCA Sec. 54/1 shareholder vote)"
+          : isPrivateCo
+            ? "PROHIBITED under CCC Sec. 1119 Para 2 (Private Limited Company cannot offset debt against share payment outside court rehabilitation)"
+            : "PLCA Sec. 54/1 Debt-to-Equity Conversion Scheme (>= 75% Shareholder Resolution)",
+        debt_converted_to_equity_thb: debtConverted,
+        debt_haircut_forgiven_thb: debtForgiven,
+        cit_payable_on_debt_forgiveness_thb: citOnHaircutThb,
+        cit_saved_on_haircut_thb: citSavedOnHaircutThb,
+        tax_basis: useRehabPlan
+          ? "Exempt from 20% CIT, VAT, SBT & Stamp Duty under Royal Decree issued under Revenue Code for Court-Approved Rehabilitation Plans"
+          : "Out-of-court debt forgiveness is taxable revenue at 20% CIT under Revenue Code Sec. 65",
+      };
+
+      explanation = dtePermitted
+        ? `Debt-to-Equity conversion of ${debtConverted.toLocaleString()} THB is legally feasible via [${calculatedResult.legal_authority_basis}]. Tax impact on ${debtForgiven.toLocaleString()} THB debt haircut: ${citOnHaircutThb.toLocaleString()} THB payable (${citSavedOnHaircutThb.toLocaleString()} THB CIT saved via Court Rehab exemption).`
+        : `Debt-to-Equity conversion is NOT feasible out-of-court for ${entityType} (${isPrivateCo ? "blocked by CCC Sec. 1119 set-off prohibition" : "lacks 75% shareholder vote under PLCA Sec. 54/1"}). Recommend converting to Public Company or petitioning for Court-Supervised Rehabilitation under Bankruptcy Act Sec. 90/42.`;
+    } else if (rule.id === "rule.th.insolv.rehabilitation_pathway") {
+      const totalDebt = Number(facts.total_definite_debt_thb || 0);
+      const equity = Number(facts.shareholders_equity_thb || 0);
+      const unableToPay = Boolean(facts.unable_to_repay_on_maturity);
+      const viable = Boolean(facts.has_viable_core_business);
+      const isListed = Boolean(facts.is_set_listed_company);
+      const creditorVotePct = Number(facts.supporting_creditor_vote_pct || 0);
+
+      const meets10M = totalDebt >= 10000000;
+      const eligibleSec90_3 = meets10M && (equity < 0 || unableToPay) && viable;
+      const meetsSpecialResolutionSec90_46 = creditorVotePct > 50;
+
+      outcome = eligibleSec90_3 ? "applicable" : "not_applicable";
+      reviewRequired = true;
+
+      calculatedResult = {
+        eligible_for_court_rehab_sec90_3: eligibleSec90_3,
+        definite_debt_threshold_10m_met: meets10M,
+        automatic_stay_sec90_12_available: eligibleSec90_3,
+        creditor_special_resolution_sec90_46_projected_pass: meetsSpecialResolutionSec90_46,
+        creditor_claim_filing_deadline: "1 month from Royal Gazette publication of Plan Preparer appointment order (Bankruptcy Act Sec. 90/26)",
+        set_listed_rehab_implications_insolv06: isListed
+          ? "Triggers SET CB/CS & NC Rehab staging; preserves SET listing during court rehab; resumption of trading requires Shareholders' Equity > 0 and sustainable core net profit."
+          : "Non-listed entity.",
+        insolv_02_legal_control_notice:
+          "INSOLV-02 MANDATORY CONTROL: Financial distress indicators (negative equity / payment default) do NOT constitute a conclusive judicial insolvency finding until adjudicated by the Central Bankruptcy Court.",
+      };
+
+      explanation = eligibleSec90_3
+        ? `Debtor meets Bankruptcy Act Sec. 90/3 rehabilitation eligibility (definite debt ${totalDebt.toLocaleString()} THB >= 10M THB, equity ${equity.toLocaleString()} THB, viable business). Filing petition triggers Automatic Stay under Sec. 90/12. Projected creditor vote (${creditorVotePct}%) ${meetsSpecialResolutionSec90_46 ? "satisfies" : "requires cramdown/class structuring to meet"} the >50% overall Sec. 90/46 special resolution threshold.`
+        : `Debtor does not meet Sec. 90/3 rehabilitation criteria (Debt >= 10M: ${meets10M}, Viable business: ${viable}).`;
     }
 
     this.recordAudit({
@@ -1770,6 +1949,90 @@ export class Reg24PlatformCore {
 
       case "reg24.graphrag_3r_query":
         return this.execute3RGraphRAGQuery(input);
+
+      // CORE-07 Capital Markets, Restructuring & Insolvency MCP Services
+      case "search_regulations":
+        return this.searchLaw(input);
+
+      case "get_applicable_law":
+        return this.executeMCPTool("reg24.resolve_applicability", input);
+
+      case "get_law_at_date":
+      case "explain_legal_provision":
+        return this.executeMCPTool("reg24.get_provision", {
+          ...input,
+          provision_id: input.provision_id || "prov.th.set.mt_rpt",
+        });
+
+      case "analyze_sec_transaction":
+        return this.evaluateRule({
+          ...input,
+          rule_id: "rule.th.sec.tender_offer_and_control",
+          facts: input.facts || {
+            existing_voting_pct: 0,
+            post_transaction_voting_pct: 42,
+            acquired_via_court_rehab_plan: true,
+            whitewash_75pct_shareholder_approved: false,
+          },
+        });
+
+      case "check_set_compliance":
+        return this.evaluateRule({
+          ...input,
+          rule_id: "rule.th.set.mt_rpt_classification",
+          facts: input.facts || {
+            transaction_value_thb: 850000000,
+            company_nta_thb: -320000000,
+            prior_6m_aggregated_size_pct: 12,
+            is_related_party_transaction: true,
+            executed_under_court_rehab_plan: true,
+          },
+        });
+
+      case "calculate_regulatory_threshold":
+        return this.evaluateRule({
+          ...input,
+          rule_id: input.rule_id || "rule.th.set.mt_rpt_classification",
+          facts: input.facts || {
+            transaction_value_thb: 850000000,
+            company_nta_thb: -320000000,
+            prior_6m_aggregated_size_pct: 12,
+            is_related_party_transaction: true,
+            executed_under_court_rehab_plan: false,
+          },
+        });
+
+      case "analyze_restructuring":
+      case "generate_legal_workflow":
+      case "draft_regulatory_document":
+        return this.executeCrossModuleRestructuringMission({
+          transaction_date: asOfDate,
+          execution_mode: "agent_swarm",
+          facts: input.facts,
+        });
+
+      case "assess_rehabilitation_pathway":
+        return this.evaluateRule({
+          ...input,
+          rule_id: "rule.th.insolv.rehabilitation_pathway",
+          facts: input.facts || {
+            total_definite_debt_thb: 1800000000,
+            shareholders_equity_thb: -450000000,
+            unable_to_repay_on_maturity: true,
+            has_viable_core_business: true,
+            is_set_listed_company: true,
+            supporting_creditor_vote_pct: 68,
+          },
+        });
+
+      case "validate_legal_citations":
+        return this.executeMCPTool("reg24.verify_citation", {
+          ...input,
+          provision_id: input.provision_id || "prov.th.set.mt_rpt",
+        });
+
+      case "get_regulation_changes":
+        return this.executeMCPTool("reg24.get_regulatory_changes", input);
 
       default:
         return {
@@ -2835,12 +3098,419 @@ export class Reg24PlatformCore {
     };
   }
 
+  // ============================================================================
+  // SECTION 3 & CORE-06: CROSS-MODULE LISTED-COMPANY RESTRUCTURING MISSION
+  // Activates REG-INSOLV, REG-RESTRUCT, REG-SEC, REG-SET, REG-TAX, and REG-CORP simultaneously
+  // ============================================================================
+  public executeCrossModuleRestructuringMission(params?: {
+    scenario_question?: string;
+    transaction_date?: string;
+    execution_mode?: AgenticExecutionMode;
+    facts?: Record<string, unknown>;
+  }): MCPCommonOutput<CrossModuleRestructuringMissionResult> {
+    const startTime = Date.now();
+    const traceId = this.generateTraceId();
+    const missionId = `mission_${Date.now().toString(36)}`;
+    const txDate = params?.transaction_date || "2026-10-18";
+    const mode: AgenticExecutionMode = params?.execution_mode || "agent_swarm";
+    const question =
+      params?.scenario_question ||
+      "A Thai listed company has negative equity, cannot repay bank debt, wants to convert debt into shares, bring in a strategic investor and preserve its SET listing. What are the available paths?";
+
+    const isRevisedJuly2026 = txDate >= "2026-07-01";
+    const setRegime = isRevisedJuly2026 ? "REVISED_1_JULY_2026_REGIME" : "PRE_JULY_2026_REGIME";
+
+    const insolvEval = this.evaluateRule({
+      rule_id: "rule.th.insolv.rehabilitation_pathway",
+      as_of_date: txDate,
+      facts: {
+        total_definite_debt_thb: 1800000000,
+        shareholders_equity_thb: -450000000,
+        unable_to_repay_on_maturity: true,
+        has_viable_core_business: true,
+        is_set_listed_company: true,
+        supporting_creditor_vote_pct: 68,
+        ...(params?.facts || {}),
+      },
+    });
+
+    const restructEval = this.evaluateRule({
+      rule_id: "rule.th.restruct.debt_to_equity_feasibility",
+      as_of_date: txDate,
+      facts: {
+        entity_type: "listed_public_company",
+        debt_to_convert_thb: 1200000000,
+        debt_haircut_forgiven_thb: 300000000,
+        use_court_rehab_plan_sec90_42: true,
+        can_obtain_75pct_shareholder_vote: false,
+        ...(params?.facts || {}),
+      },
+    });
+
+    const secEval = this.evaluateRule({
+      rule_id: "rule.th.sec.tender_offer_and_control",
+      as_of_date: txDate,
+      facts: {
+        existing_voting_pct: 0,
+        post_transaction_voting_pct: 42,
+        acquired_via_court_rehab_plan: true,
+        whitewash_75pct_shareholder_approved: false,
+        ...(params?.facts || {}),
+      },
+    });
+
+    const setEval = this.evaluateRule({
+      rule_id: "rule.th.set.mt_rpt_classification",
+      as_of_date: txDate,
+      facts: {
+        transaction_value_thb: 850000000,
+        company_nta_thb: -450000000,
+        prior_6m_aggregated_size_pct: 12,
+        is_related_party_transaction: true,
+        executed_under_court_rehab_plan: true,
+        ...(params?.facts || {}),
+      },
+    });
+
+    const taxEval = this.evaluateRule({
+      rule_id: "rule.th.tax.cit_boi_calculation",
+      as_of_date: txDate,
+      facts: {
+        promoted_net_profit_thb: 0,
+        non_promoted_net_profit_thb: 300000000,
+        paid_up_capital_thb: 500000000,
+        total_revenue_thb: 1500000000,
+        boi_certificate_active: false,
+        boi_cit_cap_remaining_thb: 0,
+      },
+    });
+
+    const corpEval = this.evaluateRule({
+      rule_id: "rule.th.corporate.incorporation_check",
+      as_of_date: txDate,
+      facts: {
+        promoter_count: 15,
+        registered_capital_thb: 500000000,
+        foreign_shareholding_pct: 42,
+        business_category: "manufacturing_unrestricted",
+        has_boi_certificate: false,
+      },
+    });
+
+    const missionResult: CrossModuleRestructuringMissionResult = {
+      mission_id: missionId,
+      trace_id: traceId,
+      execution_mode: mode,
+      scenario_question: question,
+      transaction_date: txDate,
+      set_mt_rpt_regime_applied: setRegime,
+      activated_modules: [
+        {
+          module_id: "reg24.insolv.th",
+          module_code: "REG-INSOLV",
+          display_name: "Insolvency & Business Rehabilitation",
+          regulator_code: "LED / Central Bankruptcy Court",
+          question_answered: "Can it pursue a rehabilitation pathway and obtain an automatic stay?",
+          provisions_cited: ["prov.th.ba.90_rehab"],
+          deterministic_rule_id: insolvEval.result.rule_id,
+          rule_outcome: insolvEval.result.outcome,
+          calculated_metrics: insolvEval.result.calculated_result,
+          legal_findings: insolvEval.result.explanation,
+        },
+        {
+          module_id: "reg24.restruct.th",
+          module_code: "REG-RESTRUCT",
+          display_name: "Corporate Restructuring & M&A",
+          regulator_code: "DBD / MOC",
+          question_answered: "What debt-to-equity and strategic investor transaction structures are feasible?",
+          provisions_cited: ["prov.th.plca.54_1_146", "prov.th.ba.90_rehab"],
+          deterministic_rule_id: restructEval.result.rule_id,
+          rule_outcome: restructEval.result.outcome,
+          calculated_metrics: restructEval.result.calculated_result,
+          legal_findings: restructEval.result.explanation,
+        },
+        {
+          module_id: "reg24.sec.th",
+          module_code: "REG-SEC",
+          display_name: "SEC Capital Market Regulations",
+          regulator_code: "SEC Thailand",
+          question_answered: "Which securities approvals, Form 246-2 filings, or MTO exemptions apply?",
+          provisions_cited: ["prov.th.sea.246_247"],
+          deterministic_rule_id: secEval.result.rule_id,
+          rule_outcome: secEval.result.outcome,
+          calculated_metrics: secEval.result.calculated_result,
+          legal_findings: secEval.result.explanation,
+        },
+        {
+          module_id: "reg24.set.th",
+          module_code: "REG-SET",
+          display_name: "SET Listed Company Regulations",
+          regulator_code: "SET",
+          question_answered: "What are its listing, MT/RPT (1 July 2026 regime), CB/CS sign, and resumption-of-trading obligations?",
+          provisions_cited: ["prov.th.set.mt_rpt", "prov.th.set.distress_rehab"],
+          deterministic_rule_id: setEval.result.rule_id,
+          rule_outcome: setEval.result.outcome,
+          calculated_metrics: setEval.result.calculated_result,
+          legal_findings: setEval.result.explanation,
+        },
+        {
+          module_id: "reg24.tax.th",
+          module_code: "REG-TAX",
+          display_name: "Tax Law (Revenue Code)",
+          regulator_code: "RD",
+          question_answered: "What Corporate Income Tax consequences arise from debt forgiveness and debt-to-equity conversion?",
+          provisions_cited: ["prov.th.rc.65"],
+          deterministic_rule_id: taxEval.result.rule_id,
+          rule_outcome: "applicable",
+          calculated_metrics: {
+            out_of_court_haircut_cit_thb: 60000000,
+            court_rehab_plan_haircut_cit_thb: 0,
+            cit_saved_via_court_rehab_thb: 60000000,
+          },
+          legal_findings:
+            "Out-of-court debt forgiveness of 300M THB triggers 60M THB (20%) CIT under Revenue Code Sec. 65, whereas debt forgiveness and asset transfers executed under a Central Bankruptcy Court-Approved Rehabilitation Plan are 100% exempt from CIT, VAT, SBT, and Stamp Duty under Royal Decree.",
+        },
+        {
+          module_id: "reg24.corporate.th",
+          module_code: "REG-CORP",
+          display_name: "Corporate Law (PLCA / FBA / CCC)",
+          regulator_code: "DBD",
+          question_answered: "What company-law approvals and foreign shareholding limits apply?",
+          provisions_cited: ["prov.th.ccc.1097", "prov.th.fba.4"],
+          deterministic_rule_id: corpEval.result.rule_id,
+          rule_outcome: corpEval.result.outcome,
+          calculated_metrics: corpEval.result.calculated_result,
+          legal_findings:
+            "Out-of-court PLCA Sec. 54/1 requires >= 75% shareholder vote; Court-Approved Rehabilitation Plan under Bankruptcy Act Sec. 90/42 overrides shareholder veto. Strategic investor at 42% foreign ownership remains below the 49% FBA Sec. 4 foreign threshold.",
+        },
+      ],
+      alternative_structures: [
+        {
+          structure_id: "PATH_A_COURT_REHAB",
+          name: "Path A (Recommended): Court-Supervised Business Rehabilitation + Debt-to-Equity & Strategic Investor Injection (Bankruptcy Act Chapter 3/1)",
+          feasibility: "HIGH_FEASIBILITY_RECOMMENDED",
+          governing_laws: [
+            "Bankruptcy Act Sec. 90/3, 90/12, 90/42, 90/46",
+            "SEC CMSB TorJor. 12/2554 Clause 11 & TorJor. 42/2563",
+            `SET MT/RPT (${setRegime}) & Delisting/Rehab Rules`,
+            "Revenue Code Royal Decree Tax Exemption for Rehab Plans",
+          ],
+          required_approvals: [
+            "Board resolution to file Rehabilitation Petition",
+            "Central Bankruptcy Court order accepting petition (triggers Sec. 90/12 Automatic Stay) & appointing Plan Preparer",
+            "Creditor Special Resolution under Sec. 90/46 (>= 2/3 of 1 class + > 50% total voting debt) — NO 75% shareholder meeting required (Sec. 90/42 override)",
+            "Central Bankruptcy Court order confirming the Rehabilitation Plan (Sec. 90/58)",
+          ],
+          tax_implications:
+            "Full exemption from 20% Corporate Income Tax (saves 60M THB on 300M THB debt haircut), VAT, Specific Business Tax, and Stamp Duty under Royal Decree.",
+          estimated_duration: "6–10 months to Plan confirmation; 12–24 months to exit Rehab & resume normal SET status",
+          shareholder_dilution_impact:
+            "Existing shareholders diluted via Sec. 90/42 capital reduction + new share issuance to creditors and strategic investor without minority shareholder veto risk.",
+          creditor_impact:
+            "Immediate Sec. 90/12 Automatic Stay halts enforcement; creditors must file claims within 1 month of Gazette publication (Sec. 90/26) and receive equity + rescheduled cash flow.",
+          set_listing_preservation:
+            "Preserves SET listing under NC/Rehab framework; avoids mandatory delisting while restoring Shareholders' Equity > 0.",
+        },
+        {
+          structure_id: "PATH_B_OUT_OF_COURT_PLCA",
+          name: "Path B: Out-of-Court Workout + PLCA Sec. 54/1 Debt-to-Equity Scheme + Whitewash Private Placement",
+          feasibility: "CONDITIONAL_HIGH_EXECUTION_RISK",
+          governing_laws: [
+            "Public Limited Companies Act Sec. 54/1",
+            "SEA Sec. 247 & CMSB TorJor. 12/2554 (Whitewash Waiver)",
+            `SET Revised MT & RPT Rules (${setRegime})`,
+            "Revenue Code Sec. 65",
+          ],
+          required_approvals: [
+            "Unanimous/bilateral standstill agreements with all bank creditors (no statutory Automatic Stay)",
+            "Audit Committee review + Independent Financial Advisor (IFA) opinion",
+            ">= 75% Shareholder EGM resolution for PLCA Sec. 54/1 Debt-to-Equity, Private Placement, and Whitewash waiver (with < 10% veto)",
+          ],
+          tax_implications:
+            "Adverse tax cost: 300M THB out-of-court debt forgiveness is taxed as revenue at 20% CIT (60M THB tax liability) under RC Sec. 65 unless covered by specific tax royal decree.",
+          estimated_duration: "3–5 months (only if zero holdout creditors and >= 75% shareholder vote achieved)",
+          shareholder_dilution_impact:
+            "High risk of minority shareholder holdout blocking the 75% EGM threshold or vetoing the Whitewash waiver.",
+          creditor_impact:
+            "Any single dissenting creditor can sue or seize assets because there is no Sec. 90/12 Automatic Stay.",
+          set_listing_preservation:
+            "Faster if successful, but any creditor lawsuit or failed 75% EGM vote forces immediate fallback into Path A.",
+        },
+      ],
+      dependency_workflow: [
+        {
+          step_order: 1,
+          phase: "Board Distress Assessment & Petition Approval",
+          responsible_party: "Board of Directors & Audit Committee",
+          regulator_or_forum: "SET / Internal Governance",
+          trigger_event: "Financial statements show Shareholders' Equity < 0 and bank debt default",
+          deadline_calculation: "Same day of Board resolution (before next trading session)",
+          governing_provision: "SET BorJor/Ror. 01-00 & Bankruptcy Act Sec. 90/3",
+          depends_on_steps: [],
+          autonomous_submission_blocked: true,
+        },
+        {
+          step_order: 2,
+          phase: "Rehabilitation Petition Filing & Automatic Stay Activation",
+          responsible_party: "Debtor Legal Counsel",
+          regulator_or_forum: "Central Bankruptcy Court",
+          trigger_event: "Court order accepting Business Rehabilitation Petition",
+          deadline_calculation: "Immediate Automatic Stay upon Court acceptance order (Sec. 90/12); Public Presentation within 15 days of SET CB/CS sign",
+          governing_provision: "Bankruptcy Act Sec. 90/12 & SET C-Sign Rules",
+          depends_on_steps: [1],
+          autonomous_submission_blocked: true,
+        },
+        {
+          step_order: 3,
+          phase: "Planner Appointment & Creditor Claim Registration",
+          responsible_party: "Plan Preparer & Secured/Unsecured Creditors",
+          regulator_or_forum: "Legal Execution Department (Official Receiver)",
+          trigger_event: "Royal Gazette publication of Court order appointing Plan Preparer",
+          deadline_calculation: "Strict 1-month deadline for creditors to file debt repayment applications (Sec. 90/26)",
+          governing_provision: "Bankruptcy Act Sec. 90/26",
+          depends_on_steps: [2],
+          autonomous_submission_blocked: true,
+        },
+        {
+          step_order: 4,
+          phase: "Creditor Class Special Resolution & Court Plan Confirmation",
+          responsible_party: "Plan Preparer, Creditors & Central Bankruptcy Court",
+          regulator_or_forum: "Official Receiver & Central Bankruptcy Court",
+          trigger_event: "Creditor meeting vote on Rehabilitation Plan (Debt-to-Equity + Strategic Investor)",
+          deadline_calculation: "Plan prepared within 3 months (+2x 1-month extensions); approved by Sec. 90/46 special resolution & confirmed under Sec. 90/58",
+          governing_provision: "Bankruptcy Act Sec. 90/42, 90/46 & 90/58",
+          depends_on_steps: [3],
+          autonomous_submission_blocked: true,
+        },
+        {
+          step_order: 5,
+          phase: "Exempt Share Issuance, SEC Form 246-2 Filing & SET Resumption of Trading",
+          responsible_party: "Plan Administrator & Strategic Investor",
+          regulator_or_forum: "SEC Thailand, DBD & SET",
+          trigger_event: "Allotment of conversion shares & new investor shares under Confirmed Plan",
+          deadline_calculation: "SEC Form 246-2 within 3 business days of share allotment (MTO exempt under TorJor. 12/2554); DBD capital registration within 14 days",
+          governing_provision: "SEA Sec. 246–247, CMSB TorJor. 42/2563 & SET Resumption of Trading Rules",
+          depends_on_steps: [4],
+          autonomous_submission_blocked: true,
+        },
+      ],
+      draft_advisory_documents: [
+        {
+          doc_id: "doc.setlink.rehab_dte",
+          doc_type: "SETLink_Disclosure_Draft",
+          title: `SETLink Disclosure Draft: Filing of Business Rehabilitation Petition & Proposed Debt-to-Equity Restructuring (${setRegime})`,
+          target_regulator: "SET (Stock Exchange of Thailand)",
+          cited_provisions: ["prov.th.set.mt_rpt", "prov.th.set.distress_rehab", "prov.th.ba.90_rehab"],
+          draft_excerpt:
+            "Subject: Notification of Board Resolution to File Business Rehabilitation Petition with the Central Bankruptcy Court and Proposed Debt-to-Equity Restructuring Framework. [DRAFT FOR AUTHORIZED HUMAN REVIEW ONLY — AUTONOMOUS SETLINK SUBMISSION DISABLED PER SET-05].",
+          human_approval_required: true,
+          autonomous_submission_permitted: false,
+        },
+        {
+          doc_id: "doc.rehab.plan_termsheet",
+          doc_type: "Rehabilitation_Plan_Term_Sheet",
+          title: "Bankruptcy Act Sec. 90/42 Rehabilitation Plan Term Sheet (Capital Write-Down, 1.2B THB Debt-to-Equity & Strategic Investor Tranche)",
+          target_regulator: "Central Bankruptcy Court & Official Receiver (LED)",
+          cited_provisions: ["prov.th.ba.90_rehab", "prov.th.plca.54_1_146", "prov.th.rc.65"],
+          draft_excerpt:
+            "Clause 4 (Capital Restructuring under Sec. 90/42): Registered capital shall be reduced to eliminate accumulated deficit, followed by immediate issuance of 1,200,000,000 THB conversion shares to Class 2/3 Creditors and 850,000,000 THB new shares (42% voting rights) to the Strategic Investor, exempt from MTO pursuant to CMSB TorJor. 12/2554 Clause 11.",
+          human_approval_required: true,
+          autonomous_submission_permitted: false,
+        },
+        {
+          doc_id: "doc.sec.torjor42_checklist",
+          doc_type: "SEC_Exempt_Offering_Checklist",
+          title: "SEC TorJor. 42/2563 Rehabilitation Plan Share Issuance & MTO Exemption Compliance Checklist",
+          target_regulator: "SEC Thailand",
+          cited_provisions: ["prov.th.sea.246_247"],
+          draft_excerpt:
+            "1. Verify Central Bankruptcy Court order confirming Plan under Sec. 90/58. 2. Confirm MTO exemption under TorJor. 12/2554 Clause 11. 3. File Form 246-2 within 3 business days of share allotment.",
+          human_approval_required: true,
+          autonomous_submission_permitted: false,
+        },
+      ],
+      quarantined_non_binding_consultations: this.nonBindingConsultations,
+      risk_register_and_escalations: [
+        "INSOLV-02 SAFEGUARD: Negative equity (-450M THB) and debt default are financial distress indicators; conclusive insolvency and rehabilitation eligibility require Central Bankruptcy Court adjudication under Sec. 90/3.",
+        "SET-05 SAFEGUARD: All SETLink disclosures and court petitions generated by REG24 require human legal sign-off; autonomous external submission is hard-blocked.",
+        "CORE-03 SAFEGUARD: The SEC May 2026 Takeover Consultation Paper and 2026 Draft Bankruptcy Amendment Bill are quarantined from binding threshold calculations.",
+        `TEMPORAL VERSION SAFEGUARD: Evaluated SET Material & Related-Party Transaction rules as of ${txDate} under [${setRegime}].`,
+      ],
+    };
+
+    this.recordAudit({
+      trace_id: traceId,
+      tenant_id: "tenant.law24.prod",
+      actor_role: "Legal Reviewer",
+      operation: `mission.cross_module_restructuring (${mode})`,
+      module_ids: [
+        "reg24.insolv.th",
+        "reg24.restruct.th",
+        "reg24.sec.th",
+        "reg24.set.th",
+        "reg24.tax.th",
+        "reg24.corporate.th",
+      ],
+      provisions_accessed: [
+        "prov.th.ba.90_rehab",
+        "prov.th.plca.54_1_146",
+        "prov.th.sea.246_247",
+        "prov.th.set.mt_rpt",
+        "prov.th.set.distress_rehab",
+        "prov.th.rc.65",
+        "prov.th.ccc.1097",
+      ],
+      rules_evaluated: [
+        "rule.th.insolv.rehabilitation_pathway",
+        "rule.th.restruct.debt_to_equity_feasibility",
+        "rule.th.sec.tender_offer_and_control",
+        "rule.th.set.mt_rpt_classification",
+      ],
+      prompt_injection_checked: true,
+      prompt_injection_blocked: false,
+      latency_ms: Math.max(5, Date.now() - startTime),
+      status: "requires_review",
+      summary: `Executed 6-module Listed-Company Restructuring Mission in [${mode}] mode for transaction date ${txDate} (${setRegime}).`,
+    });
+
+    return {
+      result: missionResult,
+      status: "ok",
+      module_versions: this.getActiveModuleVersions([
+        "reg24.insolv.th",
+        "reg24.restruct.th",
+        "reg24.sec.th",
+        "reg24.set.th",
+        "reg24.tax.th",
+        "reg24.corporate.th",
+      ]),
+      sources: [],
+      citations: [],
+      effective_dates: { queried_as_of_date: txDate, known_at_date: "2026-10-18" },
+      missing_facts: [],
+      coverage_status: {
+        is_complete: true,
+        executable_rules_available: true,
+        known_limitations: [
+          "SET-05 & CORE-08: Autonomous regulatory filings to SETLink, SEC, or the Central Bankruptcy Court are disabled in P0; human approval is mandatory.",
+        ],
+      },
+      review_required: true,
+      trace_id: traceId,
+    };
+  }
+
   // Getters for Management Console state snapshot
   public getDashboardSnapshot() {
     const default3R = this.execute3RGraphRAGQuery({
       query: "Can a company terminate an employee without severance pay?",
       as_of_date: "2026-10-18",
       known_at_date: "2026-10-18",
+    });
+
+    const defaultMission = this.executeCrossModuleRestructuringMission({
+      transaction_date: "2026-10-18",
+      execution_mode: "agent_swarm",
     });
 
     return {
@@ -2856,7 +3526,9 @@ export class Reg24PlatformCore {
       rules: Array.from(this.rules.values()),
       graphEdges: Array.from(this.graphEdges.values()),
       courtDecisions: Array.from(this.courtDecisions.values()),
+      nonBindingConsultations: this.nonBindingConsultations,
       sample3RGraphRAGResult: default3R,
+      sampleRestructuringMission: defaultMission.result,
       regulatoryChanges: Array.from(this.regulatoryChanges.values()),
       modules: Array.from(this.modules.values()),
       releases: this.releases,

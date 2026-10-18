@@ -54,6 +54,19 @@ export async function POST(req: NextRequest) {
         });
         return NextResponse.json({ success: true, graphrag_3r: res, snapshot: reg24Core.getDashboardSnapshot() });
       }
+      case "run_restructuring_mission": {
+        const res = reg24Core.executeCrossModuleRestructuringMission({
+          scenario_question: payload?.scenario_question,
+          transaction_date: payload?.transaction_date || "2026-10-18",
+          execution_mode: payload?.execution_mode || "agent_swarm",
+          facts: payload?.facts,
+        });
+        return NextResponse.json({
+          success: true,
+          mission: res.result,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
       case "reset_seed": {
         reg24Core.resetToSeed();
         return NextResponse.json({ success: true, snapshot: reg24Core.getDashboardSnapshot() });

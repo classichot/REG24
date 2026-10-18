@@ -51,6 +51,9 @@ import type {
   A2ATaskContract,
   CourtDecision,
   ThreeRGraphRAGResponse,
+  AgenticExecutionMode,
+  NonBindingConsultationItem,
+  CrossModuleRestructuringMissionResult,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -63,11 +66,13 @@ interface SnapshotData {
   rules: RuleDefinition[];
   graphEdges: GraphEdge[];
   courtDecisions: CourtDecision[];
+  nonBindingConsultations: NonBindingConsultationItem[];
   sample3RGraphRAGResult: {
     result: ThreeRGraphRAGResponse;
     trace_id: string;
     status: string;
   };
+  sampleRestructuringMission: CrossModuleRestructuringMissionResult;
   regulatoryChanges: RegulatoryChange[];
   releases: ModuleRelease[];
   auditTraces: AuditTraceEvent[];
@@ -85,6 +90,7 @@ type ScreenId =
   | "SCREEN_F_CHANGES"
   | "SCREEN_G_MCP"
   | "SCREEN_I_A2A"
+  | "SCREEN_J_RESTRUCT_MISSION"
   | "SCREEN_H_AUDIT";
 
 const SCREEN_CONFIG: {
@@ -94,14 +100,15 @@ const SCREEN_CONFIG: {
   labelTh: string;
   accent: string;
 }[] = [
-  { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา", accent: "#0050EF" },
-  { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0", accent: "#008A00" },
+  { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (10 โมดูล P0)", accent: "#0050EF" },
+  { id: "SCREEN_J_RESTRUCT_MISSION", code: "SCR-J", label: "capital markets & restruct", labelTh: "ภารกิจปรับโครงสร้างหนี้ & ตลาดทุน (6 โมดูล)", accent: "#FA6800" },
+  { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0 (10 โมดูล)", accent: "#008A00" },
   { id: "SCREEN_B_FACTORY", code: "SCR-B", label: "module factory", labelTh: "สร้างและติดตั้งโมดูลใหม่", accent: "#1BA1E2" },
   { id: "SCREEN_C_SOURCES", code: "SCR-C", label: "legal sources", labelTh: "แหล่งข้อมูลและหลักฐานอ้างอิง", accent: "#F0A30A" },
   { id: "SCREEN_D_GRAPH", code: "SCR-D", label: "3r graphrag & graph", labelTh: "ไฮบริด GraphRAG 3R และกราฟกฎหมาย", accent: "#A20025" },
   { id: "SCREEN_E_RULES", code: "SCR-E", label: "rule studio", labelTh: "กฎคำนวณอัตโนมัติ (Law-as-Code)", accent: "#6A00FF" },
   { id: "SCREEN_F_CHANGES", code: "SCR-F", label: "change intelligence", labelTh: "ตรวจจับการแก้ไขกฎหมาย", accent: "#D80073" },
-  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST", accent: "#00ABA9" },
+  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (26 Tools)", accent: "#00ABA9" },
   { id: "SCREEN_I_A2A", code: "SCR-I", label: "a2a agent hub", labelTh: "การมอบหมายงานข้ามเอเจนต์ (A2A v1.0)", accent: "#E51400" },
   { id: "SCREEN_H_AUDIT", code: "SCR-H", label: "trace & audit", labelTh: "ตรวจสอบย้อนกลับ TRACE24", accent: "#647687" },
 ];
@@ -120,6 +127,10 @@ function getModuleIcon(iconName: string, className = "w-7 h-7") {
       return <Users className={className} />;
     case "Rocket":
       return <Rocket className={className} />;
+    case "Activity":
+      return <Activity className={className} />;
+    case "GitBranch":
+      return <GitBranch className={className} />;
     default:
       return <ShieldCheck className={className} />;
   }
@@ -150,6 +161,12 @@ export default function Reg24MetroConsole() {
   const [graphRagAsOfDate, setGraphRagAsOfDate] = useState<string>("2026-10-18");
   const [graphRagResult, setGraphRagResult] = useState<ThreeRGraphRAGResponse | null>(null);
   const [graphRagLoading, setGraphRagLoading] = useState<boolean>(false);
+
+  // Screen J — Capital Markets, Corporate Restructuring & Insolvency Mission states (v1.0 Oct 2026)
+  const [missionTxDate, setMissionTxDate] = useState<string>("2026-10-18");
+  const [missionMode, setMissionMode] = useState<AgenticExecutionMode>("agent_swarm");
+  const [missionResult, setMissionResult] = useState<CrossModuleRestructuringMissionResult | null>(null);
+  const [missionLoading, setMissionLoading] = useState<boolean>(false);
 
   // Screen E — Rule Studio states
   const [selectedRuleId, setSelectedRuleId] = useState<string>("rule.th.corporate.incorporation_check");
@@ -193,6 +210,42 @@ export default function Reg24MetroConsole() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4200);
   }, []);
+
+  const handleRunRestructuringMission = async (
+    customDate?: string,
+    customMode?: AgenticExecutionMode
+  ) => {
+    const d = customDate ?? missionTxDate;
+    const m = customMode ?? missionMode;
+    if (customDate) setMissionTxDate(customDate);
+    if (customMode) setMissionMode(customMode);
+    setMissionLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_restructuring_mission",
+          payload: {
+            transaction_date: d,
+            execution_mode: m,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.mission) {
+        setMissionResult(data.mission);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(
+        `Executed 6-Module Listed-Company Restructuring Mission (${m.toUpperCase()} | Date: ${d}).`
+      );
+    } finally {
+      setMissionLoading(false);
+    }
+  };
 
   const handleRun3RGraphRAG = async (customQuery?: string, customAsOfDate?: string) => {
     const q = customQuery ?? graphRagQuery;
@@ -898,11 +951,39 @@ export default function Reg24MetroConsole() {
                     </div>
                     <div>
                       <p className="text-xs text-white/90 mb-1">
-                        Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 6 domain
-                        modules. Serves LAW24, CFO24, VIBE24 &amp; External AI Agents via A2A v1.0.
+                        Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 10 domain
+                        modules. Serves LAW24, CFO24, ACC24, TP24 &amp; External AI Agents via A2A v1.0.
                       </p>
                       <h3 className="text-2xl font-light lowercase tracking-tight">
                         agent-to-agent (a2a) legal task hub
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Tile: Listed-Company Restructuring & Capital Markets Mission (Screen J) */}
+                  <div
+                    onClick={() => setActiveScreen("SCREEN_J_RESTRUCT_MISSION")}
+                    className="metro-tile col-span-2 bg-[#FA6800] p-4 flex flex-col justify-between cursor-pointer text-white"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <GitBranch className="w-6 h-6" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
+                          SCREEN J &bull; SCOPE EXTENSION v1.0 &bull; SEC / SET / RESTRUCT / INSOLV
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold uppercase bg-white text-[#FA6800] px-2 py-0.5">
+                        6-MODULE MISSION &bull; 1 JUL 2026 SET RULES
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/95 mb-1">
+                        <strong>Cross-Module Listed-Company Restructuring Mission:</strong> Negative equity, bank
+                        debt default, debt-to-equity conversion, strategic investor (24.5% vs 25% MTO /
+                        Whitewash), 1 July 2026 SET MT/RPT rules &amp; Central Bankruptcy Court rehab.
+                      </p>
+                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                        capital markets, restructuring &amp; insolvency mission
                       </h3>
                     </div>
                   </div>
@@ -2983,6 +3064,327 @@ export default function Reg24MetroConsole() {
           </div>
         )}
 
+        {/* ================================================================
+            SCREEN J: CAPITAL MARKETS, RESTRUCTURING & INSOLVENCY MISSION
+            ================================================================ */}
+        {activeScreen === "SCREEN_J_RESTRUCT_MISSION" && (
+          <div className="space-y-6">
+            {/* HEADER BANNER */}
+            <div className="bg-[#121216] border-l-4 border-[#FA6800] p-5 border-y border-r border-[#262630] flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#FA6800]">
+                  SCOPE EXTENSION v1.0 &bull; OCTOBER 2026 &bull; SEC / SET / RESTRUCT / INSOLV
+                </div>
+                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                  cross-module listed-company restructuring &amp; capital markets mission
+                </h2>
+                <p className="text-xs text-zinc-400 mt-1 max-w-4xl">
+                  &ldquo;A Thai listed company has negative equity, cannot repay bank debt, wants to convert debt
+                  into shares, bring in a strategic investor and preserve its SET listing. What are the available
+                  paths?&rdquo; &mdash; Coordinated across 6 modules (<code>REG-INSOLV</code>,{" "}
+                  <code>REG-RESTRUCT</code>, <code>REG-SEC</code>, <code>REG-SET</code>, <code>REG-TAX</code>,{" "}
+                  <code>REG-CORP</code>).
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => handleRunRestructuringMission("2026-06-15", missionMode)}
+                  disabled={missionLoading}
+                  className={`px-3 py-2 text-xs font-bold uppercase tracking-wider border ${
+                    missionTxDate === "2026-06-15"
+                      ? "bg-[#D80073] border-[#D80073] text-white"
+                      : "bg-[#1a1a22] border-[#262630] text-zinc-300 hover:border-[#D80073]"
+                  }`}
+                >
+                  PRE-JULY 2026 SET REGIME (2026-06-15)
+                </button>
+                <button
+                  onClick={() => handleRunRestructuringMission("2026-10-18", missionMode)}
+                  disabled={missionLoading}
+                  className={`px-3 py-2 text-xs font-bold uppercase tracking-wider border ${
+                    missionTxDate === "2026-10-18"
+                      ? "bg-[#FA6800] border-[#FA6800] text-white"
+                      : "bg-[#1a1a22] border-[#262630] text-zinc-300 hover:border-[#FA6800]"
+                  }`}
+                >
+                  REVISED 1 JULY 2026 SET REGIME (2026-10-18)
+                </button>
+              </div>
+            </div>
+
+            {/* PRODUCT DIRECTION: 3 CORE CAPABILITIES + AGENTIC EXECUTION MODE */}
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
+              <div className="bg-[#121216] border-t-4 border-[#0050EF] p-4 border-x border-b border-[#262630]">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#1BA1E2] mb-1">
+                  CAPABILITY 01 &bull; KNOW THE LAW
+                </div>
+                <div className="text-sm font-semibold text-white">Authoritative Multi-Regulator Corpus</div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Distinguishes SEC (`REG-SEC`) vs. SET (`REG-SET`) obligations, PLCA vs. CCC rules, and Point-in-Time
+                  1 July 2026 SET MT/RPT amendments.
+                </p>
+              </div>
+              <div className="bg-[#121216] border-t-4 border-[#008A00] p-4 border-x border-b border-[#262630]">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-1">
+                  CAPABILITY 02 &bull; APPLY THE LAW
+                </div>
+                <div className="text-sm font-semibold text-white">Deterministic Threshold &amp; Path Engine</div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Calculates 25%/50%/75% SEC MTO &amp; Whitewash, 15%/50% SET MT &amp; 0.03%/3% RPT sizes, PLCA Sec.
+                  54/1 vs. Sec. 90/42 DTE, and Sec. 90/46 creditor class voting.
+                </p>
+              </div>
+              <div className="bg-[#121216] border-t-4 border-[#FA6800] p-4 border-x border-b border-[#262630]">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#FA6800] mb-1">
+                  CAPABILITY 03 &bull; EXECUTE WITH CONTROL
+                </div>
+                <div className="text-sm font-semibold text-white">Human-Gated Regulatory Packages</div>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Generates SETLink disclosure checklists, Whitewash timelines, and rehab plan matrices while locking
+                  autonomous submissions (`SET-05` &amp; `CORE-08`).
+                </p>
+              </div>
+              <div className="bg-[#121216] border-t-4 border-[#6A00FF] p-4 border-x border-b border-[#262630] flex flex-col justify-between">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400 mb-1">
+                    CORE-06 &bull; AGENTIC ORCHESTRATION MODE
+                  </div>
+                  <div className="text-xs text-zinc-300 mb-2">
+                    Select execution topology across LAW24, CFO24, ACC24 &amp; TP24:
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(["single_agent", "agent_team", "agent_swarm"] as const).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => handleRunRestructuringMission(missionTxDate, m)}
+                      className={`py-1.5 px-2 text-[10px] font-bold uppercase border ${
+                        missionMode === m
+                          ? "bg-[#6A00FF] border-[#6A00FF] text-white"
+                          : "bg-[#08080a] border-[#262630] text-zinc-400 hover:text-white"
+                      }`}
+                    >
+                      {m.replace("_", " ")}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {missionResult && (
+              <>
+                {/* ACTIVE VERSION & SAFEGUARD STATUS BAR */}
+                <div className="bg-[#16161d] border border-[#2d2d3a] p-4 flex flex-wrap items-center justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-4 text-xs">
+                    <div>
+                      <span className="text-zinc-400 uppercase text-[10px] block">TRANSACTION DATE</span>
+                      <span className="font-mono font-bold text-white">{missionResult.transaction_date}</span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 uppercase text-[10px] block">ACTIVE SET MT/RPT VERSION</span>
+                      <span className="font-mono font-bold text-[#FA6800]">
+                        {missionResult.set_mt_rpt_regime_applied}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 uppercase text-[10px] block">AGENTIC TOPOLOGY</span>
+                      <span className="font-mono font-bold text-purple-400 uppercase">
+                        {missionResult.execution_mode}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-zinc-400 uppercase text-[10px] block">SCENARIO PROFILE</span>
+                      <span className="font-mono font-bold text-rose-400">
+                        THB 1,800M DEBT / THB -450M NEGATIVE EQUITY
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="bg-amber-950/80 border border-amber-600 text-amber-300 px-2.5 py-1 text-[10px] font-bold uppercase">
+                      INSOLV-02: NO CONCLUSIVE INSOLVENCY ADJUDICATION WITHOUT COURT ORDER
+                    </span>
+                    <span className="bg-rose-950/80 border border-rose-600 text-rose-300 px-2.5 py-1 text-[10px] font-bold uppercase">
+                      SET-05: AUTONOMOUS SETLINK / SEC FILING LOCKED
+                    </span>
+                  </div>
+                </div>
+
+                {/* 6-MODULE COORDINATED LEGAL ANALYSIS GRID */}
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mb-3">
+                    6-MODULE COORDINATED STATUTORY &amp; RULE ENGINE EVALUATION
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {missionResult.activated_modules.map((mod) => (
+                      <div
+                        key={mod.module_id}
+                        className="bg-[#121216] border border-[#262630] p-4 flex flex-col justify-between space-y-3"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-mono text-xs font-bold text-[#FA6800]">{mod.module_code}</span>
+                            <span className="font-mono text-[10px] text-zinc-400 bg-[#08080a] px-2 py-0.5 border border-[#22222c]">
+                              {mod.regulator_code}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-semibold text-white mb-1">{mod.display_name}</h4>
+                          <div className="text-[11px] text-[#1BA1E2] mb-2">{mod.question_answered}</div>
+                          <p className="text-xs text-zinc-300 leading-relaxed">{mod.legal_findings}</p>
+                        </div>
+                        <div className="pt-2 border-t border-[#1f1f29] flex flex-wrap items-center justify-between gap-1 text-[10px] font-mono text-emerald-400">
+                          <span>PROVISIONS: {mod.provisions_cited.join(", ")}</span>
+                          <span>RULE: {mod.deterministic_rule_id}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* PATH A VS PATH B SCENARIO COMPARISON */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {missionResult.alternative_structures.map((path) => (
+                    <div
+                      key={path.structure_id}
+                      className="bg-[#121216] border-t-4 border-[#FA6800] p-5 border-x border-b border-[#262630] space-y-3"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#FA6800]">
+                          {path.structure_id} &bull; {path.estimated_duration}
+                        </span>
+                        <span className="text-[10px] font-mono bg-emerald-950/70 border border-emerald-700 text-emerald-300 px-2 py-0.5 uppercase">
+                          {path.feasibility}
+                        </span>
+                      </div>
+                      <h4 className="text-lg font-semibold text-white">{path.name}</h4>
+                      <div className="grid grid-cols-1 gap-2 text-xs bg-[#08080a] p-3 border border-[#22222c]">
+                        <div>
+                          <span className="text-zinc-400 font-bold uppercase text-[10px] block">
+                            REQUIRED APPROVALS (SHAREHOLDERS / CREDITORS / COURT)
+                          </span>
+                          <span className="text-zinc-200">{path.required_approvals.join(" | ")}</span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-400 font-bold uppercase text-[10px] block">
+                            SHAREHOLDER DILUTION &amp; CREDITOR IMPACT
+                          </span>
+                          <span className="text-zinc-200">
+                            {path.shareholder_dilution_impact} &mdash; {path.creditor_impact}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-400 font-bold uppercase text-[10px] block">
+                            SET LISTING PRESERVATION (`REG-SET`)
+                          </span>
+                          <span className="text-zinc-200">{path.set_listing_preservation}</span>
+                        </div>
+                        <div>
+                          <span className="text-zinc-400 font-bold uppercase text-[10px] block">
+                            TAX IMPACT (`REG-TAX`)
+                          </span>
+                          <span className="text-zinc-200">{path.tax_implications}</span>
+                        </div>
+                      </div>
+                      <div className="text-xs text-amber-300/90 space-y-1">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                          GOVERNING STATUTES &amp; REGULATIONS:
+                        </div>
+                        {path.governing_laws.map((gl, idx) => (
+                          <div key={idx}>&bull; {gl}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* END-TO-END WORKFLOW DEPENDENCY GRAPH & HUMAN-GATED DRAFT PACKAGES */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <div className="lg:col-span-2 bg-[#121216] border border-[#262630] p-4">
+                    <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-[#1BA1E2] mb-3">
+                      SEQUENTIAL REGULATORY WORKFLOW &amp; APPROVAL DEPENDENCIES (`CORE-02`)
+                    </h4>
+                    <div className="space-y-2">
+                      {missionResult.dependency_workflow.map((st) => (
+                        <div
+                          key={st.step_order}
+                          className="bg-[#08080a] border border-[#22222c] p-3 flex items-start justify-between gap-4 text-xs"
+                        >
+                          <div className="flex items-start gap-3">
+                            <span className="bg-[#0050EF] text-white font-mono font-bold px-2 py-0.5 text-xs">
+                              0{st.step_order}
+                            </span>
+                            <div>
+                              <div className="font-semibold text-white">{st.phase}</div>
+                              <div className="text-[11px] text-zinc-400 mt-0.5">
+                                Forum: <span className="text-zinc-200 font-mono">{st.regulator_or_forum}</span> &bull;{" "}
+                                Basis: <span className="text-emerald-400 font-mono">{st.governing_provision}</span>
+                              </div>
+                              <div className="text-[11px] text-zinc-400 mt-0.5">
+                                Deadline: <span className="text-amber-300">{st.deadline_calculation}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-mono text-zinc-400 whitespace-nowrap">
+                            {st.depends_on_steps.length > 0
+                              ? `DEPENDS ON STEP ${st.depends_on_steps.join(", ")}`
+                              : "INITIAL TRIGGER"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* HUMAN-GATED REGULATORY PACKAGE DRAFTS & CORE-03 CONSULTATION QUARANTINE */}
+                  <div className="space-y-4">
+                    <div className="bg-[#121216] border border-[#262630] p-4">
+                      <h4 className="text-xs font-bold uppercase tracking-[0.2em] text-[#FA6800] mb-2">
+                        GENERATED DISCLOSURE &amp; FILING PACKAGES (`SET-05`)
+                      </h4>
+                      <div className="space-y-2">
+                        {missionResult.draft_advisory_documents.map((doc) => (
+                          <div key={doc.doc_id} className="bg-[#08080a] border border-[#22222c] p-3 text-xs">
+                            <div className="font-semibold text-white">{doc.title}</div>
+                            <div className="text-[11px] text-zinc-400 mt-0.5">
+                              Target: <span className="text-zinc-200">{doc.target_regulator}</span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-[10px] font-mono">
+                              <span className="text-amber-400">HUMAN APPROVAL: REQUIRED</span>
+                              <span className="bg-rose-950 border border-rose-700 text-rose-300 px-1.5 py-0.5">
+                                AUTO-SUBMIT: FALSE
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#121216] border-l-4 border-amber-500 p-4 border-y border-r border-[#262630]">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-amber-400 mb-1">
+                        CORE-03 &bull; NON-BINDING CONSULTATION QUARANTINE
+                      </div>
+                      <p className="text-[11px] text-zinc-400 mb-2">
+                        Public hearing and draft amendment items are tracked for horizon scanning but strictly
+                        quarantined from deterministic rule execution:
+                      </p>
+                      <div className="space-y-2">
+                        {missionResult.quarantined_non_binding_consultations.map((cb) => (
+                          <div key={cb.id} className="bg-[#08080a] border border-amber-800/50 p-2.5 text-xs">
+                            <div className="flex items-center justify-between text-[10px] font-mono text-amber-300">
+                              <span>{cb.regulator_code}</span>
+                              <span>{cb.regulatory_binding_status}</span>
+                            </div>
+                            <div className="font-semibold text-white mt-0.5">{cb.title_en}</div>
+                            <div className="text-[11px] text-zinc-400 mt-0.5">{cb.enforcement_block_reason}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         {/* EXPERT VIEW TECHNICAL DIAGNOSTICS DRAWER (SECTION 11 UX REQUIREMENT) */}
         {expertView && (
           <div className="mt-8 bg-[#0c0c12] border-2 border-[#0050EF] p-5 space-y-4">
@@ -3041,12 +3443,13 @@ export default function Reg24MetroConsole() {
       {/* METRO FOOTER */}
       <footer className="border-t border-[#262630] bg-[#0c0c10] px-6 py-4 mt-12 text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-4">
         <div>
-          REG24 P0 INFRASTRUCTURE &bull; THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
+          REG24 P0 INFRASTRUCTURE &bull; 10 THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
           CONTRACT (`reg24.contract.th`) | CIVIL CODE (`reg24.civil.th`) | TAX (`reg24.tax.th`) |
-          LABOR (`reg24.labor.th`) | BOI (`reg24.boi.th`)
+          LABOR (`reg24.labor.th`) | BOI (`reg24.boi.th`) | SEC (`reg24.sec.th`) | SET (`reg24.set.th`) |
+          RESTRUCTURING (`reg24.restruct.th`) | INSOLVENCY (`reg24.insolv.th`)
         </div>
         <div className="uppercase tracking-wider text-zinc-400">
-          CONSUMED BY LAW24 &bull; TRACE24 &bull; VIBE24 &bull; EXTERNAL MCP CLIENTS
+          CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; TRACE24 &bull; VIBE24
         </div>
       </footer>
     </div>

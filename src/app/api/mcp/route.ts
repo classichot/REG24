@@ -163,6 +163,72 @@ export const MCP_TOOLS_CATALOG = [
       },
     },
   },
+  // CORE-07 Capital Markets, Corporate Restructuring & Insolvency MCP Services
+  {
+    name: "search_regulations",
+    description: "CORE-07: Hybrid full-text and semantic regulatory search across all 10 P0 Thailand legal modules",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "get_applicable_law",
+    description: "CORE-07: Identify applicable SEC, SET, Restructuring, Insolvency, Corporate, and Tax regulations from transaction facts",
+    inputSchema: { type: "object", properties: { facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "get_law_at_date",
+    description: "CORE-07: Point-in-time legal version retrieval (e.g., SET MT/RPT Pre-July 2026 vs. Revised 1 July 2026 rules)",
+    inputSchema: { type: "object", properties: { provision_id: { type: "string" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "explain_legal_provision",
+    description: "CORE-07: Explain a legal provision with official citations, regulator provenance, and cross-module references",
+    inputSchema: { type: "object", properties: { provision_id: { type: "string" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "analyze_sec_transaction",
+    description: "SEC-03/04: Evaluate SEA Sec. 246 (5% reporting), Sec. 247 (25%/50%/75% MTO), Whitewash, and TorJor. 42/2563 rehab offerings",
+    inputSchema: { type: "object", properties: { facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "check_set_compliance",
+    description: "SET-02/04: Evaluate SET Material Transaction (MT) & Related-Party Transaction (RPT) rules with 1 July 2026 temporal version selection",
+    inputSchema: { type: "object", properties: { facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "calculate_regulatory_threshold",
+    description: "CORE-05: Execute deterministic regulatory threshold calculators (MTO, MT/RPT Size Test, Debt-to-Equity, Sec. 90/46 Voting)",
+    inputSchema: { type: "object", properties: { rule_id: { type: "string" }, facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "analyze_restructuring",
+    description: "RESTRUCT-02/03: Execute 6-module cross-law restructuring analysis (REG-INSOLV + REG-RESTRUCT + REG-SEC + REG-SET + REG-TAX + REG-CORP)",
+    inputSchema: { type: "object", properties: { as_of_date: { type: "string" }, facts: { type: "object" } } },
+  },
+  {
+    name: "assess_rehabilitation_pathway",
+    description: "INSOLV-03/06: Evaluate Bankruptcy Act Sec. 90/3 eligibility (>=10M THB), Sec. 90/12 Automatic Stay, Sec. 90/46 voting & SET listing preservation",
+    inputSchema: { type: "object", properties: { facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "generate_legal_workflow",
+    description: "RESTRUCT-04: Generate dependency-based corporate restructuring and court rehabilitation execution workflow",
+    inputSchema: { type: "object", properties: { as_of_date: { type: "string" } } },
+  },
+  {
+    name: "draft_regulatory_document",
+    description: "SET-05 / RESTRUCT-05 / INSOLV-05: Generate SETLink disclosure drafts, board resolutions, and rehabilitation plan term sheets (human approval required)",
+    inputSchema: { type: "object", properties: { as_of_date: { type: "string" } } },
+  },
+  {
+    name: "validate_legal_citations",
+    description: "CORE-04: Validate official source SHA-256 hashes, effective dates, and non-binding consultation separation",
+    inputSchema: { type: "object", properties: { provision_id: { type: "string" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "get_regulation_changes",
+    description: "CORE-03/04: Retrieve regulatory change events, including the 1 July 2026 SET MT/RPT amendment and impacted modules",
+    inputSchema: { type: "object", properties: { module_ids: { type: "array", items: { type: "string" } } } },
+  },
 ];
 
 export async function GET() {
@@ -172,9 +238,9 @@ export async function GET() {
     transport: "Streamable HTTP (JSON-RPC 2.0)",
     server_info: {
       name: "reg24-unified-mcp-gateway",
-      version: "1.0.0",
+      version: "2.0.0",
       jurisdiction: "TH",
-      connected_consumers: ["LAW24", "TRACE24", "VIBE24", "Third-Party AI Agents"],
+      connected_consumers: ["LAW24", "CFO24", "ACC24", "TP24", "TRACE24", "VIBE24", "External AI Agents"],
     },
     tools: MCP_TOOLS_CATALOG,
   });
