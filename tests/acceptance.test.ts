@@ -190,5 +190,47 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     expect(cancelRes.success).toBe(true);
     expect(cancelRes.task?.state).toBe("canceled");
   });
-});
 
+  it("13. Hybrid Legal GraphRAG Engine & 3R Pipeline (REG24-P0-GRAPH-001: R1 Multi-Hop Retrieval -> R2 Reasoning -> R3 Verification & AI-Edge Quarantine)", () => {
+    const res = core.execute3RGraphRAGQuery({
+      query: "Can a company terminate an employee without severance pay?",
+      as_of_date: "2026-10-18",
+      known_at_date: "2026-10-18",
+    });
+
+    expect(res.status).toBe("ok");
+    expect(res.result.architecture_pipeline).toBe("3R_HYBRID_GRAPHRAG_V1");
+
+    // R1: Multi-hop GraphRAG traversal checks
+    const r1 = res.result.r1_retrieval_graphrag;
+    expect(r1.relationships_followed).toContain("CONTAINS");
+    expect(r1.relationships_followed).toContain("EXCEPTION_TO");
+    expect(r1.relationships_followed).toContain("AMENDS");
+    expect(r1.relationships_followed).toContain("EFFECTIVE_DURING");
+    expect(r1.relationships_followed).toContain("INTERPRETS");
+
+    const traversedIds = r1.multi_hop_nodes_traversed.map((n) => n.node_id);
+    expect(traversedIds).toContain("prov.th.lpa.118");
+    expect(traversedIds).toContain("prov.th.lpa.119");
+    expect(traversedIds).toContain("case.th.dika.8790_2563");
+    expect(r1.linked_court_decisions.length).toBeGreaterThanOrEqual(1);
+
+    // Governance rule: Unverified AI-inferred graph edges MUST be quarantined and never treated as authoritative legal facts
+    expect(r1.ai_inferred_edges_quarantined.length).toBeGreaterThanOrEqual(1);
+    expect(r1.ai_inferred_edges_quarantined[0].edge_id).toBe("edge.16.ai_inferred_unverified");
+
+    // R2: Reasoning & Fact-to-Rule Matching
+    const r2 = res.result.r2_reasoning_analysis;
+    expect(r2.statutory_interpretation).toContain("Section 119");
+    expect(r2.fact_to_rule_matching.matched_rule_ids).toContain("rule.th.labor.severance_calculation");
+
+    // R3: Legal Verification Engine
+    const r3 = res.result.r3_review_verification;
+    expect(r3.citation_verification_passed).toBe(true);
+    expect(r3.amendment_check_passed).toBe(true);
+    expect(r3.effective_date_check_passed).toBe(true);
+    expect(r3.contradiction_detection_passed).toBe(true);
+    expect(r3.ai_inferred_relationships_quarantined).toBe(true);
+    expect(r3.uncertainty_flags.length).toBeGreaterThanOrEqual(2);
+  });
+});

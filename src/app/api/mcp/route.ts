@@ -147,6 +147,22 @@ export const MCP_TOOLS_CATALOG = [
       },
     },
   },
+  {
+    name: "reg24.graphrag_3r_query",
+    description:
+      "Execute REG24 3R Hybrid GraphRAG pipeline (R1: Vector + Keyword + Multi-Hop Graph Traversal -> R2: Legal AI Statutory & Rule Reasoning -> R3: Independent Legal Verification Engine with AI-inferred edge quarantine)",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      properties: {
+        query: { type: "string" },
+        module_ids: { type: "array", items: { type: "string" } },
+        as_of_date: { type: "string" },
+        known_at_date: { type: "string" },
+        facts: { type: "object" },
+      },
+    },
+  },
 ];
 
 export async function GET() {

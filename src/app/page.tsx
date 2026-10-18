@@ -49,6 +49,8 @@ import type {
   ModuleRelease,
   A2AAgentCard,
   A2ATaskContract,
+  CourtDecision,
+  ThreeRGraphRAGResponse,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -60,6 +62,12 @@ interface SnapshotData {
   obligations: Obligation[];
   rules: RuleDefinition[];
   graphEdges: GraphEdge[];
+  courtDecisions: CourtDecision[];
+  sample3RGraphRAGResult: {
+    result: ThreeRGraphRAGResponse;
+    trace_id: string;
+    status: string;
+  };
   regulatoryChanges: RegulatoryChange[];
   releases: ModuleRelease[];
   auditTraces: AuditTraceEvent[];
@@ -90,7 +98,7 @@ const SCREEN_CONFIG: {
   { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0", accent: "#008A00" },
   { id: "SCREEN_B_FACTORY", code: "SCR-B", label: "module factory", labelTh: "สร้างและติดตั้งโมดูลใหม่", accent: "#1BA1E2" },
   { id: "SCREEN_C_SOURCES", code: "SCR-C", label: "legal sources", labelTh: "แหล่งข้อมูลและหลักฐานอ้างอิง", accent: "#F0A30A" },
-  { id: "SCREEN_D_GRAPH", code: "SCR-D", label: "knowledge graph", labelTh: "กราฟความสัมพันธ์ข้ามโมดูล", accent: "#A20025" },
+  { id: "SCREEN_D_GRAPH", code: "SCR-D", label: "3r graphrag & graph", labelTh: "ไฮบริด GraphRAG 3R และกราฟกฎหมาย", accent: "#A20025" },
   { id: "SCREEN_E_RULES", code: "SCR-E", label: "rule studio", labelTh: "กฎคำนวณอัตโนมัติ (Law-as-Code)", accent: "#6A00FF" },
   { id: "SCREEN_F_CHANGES", code: "SCR-F", label: "change intelligence", labelTh: "ตรวจจับการแก้ไขกฎหมาย", accent: "#D80073" },
   { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST", accent: "#00ABA9" },
@@ -134,8 +142,14 @@ export default function Reg24MetroConsole() {
   const [newModColor, setNewModColor] = useState("#1BA1E2");
   const [factoryStep, setFactoryStep] = useState<number>(10);
 
-  // Screen D — Graph Explorer states
-  const [selectedProvisionId, setSelectedProvisionId] = useState<string>("prov.th.ccc.1097");
+  // Screen D — 3R Hybrid GraphRAG & Graph Explorer states (REG24-P0-GRAPH-001)
+  const [selectedProvisionId, setSelectedProvisionId] = useState<string>("prov.th.lpa.118");
+  const [graphRagQuery, setGraphRagQuery] = useState<string>(
+    "Can a company terminate an employee without severance pay?"
+  );
+  const [graphRagAsOfDate, setGraphRagAsOfDate] = useState<string>("2026-10-18");
+  const [graphRagResult, setGraphRagResult] = useState<ThreeRGraphRAGResponse | null>(null);
+  const [graphRagLoading, setGraphRagLoading] = useState<boolean>(false);
 
   // Screen E — Rule Studio states
   const [selectedRuleId, setSelectedRuleId] = useState<string>("rule.th.corporate.incorporation_check");
@@ -179,6 +193,38 @@ export default function Reg24MetroConsole() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4200);
   }, []);
+
+  const handleRun3RGraphRAG = async (customQuery?: string, customAsOfDate?: string) => {
+    const q = customQuery ?? graphRagQuery;
+    const d = customAsOfDate ?? graphRagAsOfDate;
+    if (customQuery) setGraphRagQuery(customQuery);
+    if (customAsOfDate) setGraphRagAsOfDate(customAsOfDate);
+    setGraphRagLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_3r_graphrag",
+          payload: {
+            query: q,
+            as_of_date: d,
+            known_at_date: "2026-10-18",
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.graphrag_3r?.result) {
+        setGraphRagResult(data.graphrag_3r.result);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast("Executed 3R Hybrid GraphRAG (R1 Retrieval -> R2 Reasoning -> R3 Verification).");
+    } finally {
+      setGraphRagLoading(false);
+    }
+  };
 
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
@@ -970,6 +1016,67 @@ export default function Reg24MetroConsole() {
                 </p>
               </div>
             </div>
+
+            {/* REG24-P0-GRAPH-001: 3R ARCHITECTURE STRIP (R1 RETRIEVAL -> R2 REASONING -> R3 REVIEW) */}
+            <div className="bg-[#121216] border border-[#262630] p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
+                  REG24 3R ARCHITECTURE &bull; REG24-P0-GRAPH-001 MANDATORY HYBRID LEGAL GRAPHRAG ENGINE
+                </div>
+                <button
+                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
+                  className="text-[10px] font-bold uppercase tracking-wider bg-[#A20025] hover:bg-[#82001d] text-white px-3 py-1 cursor-pointer"
+                >
+                  LAUNCH 3R HYBRID GRAPHRAG EXPLORER (SCR-D) &rarr;
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div
+                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
+                  className="bg-[#0c0c10] border-l-4 border-[#1BA1E2] p-3 border-y border-r border-[#262630] cursor-pointer hover:border-[#1BA1E2]"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#1BA1E2]">
+                    R1 &bull; RETRIEVAL — HYBRID GRAPHRAG
+                  </div>
+                  <div className="text-sm font-semibold text-white mt-0.5">
+                    RAG24 + Legal Knowledge Graph
+                  </div>
+                  <div className="text-[11px] text-zinc-400 mt-1">
+                    Vector search &bull; Keyword search &bull; Multi-hop graph traversal (`CONTAINS`, `AMENDS`, `EXCEPTION_TO`, `INTERPRETS`) &bull; Version filtering
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
+                  className="bg-[#0c0c10] border-l-4 border-[#6A00FF] p-3 border-y border-r border-[#262630] cursor-pointer hover:border-[#6A00FF]"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-purple-400">
+                    R2 &bull; REASONING — LEGAL AI AGENTS
+                  </div>
+                  <div className="text-sm font-semibold text-white mt-0.5">
+                    Statutory &amp; Cross-Law Analysis
+                  </div>
+                  <div className="text-[11px] text-zinc-400 mt-1">
+                    Statutory interpretation &bull; Cross-law analysis &bull; Fact-to-rule matching &bull; Deterministic Law-as-Code execution
+                  </div>
+                </div>
+
+                <div
+                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
+                  className="bg-[#0c0c10] border-l-4 border-[#008A00] p-3 border-y border-r border-[#262630] cursor-pointer hover:border-[#008A00]"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                    R3 &bull; REVIEW — LEGAL VERIFICATION ENGINE
+                  </div>
+                  <div className="text-sm font-semibold text-white mt-0.5">
+                    Verified Legal Response &amp; Quarantine
+                  </div>
+                  <div className="text-[11px] text-zinc-400 mt-1">
+                    Citation verification &bull; Amendment &amp; effective-date checks &bull; Contradiction detection &bull; AI-inferred edge quarantine
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -1529,102 +1636,482 @@ export default function Reg24MetroConsole() {
         )}
 
         {/* =====================================================================
-            SCREEN D — LEGAL KNOWLEDGE GRAPH EXPLORER (REG-GRAPH-001 to 003)
+            SCREEN D — 3R HYBRID GRAPHRAG & LEGAL KNOWLEDGE GRAPH (REG24-P0-GRAPH-001 & REG-GRAPH-001 to 003)
             ===================================================================== */}
-        {activeScreen === "SCREEN_D_GRAPH" && (
-          <div className="space-y-6">
-            <div className="border-b border-[#262630] pb-4 flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#A20025]">
-                  CONSOLE SCREEN D &bull; REG-GRAPH-001 TO 003
-                </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
-                  cross-module legal knowledge graph &amp; conflict detector
-                </h2>
-              </div>
-              <div className="text-xs font-mono bg-[#121216] border border-[#262630] px-3 py-1.5 text-[#1BA1E2]">
-                TRAVERSAL PATH: Corporate &rarr; Civil Code &rarr; Contract &rarr; Tax &rarr; BOI
-              </div>
-            </div>
-
-            {/* Interactive SVG Cross-Module Architecture Topology */}
-            <div className="bg-[#121216] border border-[#262630] p-5">
-              <div className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mb-4">
-                INTERACTIVE CROSS-MODULE PROVISION TOPOLOGY (CLICK ANY PROVISION BELOW TO FILTER EDGES)
+        {activeScreen === "SCREEN_D_GRAPH" && (() => {
+          const active3R = graphRagResult || snapshot.sample3RGraphRAGResult?.result;
+          return (
+            <div className="space-y-6">
+              <div className="border-b border-[#262630] pb-4 flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#A20025]">
+                    CONSOLE SCREEN D &bull; REG24-P0-GRAPH-001 &bull; 3R ARCHITECTURE (R1 &rarr; R2 &rarr; R3)
+                  </span>
+                  <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                    hybrid legal graphrag engine &amp; 3r verification pipeline
+                  </h2>
+                </div>
+                <div className="text-xs font-mono bg-[#121216] border border-[#262630] px-3 py-1.5 text-[#1BA1E2]">
+                  RAG24 + VERSIONED KNOWLEDGE GRAPH &bull; MCP: reg24.graphrag_3r_query
+                </div>
               </div>
 
-              <div className="flex flex-wrap gap-2 mb-5">
-                {snapshot.provisions.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => setSelectedProvisionId(p.id)}
-                    className={`px-3 py-1.5 text-xs font-mono border cursor-pointer ${
-                      selectedProvisionId === p.id
-                        ? "bg-[#0050EF] border-white text-white font-bold"
-                        : "bg-[#0c0c10] border-[#262630] text-zinc-300 hover:border-zinc-500"
-                    }`}
-                  >
-                    {p.id} (Sec. {p.section_number})
-                  </button>
-                ))}
+              {/* 3R ARCHITECTURE OVERVIEW STRIP */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-[#121216] border-t-4 border-[#1BA1E2] p-4 border-x border-b border-[#262630]">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#1BA1E2] mb-1">
+                    STAGE R1 &bull; RETRIEVAL — HYBRID GRAPHRAG
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-1">
+                    RAG24 + Legal Knowledge Graph
+                  </h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Combines vector &amp; keyword search with multi-hop graph traversal (`CONTAINS`, `AMENDS`,
+                    `REPEALS`, `REFERENCES`, `EXCEPTION_TO`, `INTERPRETS`, `APPLIES_TO`, `EFFECTIVE_DURING`)
+                    and effective-date version filtering.
+                  </p>
+                </div>
+
+                <div className="bg-[#121216] border-t-4 border-[#6A00FF] p-4 border-x border-b border-[#262630]">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400 mb-1">
+                    STAGE R2 &bull; REASONING — LEGAL AI AGENTS
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-1">
+                    Statutory &amp; Cross-Law Analysis
+                  </h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Synthesizes statutory provisions, exceptions, and Supreme Court (`Dika`) precedents, and
+                    matches structured facts to human-approved deterministic rules (`executable_approved`).
+                  </p>
+                </div>
+
+                <div className="bg-[#121216] border-t-4 border-[#008A00] p-4 border-x border-b border-[#262630]">
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400 mb-1">
+                    STAGE R3 &bull; REVIEW — LEGAL VERIFICATION ENGINE
+                  </div>
+                  <h3 className="text-base font-semibold text-white mb-1">
+                    Independent Verification &amp; Quarantine
+                  </h3>
+                  <p className="text-xs text-zinc-400 leading-relaxed">
+                    Verifies SHA-256 citations, checks amendments &amp; effective dates, flags statutory
+                    contradictions, and quarantines unverified AI-inferred graph relationships.
+                  </p>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {snapshot.graphEdges.map((edge) => {
-                  const isHighlighted =
-                    edge.source_id === selectedProvisionId ||
-                    edge.target_id === selectedProvisionId;
-
-                  return (
-                    <div
-                      key={edge.id}
-                      className={`p-4 border transition-colors ${
-                        edge.conflict_flagged
-                          ? "bg-rose-950/30 border-rose-600"
-                          : isHighlighted
-                            ? "bg-[#0050EF]/15 border-[#0050EF]"
-                            : "bg-[#0c0c10] border-[#24242f]"
-                      }`}
+              {/* INTERACTIVE 3R MULTI-HOP QUERY RUNNER */}
+              <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A20025]">
+                      INTERACTIVE 3R HYBRID GRAPHRAG MULTI-HOP RUNNER (REG24-P0-GRAPH-001)
+                    </div>
+                    <p className="text-xs text-zinc-400">
+                      Test multi-hop retrieval across statutes, statutory exceptions, amendments, and Supreme Court decisions.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() =>
+                        handleRun3RGraphRAG(
+                          "Can a company terminate an employee without severance pay?",
+                          "2026-10-18"
+                        )
+                      }
+                      className="text-[10px] font-mono uppercase bg-[#1c1c26] hover:bg-[#282836] text-[#1BA1E2] border border-[#2e2e3d] px-2.5 py-1 cursor-pointer"
                     >
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-widest bg-[#1c1c26] px-2 py-0.5 text-[#1BA1E2]">
-                          {edge.relationship}
+                      PRESET 1: TERMINATION WITHOUT SEVERANCE (LPA SEC. 118 &harr; 119 &harr; DIKA 8790/2563)
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleRun3RGraphRAG(
+                          "Can a court reduce an excessive contractual penalty clause under CCC Section 383 and UCTA Section 4?",
+                          "2026-10-18"
+                        )
+                      }
+                      className="text-[10px] font-mono uppercase bg-[#1c1c26] hover:bg-[#282836] text-emerald-300 border border-[#2e2e3d] px-2.5 py-1 cursor-pointer"
+                    >
+                      PRESET 2: CONTRACT PENALTY REDUCTION (CCC SEC. 383 &harr; UCTA SEC. 4 &harr; DIKA 4122/2564)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                  <div className="md:col-span-8">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                      Legal Question / Multi-Hop Query
+                    </label>
+                    <input
+                      type="text"
+                      value={graphRagQuery}
+                      onChange={(e) => setGraphRagQuery(e.target.value)}
+                      className="w-full bg-[#0c0c10] border border-[#262630] px-3 py-2 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                      Effective Date Filter
+                    </label>
+                    <input
+                      type="text"
+                      value={graphRagAsOfDate}
+                      onChange={(e) => setGraphRagAsOfDate(e.target.value)}
+                      className="w-full bg-[#0c0c10] border border-[#262630] px-3 py-2 text-xs text-white font-mono"
+                    />
+                  </div>
+                  <div className="md:col-span-2 flex items-end">
+                    <button
+                      onClick={() => handleRun3RGraphRAG()}
+                      disabled={graphRagLoading}
+                      className="w-full bg-[#A20025] hover:bg-[#82001d] text-white py-2 px-3 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Play className="w-3.5 h-3.5" />
+                      <span>{graphRagLoading ? "RUNNING 3R..." : "RUN 3R PIPELINE"}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {active3R && (
+                  <div className="space-y-4 pt-2">
+                    {/* VERIFIED 3R LEGAL RESPONSE BANNER */}
+                    <div className="bg-emerald-950/30 border-l-4 border-[#008A00] p-4 border-y border-r border-emerald-800/50">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-400">
+                          VERIFIED LEGAL RESPONSE (R1 RETRIEVAL &rarr; R2 REASONING &rarr; R3 VERIFICATION)
                         </span>
-                        <span className="text-[10px] font-mono text-zinc-400">
-                          VALID FROM VERSION: {edge.valid_from_version}
+                        <span className="text-[10px] font-mono bg-amber-950/80 border border-amber-600/60 text-amber-300 px-2 py-0.5 uppercase">
+                          R3 STATUS: {active3R.r3_review_verification.overall_verification_status}
                         </span>
                       </div>
+                      <p className="text-xs text-white leading-relaxed">
+                        {active3R.r3_review_verification.verified_legal_response_summary}
+                      </p>
+                    </div>
 
-                      <div className="text-xs font-mono text-white flex items-center gap-2 mb-1.5">
-                        <span className="bg-[#181822] px-2 py-0.5 border border-[#2d2d3c]">
-                          {edge.source_module} :: {edge.source_id}
-                        </span>
-                        <span className="text-[#1BA1E2]">&rarr;</span>
-                        <span className="bg-[#181822] px-2 py-0.5 border border-[#2d2d3c]">
-                          {edge.target_module} :: {edge.target_id}
-                        </span>
+                    {/* R1, R2, R3 DETAILED EXECUTION COLUMNS */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {/* COLUMN 1: R1 HYBRID GRAPHRAG MULTI-HOP TRAVERSAL */}
+                      <div className="bg-[#0c0c10] border border-[#24242f] p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-[#24242f] pb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#1BA1E2]">
+                            R1 &bull; MULTI-HOP GRAPH TRAVERSAL ({active3R.r1_retrieval_graphrag.multi_hop_nodes_traversed.length} NODES)
+                          </span>
+                          <span className="text-[10px] font-mono text-zinc-400">
+                            AS OF {active3R.as_of_date}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-wrap gap-1">
+                          {active3R.r1_retrieval_graphrag.relationships_followed.map((rel) => (
+                            <span
+                              key={rel}
+                              className="text-[10px] font-mono uppercase bg-[#181824] border border-[#2d2d3d] text-[#1BA1E2] px-1.5 py-0.5"
+                            >
+                              {rel}
+                            </span>
+                          ))}
+                        </div>
+
+                        <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                          {active3R.r1_retrieval_graphrag.multi_hop_nodes_traversed.map((hop, idx) => (
+                            <div
+                              key={`${hop.node_id}-${idx}`}
+                              className="bg-[#121218] border border-[#242432] p-2.5 text-xs space-y-1"
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-[10px] font-mono uppercase bg-[#0050EF] text-white px-1.5 py-0.5">
+                                  HOP {hop.hop_depth} &bull; {hop.node_type}
+                                </span>
+                                <span className="text-[10px] font-mono text-[#1BA1E2]">
+                                  via {hop.via_relationship}
+                                </span>
+                              </div>
+                              <div className="font-semibold text-white">{hop.label}</div>
+                              <div className="text-[11px] font-mono text-zinc-400">
+                                ID: {hop.node_id} | Module: {hop.module_id}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {active3R.r1_retrieval_graphrag.linked_court_decisions.length > 0 && (
+                          <div className="border-t border-[#24242f] pt-2.5 space-y-2">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                              LINKED SUPREME COURT DECISIONS (`INTERPRETS` CASE-TO-PROVISION):
+                            </div>
+                            {active3R.r1_retrieval_graphrag.linked_court_decisions.map((cd) => (
+                              <div
+                                key={cd.id}
+                                className="bg-amber-950/20 border border-amber-700/50 p-2.5 text-xs space-y-1"
+                              >
+                                <div className="font-semibold text-amber-200">{cd.case_number}</div>
+                                <div className="text-[11px] text-zinc-300 leading-relaxed">
+                                  {cd.holding_summary_en}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
 
-                      <p className="text-xs text-zinc-300">{edge.provenance_citation}</p>
+                      {/* COLUMN 2: R2 LEGAL AI REASONING & FACT-TO-RULE MATCHING */}
+                      <div className="bg-[#0c0c10] border border-[#24242f] p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-[#24242f] pb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400">
+                            R2 &bull; STATUTORY &amp; CROSS-LAW REASONING
+                          </span>
+                          <span className="text-[10px] font-mono text-zinc-400">
+                            {active3R.r2_reasoning_analysis.fact_to_rule_matching.deterministic_evaluations.length} RULES MATCHED
+                          </span>
+                        </div>
 
-                      {edge.conflict_flagged && (
-                        <div className="mt-2.5 bg-rose-950/80 border border-rose-500 p-2.5 text-xs text-rose-200 flex items-start gap-2">
-                          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-                          <div>
-                            <strong className="block uppercase text-[10px] tracking-wider text-rose-300">
-                              REG-GRAPH-003 HUMAN LEGAL REVIEW FLAG (NO LLM GUESSWORK):
-                            </strong>
-                            {edge.conflict_notes}
+                        <div className="bg-[#121218] border border-[#242432] p-3 text-xs text-zinc-200 leading-relaxed">
+                          <strong className="block text-[10px] uppercase text-purple-300 mb-1">
+                            STATUTORY INTERPRETATION:
+                          </strong>
+                          {active3R.r2_reasoning_analysis.statutory_interpretation}
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                            CROSS-LAW GRAPH ANALYSIS:
+                          </div>
+                          {active3R.r2_reasoning_analysis.cross_law_analysis.map((cl, i) => (
+                            <div
+                              key={i}
+                              className="bg-[#121218] border-l-2 border-purple-500 pl-2.5 py-1.5 text-xs text-zinc-300"
+                            >
+                              <div className="font-mono text-[10px] text-purple-300">
+                                {cl.source_module} &rarr; [{cl.relationship}] &rarr; {cl.target_module}
+                              </div>
+                              <div>{cl.analysis}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {active3R.r2_reasoning_analysis.fact_to_rule_matching.deterministic_evaluations.map((ev) => (
+                          <div
+                            key={ev.rule_id}
+                            className="bg-[#14141d] border border-[#2d2d3d] p-2.5 text-xs space-y-1"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono text-[11px] text-[#1BA1E2]">{ev.rule_id}</span>
+                              <span className="text-[10px] font-mono uppercase bg-purple-950 border border-purple-600 text-purple-200 px-1.5 py-0.5">
+                                {ev.outcome}
+                              </span>
+                            </div>
+                            <p className="text-zinc-300 text-[11px]">{ev.explanation}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* COLUMN 3: R3 LEGAL VERIFICATION ENGINE & AI-EDGE QUARANTINE */}
+                      <div className="bg-[#0c0c10] border border-[#24242f] p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-[#24242f] pb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                            R3 &bull; LEGAL VERIFICATION ENGINE
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400">
+                            INDEPENDENT AUDIT
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-1.5 text-xs">
+                          <div className="flex items-center justify-between bg-[#121218] px-3 py-1.5 border border-[#22222e]">
+                            <span className="text-zinc-300">Citation &amp; SHA-256 Verification</span>
+                            <span className="font-mono text-[10px] text-emerald-400 uppercase">
+                              {active3R.r3_review_verification.citation_verification_passed ? "PASSED" : "FAILED"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between bg-[#121218] px-3 py-1.5 border border-[#22222e]">
+                            <span className="text-zinc-300">Amendment History Check (LPA No. 7)</span>
+                            <span className="font-mono text-[10px] text-emerald-400 uppercase">
+                              {active3R.r3_review_verification.amendment_check_passed ? "PASSED" : "FAILED"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between bg-[#121218] px-3 py-1.5 border border-[#22222e]">
+                            <span className="text-zinc-300">Effective-Date Validity Check</span>
+                            <span className="font-mono text-[10px] text-emerald-400 uppercase">
+                              {active3R.r3_review_verification.effective_date_check_passed ? "PASSED" : "FAILED"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between bg-[#121218] px-3 py-1.5 border border-[#22222e]">
+                            <span className="text-zinc-300">Contradiction &amp; Conflict Detection</span>
+                            <span className="font-mono text-[10px] text-emerald-400 uppercase">
+                              {active3R.r3_review_verification.contradiction_detection_passed ? "ACTIVE" : "FAILED"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between bg-[#121218] px-3 py-1.5 border border-[#22222e]">
+                            <span className="text-zinc-300">AI-Inferred Edge Quarantine</span>
+                            <span className="font-mono text-[10px] text-amber-300 uppercase">
+                              QUARANTINED ({active3R.r1_retrieval_graphrag.ai_inferred_edges_quarantined.length} BLOCKED)
+                            </span>
                           </div>
                         </div>
-                      )}
+
+                        {active3R.r1_retrieval_graphrag.ai_inferred_edges_quarantined.length > 0 && (
+                          <div className="bg-amber-950/30 border border-amber-600/60 p-2.5 text-xs space-y-1">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                              GOVERNANCE RULE: AI-INFERRED EDGES QUARANTINED
+                            </div>
+                            {active3R.r1_retrieval_graphrag.ai_inferred_edges_quarantined.map((q) => (
+                              <p key={q.edge_id} className="text-[11px] text-amber-100/90 leading-relaxed">
+                                {q.reason}
+                              </p>
+                            ))}
+                          </div>
+                        )}
+
+                        <div className="space-y-1.5">
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                            UNCERTAINTY &amp; PROCEDURAL REVIEW FLAGS:
+                          </div>
+                          {active3R.r3_review_verification.uncertainty_flags.map((flag, i) => (
+                            <div
+                              key={i}
+                              className="bg-rose-950/30 border-l-2 border-rose-500 pl-2.5 py-1.5 text-[11px] text-rose-200"
+                            >
+                              {flag}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
-                  );
-                })}
+                  </div>
+                )}
+              </div>
+
+              {/* TRADITIONAL RAG VS. HYBRID GRAPHRAG CAPABILITY COMPARISON */}
+              <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-300">
+                  WHY HYBRID GRAPHRAG IS MANDATORY IN REG24 P0 (TRADITIONAL RAG VS. HYBRID GRAPHRAG)
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-[#0c0c10] text-zinc-400 uppercase text-[10px] tracking-wider border-b border-[#262630]">
+                        <th className="p-2.5">Legal Intelligence Capability</th>
+                        <th className="p-2.5">Traditional Vector/Keyword RAG</th>
+                        <th className="p-2.5 text-[#1BA1E2]">REG24 Hybrid GraphRAG (R1 + R2 + R3)</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1f1f29]">
+                      <tr>
+                        <td className="p-2.5 font-medium text-white">Retrieve relevant legal text</td>
+                        <td className="p-2.5 text-zinc-400">Yes</td>
+                        <td className="p-2.5 text-emerald-300 font-medium">Yes (RAG24 Vector + Exact Thai Section Match)</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-medium text-white">Connect related provisions</td>
+                        <td className="p-2.5 text-zinc-400">Limited</td>
+                        <td className="p-2.5 text-emerald-300 font-medium">Yes (`CONTAINS`, `REFERENCES`, `APPLIES_TO`)</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-medium text-white">Follow statutory exceptions</td>
+                        <td className="p-2.5 text-zinc-400">Requires extra logic</td>
+                        <td className="p-2.5 text-emerald-300 font-medium">Graph-assisted (`EXCEPTION_TO`: LPA Sec. 119 &rarr; Sec. 118)</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-medium text-white">Trace amendments &amp; temporal validity</td>
+                        <td className="p-2.5 text-zinc-400">Requires metadata</td>
+                        <td className="p-2.5 text-emerald-300 font-medium">Versioned graph (`AMENDS`, `REPEALS`, `EFFECTIVE_DURING`)</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-medium text-white">Link Supreme Court (`Dika`) decisions</td>
+                        <td className="p-2.5 text-zinc-400">Text retrieval only</td>
+                        <td className="p-2.5 text-emerald-300 font-medium">Explicit case-to-provision links (`INTERPRETS`: Dika 8790/2563)</td>
+                      </tr>
+                      <tr>
+                        <td className="p-2.5 font-medium text-white">Cross-reference tax, labor &amp; corporate law</td>
+                        <td className="p-2.5 text-zinc-400">Difficult</td>
+                        <td className="p-2.5 text-emerald-300 font-medium">Structured multi-hop retrieval + R3 Verification Engine</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Interactive Cross-Module Provision Topology */}
+              <div className="bg-[#121216] border border-[#262630] p-5">
+                <div className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-400 mb-4">
+                  VERSIONED LEGAL KNOWLEDGE GRAPH EDGES (CLICK ANY PROVISION BELOW TO FILTER EDGES)
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-5">
+                  {snapshot.provisions.map((p) => (
+                    <button
+                      key={p.id}
+                      onClick={() => setSelectedProvisionId(p.id)}
+                      className={`px-3 py-1.5 text-xs font-mono border cursor-pointer ${
+                        selectedProvisionId === p.id
+                          ? "bg-[#0050EF] border-white text-white font-bold"
+                          : "bg-[#0c0c10] border-[#262630] text-zinc-300 hover:border-zinc-500"
+                      }`}
+                    >
+                      {p.id} (Sec. {p.section_number})
+                    </button>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {snapshot.graphEdges.map((edge) => {
+                    const isHighlighted =
+                      edge.source_id === selectedProvisionId ||
+                      edge.target_id === selectedProvisionId;
+
+                    return (
+                      <div
+                        key={edge.id}
+                        className={`p-4 border transition-colors ${
+                          edge.conflict_flagged
+                            ? "bg-rose-950/30 border-rose-600"
+                            : !edge.verified
+                              ? "bg-amber-950/25 border-amber-600/70"
+                              : isHighlighted
+                                ? "bg-[#0050EF]/15 border-[#0050EF]"
+                                : "bg-[#0c0c10] border-[#24242f]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <span className="text-[10px] font-bold uppercase tracking-widest bg-[#1c1c26] px-2 py-0.5 text-[#1BA1E2]">
+                            {edge.relationship}
+                          </span>
+                          <span className="text-[10px] font-mono text-zinc-400">
+                            {edge.verified ? `VERIFIED (${edge.valid_from_version})` : "UNVERIFIED AI-INFERRED (QUARANTINED BY R3)"}
+                          </span>
+                        </div>
+
+                        <div className="text-xs font-mono text-white flex items-center gap-2 mb-1.5">
+                          <span className="bg-[#181822] px-2 py-0.5 border border-[#2d2d3c]">
+                            {edge.source_module} :: {edge.source_id}
+                          </span>
+                          <span className="text-[#1BA1E2]">&rarr;</span>
+                          <span className="bg-[#181822] px-2 py-0.5 border border-[#2d2d3c]">
+                            {edge.target_module} :: {edge.target_id}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-zinc-300">{edge.provenance_citation}</p>
+
+                        {edge.conflict_flagged && (
+                          <div className="mt-2.5 bg-rose-950/80 border border-rose-500 p-2.5 text-xs text-rose-200 flex items-start gap-2">
+                            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                            <div>
+                              <strong className="block uppercase text-[10px] tracking-wider text-rose-300">
+                                REG-GRAPH-003 HUMAN LEGAL REVIEW FLAG (NO LLM GUESSWORK):
+                              </strong>
+                              {edge.conflict_notes}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* =====================================================================
             SCREEN E — RULE STUDIO (Law-as-Code & Applicability Engine REG-RULE-001 to 004)

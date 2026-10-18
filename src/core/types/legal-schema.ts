@@ -27,6 +27,7 @@ export type ApplicabilityOutcome =
   | "unknown";
 
 export type GraphRelationshipType =
+  | "CONTAINS"
   | "PART_OF"
   | "AMENDS"
   | "REPEALS"
@@ -36,6 +37,8 @@ export type GraphRelationshipType =
   | "APPLIES_TO"
   | "REQUIRES"
   | "EXEMPTS"
+  | "EXCEPTION_TO"
+  | "EFFECTIVE_DURING"
   | "REFERENCES"
   | "INTERPRETS"
   | "CONDITIONAL_ON"
@@ -539,3 +542,99 @@ export interface A2AAgentCard {
   }[];
 }
 
+// ============================================================================
+// REG24-P0-GRAPH-001 — 3R ARCHITECTURE (R1 HYBRID GRAPHRAG • R2 REASONING • R3 REVIEW)
+// ============================================================================
+
+export interface CourtDecision {
+  id: string; // e.g., "case.th.dika.8790_2563"
+  case_number: string;
+  court_name_th: string;
+  court_name_en: string;
+  decision_date: string;
+  jurisdiction_id: string;
+  module_id: string;
+  title_th: string;
+  title_en: string;
+  holding_summary_th: string;
+  holding_summary_en: string;
+  interpreted_provision_ids: string[];
+  official_citation: string;
+  verified: boolean;
+}
+
+export interface GraphRAGHopNode {
+  hop_depth: number;
+  node_id: string;
+  node_type: "Provision" | "LegalInstrument" | "Amendment" | "CourtDecision";
+  module_id: string;
+  label: string;
+  via_relationship: GraphRelationshipType | "DIRECT_VECTOR_KEYWORD_HIT";
+  from_node_id: string;
+  version_id?: string;
+  effective_from?: string;
+  effective_to?: string;
+  verified_edge: boolean;
+  citation_locator: string;
+}
+
+export interface ThreeRGraphRAGResponse {
+  query: string;
+  jurisdiction_id: string;
+  as_of_date: string;
+  known_at_date: string;
+  architecture_pipeline: "3R_HYBRID_GRAPHRAG_V1";
+  r1_retrieval_graphrag: {
+    engine: string;
+    vector_keyword_candidates_count: number;
+    multi_hop_nodes_traversed: GraphRAGHopNode[];
+    relationships_followed: GraphRelationshipType[];
+    linked_court_decisions: CourtDecision[];
+    version_filter_applied: {
+      as_of_date: string;
+      known_at_date: string;
+      regulatory_status_filter: string;
+    };
+    ai_inferred_edges_quarantined: {
+      edge_id: string;
+      relationship: GraphRelationshipType;
+      reason: string;
+    }[];
+  };
+  r2_reasoning_analysis: {
+    statutory_interpretation: string;
+    cross_law_analysis: {
+      source_module: string;
+      target_module: string;
+      relationship: GraphRelationshipType;
+      analysis: string;
+    }[];
+    fact_to_rule_matching: {
+      matched_rule_ids: string[];
+      deterministic_evaluations: {
+        rule_id: string;
+        module_id: string;
+        outcome: ApplicabilityOutcome;
+        calculated_result: Record<string, unknown>;
+        explanation: string;
+      }[];
+    };
+  };
+  r3_review_verification: {
+    engine: string;
+    overall_verification_status: "verified" | "requires_human_review";
+    citation_verification_passed: boolean;
+    amendment_check_passed: boolean;
+    effective_date_check_passed: boolean;
+    contradiction_detection_passed: boolean;
+    ai_inferred_relationships_quarantined: boolean;
+    detected_conflicts: {
+      edge_id: string;
+      source_id: string;
+      target_id: string;
+      conflict_notes: string;
+    }[];
+    uncertainty_flags: string[];
+    verified_legal_response_summary: string;
+  };
+}

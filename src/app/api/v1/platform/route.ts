@@ -45,6 +45,15 @@ export async function POST(req: NextRequest) {
         );
         return NextResponse.json({ success: true, ...res, snapshot: reg24Core.getDashboardSnapshot() });
       }
+      case "run_3r_graphrag": {
+        const res = reg24Core.execute3RGraphRAGQuery({
+          query: payload?.query || "Can a company terminate an employee without severance pay?",
+          as_of_date: payload?.as_of_date || "2026-10-18",
+          known_at_date: payload?.known_at_date || "2026-10-18",
+          facts: payload?.facts,
+        });
+        return NextResponse.json({ success: true, graphrag_3r: res, snapshot: reg24Core.getDashboardSnapshot() });
+      }
       case "reset_seed": {
         reg24Core.resetToSeed();
         return NextResponse.json({ success: true, snapshot: reg24Core.getDashboardSnapshot() });
