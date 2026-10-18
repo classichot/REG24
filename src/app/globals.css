@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+:root {
+  --metro-bg: #08080a;
+  --metro-surface: #121216;
+  --metro-surface-hover: #1a1a22;
+  --metro-border: #262630;
+  --metro-cobalt: #0050EF;
+  --metro-emerald: #008A00;
+  --metro-amber: #F0A30A;
+  --metro-crimson: #A20025;
+  --metro-violet: #6A00FF;
+  --metro-teal: #00ABA9;
+  --metro-magenta: #D80073;
+  --metro-cyan: #1BA1E2;
+}
+
+* {
+  border-radius: 0px !important;
+}
+
+body {
+  background-color: var(--metro-bg);
+  color: #f8fafc;
+  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Thai", sans-serif;
+  overflow-x: hidden;
+}
+
+.metro-tile {
+  position: relative;
+  transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1), filter 140ms ease, outline 120ms ease;
+  user-select: none;
+}
+
+.metro-tile:hover {
+  transform: scale(0.992);
+  filter: brightness(1.08);
+  outline: 2px solid rgba(255, 255, 255, 0.45);
+  outline-offset: -2px;
+}
+
+.metro-tile:active {
+  transform: scale(0.97) perspective(600px) rotateX(2deg);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #08080a;
+}
+::-webkit-scrollbar-thumb {
+  background: #272732;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #0050EF;
+}
