@@ -67,6 +67,18 @@ export async function POST(req: NextRequest) {
           snapshot: reg24Core.getDashboardSnapshot(),
         });
       }
+      case "run_tax_precedent_comparison": {
+        const res = reg24Core.executeTaxPrecedentComparison({
+          transaction_date: payload?.transaction_date || "2026-10-18",
+          accounting_period: payload?.accounting_period,
+          facts: payload?.facts,
+        });
+        return NextResponse.json({
+          success: true,
+          tax_precedent_comparison: res.result,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
       case "reset_seed": {
         reg24Core.resetToSeed();
         return NextResponse.json({ success: true, snapshot: reg24Core.getDashboardSnapshot() });

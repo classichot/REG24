@@ -54,6 +54,10 @@ import type {
   AgenticExecutionMode,
   NonBindingConsultationItem,
   CrossModuleRestructuringMissionResult,
+  TaxSubRegulationRecord,
+  TaxRulingRecord,
+  TaxJudicialDecisionRecord,
+  TaxFactComparisonResult,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -67,6 +71,10 @@ interface SnapshotData {
   graphEdges: GraphEdge[];
   courtDecisions: CourtDecision[];
   nonBindingConsultations: NonBindingConsultationItem[];
+  taxSubRegulations: TaxSubRegulationRecord[];
+  taxRulings: TaxRulingRecord[];
+  taxJudicialDecisions: TaxJudicialDecisionRecord[];
+  sampleTaxPrecedentComparison: TaxFactComparisonResult;
   sample3RGraphRAGResult: {
     result: ThreeRGraphRAGResponse;
     trace_id: string;
@@ -82,6 +90,8 @@ interface SnapshotData {
 
 type ScreenId =
   | "PANORAMA"
+  | "SCREEN_K_TAX_PRECEDENT"
+  | "SCREEN_J_RESTRUCT_MISSION"
   | "SCREEN_A_REGISTRY"
   | "SCREEN_B_FACTORY"
   | "SCREEN_C_SOURCES"
@@ -90,7 +100,6 @@ type ScreenId =
   | "SCREEN_F_CHANGES"
   | "SCREEN_G_MCP"
   | "SCREEN_I_A2A"
-  | "SCREEN_J_RESTRUCT_MISSION"
   | "SCREEN_H_AUDIT";
 
 const SCREEN_CONFIG: {
@@ -100,15 +109,16 @@ const SCREEN_CONFIG: {
   labelTh: string;
   accent: string;
 }[] = [
-  { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (10 โมดูล P0)", accent: "#0050EF" },
+  { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (14 โมดูล P0)", accent: "#0050EF" },
+  { id: "SCREEN_K_TAX_PRECEDENT", code: "SCR-K", label: "tax rulings & sub-regs", labelTh: "ข้อหารือกรมสรรพากร 462/2569 & กฎหมายลำดับรอง (v1.1)", accent: "#008A00" },
   { id: "SCREEN_J_RESTRUCT_MISSION", code: "SCR-J", label: "capital markets & restruct", labelTh: "ภารกิจปรับโครงสร้างหนี้ & ตลาดทุน (6 โมดูล)", accent: "#FA6800" },
-  { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0 (10 โมดูล)", accent: "#008A00" },
+  { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0 (14 โมดูล)", accent: "#008A00" },
   { id: "SCREEN_B_FACTORY", code: "SCR-B", label: "module factory", labelTh: "สร้างและติดตั้งโมดูลใหม่", accent: "#1BA1E2" },
   { id: "SCREEN_C_SOURCES", code: "SCR-C", label: "legal sources", labelTh: "แหล่งข้อมูลและหลักฐานอ้างอิง", accent: "#F0A30A" },
   { id: "SCREEN_D_GRAPH", code: "SCR-D", label: "3r graphrag & graph", labelTh: "ไฮบริด GraphRAG 3R และกราฟกฎหมาย", accent: "#A20025" },
   { id: "SCREEN_E_RULES", code: "SCR-E", label: "rule studio", labelTh: "กฎคำนวณอัตโนมัติ (Law-as-Code)", accent: "#6A00FF" },
   { id: "SCREEN_F_CHANGES", code: "SCR-F", label: "change intelligence", labelTh: "ตรวจจับการแก้ไขกฎหมาย", accent: "#D80073" },
-  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (26 Tools)", accent: "#00ABA9" },
+  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (38 Tools)", accent: "#00ABA9" },
   { id: "SCREEN_I_A2A", code: "SCR-I", label: "a2a agent hub", labelTh: "การมอบหมายงานข้ามเอเจนต์ (A2A v1.0)", accent: "#E51400" },
   { id: "SCREEN_H_AUDIT", code: "SCR-H", label: "trace & audit", labelTh: "ตรวจสอบย้อนกลับ TRACE24", accent: "#647687" },
 ];
@@ -131,6 +141,10 @@ function getModuleIcon(iconName: string, className = "w-7 h-7") {
       return <Activity className={className} />;
     case "GitBranch":
       return <GitBranch className={className} />;
+    case "FileCheck2":
+      return <FileCheck2 className={className} />;
+    case "BellRing":
+      return <BellRing className={className} />;
     default:
       return <ShieldCheck className={className} />;
   }
@@ -167,6 +181,12 @@ export default function Reg24MetroConsole() {
   const [missionMode, setMissionMode] = useState<AgenticExecutionMode>("agent_swarm");
   const [missionResult, setMissionResult] = useState<CrossModuleRestructuringMissionResult | null>(null);
   const [missionLoading, setMissionLoading] = useState<boolean>(false);
+
+  // Screen K — Tax Rulings & Revenue Code Sub-Regulations Expansion states (v1.1 Oct 2026)
+  const [selectedTaxRulingId, setSelectedTaxRulingId] = useState<string>("ruling.th.rd.462_2569");
+  const [taxScenarioPreset, setTaxScenarioPreset] = useState<"qualifying_zero_boot" | "disqualifying_cash_boot">("qualifying_zero_boot");
+  const [taxPrecedentResult, setTaxPrecedentResult] = useState<TaxFactComparisonResult | null>(null);
+  const [taxPrecedentLoading, setTaxPrecedentLoading] = useState<boolean>(false);
 
   // Screen E — Rule Studio states
   const [selectedRuleId, setSelectedRuleId] = useState<string>("rule.th.corporate.incorporation_check");
@@ -279,11 +299,68 @@ export default function Reg24MetroConsole() {
     }
   };
 
+  const handleRunTaxPrecedentComparison = async (
+    customRulingId?: string,
+    customPreset?: "qualifying_zero_boot" | "disqualifying_cash_boot"
+  ) => {
+    const rId = customRulingId ?? selectedTaxRulingId;
+    const preset = customPreset ?? taxScenarioPreset;
+    if (customRulingId) setSelectedTaxRulingId(customRulingId);
+    if (customPreset) setTaxScenarioPreset(customPreset);
+    setTaxPrecedentLoading(true);
+
+    const factsPayload =
+      preset === "qualifying_zero_boot"
+        ? {
+            merger_structure: "ccc_1238_one_survives",
+            cash_boot_paid_thb: 0,
+            transfer_at_book_value: true,
+            surviving_company_pre_merger_loss_thb: 120000000,
+            ceased_company_pre_merger_loss_thb: 85000000,
+            same_accounting_period_dissolution: true,
+          }
+        : {
+            merger_structure: "ccc_1238_one_survives",
+            cash_boot_paid_thb: 85000000,
+            transfer_at_book_value: false,
+            surviving_company_pre_merger_loss_thb: 120000000,
+            ceased_company_pre_merger_loss_thb: 85000000,
+            same_accounting_period_dissolution: false,
+          };
+
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_tax_precedent_comparison",
+          payload: {
+            transaction_date: "2026-10-18",
+            facts: factsPayload,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.tax_precedent_comparison) {
+        setTaxPrecedentResult(data.tax_precedent_comparison);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(
+        `Executed TAX-RULING-02 Fact-Specific Precedent Comparison against ${rId} (${preset.toUpperCase()}).`
+      );
+    } finally {
+      setTaxPrecedentLoading(false);
+    }
+  };
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
       const data = await res.json();
       setSnapshot(data);
+      setTaxPrecedentResult((prev) => prev || data.sampleTaxPrecedentComparison || null);
     }
   }, []);
 
@@ -832,17 +909,17 @@ export default function Reg24MetroConsole() {
                       <div className="flex items-center gap-2">
                         <Terminal className="w-6 h-6" />
                         <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
-                          SCREEN G &bull; REG-MCP-001 TO 005
+                          SCREEN G &bull; REG-MCP-001 TO 005 &bull; TAX-API-01
                         </span>
                       </div>
                       <span className="text-xs font-bold uppercase bg-white text-[#0050EF] px-2 py-0.5">
-                        12 MCP TOOLS LIVE
+                        38 MCP TOOLS LIVE
                       </span>
                     </div>
                     <div>
                       <p className="text-xs text-white/85 mb-1">
                         Single Streamable HTTP Gateway (July 28, 2026 MCP Spec) + OpenAPI v3 REST for
-                        LAW24, TRACE24, VIBE24 &amp; AI Agents.
+                        LAW24, CFO24, ACC24, TP24, GMT24, TRACE24, VIBE24 &amp; AI Agents.
                       </p>
                       <h3 className="text-2xl font-light lowercase tracking-tight">
                         unified mcp &amp; api playground
@@ -951,11 +1028,39 @@ export default function Reg24MetroConsole() {
                     </div>
                     <div>
                       <p className="text-xs text-white/90 mb-1">
-                        Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 10 domain
-                        modules. Serves LAW24, CFO24, ACC24, TP24 &amp; External AI Agents via A2A v1.0.
+                        Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 14 domain
+                        modules. Serves LAW24, CFO24, ACC24, TP24, GMT24 &amp; External AI Agents via A2A v1.0.
                       </p>
                       <h3 className="text-2xl font-light lowercase tracking-tight">
                         agent-to-agent (a2a) legal task hub
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Tile: Tax Rulings & Revenue Code Sub-Regulations Expansion (Screen K) */}
+                  <div
+                    onClick={() => setActiveScreen("SCREEN_K_TAX_PRECEDENT")}
+                    className="metro-tile col-span-2 bg-[#008A00] p-4 flex flex-col justify-between cursor-pointer text-white"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <FileCheck2 className="w-6 h-6" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
+                          SCREEN K &bull; EXPANSION v1.1 &bull; SUB / RULING / CASE / CHANGE
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold uppercase bg-white text-[#008A00] px-2 py-0.5">
+                        RD RULING กค 0702(กม.)/462 (22 APR 2026)
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/95 mb-1">
+                        <strong>Article-to-Regulation-to-Ruling GraphRAG:</strong> Links CCC Sec. 1238/1243 &amp;
+                        Revenue Code Sec. 73/74/77/1(8) to Royal Decree No. 10, MR No. 126, RD Ruling 462/2569,
+                        RD Opinion 453/2568, TRC 40/2560, Supreme Court 5412/2565 &amp; Top-up Tax B.E. 2567.
+                      </p>
+                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                        tax rulings, sub-regulations &amp; merger graphrag
                       </h3>
                     </div>
                   </div>
@@ -2500,7 +2605,7 @@ export default function Reg24MetroConsole() {
               <div className="lg:col-span-5 bg-[#121216] border border-[#262630] p-5 space-y-4">
                 <div>
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                    SELECT REQUIRED MCP TOOL (REG-MCP-002 — ALL 12 TOOLS)
+                    SELECT REQUIRED MCP TOOL (REG-MCP-002 + SEC/SET/RESTRUCT/INSOLV + TAX-API-01 — 38 TOOLS)
                   </label>
                   <select
                     value={mcpToolName}
@@ -2519,6 +2624,20 @@ export default function Reg24MetroConsole() {
                     <option value="reg24.get_regulatory_changes">10. reg24.get_regulatory_changes</option>
                     <option value="reg24.verify_citation">11. reg24.verify_citation (SHA-256 Proof)</option>
                     <option value="reg24.get_rule_explanation">12. reg24.get_rule_explanation</option>
+                    <option value="analyze_restructuring">13. analyze_restructuring (6-Module Capital Markets/Restruct)</option>
+                    <option value="assess_rehabilitation_pathway">14. assess_rehabilitation_pathway (Bankruptcy Act Sec. 90/3)</option>
+                    <option value="search_tax_rulings">15. search_tax_rulings (TAX-API-01: RD 2540–2569 Archive)</option>
+                    <option value="get_tax_ruling">16. get_tax_ruling (TAX-API-01: กค 0702(กม.)/462 &amp; 453)</option>
+                    <option value="find_similar_tax_rulings">17. find_similar_tax_rulings (TAX-RULING-02 Fact Comparison)</option>
+                    <option value="get_revenue_code_section">18. get_revenue_code_section (TAX-SUB-02 Hierarchy)</option>
+                    <option value="get_related_subregulations">19. get_related_subregulations (Royal Decree 10 / MR 126)</option>
+                    <option value="get_applicable_tax_law_at_date">20. get_applicable_tax_law_at_date (Temporal Tax Law)</option>
+                    <option value="get_related_court_decisions">21. get_related_court_decisions (Supreme Court 5412/2565 &amp; 2108/2564)</option>
+                    <option value="compare_tax_interpretations">22. compare_tax_interpretations (7-Tier Authority Check)</option>
+                    <option value="analyze_restructuring_tax">23. analyze_restructuring_tax (CCC Sec. 1238 Merger Tax)</option>
+                    <option value="check_tax_exemption_eligibility">24. check_tax_exemption_eligibility (RD 10 / MR 126 Deterministic)</option>
+                    <option value="trace_tax_legal_basis">25. trace_tax_legal_basis (Article-to-Regulation-to-Ruling Graph)</option>
+                    <option value="get_recent_tax_rule_changes">26. get_recent_tax_rule_changes (Top-up Tax B.E. 2567 &amp; Ruling 462)</option>
                   </select>
                 </div>
 
@@ -3385,6 +3504,310 @@ export default function Reg24MetroConsole() {
           </div>
         )}
 
+        {/* =====================================================================
+            SCREEN K — TAX RULINGS & REVENUE CODE SUB-REGULATIONS EXPANSION (v1.1)
+            ===================================================================== */}
+        {activeScreen === "SCREEN_K_TAX_PRECEDENT" && (
+          <div className="space-y-6">
+            <div className="border-b border-[#262630] pb-4 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#008A00]">
+                  CONSOLE SCREEN K &bull; TAX EXPANSION v1.1 (OCT 2026) &bull; REG-TAX-SUB / RULING / CASE / CHANGE
+                </span>
+                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                  tax rulings, sub-regulations &amp; merger graphrag
+                </h2>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <a
+                  href="https://www.rd.go.th/68635.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-[#008A00] hover:bg-[#00a300] text-white px-3 py-1.5 text-xs font-bold uppercase tracking-wider flex items-center gap-1.5"
+                >
+                  <span>RD RULING กค 0702(กม.)/462 (22 APR 2026)</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href="https://www.rd.go.th/68629.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-[#1b1b24] hover:bg-[#252532] border border-[#2d2d3a] text-[#1BA1E2] px-3 py-1.5 text-xs font-mono flex items-center gap-1.5"
+                >
+                  <span>RD OPINION กค 0702(กม.)/453 (11 APR 2025)</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href="https://www.rd.go.th/1601.html"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="bg-[#1b1b24] hover:bg-[#252532] border border-[#2d2d3a] text-amber-300 px-3 py-1.5 text-xs font-mono flex items-center gap-1.5"
+                >
+                  <span>TRC DECISIONS (rd.go.th/1601.html)</span>
+                  <ArrowUpRight className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+
+            {/* 7-TIER TAX AUTHORITY CONTROL BANNER (TAX-QUALITY-01) */}
+            <div className="bg-[#121216] border-l-4 border-[#008A00] p-4 border-y border-r border-[#262630] grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+              <div className="lg:col-span-8 space-y-1">
+                <div className="text-[10px] font-bold uppercase tracking-[0.22em] text-emerald-400">
+                  TAX-QUALITY-01 &bull; 7-TIER AUTHORITY SEPARATION &amp; NON-OVERRIDE GUARDRAIL
+                </div>
+                <p className="text-xs text-zinc-200 leading-relaxed">
+                  REG24 strictly distinguishes <strong>Primary Legislation</strong> (Revenue Code / Emergency Decree on
+                  Top-up Tax B.E. 2567), <strong>Delegated Binding Regulations</strong> (Royal Decree No. 10 /
+                  Ministerial Regulation No. 126), <strong>Formal Statutory Interpretations</strong> (Tax Ruling
+                  Committee Decisions under Sec. 13 Septies), <strong>Judicial Decisions</strong> (Supreme Court
+                  5412/2565 &amp; 2108/2564), and <strong>Fact-Specific Administrative Opinions</strong> (ข้อหารือกรมสรรพากร
+                  กค 0702(กม.)/462 &amp; 453). An RD consultation letter never silently overrides a statute (
+                  <code className="text-emerald-300">can_override_statute: false</code>).
+                </p>
+              </div>
+              <div className="lg:col-span-4 flex flex-wrap gap-2 justify-end">
+                <button
+                  onClick={() => handleRunTaxPrecedentComparison("ruling.th.rd.0702_462_2569", "qualifying_zero_boot")}
+                  disabled={taxPrecedentLoading}
+                  className={`px-3 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer border ${
+                    taxScenarioPreset === "qualifying_zero_boot"
+                      ? "bg-[#008A00] border-white text-white"
+                      : "bg-[#16161d] border-[#2d2d3a] text-zinc-300"
+                  }`}
+                >
+                  SCENARIO A: QUALIFYING ZERO-BOOT MERGER
+                </button>
+                <button
+                  onClick={() => handleRunTaxPrecedentComparison("ruling.th.rd.0702_462_2569", "disqualifying_cash_boot")}
+                  disabled={taxPrecedentLoading}
+                  className={`px-3 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer border ${
+                    taxScenarioPreset === "disqualifying_cash_boot"
+                      ? "bg-[#A20025] border-white text-white"
+                      : "bg-[#16161d] border-[#2d2d3a] text-zinc-300"
+                  }`}
+                >
+                  SCENARIO B: 85M CASH BOOT + STEP-UP + LOSS CLAIM
+                </button>
+              </div>
+            </div>
+
+            {/* ARTICLE-TO-REGULATION-TO-RULING KNOWLEDGE GRAPH (CCC 1238 -> RC 73/74 -> RD 10 / MR 126 -> RULING 462 & 453 -> SUPREME COURT 5412/2565) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Left 7 Cols: RD Consultation Letters (462/2569, 453/2568, TRC 40/2560) & Sub-Regulations */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="bg-[#121216] border border-[#262630] p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-[#008A00]">
+                      REG-TAX-RULING &bull; RD CONSULTATION LETTERS (2540–2569 ARCHIVE) &amp; TRC DECISIONS
+                    </h3>
+                    <span className="text-[10px] font-mono text-zinc-400">
+                      {snapshot.taxRulings?.length || 0} VERIFIED RECORDS
+                    </span>
+                  </div>
+
+                  <div className="space-y-3">
+                    {snapshot.taxRulings?.map((rul) => (
+                      <div
+                        key={rul.id}
+                        onClick={() => handleRunTaxPrecedentComparison(rul.id, taxScenarioPreset)}
+                        className={`p-3.5 border cursor-pointer transition-colors ${
+                          selectedTaxRulingId === rul.id
+                            ? "bg-[#172319] border-[#008A00]"
+                            : "bg-[#08080a] border-[#22222c] hover:border-zinc-600"
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="bg-[#008A00] text-white text-[10px] font-mono font-bold px-2 py-0.5">
+                              {rul.ruling_reference_number}
+                            </span>
+                            <span className="text-[11px] font-mono text-zinc-300">
+                              DATE: {rul.issue_date} (B.E. {rul.buddhist_era_year})
+                            </span>
+                          </div>
+                          <span className="text-[10px] font-mono uppercase bg-[#16161d] border border-[#2d2d3a] px-2 py-0.5 text-amber-300">
+                            {rul.authority_classification}
+                          </span>
+                        </div>
+
+                        <div className="font-semibold text-white text-sm">{rul.subject_en}</div>
+                        <div className="text-xs text-zinc-300 mb-2">{rul.subject_th}</div>
+
+                        <div className="bg-[#0c0c10] border border-[#22222c] p-2.5 text-xs space-y-1.5">
+                          <div>
+                            <span className="text-[10px] font-bold uppercase text-emerald-400 block">
+                              REVENUE DEPARTMENT INTERPRETATION &amp; RATIONALE:
+                            </span>
+                            <span className="text-zinc-200">{rul.conclusions_en}</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {rul.facts_and_assumptions.map((cond, idx) => (
+                              <span
+                                key={idx}
+                                className="text-[10px] bg-[#16161f] border border-[#2a2a38] px-2 py-0.5 text-zinc-300"
+                              >
+                                &bull; {cond}
+                              </span>
+                            ))}
+                          </div>
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-[10px] font-mono border-t border-[#1e1e28]">
+                            <span className="text-amber-400">
+                              CAN OVERRIDE STATUTE: {String(rul.can_override_statute).toUpperCase()}
+                            </span>
+                            <a
+                              href={rul.official_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-[#1BA1E2] hover:underline flex items-center gap-1"
+                            >
+                              <span>OFFICIAL SOURCE ({rul.official_url})</span>
+                              <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* SUB-REGULATIONS & SUPREME COURT TAX DECISIONS */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-[#121216] border border-[#262630] p-4 space-y-2.5">
+                    <h4 className="text-xs font-bold uppercase tracking-[0.18em] text-[#1BA1E2]">
+                      REG-TAX-SUB &bull; SUB-REGULATIONS &amp; TOP-UP TAX B.E. 2567
+                    </h4>
+                    {snapshot.taxSubRegulations?.map((sub) => (
+                      <div key={sub.id} className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-mono">
+                          <span className="text-[#1BA1E2] font-bold">{sub.number_code}</span>
+                          <span className="text-emerald-400">{sub.authority_classification}</span>
+                        </div>
+                        <div className="font-semibold text-white">{sub.title_en}</div>
+                        <div className="text-[11px] text-zinc-400">{sub.summary_en}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="bg-[#121216] border border-[#262630] p-4 space-y-2.5">
+                    <h4 className="text-xs font-bold uppercase tracking-[0.18em] text-[#A20025]">
+                      REG-TAX-CASE &bull; SUPREME COURT TAX DIVISION PRECEDENTS
+                    </h4>
+                    {snapshot.taxJudicialDecisions?.map((c) => (
+                      <div key={c.id} className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs space-y-1">
+                        <div className="flex items-center justify-between text-[10px] font-mono">
+                          <span className="text-rose-400 font-bold">{c.case_number}</span>
+                          <span className="text-amber-300">DECIDED: {c.judgment_date}</span>
+                        </div>
+                        <div className="font-semibold text-white">{c.court_name}</div>
+                        <div className="text-[11px] text-zinc-300">{c.decision_outcome}</div>
+                        <div className="text-[10px] font-mono text-emerald-400">
+                          DIVERGES FROM RD POSITION: {String(c.diverges_from_rd_interpretation).toUpperCase()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Right 5 Cols: TAX-RULING-02 Fact-Specific Precedent Comparison Engine */}
+              <div className="lg:col-span-5 space-y-4">
+                {taxPrecedentResult && (
+                  <div className="bg-[#121216] border-2 border-[#008A00] p-4 space-y-4">
+                    <div className="flex items-center justify-between border-b border-[#262630] pb-3">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#008A00] block">
+                          TAX-RULING-02 &bull; FACT-SPECIFIC PRECEDENT COMPARISON
+                        </span>
+                        <h3 className="text-lg font-semibold text-white">
+                          {taxPrecedentResult.focal_ruling.reference_number} ({taxPrecedentResult.focal_ruling.issue_date})
+                        </h3>
+                      </div>
+                      <span
+                        className={`text-xs font-mono font-bold px-2.5 py-1 uppercase ${
+                          taxPrecedentResult.generated_tax_assessment.merger_or_transaction_structure.includes("Qualifying")
+                            ? "bg-emerald-950 border border-emerald-600 text-emerald-300"
+                            : "bg-rose-950 border border-rose-600 text-rose-300"
+                        }`}
+                      >
+                        {taxPrecedentResult.generated_tax_assessment.merger_or_transaction_structure.includes("Qualifying")
+                          ? "ALIGNED WITH RULING FACTS"
+                          : `${taxPrecedentResult.fact_comparison_matrix.material_differences.length} MATERIAL DIFFERENCES`}
+                      </span>
+                    </div>
+
+                    <div className="bg-[#08080a] border border-[#22222c] p-3 text-xs space-y-1">
+                      <div className="text-[10px] font-bold uppercase text-zinc-400">
+                        EVALUATED USER TRANSACTION SCENARIO:
+                      </div>
+                      <div className="text-white font-semibold">
+                        {taxPrecedentResult.generated_tax_assessment.merger_or_transaction_structure}
+                      </div>
+                      <div className="text-zinc-300">
+                        {taxPrecedentResult.generated_tax_assessment.applicable_tax_treatment_summary}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                        FACTUAL SIMILARITIES TO RULING ({taxPrecedentResult.fact_comparison_matrix.similarities.length}):
+                      </div>
+                      {taxPrecedentResult.fact_comparison_matrix.similarities.map((sim, i) => (
+                        <div
+                          key={i}
+                          className="bg-emerald-950/30 border border-emerald-800/60 p-2 text-xs text-emerald-200"
+                        >
+                          &#10003; {sim}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-rose-400">
+                        MATERIAL DIFFERENCES / LOSS LIMITS ({taxPrecedentResult.fact_comparison_matrix.material_differences.length}):
+                      </div>
+                      {taxPrecedentResult.fact_comparison_matrix.material_differences.map((diff, i) => (
+                        <div
+                          key={i}
+                          className="bg-rose-950/40 border border-rose-700 p-2 text-xs text-rose-200"
+                        >
+                          &#9888; {diff}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="bg-[#08080a] border border-[#262630] p-3 text-xs space-y-2">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-[#1BA1E2] block">
+                          CHANGES IN LAW SINCE RULING:
+                        </span>
+                        <span className="text-zinc-300">
+                          {taxPrecedentResult.fact_comparison_matrix.changes_in_law_since_ruling.join(" ")}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold uppercase text-[#1BA1E2] block">
+                          SUBSEQUENT INTERPRETATIONS &amp; SUPREME COURT CHECK:
+                        </span>
+                        <span className="text-zinc-300">
+                          {taxPrecedentResult.fact_comparison_matrix.later_interpretations_affect_relevance}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="bg-amber-950/40 border-l-4 border-amber-500 p-3 text-xs text-amber-200">
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-0.5">
+                        MANDATORY NON-BINDING APPLICABILITY WARNING (`TAX-RULING-02`):
+                      </div>
+                      {taxPrecedentResult.generated_tax_assessment.legal_applicability_warning}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* EXPERT VIEW TECHNICAL DIAGNOSTICS DRAWER (SECTION 11 UX REQUIREMENT) */}
         {expertView && (
           <div className="mt-8 bg-[#0c0c12] border-2 border-[#0050EF] p-5 space-y-4">
@@ -3443,13 +3866,14 @@ export default function Reg24MetroConsole() {
       {/* METRO FOOTER */}
       <footer className="border-t border-[#262630] bg-[#0c0c10] px-6 py-4 mt-12 text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-4">
         <div>
-          REG24 P0 INFRASTRUCTURE &bull; 10 THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
+          REG24 P0 INFRASTRUCTURE &bull; 14 THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
           CONTRACT (`reg24.contract.th`) | CIVIL CODE (`reg24.civil.th`) | TAX (`reg24.tax.th`) |
-          LABOR (`reg24.labor.th`) | BOI (`reg24.boi.th`) | SEC (`reg24.sec.th`) | SET (`reg24.set.th`) |
-          RESTRUCTURING (`reg24.restruct.th`) | INSOLVENCY (`reg24.insolv.th`)
+          TAX-SUB (`reg24.tax.sub.th`) | TAX-RULING (`reg24.tax.ruling.th`) | TAX-CASE (`reg24.tax.case.th`) |
+          TAX-CHANGE (`reg24.tax.change.th`) | LABOR (`reg24.labor.th`) | BOI (`reg24.boi.th`) |
+          SEC (`reg24.sec.th`) | SET (`reg24.set.th`) | RESTRUCTURING (`reg24.restruct.th`) | INSOLVENCY (`reg24.insolv.th`)
         </div>
         <div className="uppercase tracking-wider text-zinc-400">
-          CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; TRACE24 &bull; VIBE24
+          CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GMT24 &bull; TRACE24 &bull; VIBE24
         </div>
       </footer>
     </div>

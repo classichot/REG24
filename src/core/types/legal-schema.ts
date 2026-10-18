@@ -47,9 +47,38 @@ export type GraphRelationshipType =
   | "EFFECTIVE_DURING"
   | "REFERENCES"
   | "INTERPRETS"
+  | "CITES"
+  | "APPLIES_TO_FACTS"
+  | "CLARIFIES"
+  | "CONTRADICTS"
+  | "RELATED_TO"
+  | "REQUIRES_CONDITION"
+  | "INTERPRETATION_CHANGED_BY"
   | "CONDITIONAL_ON"
   | "SUPPORTED_BY"
   | "CONFLICTS_WITH";
+
+export type TaxDocumentAuthorityClass =
+  | "primary_legislation"
+  | "delegated_binding_regulation"
+  | "formal_statutory_interpretation"
+  | "judicial_decision"
+  | "administrative_order_or_guidance"
+  | "fact_specific_administrative_opinion"
+  | "non_authoritative_explanatory_material";
+
+export type TaxInstrumentCategory =
+  | "Revenue Code"
+  | "Emergency Decree (Top-up Tax)"
+  | "Royal Decree"
+  | "Ministerial Regulation"
+  | "Ministry of Finance Notification"
+  | "Director-General Notification"
+  | "Revenue Department Order (Tor.Por. / Paw.)"
+  | "Tax Ruling Committee Decision"
+  | "Revenue Department Explanation"
+  | "Tax Consultation Letter"
+  | "Supreme Court Tax Judgment";
 
 export type RegulatoryBindingStatus =
   | "binding_enacted"
@@ -727,3 +756,152 @@ export interface CrossModuleRestructuringMissionResult {
   quarantined_non_binding_consultations: NonBindingConsultationItem[];
   risk_register_and_escalations: string[];
 }
+
+// ============================================================================
+// TAX RULINGS & REVENUE CODE SUB-REGULATIONS EXPANSION (v1.1 OCT 2026)
+// REG-TAX-SUB • REG-TAX-RULING • REG-TAX-CASE • REG-TAX-CHANGE
+// ============================================================================
+
+export interface TaxSubRegulationRecord {
+  id: string;
+  module_id: string;
+  document_type: TaxInstrumentCategory;
+  thai_terminology: string;
+  reg24_treatment: string;
+  authority_classification: TaxDocumentAuthorityClass;
+  number_code: string; // e.g., "Royal Decree No. 10 (พ.ร.ฎ. ฉบับที่ 10)", "Ministerial Regulation No. 126 (กฎกระทรวง ฉบับที่ 126)"
+  title_th: string;
+  title_en: string;
+  enabling_revenue_code_sections: string[]; // e.g., ["prov.th.rc.73_74", "prov.th.rc.77_1"]
+  cross_referenced_provisions: string[]; // e.g., ["prov.th.ccc.1238_1243"]
+  tax_subjects: string[]; // e.g., ["Corporate Income Tax", "VAT", "Specific Business Tax", "Stamp Duty", "Tax Restructuring"]
+  publication_date: string;
+  effective_from: string;
+  effective_to?: string;
+  transitional_provisions?: string;
+  exemption_conditions: string[];
+  summary_th: string;
+  summary_en: string;
+  official_url: string;
+  binding_status: RegulatoryBindingStatus;
+  verification_pipeline: {
+    official_source_validated: boolean;
+    thai_extraction_verified: boolean;
+    section_validation_passed: boolean;
+    effective_date_verified: boolean;
+    human_legal_reviewed_by: string;
+  };
+}
+
+export interface TaxRulingRecord {
+  id: string;
+  module_id: string;
+  ruling_reference_number: string; // e.g., "กค 0702(กม.)/462" or "กค 0702(กม.)/453" or "คำวินิจฉัยที่ 40/2560"
+  issue_date: string; // e.g., "2026-04-22"
+  buddhist_era_year: number; // e.g., 2569
+  document_type: "Tax Consultation Letter" | "Tax Ruling Committee Decision" | "Revenue Department Explanation";
+  thai_terminology: string; // "ข้อหารือภาษีอากร" | "คำวินิจฉัยของคณะกรรมการวินิจฉัยภาษีอากร"
+  authority_classification: TaxDocumentAuthorityClass;
+  can_override_statute: false; // TAX-QUALITY-01: A tax consultation letter must never silently override a conflicting statutory provision
+  subject_th: string;
+  subject_en: string;
+  tax_categories: string[];
+  corporate_event_type: string; // e.g., "Company Merger (CCC Sec. 1238/1243 - One Survives, One Ceases)"
+  facts_and_assumptions: string[];
+  questions_referred: string[];
+  revenue_code_sections_cited: string[]; // e.g., ["Section 73", "Section 74", "Section 77/1", "Section 65 bis (10)"]
+  provision_ids_linked: string[];
+  subregulation_ids_linked: string[]; // e.g., ["subreg.th.rd.royal_decree_10", "subreg.th.rd.min_reg_126"]
+  administrative_analysis_th: string;
+  administrative_analysis_en: string;
+  conclusions_th: string;
+  conclusions_en: string;
+  follows_earlier_ruling_ref?: string; // e.g., "กค 0702(กม.)/453 (11 April 2025)"
+  related_ruling_ids: string[];
+  related_court_decision_ids: string[];
+  official_url: string;
+  publication_date: string;
+  retrieved_at: string;
+  legal_applicability_warning: string;
+}
+
+export interface TaxJudicialDecisionRecord {
+  id: string;
+  module_id: string;
+  court_name: string; // e.g., "Supreme Court Tax Division (ศาลฎีกาแผนกคดีภาษีอากร)"
+  case_number: string; // e.g., "คำพิพากษาศาลฎีกาที่ 5412/2565"
+  judgment_date: string;
+  authority_classification: "judicial_decision";
+  tax_categories: string[];
+  material_facts: string;
+  legal_issues: string[];
+  statutory_provisions_cited: string[];
+  provision_ids_linked: string[];
+  court_reasoning_th: string;
+  court_reasoning_en: string;
+  decision_outcome: string;
+  related_rd_ruling_ids: string[];
+  diverges_from_rd_interpretation: boolean;
+  divergence_explanation: string;
+  official_url: string;
+}
+
+export interface TaxFactComparisonResult {
+  comparison_id: string;
+  trace_id: string;
+  scenario_title: string;
+  queried_transaction_date: string;
+  accounting_period: string;
+  user_scenario_facts: Record<string, unknown>;
+  focal_ruling: {
+    ruling_id: string;
+    reference_number: string;
+    issue_date: string;
+    subject_th: string;
+    subject_en: string;
+    authority_classification: TaxDocumentAuthorityClass;
+    official_url: string;
+    follows_earlier_ruling_ref?: string;
+  };
+  fact_comparison_matrix: {
+    similarities: string[];
+    material_differences: string[];
+    depends_on_special_facts: string[];
+    changes_in_law_since_ruling: string[];
+    later_interpretations_affect_relevance: string;
+  };
+  article_to_regulation_to_ruling_graph: {
+    civil_code_provisions: { section: string; role: string }[];
+    revenue_code_sections: { section: string; provision_id: string; role: string }[];
+    implementing_subregulations: {
+      id: string;
+      number_code: string;
+      document_type: string;
+      authority_classification: TaxDocumentAuthorityClass;
+      role: string;
+    }[];
+    ruling_chain: {
+      reference_number: string;
+      issue_date: string;
+      relationship: string;
+      official_url: string;
+    }[];
+    judicial_decisions: {
+      case_number: string;
+      judgment_date: string;
+      diverges_from_rd: boolean;
+      summary: string;
+    }[];
+  };
+  generated_tax_assessment: {
+    merger_or_transaction_structure: string;
+    applicable_tax_treatment_summary: string;
+    exemption_conditions_checklist: string[];
+    required_documentary_evidence: string[];
+    legal_uncertainty_flags: string[];
+    legal_applicability_warning: string;
+    can_consultation_letter_override_statute: false;
+    autonomous_tax_filing_permitted: false;
+  };
+}
+

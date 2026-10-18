@@ -34,6 +34,10 @@ import {
   AgenticExecutionMode,
   NonBindingConsultationItem,
   CrossModuleRestructuringMissionResult,
+  TaxSubRegulationRecord,
+  TaxRulingRecord,
+  TaxJudicialDecisionRecord,
+  TaxFactComparisonResult,
 } from "../types/legal-schema";
 
 import {
@@ -69,6 +73,24 @@ import {
   SEED_NON_BINDING_CONSULTATIONS,
 } from "../data/expansion-seed-corpus";
 
+import {
+  TAX_EXPANSION_REGULATORS,
+  TAX_EXPANSION_SOURCES,
+  TAX_EXPANSION_INSTRUMENTS,
+  TAX_EXPANSION_PROVISIONS,
+  TAX_EXPANSION_PROVISION_VERSIONS,
+  TAX_EXPANSION_MODULE_REFERENCES,
+  TAX_SUB_REGULATIONS,
+  TAX_RULINGS,
+  TAX_JUDICIAL_DECISIONS,
+  TAX_EXPANSION_CONCEPTS,
+  TAX_EXPANSION_OBLIGATIONS,
+  TAX_EXPANSION_RULES,
+  TAX_EXPANSION_GRAPH_EDGES,
+  TAX_EXPANSION_CHANGES,
+  TAX_EXPANSION_MODULES,
+} from "../data/tax-ruling-subreg-corpus";
+
 export interface MCPCommonInput {
   jurisdiction?: string;
   module_ids?: string[];
@@ -76,6 +98,7 @@ export interface MCPCommonInput {
   facts?: Record<string, unknown>;
   provision_id?: string;
   rule_id?: string;
+  ruling_id?: string;
   as_of_date?: string;
   known_at_date?: string;
   language?: "th" | "en" | "bilingual";
@@ -146,6 +169,9 @@ export class Reg24PlatformCore {
   private regulatoryChanges: Map<string, RegulatoryChange> = new Map();
   private modules: Map<string, ModuleManifest> = new Map();
   private nonBindingConsultations: NonBindingConsultationItem[] = [];
+  private taxSubRegulations: TaxSubRegulationRecord[] = [];
+  private taxRulings: TaxRulingRecord[] = [];
+  private taxJudicialDecisions: TaxJudicialDecisionRecord[] = [];
   private releases: ModuleRelease[] = [];
   private auditTraces: AuditTraceEvent[] = [];
   private a2aTasks: Map<string, A2ATaskContract> = new Map();
@@ -170,25 +196,75 @@ export class Reg24PlatformCore {
     this.regulatoryChanges.clear();
     this.modules.clear();
     this.nonBindingConsultations = [];
+    this.taxSubRegulations = [];
+    this.taxRulings = [];
+    this.taxJudicialDecisions = [];
     this.releases = [];
     this.auditTraces = [];
     this.a2aTasks.clear();
 
     SEED_JURISDICTIONS.forEach((j) => this.jurisdictions.set(j.id, { ...j }));
-    [...SEED_REGULATORS, ...EXPANSION_REGULATORS].forEach((r) => this.regulators.set(r.id, { ...r }));
-    [...SEED_SOURCE_DOCUMENTS, ...EXPANSION_SOURCE_DOCUMENTS].forEach((s) => this.sourceDocuments.set(s.id, { ...s }));
-    [...SEED_INSTRUMENTS, ...EXPANSION_INSTRUMENTS].forEach((i) => this.instruments.set(i.id, { ...i }));
-    [...SEED_PROVISIONS, ...EXPANSION_PROVISIONS].forEach((p) => this.provisions.set(p.id, { ...p, version_ids: [...p.version_ids], concept_ids: [...p.concept_ids], executable_rule_ids: [...p.executable_rule_ids] }));
-    [...SEED_PROVISION_VERSIONS, ...EXPANSION_PROVISION_VERSIONS].forEach((v) => this.provisionVersions.set(v.id, { ...v, translation_en: { ...v.translation_en }, source_evidence: { ...v.source_evidence } }));
-    [...SEED_MODULE_REFERENCES, ...EXPANSION_MODULE_REFERENCES].forEach((m) => this.moduleReferences.set(m.id, { ...m }));
-    [...SEED_CONCEPTS, ...EXPANSION_CONCEPTS].forEach((c) => this.concepts.set(c.id, { ...c }));
-    [...SEED_OBLIGATIONS, ...EXPANSION_OBLIGATIONS].forEach((o) => this.obligations.set(o.id, { ...o }));
-    [...SEED_RULES, ...EXPANSION_RULES].forEach((r) => this.rules.set(r.id, JSON.parse(JSON.stringify(r))));
-    [...SEED_GRAPH_EDGES, ...EXPANSION_GRAPH_EDGES].forEach((e) => this.graphEdges.set(e.id, { ...e }));
-    SEED_COURT_DECISIONS.forEach((cd) => this.courtDecisions.set(cd.id, { ...cd, interpreted_provision_ids: [...cd.interpreted_provision_ids] }));
-    [...SEED_REGULATORY_CHANGES, ...EXPANSION_REGULATORY_CHANGES].forEach((c) => this.regulatoryChanges.set(c.id, JSON.parse(JSON.stringify(c))));
+    [...SEED_REGULATORS, ...EXPANSION_REGULATORS, ...TAX_EXPANSION_REGULATORS].forEach((r) =>
+      this.regulators.set(r.id, { ...r })
+    );
+    [...SEED_SOURCE_DOCUMENTS, ...EXPANSION_SOURCE_DOCUMENTS, ...TAX_EXPANSION_SOURCES].forEach((s) =>
+      this.sourceDocuments.set(s.id, { ...s })
+    );
+    [...SEED_INSTRUMENTS, ...EXPANSION_INSTRUMENTS, ...TAX_EXPANSION_INSTRUMENTS].forEach((i) =>
+      this.instruments.set(i.id, { ...i })
+    );
+    [...SEED_PROVISIONS, ...EXPANSION_PROVISIONS, ...TAX_EXPANSION_PROVISIONS].forEach((p) =>
+      this.provisions.set(p.id, {
+        ...p,
+        version_ids: [...p.version_ids],
+        concept_ids: [...p.concept_ids],
+        executable_rule_ids: [...p.executable_rule_ids],
+      })
+    );
+    [
+      ...SEED_PROVISION_VERSIONS,
+      ...EXPANSION_PROVISION_VERSIONS,
+      ...TAX_EXPANSION_PROVISION_VERSIONS,
+    ].forEach((v) =>
+      this.provisionVersions.set(v.id, {
+        ...v,
+        translation_en: { ...v.translation_en },
+        source_evidence: { ...v.source_evidence },
+      })
+    );
+    [
+      ...SEED_MODULE_REFERENCES,
+      ...EXPANSION_MODULE_REFERENCES,
+      ...TAX_EXPANSION_MODULE_REFERENCES,
+    ].forEach((m) => this.moduleReferences.set(m.id, { ...m }));
+    [...SEED_CONCEPTS, ...EXPANSION_CONCEPTS, ...TAX_EXPANSION_CONCEPTS].forEach((c) =>
+      this.concepts.set(c.id, { ...c })
+    );
+    [...SEED_OBLIGATIONS, ...EXPANSION_OBLIGATIONS, ...TAX_EXPANSION_OBLIGATIONS].forEach((o) =>
+      this.obligations.set(o.id, { ...o })
+    );
+    [...SEED_RULES, ...EXPANSION_RULES, ...TAX_EXPANSION_RULES].forEach((r) =>
+      this.rules.set(r.id, JSON.parse(JSON.stringify(r)))
+    );
+    [...SEED_GRAPH_EDGES, ...EXPANSION_GRAPH_EDGES, ...TAX_EXPANSION_GRAPH_EDGES].forEach((e) =>
+      this.graphEdges.set(e.id, { ...e })
+    );
+    SEED_COURT_DECISIONS.forEach((cd) =>
+      this.courtDecisions.set(cd.id, {
+        ...cd,
+        interpreted_provision_ids: [...cd.interpreted_provision_ids],
+      })
+    );
+    [
+      ...SEED_REGULATORY_CHANGES,
+      ...EXPANSION_REGULATORY_CHANGES,
+      ...TAX_EXPANSION_CHANGES,
+    ].forEach((c) => this.regulatoryChanges.set(c.id, JSON.parse(JSON.stringify(c))));
     this.nonBindingConsultations = SEED_NON_BINDING_CONSULTATIONS.map((c) => ({ ...c }));
-    [...SEED_MODULE_MANIFESTS, ...EXPANSION_MODULE_MANIFESTS].forEach((m) => {
+    this.taxSubRegulations = TAX_SUB_REGULATIONS.map((sr) => JSON.parse(JSON.stringify(sr)));
+    this.taxRulings = TAX_RULINGS.map((tr) => JSON.parse(JSON.stringify(tr)));
+    this.taxJudicialDecisions = TAX_JUDICIAL_DECISIONS.map((tj) => JSON.parse(JSON.stringify(tj)));
+    [...SEED_MODULE_MANIFESTS, ...EXPANSION_MODULE_MANIFESTS, ...TAX_EXPANSION_MODULES].forEach((m) => {
       this.modules.set(m.module_id, JSON.parse(JSON.stringify(m)));
       this.releases.push({
         release_id: `rel.${m.module_id}.${m.version}`,
@@ -1542,6 +1618,44 @@ export class Reg24PlatformCore {
       explanation = eligibleSec90_3
         ? `Debtor meets Bankruptcy Act Sec. 90/3 rehabilitation eligibility (definite debt ${totalDebt.toLocaleString()} THB >= 10M THB, equity ${equity.toLocaleString()} THB, viable business). Filing petition triggers Automatic Stay under Sec. 90/12. Projected creditor vote (${creditorVotePct}%) ${meetsSpecialResolutionSec90_46 ? "satisfies" : "requires cramdown/class structuring to meet"} the >50% overall Sec. 90/46 special resolution threshold.`
         : `Debtor does not meet Sec. 90/3 rehabilitation criteria (Debt >= 10M: ${meets10M}, Viable business: ${viable}).`;
+    } else if (rule.id === "rule.th.tax.merger_ruling_462_eligibility") {
+      const structure = String(facts.merger_structure || "ccc_1238_one_survives");
+      const cashBoot = Number(facts.cash_boot_paid_thb || 0);
+      const bookValue = Boolean(facts.transfer_at_book_value);
+      const survivingLoss = Number(facts.surviving_company_pre_merger_loss_thb || 0);
+      const ceasedLoss = Number(facts.ceased_company_pre_merger_loss_thb || 0);
+      const samePeriodDissolution = Boolean(facts.same_accounting_period_dissolution);
+
+      const cccReformEffective = asOfDate >= "2023-02-07";
+      const qualifiesTaxExemptMerger =
+        cccReformEffective && cashBoot === 0 && bookValue && samePeriodDissolution;
+      const usablePostMergerLoss =
+        structure === "ccc_1238_one_survives" ? survivingLoss : 0;
+      const extinguishedLoss =
+        structure === "ccc_1238_one_survives" ? ceasedLoss : survivingLoss + ceasedLoss;
+
+      outcome = qualifiesTaxExemptMerger ? "applicable" : "conditional";
+      reviewRequired = !qualifiesTaxExemptMerger || cashBoot > 0;
+
+      calculatedResult = {
+        merger_structure: structure,
+        ccc_1238_surviving_merger_in_force_at_date: cccReformEffective,
+        qualifies_under_rc_73_74_and_ruling_462: qualifiesTaxExemptMerger,
+        vat_outside_scope_rc_77_1_8: true,
+        royal_decree_10_and_mr_126_exempt: qualifiesTaxExemptMerger,
+        asset_valuation_basis_rc_74: bookValue ? "Historical Book Value (RC Sec. 74)" : "Market/Step-up Value (Triggers 20% CIT)",
+        usable_post_merger_tax_loss_thb: usablePostMergerLoss,
+        extinguished_ceased_company_loss_thb: extinguishedLoss,
+        dg_notification_filing_deadline_days: 30,
+        ceased_company_final_pnd50_deadline_days: 150,
+        governing_rulings: ["กค 0702(กม.)/462 (22 April 2026)", "กค 0702(กม.)/453 (11 April 2025)"],
+        governing_supreme_court_case: "คำพิพากษาศาลฎีกาที่ 5412/2565",
+        can_consultation_letter_override_statute: false,
+      };
+
+      explanation = qualifiesTaxExemptMerger
+        ? `Qualifies for tax-neutral merger under Revenue Code Sec. 73–74, Sec. 77/1(8) VAT exclusion, Royal Decree No. 10, Ministerial Regulation No. 126, and RD Ruling กค 0702(กม.)/462 (22 April 2026, following กค 0702(กม.)/453). Surviving company retains ${usablePostMergerLoss.toLocaleString()} THB of its own Sec. 65 ter (12) tax losses, while ${extinguishedLoss.toLocaleString()} THB of the ceased company's pre-merger tax losses are extinguished (Supreme Court Judgment 5412/2565).`
+        : `Material factual difference from RD Ruling กค 0702(กม.)/462 detected (Cash boot: ${cashBoot.toLocaleString()} THB, Book value carryover: ${bookValue}, Same-period dissolution: ${samePeriodDissolution}, Effective date >= 2023-02-07: ${cccReformEffective}). Per TAX-RULING-02, Royal Decree No. 10 & Ministerial Regulation No. 126 exemptions cannot be automatically claimed without human tax counsel review.`;
     }
 
     this.recordAudit({
@@ -2033,6 +2147,156 @@ export class Reg24PlatformCore {
 
       case "get_regulation_changes":
         return this.executeMCPTool("reg24.get_regulatory_changes", input);
+
+      // TAX-API-01: Tax Rulings, Revenue Code Sub-Regulations & Jurisprudence MCP Services
+      case "search_tax_rulings":
+      case "find_similar_tax_rulings": {
+        const q = (input.query || "").toLowerCase();
+        const matches = this.taxRulings.filter(
+          (r) =>
+            !q ||
+            r.ruling_reference_number.toLowerCase().includes(q) ||
+            r.subject_en.toLowerCase().includes(q) ||
+            r.subject_th.toLowerCase().includes(q) ||
+            r.corporate_event_type.toLowerCase().includes(q) ||
+            r.tax_categories.some((c) => c.toLowerCase().includes(q))
+        );
+        return {
+          result: {
+            total_matches: matches.length,
+            rulings: matches,
+            authority_hierarchy_notice:
+              "TAX-QUALITY-01: Consultation letters are fact-specific administrative opinions and never silently override primary legislation or Royal Decrees.",
+          },
+          status: "ok",
+          module_versions: this.getActiveModuleVersions(["reg24.tax.ruling.th", "reg24.tax.th"]),
+          sources: [],
+          citations: [],
+          effective_dates: { queried_as_of_date: asOfDate, known_at_date: knownAtDate },
+          missing_facts: [],
+          coverage_status: { is_complete: true, executable_rules_available: true, known_limitations: [] },
+          review_required: true,
+          trace_id: traceId,
+        };
+      }
+
+      case "get_tax_ruling": {
+        const refOrId = input.ruling_id || input.query || "ruling.th.rd.0702_462_2569";
+        const ruling =
+          this.taxRulings.find(
+            (r) => r.id === refOrId || r.ruling_reference_number.includes(String(refOrId))
+          ) || this.taxRulings[0];
+        return {
+          result: {
+            ruling,
+            linked_subregulations: this.taxSubRegulations.filter((s) =>
+              ruling.subregulation_ids_linked.includes(s.id)
+            ),
+            linked_court_decisions: this.taxJudicialDecisions.filter((c) =>
+              ruling.related_court_decision_ids.includes(c.id)
+            ),
+          },
+          status: "ok",
+          module_versions: this.getActiveModuleVersions(["reg24.tax.ruling.th", "reg24.tax.sub.th", "reg24.tax.case.th"]),
+          sources: [],
+          citations: [],
+          effective_dates: { queried_as_of_date: asOfDate, known_at_date: knownAtDate },
+          missing_facts: [],
+          coverage_status: { is_complete: true, executable_rules_available: true, known_limitations: [] },
+          review_required: true,
+          trace_id: traceId,
+        };
+      }
+
+      case "get_revenue_code_section":
+      case "get_applicable_tax_law_at_date":
+      case "trace_tax_legal_basis": {
+        const provId = input.provision_id || "prov.th.rc.73_74_77_1";
+        const provRes = this.executeMCPTool("reg24.get_provision", { ...input, provision_id: provId });
+        const subregs = this.taxSubRegulations.filter((s) =>
+          s.enabling_revenue_code_sections.includes(provId)
+        );
+        const rulings = this.taxRulings.filter((r) => r.provision_ids_linked.includes(provId));
+        const cases = this.taxJudicialDecisions.filter((c) => c.provision_ids_linked.includes(provId));
+        return {
+          ...provRes,
+          result: {
+            ...(provRes.result as Record<string, unknown>),
+            article_to_regulation_to_ruling_graph: {
+              implementing_subregulations: subregs,
+              interpreting_rulings: rulings,
+              judicial_decisions: cases,
+            },
+          },
+        };
+      }
+
+      case "get_related_subregulations": {
+        const provId = input.provision_id || "prov.th.rc.73_74_77_1";
+        const subregs = this.taxSubRegulations.filter(
+          (s) => !input.provision_id || s.enabling_revenue_code_sections.includes(provId)
+        );
+        return {
+          result: {
+            total_subregulations: subregs.length,
+            subregulations: subregs,
+          },
+          status: "ok",
+          module_versions: this.getActiveModuleVersions(["reg24.tax.sub.th"]),
+          sources: [],
+          citations: [],
+          effective_dates: { queried_as_of_date: asOfDate, known_at_date: knownAtDate },
+          missing_facts: [],
+          coverage_status: { is_complete: true, executable_rules_available: true, known_limitations: [] },
+          review_required: false,
+          trace_id: traceId,
+        };
+      }
+
+      case "get_related_court_decisions": {
+        return {
+          result: {
+            total_decisions: this.taxJudicialDecisions.length,
+            decisions: this.taxJudicialDecisions,
+          },
+          status: "ok",
+          module_versions: this.getActiveModuleVersions(["reg24.tax.case.th"]),
+          sources: [],
+          citations: [],
+          effective_dates: { queried_as_of_date: asOfDate, known_at_date: knownAtDate },
+          missing_facts: [],
+          coverage_status: { is_complete: true, executable_rules_available: true, known_limitations: [] },
+          review_required: false,
+          trace_id: traceId,
+        };
+      }
+
+      case "compare_tax_interpretations":
+      case "analyze_restructuring_tax":
+        return this.executeTaxPrecedentComparison({
+          transaction_date: asOfDate,
+          facts: input.facts,
+        });
+
+      case "check_tax_exemption_eligibility":
+        return this.evaluateRule({
+          ...input,
+          rule_id: "rule.th.tax.merger_ruling_462_eligibility",
+          facts: input.facts || {
+            merger_structure: "ccc_1238_one_survives",
+            cash_boot_paid_thb: 0,
+            transfer_at_book_value: true,
+            surviving_company_pre_merger_loss_thb: 120000000,
+            ceased_company_pre_merger_loss_thb: 85000000,
+            same_accounting_period_dissolution: true,
+          },
+        });
+
+      case "get_recent_tax_rule_changes":
+        return this.executeMCPTool("reg24.get_regulatory_changes", {
+          ...input,
+          module_ids: ["reg24.tax.th", "reg24.tax.sub.th", "reg24.tax.ruling.th", "reg24.tax.change.th"],
+        });
 
       default:
         return {
@@ -3500,6 +3764,247 @@ export class Reg24PlatformCore {
     };
   }
 
+  // ============================================================================
+  // TAX-RULING-02, TAX-SUB-02 & TAX-REASON-01:
+  // TAX PRECEDENT INTELLIGENCE & ARTICLE-TO-REGULATION-TO-RULING GRAPHRAG
+  // ============================================================================
+  public executeTaxPrecedentComparison(params?: {
+    transaction_date?: string;
+    accounting_period?: string;
+    facts?: Record<string, unknown>;
+  }): MCPCommonOutput<TaxFactComparisonResult> {
+    const startTime = Date.now();
+    const traceId = this.generateTraceId();
+    const txDate = params?.transaction_date || "2026-10-18";
+    const accPeriod = params?.accounting_period || "FY2026 (1 Jan 2026 – 31 Dec 2026)";
+
+    const userFacts = {
+      merger_structure: "ccc_1238_one_survives",
+      cash_boot_paid_thb: 0,
+      transfer_at_book_value: true,
+      surviving_company_pre_merger_loss_thb: 120000000,
+      ceased_company_pre_merger_loss_thb: 85000000,
+      same_accounting_period_dissolution: true,
+      ...(params?.facts || {}),
+    };
+
+    const cashBoot = Number(userFacts.cash_boot_paid_thb || 0);
+    const bookVal = Boolean(userFacts.transfer_at_book_value);
+    const survivingLoss = Number(userFacts.surviving_company_pre_merger_loss_thb || 0);
+    const ceasedLoss = Number(userFacts.ceased_company_pre_merger_loss_thb || 0);
+    const samePeriod = Boolean(userFacts.same_accounting_period_dissolution);
+
+    const ruling462 = this.taxRulings[0];
+
+    const similarities: string[] = [
+      "Both scenarios involve a merger of Thai limited companies under amended CCC Sections 1238 & 1243 where one company (Company A) survives and the other company (Company B) ceases to exist by operation of law.",
+      "Universal succession of assets, liabilities, rights, and obligations under CCC Section 1243.",
+    ];
+    const materialDifferences: string[] = [];
+
+    if (cashBoot === 0) {
+      similarities.push(
+        "Pure share-for-share exchange with zero cash boot, matching the core factual premise of RD Ruling กค 0702(กม.)/462 (22 April 2026) and กค 0702(กม.)/453 (11 April 2025)."
+      );
+    } else {
+      materialDifferences.push(
+        `CRITICAL DIFFERENCE: User scenario includes THB ${cashBoot.toLocaleString()} cash boot to shareholders, whereas RD Ruling กค 0702(กม.)/462 and Ministerial Regulation No. 126 Clause 2(50) require consideration solely in shares of the surviving/merged company.`
+      );
+    }
+
+    if (bookVal) {
+      similarities.push(
+        "Transferred assets and liabilities are recorded at the ceasing company's historical accounting book value on the merger date (Revenue Code Section 74)."
+      );
+    } else {
+      materialDifferences.push(
+        "CRITICAL DIFFERENCE: Assets are stepped up/revalued above historical book value, violating Revenue Code Section 74 & Commission of Taxation Decision No. 40/2560."
+      );
+    }
+
+    if (!samePeriod) {
+      materialDifferences.push(
+        "CRITICAL DIFFERENCE: Merger registration and dissolution do not occur within the same accounting period, jeopardizing Ministerial Regulation No. 126 Clause 2(50) shareholder exemption."
+      );
+    }
+
+    if (materialDifferences.length === 0) {
+      materialDifferences.push(
+        `No disqualifying structural differences detected; however, note that Company B's pre-merger net tax losses (THB ${ceasedLoss.toLocaleString()}) are personal to Company B and will be extinguished upon merger, whereas Company A's own pre-merger losses (THB ${survivingLoss.toLocaleString()}) remain usable.`
+      );
+    }
+
+    const result: TaxFactComparisonResult = {
+      comparison_id: `tax_comp_${Date.now().toString(36)}`,
+      trace_id: traceId,
+      scenario_title:
+        "Corporate Merger under Amended CCC Sec. 1238 & 1243 (One Company Survives, One Ceases to Exist) — Tax Precedent & GraphRAG Analysis",
+      queried_transaction_date: txDate,
+      accounting_period: accPeriod,
+      user_scenario_facts: userFacts,
+      focal_ruling: {
+        ruling_id: ruling462.id,
+        reference_number: ruling462.ruling_reference_number,
+        issue_date: ruling462.issue_date,
+        subject_th: ruling462.subject_th,
+        subject_en: ruling462.subject_en,
+        authority_classification: ruling462.authority_classification,
+        official_url: ruling462.official_url,
+        follows_earlier_ruling_ref: ruling462.follows_earlier_ruling_ref,
+      },
+      fact_comparison_matrix: {
+        similarities,
+        material_differences: materialDifferences,
+        depends_on_special_facts: [
+          "Both merging entities must be Thai limited companies merging via Special Resolution under CCC Sec. 1238.",
+          "Shareholders of the ceasing company must receive only shares in the surviving company (no cash boot).",
+          "Surviving company must notify the Director-General of the Revenue Department within 30 days of DBD registration.",
+        ],
+        changes_in_law_since_ruling: [
+          "CCC Amendment Act (No. 23) B.E. 2565 (effective 7 Feb 2023) created the surviving-company merger pathway.",
+          "RD Opinion กค 0702(กม.)/453 (11 April 2025) first confirmed RC Sec. 73–74 applicability, and RD Ruling กค 0702(กม.)/462 (22 April 2026) reaffirmed and expanded the loss-treatment analysis.",
+        ],
+        later_interpretations_affect_relevance:
+          "Active and authoritative administrative interpretation as of October 2026. No subsequent RD ruling or Supreme Court decision has overruled กค 0702(กม.)/462.",
+      },
+      article_to_regulation_to_ruling_graph: {
+        civil_code_provisions: [
+          {
+            section: "CCC Sections 1238 & 1243 (Amended B.E. 2565)",
+            role: "Enables merger where one company survives and succeeds to all rights, assets, and liabilities by operation of law",
+          },
+        ],
+        revenue_code_sections: [
+          {
+            section: "Revenue Code Sections 73 & 74",
+            provision_id: "prov.th.rc.73_74_77_1",
+            role: "Governs merger book-value asset valuation, 150-day final PND.50 return for ceased company, and prohibition on transferring ceased company's net tax losses",
+          },
+          {
+            section: "Revenue Code Section 77/1(8)",
+            provision_id: "prov.th.rc.73_74_77_1",
+            role: "Excludes asset transfers by operation of law in a corporate merger from VAT",
+          },
+          {
+            section: "Revenue Code Section 65 ter (12)",
+            provision_id: "prov.th.rc.65",
+            role: "5-year net tax loss carryforward (personal to surviving company; extinguished for ceased company)",
+          },
+        ],
+        implementing_subregulations: this.taxSubRegulations.map((s) => ({
+          id: s.id,
+          number_code: s.number_code,
+          document_type: s.document_type,
+          authority_classification: s.authority_classification,
+          role: s.summary_en,
+        })),
+        ruling_chain: [
+          {
+            reference_number: "กค 0702(กม.)/462",
+            issue_date: "2026-04-22",
+            relationship: "Primary 2026 RD Ruling on Surviving-Company Merger Tax, Asset Basis & Losses (Expressly follows 453/2568)",
+            official_url: "https://www.rd.go.th/68635.html",
+          },
+          {
+            reference_number: "กค 0702(กม.)/453",
+            issue_date: "2025-04-11",
+            relationship: "Foundational 2025 RD Opinion on CCC Sec. 1238 Surviving-Company Merger under RC Sec. 73–74",
+            official_url: "https://www.rd.go.th/68629.html",
+          },
+          {
+            reference_number: "คำวินิจฉัยคณะกรรมการวินิจฉัยภาษีอากรที่ 40/2560",
+            issue_date: "2017-09-15",
+            relationship: "Formal Statutory Interpretation (RC Sec. 13 Septies) on Book-Value Carryover under Sec. 74",
+            official_url: "https://www.rd.go.th/1601.html",
+          },
+        ],
+        judicial_decisions: this.taxJudicialDecisions.map((c) => ({
+          case_number: c.case_number,
+          judgment_date: c.judgment_date,
+          diverges_from_rd: c.diverges_from_rd_interpretation,
+          summary: c.decision_outcome,
+        })),
+      },
+      generated_tax_assessment: {
+        merger_or_transaction_structure:
+          cashBoot === 0 && bookVal && samePeriod
+            ? "Qualifying Tax-Neutral Surviving-Company Merger (CCC Sec. 1238 + RC Sec. 73–74 + RD No. 10 + MR No. 126)"
+            : "Non-Qualifying / Conditional Merger Requiring Human Tax Review (Material Factual Divergence from Ruling 462/2569)",
+        applicable_tax_treatment_summary:
+          cashBoot === 0 && bookVal && samePeriod
+            ? `Exempt from Corporate Income Tax, Specific Business Tax, and Stamp Duty (Royal Decree No. 10), outside VAT scope (RC Sec. 77/1(8)), and exempt from shareholder capital gains tax (Ministerial Regulation No. 126). Surviving Company A retains THB ${survivingLoss.toLocaleString()} of its own pre-merger losses; Ceased Company B's THB ${ceasedLoss.toLocaleString()} pre-merger losses expire.`
+            : "Disqualification risk detected due to cash boot, asset step-up, or cross-period dissolution. May trigger 20% CIT on unrealized asset gains and shareholder capital gains tax.",
+        exemption_conditions_checklist: [
+          "Special Resolution of each merging company passed and registered with DBD (CCC Sec. 1238).",
+          "Assets and liabilities transferred strictly at historical accounting book value (RC Sec. 74).",
+          "Share-for-share exchange with zero cash boot to shareholders (MR No. 126 Clause 2(50)).",
+          "Written notification and shareholder list filed with Director-General of RD within 30 days of DBD registration.",
+          "Final PND.50 tax return of ceased company filed within 150 days of DBD merger registration date (RC Sec. 73).",
+        ],
+        required_documentary_evidence: [
+          "DBD Certificate of Merger Registration (หนังสือรับรองการจดทะเบียนควบรวมบริษัท)",
+          "Audited Closing Financial Statements of Ceased Company as of Merger Date (งบการเงิน ณ วันจดทะเบียนควบรวม)",
+          "Share Exchange Ratio & Pre/Post-Merger Shareholder Registry",
+          "30-Day Director-General Notification Receipt",
+        ],
+        legal_uncertainty_flags: [
+          "TAX-RULING-02 WARNING: RD Ruling กค 0702(กม.)/462 is a fact-specific consultation letter; it does not bind the Revenue Department if the taxpayer's actual transaction facts differ.",
+          "TAX-QUALITY-01 HIERARCHY: Per Supreme Court Judgment No. 2108/2564, administrative consultation letters cannot override statutory provisions or Royal Decrees.",
+        ],
+        legal_applicability_warning:
+          "Do not automatically apply a ruling made on one taxpayer's facts to another taxpayer. No automated official tax submissions are permitted without human authorization.",
+        can_consultation_letter_override_statute: false,
+        autonomous_tax_filing_permitted: false,
+      },
+    };
+
+    this.recordAudit({
+      trace_id: traceId,
+      tenant_id: "tenant.law24.prod",
+      actor_role: "Legal Reviewer",
+      operation: "tax.precedent_intelligence_ruling_462",
+      module_ids: [
+        "reg24.tax.th",
+        "reg24.tax.sub.th",
+        "reg24.tax.ruling.th",
+        "reg24.tax.case.th",
+        "reg24.civil.th",
+        "reg24.restruct.th",
+      ],
+      provisions_accessed: ["prov.th.rc.73_74_77_1", "prov.th.ccc.1238_1243", "prov.th.rc.65"],
+      rules_evaluated: ["rule.th.tax.merger_ruling_462_eligibility"],
+      prompt_injection_checked: true,
+      prompt_injection_blocked: false,
+      latency_ms: Math.max(4, Date.now() - startTime),
+      status: "requires_review",
+      summary: `Executed Tax Precedent Intelligence & Article-to-Regulation-to-Ruling GraphRAG against RD Ruling กค 0702(กม.)/462 (22 April 2026).`,
+    });
+
+    return {
+      result,
+      status: "ok",
+      module_versions: this.getActiveModuleVersions([
+        "reg24.tax.th",
+        "reg24.tax.sub.th",
+        "reg24.tax.ruling.th",
+        "reg24.tax.case.th",
+      ]),
+      sources: [],
+      citations: [],
+      effective_dates: { queried_as_of_date: txDate, known_at_date: "2026-10-18" },
+      missing_facts: [],
+      coverage_status: {
+        is_complete: true,
+        executable_rules_available: true,
+        known_limitations: [
+          "TAX-ACCEPT-01: No unsupported claim of legal certainty. No automated official tax submissions without human approval.",
+        ],
+      },
+      review_required: true,
+      trace_id: traceId,
+    };
+  }
+
   // Getters for Management Console state snapshot
   public getDashboardSnapshot() {
     const default3R = this.execute3RGraphRAGQuery({
@@ -3511,6 +4016,10 @@ export class Reg24PlatformCore {
     const defaultMission = this.executeCrossModuleRestructuringMission({
       transaction_date: "2026-10-18",
       execution_mode: "agent_swarm",
+    });
+
+    const defaultTaxPrecedent = this.executeTaxPrecedentComparison({
+      transaction_date: "2026-10-18",
     });
 
     return {
@@ -3527,6 +4036,10 @@ export class Reg24PlatformCore {
       graphEdges: Array.from(this.graphEdges.values()),
       courtDecisions: Array.from(this.courtDecisions.values()),
       nonBindingConsultations: this.nonBindingConsultations,
+      taxSubRegulations: this.taxSubRegulations,
+      taxRulings: this.taxRulings,
+      taxJudicialDecisions: this.taxJudicialDecisions,
+      sampleTaxPrecedentComparison: defaultTaxPrecedent.result,
       sample3RGraphRAGResult: default3R,
       sampleRestructuringMission: defaultMission.result,
       regulatoryChanges: Array.from(this.regulatoryChanges.values()),
@@ -3545,4 +4058,5 @@ export const reg24Core = globalForReg24.reg24Core || new Reg24PlatformCore();
 if (process.env.NODE_ENV !== "production") {
   globalForReg24.reg24Core = reg24Core;
 }
+
 

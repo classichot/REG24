@@ -12,20 +12,24 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     core = new Reg24PlatformCore();
   });
 
-  it("REG-QA-001: Publishes all 10 mandatory P0 Thailand legal modules (6 Foundation + 4 Capital Markets & Restructuring Expansion) with visible scope and limitations", () => {
+  it("REG-QA-001: Publishes all 14 mandatory P0 Thailand legal modules (6 Foundation + 4 Capital Markets & Restructuring + 4 Tax Rulings & Sub-Regulations Expansion) with visible scope and limitations", () => {
     const modules = core.listModules(false);
     const ids = modules.map((m) => m.module_id);
     expect(ids).toContain("reg24.corporate.th");
     expect(ids).toContain("reg24.contract.th");
     expect(ids).toContain("reg24.civil.th");
     expect(ids).toContain("reg24.tax.th");
+    expect(ids).toContain("reg24.tax.sub.th");
+    expect(ids).toContain("reg24.tax.ruling.th");
+    expect(ids).toContain("reg24.tax.case.th");
+    expect(ids).toContain("reg24.tax.change.th");
     expect(ids).toContain("reg24.labor.th");
     expect(ids).toContain("reg24.boi.th");
     expect(ids).toContain("reg24.sec.th");
     expect(ids).toContain("reg24.set.th");
     expect(ids).toContain("reg24.restruct.th");
     expect(ids).toContain("reg24.insolv.th");
-    expect(modules.length).toBe(10);
+    expect(modules.length).toBe(14);
 
     for (const mod of modules) {
       expect(mod.source_coverage.provision_boundary_accuracy_pct).toBeGreaterThanOrEqual(95);
@@ -137,7 +141,7 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     const mcpList = core.executeMCPTool("reg24.list_modules") as {
       result: { total_published_modules: number; modules: { module_id: string }[] };
     };
-    expect(mcpList.result.total_published_modules).toBe(11);
+    expect(mcpList.result.total_published_modules).toBe(15);
     expect(mcpList.result.modules.some((m) => m.module_id === "reg24.pdpa.th")).toBe(true);
 
     // Uninstall dynamic module and verify canonical Civil Code provisions remain intact
@@ -337,6 +341,130 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     expect(
       mission.result.draft_advisory_documents.every(
         (d) => d.autonomous_submission_permitted === false
+      )
+    ).toBe(true);
+  });
+
+  it("TAX-SUB-01..03, TAX-RULING-01..03, TAX-CASE-01, TAX-QUALITY-01 & TAX-API-01: Links CCC Sec. 1238/1243 & Revenue Code Sec. 73/74 to RD Ruling กค 0702(กม.)/462 (22 April 2026), RD Opinion กค 0702(กม.)/453 (11 April 2025), Royal Decree No. 10, Ministerial Regulation No. 126, Supreme Court 5412/2565, and enforces non-override & fact-specific comparison", () => {
+    // 1. Verify RD Ruling กค 0702(กม.)/462 (22 April 2026) and กค 0702(กม.)/453 (11 April 2025) are indexed with strict 7-tier authority classification
+    const getRuling462 = core.executeMCPTool("get_tax_ruling", {
+      ruling_id: "ruling.th.rd.0702_462_2569",
+    }) as {
+      result: {
+        ruling: {
+          ruling_reference_number: string;
+          issue_date: string;
+          authority_classification: string;
+          can_override_statute: boolean;
+          official_url: string;
+          follows_earlier_ruling_ref: string;
+          related_ruling_ids: string[];
+        };
+      };
+    };
+    expect(getRuling462.result.ruling.ruling_reference_number).toBe("กค 0702(กม.)/462");
+    expect(getRuling462.result.ruling.issue_date).toBe("2026-04-22");
+    expect(getRuling462.result.ruling.authority_classification).toBe(
+      "fact_specific_administrative_opinion"
+    );
+    expect(getRuling462.result.ruling.can_override_statute).toBe(false);
+    expect(getRuling462.result.ruling.official_url).toBe("https://www.rd.go.th/68635.html");
+    expect(getRuling462.result.ruling.related_ruling_ids).toContain("ruling.th.rd.0702_453_2568");
+
+    // 2. Fact-Specific Precedent Comparison (TAX-RULING-02): Qualifying Zero-Boot Merger vs. Disqualifying Cash-Boot + Step-Up Merger
+    const qualifyingComp = core.executeTaxPrecedentComparison({
+      transaction_date: "2026-10-18",
+      facts: {
+        merger_structure: "ccc_1238_one_survives",
+        cash_boot_paid_thb: 0,
+        transfer_at_book_value: true,
+        surviving_company_pre_merger_loss_thb: 120000000,
+        ceased_company_pre_merger_loss_thb: 85000000,
+        same_accounting_period_dissolution: true,
+      },
+    });
+    expect(qualifyingComp.result.focal_ruling.reference_number).toBe("กค 0702(กม.)/462");
+    expect(qualifyingComp.result.fact_comparison_matrix.similarities.length).toBeGreaterThanOrEqual(3);
+    expect(
+      qualifyingComp.result.generated_tax_assessment.can_consultation_letter_override_statute
+    ).toBe(false);
+    expect(qualifyingComp.result.generated_tax_assessment.autonomous_tax_filing_permitted).toBe(
+      false
+    );
+
+    const disqualifyingComp = core.executeTaxPrecedentComparison({
+      transaction_date: "2026-10-18",
+      facts: {
+        merger_structure: "ccc_1238_one_survives",
+        cash_boot_paid_thb: 85000000,
+        transfer_at_book_value: false,
+        surviving_company_pre_merger_loss_thb: 120000000,
+        ceased_company_pre_merger_loss_thb: 85000000,
+        same_accounting_period_dissolution: false,
+      },
+    });
+    expect(disqualifyingComp.result.fact_comparison_matrix.material_differences.length).toBe(3);
+
+    // 3. Deterministic Rule Evaluation for RD Ruling 462/2569 & Royal Decree No. 10 / MR No. 126
+    const mergerTaxEval = core.evaluateRule({
+      rule_id: "rule.th.tax.merger_ruling_462_eligibility",
+      facts: {
+        merger_structure: "ccc_1238_one_survives",
+        cash_boot_paid_thb: 50000000,
+        transfer_at_book_value: true,
+        surviving_company_pre_merger_loss_thb: 120000000,
+        ceased_company_pre_merger_loss_thb: 85000000,
+        same_accounting_period_dissolution: true,
+      },
+    });
+    expect(mergerTaxEval.result.calculated_result.qualifies_under_rc_73_74_and_ruling_462).toBe(
+      false
+    );
+    expect(mergerTaxEval.result.calculated_result.royal_decree_10_and_mr_126_exempt).toBe(false);
+    expect(mergerTaxEval.result.calculated_result.usable_post_merger_tax_loss_thb).toBe(120000000);
+    expect(mergerTaxEval.result.calculated_result.extinguished_ceased_company_loss_thb).toBe(
+      85000000
+    );
+
+    // 4. Verify all 12 TAX-API-01 MCP Services execute cleanly
+    const searchRulings = core.executeMCPTool("search_tax_rulings", { query: "462" }) as {
+      result: { total_matches: number };
+    };
+    expect(searchRulings.result.total_matches).toBeGreaterThanOrEqual(1);
+
+    const rcSection = core.executeMCPTool("get_revenue_code_section", {
+      provision_id: "prov.th.rc.73_74_77_1",
+    }) as {
+      result: {
+        article_to_regulation_to_ruling_graph: {
+          implementing_subregulations: unknown[];
+          interpreting_rulings: unknown[];
+          judicial_decisions: unknown[];
+        };
+      };
+    };
+    expect(
+      rcSection.result.article_to_regulation_to_ruling_graph.implementing_subregulations.length
+    ).toBeGreaterThanOrEqual(3);
+    expect(
+      rcSection.result.article_to_regulation_to_ruling_graph.interpreting_rulings.length
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      rcSection.result.article_to_regulation_to_ruling_graph.judicial_decisions.length
+    ).toBeGreaterThanOrEqual(1);
+
+    const traceBasis = core.executeMCPTool("trace_tax_legal_basis", {
+      provision_id: "prov.th.rc.73_74_77_1",
+    }) as {
+      result: {
+        article_to_regulation_to_ruling_graph: {
+          interpreting_rulings: { id: string }[];
+        };
+      };
+    };
+    expect(
+      traceBasis.result.article_to_regulation_to_ruling_graph.interpreting_rulings.some(
+        (r) => r.id === "ruling.th.rd.0702_462_2569"
       )
     ).toBe(true);
   });
