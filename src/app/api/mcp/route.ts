@@ -362,6 +362,52 @@ export const MCP_TOOLS_CATALOG = [
     description: "REG24-CASE: Point-in-time historical law resolver distinguishing transaction date, assessment date, filing date, and judgment date (e.g., 2018 vs. 2019+ Transfer Pricing)",
     inputSchema: { type: "object", properties: { as_of_date: { type: "string" }, provision_id: { type: "string" }, facts: { type: "object" } } },
   },
+  // PRD v2.0 Section 12.1 Corporate & Commercial Legal Intelligence MCP Tools
+  {
+    name: "reg24.get_document_version",
+    description: "PRD v2.0 Section 12.1: Retrieve point-in-time source document version, SHA-256 checksum, Source Reliability Tier (A–E), and Section 24 Data Quality status",
+    inputSchema: { type: "object", properties: { provision_id: { type: "string" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "reg24.search_court_cases",
+    description: "PRD v2.0 Section 12.1: Hybrid 4-method search across verified Thai Supreme Court & Specialist Court judgments",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, facts: { type: "object" } } },
+  },
+  {
+    name: "reg24.search_tax_rulings",
+    description: "PRD v2.0 Section 12.1: Search Revenue Department consultation letters and Tax Ruling Committee interpretations",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, facts: { type: "object" } } },
+  },
+  {
+    name: "reg24.analyze_legal_question",
+    description: "PRD v2.0 Section 7.2 & 12.1: Execute LEG-AI-01..10 Corporate & Commercial Legal Intelligence analysis returning the Structured Answer Contract",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, as_of_date: { type: "string" }, facts: { type: "object" } } },
+  },
+  {
+    name: "reg24.analyze_industry_regulation",
+    description: "PRD v2.0 Section 5 & 12.1: Analyze industry-specific legal applicability, business activities, licenses, and obligations (IND-CORP, IND-FIN, IND-ENERGY, IND-PROPERTY, IND-MFG, etc.)",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "reg24.query_legal_graph",
+    description: "PRD v2.0 Section 6 & 12.1: Traverse the 20-entity, 16-relationship Regulatory Knowledge Graph with provenance and AI-inferred edge quarantine",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "reg24.extract_obligations",
+    description: "PRD v2.0 Section 9 & 12.1: Extract structured compliance obligations, deadlines, evidence requirements, and execution controls by industry and legal domain",
+    inputSchema: { type: "object", properties: { facts: { type: "object" } } },
+  },
+  {
+    name: "reg24.compare_legal_versions",
+    description: "PRD v2.0 Section 12.1: Compare historical and current versions of a legal provision across effective dates",
+    inputSchema: { type: "object", properties: { provision_id: { type: "string" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "reg24.generate_legal_memo",
+    description: "PRD v2.0 Section 10.5 & 12.1: Generate a verified Research Report Studio legal memorandum or due diligence report with 100% resolved citations",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, language: { type: "string" }, facts: { type: "object" } } },
+  },
 ];
 
 export async function GET() {
@@ -371,9 +417,22 @@ export async function GET() {
     transport: "Streamable HTTP (JSON-RPC 2.0)",
     server_info: {
       name: "reg24-unified-mcp-gateway",
-      version: "2.2.0",
+      version: "2.3.0",
       jurisdiction: "TH",
-      connected_consumers: ["LAW24", "CFO24", "ACC24", "TP24", "GMT24", "TRACE24", "VIBE24", "External AI Agents"],
+      connected_consumers: [
+        "LAW24",
+        "CFO24",
+        "ACC24",
+        "TP24",
+        "GMT24",
+        "ESG24",
+        "COP24",
+        "TRADE24",
+        "HOTEL24",
+        "DRUG24",
+        "RISK24",
+        "External AI Agents",
+      ],
     },
     tools: MCP_TOOLS_CATALOG,
   });

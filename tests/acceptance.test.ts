@@ -713,5 +713,126 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     }) as { result: { verified: boolean } };
     expect(mcpVerify.result.verified).toBe(false);
   });
+
+  it("REG-QA-013: PRD v2.0 Corporate & Commercial Legal Intelligence Infrastructure (Sections 1–24: 9 LEG-* Domains, 9 IND-* Industry Modules + SDK, Structured Answer Contract & Abstention, Single/Team/Swarm Agents, Report Studio, Enterprise Isolation, 11 VIBE24 Apps & Section 24 Quality Gate)", () => {
+    // 1. Layer 2: 9 Mandatory P0 Core Legal Domains (LEG-CORP through LEG-PDPA)
+    const domains = core.listCoreLegalDomains();
+    expect(domains.length).toBe(9);
+    expect(domains.map((d) => d.code)).toEqual([
+      "LEG-CORP",
+      "LEG-CONTRACT",
+      "LEG-CIVIL",
+      "LEG-TAX",
+      "LEG-LABOR",
+      "LEG-BOI",
+      "LEG-SEC",
+      "LEG-INSOLVENCY",
+      "LEG-PDPA",
+    ]);
+
+    // 2. Layer 3: 9 Pluggable Industry Modules (IND-01 to IND-10) + Dynamic Module Registration SDK
+    const indModules = core.listIndustryModules();
+    expect(indModules.length).toBeGreaterThanOrEqual(9);
+    expect(indModules.some((m) => m.module_id === "IND-ENERGY")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-FIN")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-DIGITAL")).toBe(true);
+
+    // Dynamic registration of a new industry module without core engine changes (IND-10)
+    const customInd = core.registerIndustryModule({
+      module_id: "IND-LOGISTICS",
+      module_name: "EV Fleet & Cold-Chain Logistics Regulations",
+      module_name_th: "กฎหมายโลจิสติกส์ยานยนต์ไฟฟ้าและห่วงโซ่ความเย็น",
+      priority: "P1",
+      legal_domains: ["LEG-CORP", "LEG-TAX", "LEG-BOI", "LEG-LABOR", "LEG-PDPA"],
+      regulators: ["DLT", "BOI", "RD", "PDPC"],
+      business_activities: ["EV Fleet Operation", "Cold-Chain Warehouse & Customs Bonded Transport"],
+    });
+    expect(customInd.success).toBe(true);
+    expect(customInd.schema_validated).toBe(true);
+    expect(customInd.module?.module_id).toBe("IND-LOGISTICS");
+
+    // 3. Layer 5: Structured Legal Analysis Contract (LEG-AI-01..10) & Anti-Hallucination Abstention
+    const solarAnalysis = core.analyzeCorporateCommercialLegalQuestion({
+      query:
+        "Analyze legal, tax, BOI, ERC licensing, labor, and PDPA requirements for acquiring a solar power plant in Thailand.",
+      as_of_date: "2026-10-19",
+      industry_module: "IND-ENERGY",
+      research_mode: "legal_due_diligence",
+    });
+    expect(solarAnalysis.jurisdiction).toBe("TH");
+    expect(solarAnalysis.industry_module).toBe("IND-ENERGY");
+    expect(solarAnalysis.confidence.level).toBe("supported_with_limitations");
+    expect(solarAnalysis.conclusions.length).toBeGreaterThanOrEqual(3);
+    expect(solarAnalysis.applicable_provisions.length).toBeGreaterThanOrEqual(3);
+    expect(solarAnalysis.obligations.length).toBeGreaterThanOrEqual(2);
+    expect(solarAnalysis.citations.every((c) => c.verified)).toBe(true);
+
+    // Unverified/unsupported query must abstain rather than fabricate citations (LEG-AI-06)
+    const abstained = core.analyzeCorporateCommercialLegalQuestion({
+      query: "Unsupported space mining tax exemption under nonexistent judgment 99999/2599",
+      as_of_date: "2026-10-19",
+    });
+    expect(abstained.confidence.level).toBe("insufficient_authoritative_support");
+    expect(abstained.human_review_required).toBe(true);
+
+    // 4. Layer 6: Agentic Legal Intelligence (Single-Agent, Team-Agent, Swarm-Agent) & External Filing Guard
+    const teamMission = core.executeAgentMissionV2({
+      objective: "Analyze legal and tax risks of acquiring a solar power company in Thailand",
+      operating_mode: "Team-Agent",
+      autonomy_level: "Supervised",
+      industry_module: "IND-ENERGY",
+    });
+    expect(teamMission.operating_mode).toBe("Team-Agent");
+    expect(teamMission.human_approval_checkpoint.external_filing_prevented).toBe(true);
+    expect(teamMission.participating_agents.length).toBeGreaterThanOrEqual(5);
+    expect(teamMission.budget_control.within_budget).toBe(true);
+
+    // 5. Layer 7 & Section 10.5: Structured Obligations & Research Report Studio (100% Citation Gate)
+    const obligations = core.extractStructuredObligations({ industry: "IND-ENERGY" });
+    expect(obligations.total_obligations).toBeGreaterThanOrEqual(2);
+    expect(
+      obligations.obligations[0].execution_control.external_filing_blocked_without_approval
+    ).toBe(true);
+
+    const report = core.generateResearchStudioReport({
+      report_type: "corporate_transaction_dd_report",
+      query_or_topic: "Solar Acquisition Due Diligence Report",
+      industry_module: "IND-ENERGY",
+    });
+    expect(report.ai_verification_gate.citation_resolution_pct).toBe(100);
+    expect(report.ai_verification_gate.fabricated_citations_count).toBe(0);
+    expect(report.export_formats_ready).toEqual(["DOCX", "PDF", "JSON", "MARKDOWN"]);
+
+    // 6. Section 12.1: Verify PRD v2.0 MCP Tools (`reg24.analyze_legal_question`, `reg24.analyze_industry_regulation`, `reg24.extract_obligations`, `reg24.generate_legal_memo`)
+    const mcpAnalyze = core.executeMCPTool("reg24.analyze_legal_question", {
+      query: "Solar PPA and BOI transition",
+      facts: { industry_module: "IND-ENERGY" },
+    }) as { result: { industry_module: string; confidence: { level: string } } };
+    expect(mcpAnalyze.result.industry_module).toBe("IND-ENERGY");
+    expect(mcpAnalyze.result.confidence.level).toBe("supported_with_limitations");
+
+    const mcpMemo = core.executeMCPTool("reg24.generate_legal_memo", {
+      query: "Solar PPA Due Diligence",
+      facts: {
+        report_type: "legal_research_memorandum",
+        industry_module: "IND-ENERGY",
+      },
+    }) as { result: { ai_verification_gate: { citation_resolution_pct: number } } };
+    expect(mcpMemo.result.ai_verification_gate.citation_resolution_pct).toBe(100);
+
+    // 7. Section 13 Enterprise Isolation, Section 16 VIBE24 Ecosystem (11 Apps), Section 21 (850-Q Eval) & Section 24 Quality Gate
+    const tenantProfile = core.getEnterpriseTenantProfile("tenant.law24.prod");
+    expect(tenantProfile.private_documents_isolated[0].indexed_in_public_corpus).toBe(false);
+    expect(tenantProfile.private_documents_isolated[0].used_for_model_training).toBe(false);
+
+    const snap = core.getDashboardSnapshot();
+    expect(snap.vibe24EcosystemTargets.length).toBe(11);
+    expect(snap.section24QualityDashboard.kpis.citation_resolution_pct.value).toBe(100);
+    expect(snap.section24QualityDashboard.kpis.unresolved_critical_defects).toBe(0);
+    expect(
+      snap.section24QualityDashboard.p0_evaluation_dataset_summary.total_questions
+    ).toBe(850);
+    expect(snap.section24QualityDashboard.p0_release_checklist_all_passed).toBe(true);
+  });
 });
 

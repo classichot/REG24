@@ -1541,5 +1541,495 @@ export interface CaseAgenticResearchResponse {
   };
 }
 
+// ============================================================================
+// PRD v2.0 — CORPORATE & COMMERCIAL LEGAL INTELLIGENCE INFRASTRUCTURE (VIBE24)
+// Sections 1–24: 7-Layer Architecture, Industry Intelligence Modules (IND-*),
+// LEG-AI-01..10 Engine, Single/Team/Swarm Agents, Report Studio, Enterprise
+// Compliance, VIBE24 Ecosystem Integration, 850-Q Eval Suite & Section 24 DQ
+// ============================================================================
+
+export type JurisdictionCode = "TH" | string;
+
+export type SourceReliabilityTier =
+  | "Tier A: Official primary legal source"
+  | "Tier B: Official regulator interpretation or administrative guidance"
+  | "Tier C: Verified judicial or administrative decision"
+  | "Tier D: Secondary commentary or research"
+  | "Tier E: Unverified material";
+
+export type DataQualityLifecycleStatus =
+  | "Raw"
+  | "Parsed"
+  | "Validated"
+  | "Verified"
+  | "Flagged"
+  | "Quarantined"
+  | "Superseded";
+
+export type CoreLegalDomainCode =
+  | "LEG-CORP"
+  | "LEG-CONTRACT"
+  | "LEG-CIVIL"
+  | "LEG-TAX"
+  | "LEG-LABOR"
+  | "LEG-BOI"
+  | "LEG-SEC"
+  | "LEG-INSOLVENCY"
+  | "LEG-PDPA";
+
+export type IndustryModuleCode =
+  | "IND-CORP"
+  | "IND-FIN"
+  | "IND-ENERGY"
+  | "IND-PROPERTY"
+  | "IND-MFG"
+  | "IND-HOTEL"
+  | "IND-HEALTH"
+  | "IND-DIGITAL"
+  | "IND-LOGISTICS"
+  | string;
+
+export interface CoreLegalDomainMapping {
+  code: CoreLegalDomainCode;
+  module_name: string;
+  minimum_scope: string;
+  underlying_module_ids: string[];
+  priority: "P0";
+  supported_topics: string[];
+  agent_tools: string[];
+  evaluation_question_quota: number;
+}
+
+export interface IndustryModuleConfig {
+  module_id: IndustryModuleCode;
+  module_name: string;
+  module_name_th: string;
+  priority: "P0" | "P1" | "P2";
+  jurisdiction: JurisdictionCode;
+  version: string;
+  enabled_for_tenants: string[];
+  legal_domains: CoreLegalDomainCode[];
+  underlying_module_ids: string[];
+  regulators: string[];
+  business_activities: string[];
+  ontology_terms_th_en: { term_th: string; term_en: string; mapped_concept_id: string }[];
+  knowledge_graph: {
+    enabled: boolean;
+    linked_provision_ids: string[];
+    linked_case_ids: string[];
+    linked_obligation_ids: string[];
+  };
+  agents: string[];
+  workflows: string[];
+  output_types: (
+    | "legal_memo"
+    | "obligation_register"
+    | "risk_matrix"
+    | "due_diligence_checklist"
+    | "regulatory_applicability_report"
+    | "compliance_action_plan"
+  )[];
+  common_legal_missions: {
+    mission_id: string;
+    title: string;
+    prompt_th: string;
+    prompt_en: string;
+  }[];
+  evaluation_dataset_size: number;
+  schema_validated: boolean;
+  registered_at: string;
+}
+
+export type ResearchModeType =
+  | "quick_answer"
+  | "deep_research"
+  | "industry_analysis"
+  | "legal_due_diligence"
+  | "regulatory_impact";
+
+export type LegalAICapabilityCode =
+  | "LEG-AI-01"
+  | "LEG-AI-02"
+  | "LEG-AI-03"
+  | "LEG-AI-04"
+  | "LEG-AI-05"
+  | "LEG-AI-06"
+  | "LEG-AI-07"
+  | "LEG-AI-08"
+  | "LEG-AI-09"
+  | "LEG-AI-10";
+
+export interface StructuredLegalAnalysisContract {
+  query_id: string;
+  request_id: string;
+  tenant_id: string;
+  jurisdiction: JurisdictionCode;
+  as_of_date: string;
+  recommended_research_mode: ResearchModeType;
+  selected_research_mode: ResearchModeType;
+  capabilities_invoked: LegalAICapabilityCode[];
+  industry_module: IndustryModuleCode;
+  legal_domains: CoreLegalDomainCode[];
+  module_versions: Record<string, string>;
+  answer: string;
+  executive_answer_th: string;
+  conclusions: {
+    conclusion_id: string;
+    statement: string;
+    legal_domain: CoreLegalDomainCode;
+    supporting_provision_ids: string[];
+    authority_tier: SourceReliabilityTier;
+    is_binding_law: boolean;
+  }[];
+  applicable_provisions: {
+    provision_id: string;
+    section_number: string;
+    instrument_title_en: string;
+    applied_version_id: string;
+    effective_from: string;
+    effective_to?: string;
+    source_reliability_tier: SourceReliabilityTier;
+    data_quality_status: DataQualityLifecycleStatus;
+    official_url: string;
+    sha256_hash: string;
+  }[];
+  related_cases: {
+    case_id: string;
+    case_number: string;
+    court_name: string;
+    holding_summary: string;
+    source_reliability_tier: SourceReliabilityTier;
+  }[];
+  related_tax_rulings: {
+    ruling_id: string;
+    reference_number: string;
+    subject_en: string;
+    source_reliability_tier: SourceReliabilityTier;
+  }[];
+  obligations: StructuredObligationRecord[];
+  risks: {
+    risk_id: string;
+    title: string;
+    severity: "low" | "medium" | "high" | "critical";
+    legal_domain: CoreLegalDomainCode;
+    description: string;
+    mitigation_action: string;
+    source_provision_id: string;
+  }[];
+  missing_facts: string[];
+  recommended_next_actions: string[];
+  citations: {
+    citation_id: string;
+    reference_label: string;
+    provision_or_case_id: string;
+    version_id: string;
+    official_url: string;
+    sha256_hash: string;
+    source_reliability_tier: SourceReliabilityTier;
+    verified: boolean;
+  }[];
+  confidence: {
+    level: "verified_complete" | "supported_with_limitations" | "insufficient_authoritative_support";
+    basis: string;
+  };
+  human_review_required: boolean;
+  trace_id: string;
+  processing_metadata: {
+    latency_ms: number;
+    graph_rag_steps_executed: number;
+    model_provider: string;
+    model_id: string;
+    estimated_cost_usd: number;
+  };
+}
+
+export interface StructuredObligationRecord {
+  obligation_id: string;
+  title: string;
+  title_th: string;
+  jurisdiction: JurisdictionCode;
+  source_provision_id: string;
+  legal_domain: CoreLegalDomainCode;
+  industry: IndustryModuleCode;
+  applicability_conditions: string[];
+  required_actions: string[];
+  deadline_rule: string | null;
+  responsible_role: string | null;
+  evidence_requirements: string[];
+  risk_level: "low" | "medium" | "high" | "critical";
+  verification_status: "verified" | "pending_review";
+  effective_from: string | null;
+  effective_to: string | null;
+  execution_control: {
+    action_type: string;
+    authorized_actor: string;
+    permission_scope: string;
+    approval_policy: "auto_draft_only" | "requires_human_legal_approval";
+    idempotency_key: string;
+    execution_status: "ready" | "awaiting_approval" | "completed";
+    external_filing_blocked_without_approval: true;
+  };
+}
+
+export type AgentOperatingMode = "Single-Agent" | "Team-Agent" | "Swarm-Agent";
+export type AgentAutonomyLevel = "Draft" | "Supervised" | "Autopilot";
+
+export interface LegalAgentDescriptor {
+  agent_id: string;
+  agent_name: string;
+  specialization_domain: CoreLegalDomainCode | "CROSS-DOMAIN-SYNTHESIS" | "INDUSTRY-LICENSING";
+  supported_industries: IndustryModuleCode[];
+  supported_modes: AgentOperatingMode[];
+  permitted_autonomy: AgentAutonomyLevel[];
+  allowed_tools: string[];
+  max_budget_usd: number;
+  can_execute_external_filings: false;
+}
+
+export interface AgentMissionRecord {
+  mission_id: string;
+  trace_id: string;
+  tenant_id: string;
+  objective: string;
+  operating_mode: AgentOperatingMode;
+  autonomy_level: AgentAutonomyLevel;
+  industry_module: IndustryModuleCode;
+  legal_domains: CoreLegalDomainCode[];
+  participating_agents: {
+    agent_id: string;
+    agent_name: string;
+    assigned_subtask: string;
+    status: "completed" | "awaiting_approval" | "canceled";
+    findings_summary: string;
+    verified_citations_count: number;
+  }[];
+  proposed_research_plan: string[];
+  missing_transaction_facts: string[];
+  consolidated_findings: string;
+  source_verification_passed: boolean;
+  budget_control: {
+    budget_limit_usd: number;
+    actual_spend_usd: number;
+    time_limit_seconds: number;
+    elapsed_ms: number;
+    within_budget: boolean;
+  };
+  human_approval_checkpoint: {
+    required: boolean;
+    status: "approved" | "pending_human_approval" | "not_required_draft_mode";
+    approved_by?: string;
+    external_filing_prevented: true;
+  };
+  status: "completed" | "awaiting_human_approval" | "canceled";
+  created_at: string;
+}
+
+export type ReportTemplateType =
+  | "legal_research_memorandum"
+  | "regulatory_applicability_report"
+  | "corporate_transaction_dd_report"
+  | "tax_ruling_analysis_report"
+  | "regulatory_compliance_gap_assessment"
+  | "industry_specific_legal_risk_assessment"
+  | "contract_legal_review_report"
+  | "corporate_restructuring_insolvency_analysis"
+  | "regulatory_amendment_impact_report"
+  | "legal_obligation_compliance_action_plan";
+
+export interface ResearchStudioReport {
+  report_id: string;
+  trace_id: string;
+  tenant_id: string;
+  report_type: ReportTemplateType;
+  title_en: string;
+  title_th: string;
+  language: "th" | "en" | "bilingual_th_en";
+  jurisdiction: JurisdictionCode;
+  as_of_date: string;
+  industry_module: IndustryModuleCode;
+  legal_domains: CoreLegalDomainCode[];
+  version: string;
+  status: "draft" | "ai_verified" | "approved_final";
+  sections: {
+    section_id: string;
+    heading_en: string;
+    heading_th: string;
+    content_en: string;
+    content_th: string;
+    is_established_law_vs_ai_analysis: "established_legal_requirement" | "source_grounded_ai_analysis";
+    citations: {
+      citation_id: string;
+      reference_label: string;
+      source_record_id: string;
+      official_url: string;
+      sha256_hash: string;
+      resolved_and_verified: boolean;
+      needs_revalidation: boolean;
+    }[];
+  }[];
+  assumptions: string[];
+  limitations: string[];
+  unresolved_legal_issues: string[];
+  export_formats_ready: ("DOCX" | "PDF" | "JSON" | "MARKDOWN")[];
+  ai_verification_gate: {
+    verified_at: string;
+    citation_resolution_pct: number;
+    fabricated_citations_count: 0;
+    all_provisions_resolvable: boolean;
+  };
+  approval_record?: {
+    approved_by: string;
+    role: UserRole;
+    approved_at: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EnterpriseTenantProfile {
+  tenant_id: string;
+  organization_name: string;
+  industry_classification: IndustryModuleCode;
+  subscribed_industry_modules: IndustryModuleCode[];
+  subscribed_legal_domains: CoreLegalDomainCode[];
+  registered_entities: {
+    entity_id: string;
+    entity_name: string;
+    company_type: "Private Limited Company" | "Public Limited Company (SET)" | "BOI Promoted Subsidiary";
+    jurisdiction: JurisdictionCode;
+    business_activities: string[];
+    licenses_held: {
+      license_id: string;
+      license_name: string;
+      regulator: string;
+      status: "active" | "renewal_due" | "pending_application";
+      expiry_date: string;
+    }[];
+  }[];
+  private_documents_isolated: {
+    doc_id: string;
+    title: string;
+    category: "Contract" | "License" | "Corporate Record" | "Internal Policy";
+    indexed_in_public_corpus: false;
+    used_for_model_training: false;
+  }[];
+  dashboard_widgets: {
+    applicable_obligations_count: number;
+    active_regulatory_changes_count: number;
+    compliance_gaps_count: number;
+    upcoming_deadlines: {
+      deadline_id: string;
+      title: string;
+      due_date: string;
+      entity_name: string;
+      regulator: string;
+      linked_obligation_id: string;
+    }[];
+    pending_approvals_count: number;
+    legal_risk_register: {
+      risk_id: string;
+      title: string;
+      severity: "low" | "medium" | "high" | "critical";
+      entity_name: string;
+      linked_provision_id: string;
+      mitigation_status: string;
+    }[];
+    source_freshness_sla_pct: number;
+    compliance_evidence_completeness_pct: number;
+  };
+}
+
+export interface Vibe24EcosystemTarget {
+  app_code:
+    | "LAW24"
+    | "CFO24"
+    | "ACC24"
+    | "TP24"
+    | "GMT24"
+    | "ESG24"
+    | "COP24"
+    | "TRADE24"
+    | "HOTEL24"
+    | "DRUG24"
+    | "RISK24";
+  app_name: string;
+  reg24_capability: string;
+  bound_legal_domains: CoreLegalDomainCode[];
+  bound_industry_modules: IndustryModuleCode[];
+  integration_protocol: ("REST_API_V1" | "MCP_2026" | "A2A_V1" | "WEBHOOK_EVENT")[];
+  scoped_permission: string;
+  operational_workflow_owner: "CONSUMING_APP";
+  authoritative_legal_source_owner: "REG24";
+  api_calls_metered_30d: number;
+}
+
+export interface Section24DataQualityDashboard {
+  evaluated_at: string;
+  evaluation_methodology: string;
+  measurement_period: string;
+  kpis: {
+    total_source_records: number;
+    verified_source_pct: { value: number; numerator: number; denominator: number };
+    metadata_completeness_pct: { value: number; numerator: number; denominator: number; threshold: 99.5 };
+    text_extraction_accuracy_pct: { value: number; numerator: number; denominator: number; threshold: 99.5 };
+    provision_segmentation_accuracy_pct: { value: number; numerator: number; denominator: number; threshold: 99.0 };
+    citation_normalization_accuracy_pct: { value: number; numerator: number; denominator: number; threshold: 99.5 };
+    amendment_mapping_accuracy_pct: { value: number; numerator: number; denominator: number; threshold: 99.0 };
+    temporal_validity_accuracy_pct: { value: number; numerator: number; denominator: number; threshold: 99.0 };
+    graph_relationship_precision_pct: { value: number; numerator: number; denominator: number; threshold: 98.0 };
+    graph_provenance_completeness_pct: { value: number; numerator: number; denominator: number; threshold: 100.0 };
+    citation_resolution_pct: { value: number; numerator: number; denominator: number; threshold: 100.0 };
+    source_freshness_compliance_pct: { value: number; numerator: number; denominator: number; threshold: 99.0 };
+    unresolved_critical_defects: 0;
+    quarantined_source_count: number;
+    failed_ingestion_jobs_count: number;
+  };
+  status_distribution: Record<DataQualityLifecycleStatus, number>;
+  automated_pipeline_stages: {
+    stage_order: number;
+    stage_name: string;
+    gate_code: string;
+    status: "operational_enforced";
+    records_processed: number;
+    records_quarantined_or_flagged: number;
+  }[];
+  defect_register: {
+    defect_id: string;
+    severity: "Critical" | "High" | "Medium" | "Low";
+    affected_record_id: string;
+    description: string;
+    root_cause_category: string;
+    remediation_status: "quarantined_and_blocked" | "remediated_and_regression_tested";
+  }[];
+  p0_evaluation_dataset_summary: {
+    total_questions: 850;
+    breakdown_by_category: {
+      category: string;
+      question_count: number;
+      pass_rate_pct: number;
+    }[];
+    quality_gates: {
+      citation_resolution_validity_pct: 100;
+      fabricated_citations_count: 0;
+      source_version_selection_accuracy_pct: number;
+      retrieval_recall_at_10_pct: number;
+      material_legal_conclusion_correctness_pct: number;
+      cross_domain_issue_recall_pct: number;
+      abstention_on_insufficient_evidence_pct: number;
+      critical_authorization_bypasses: 0;
+      cross_tenant_data_leakage: 0;
+      api_contract_test_pass_rate_pct: 100;
+    };
+  };
+  p0_release_checklist_all_passed: boolean;
+  deliverable_evidence_pack: {
+    artifact_number: number;
+    title: string;
+    status: "verified_published";
+    reference_id: string;
+  }[];
+}
+
+
 
 

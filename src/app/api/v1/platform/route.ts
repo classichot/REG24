@@ -169,6 +169,44 @@ export async function POST(req: NextRequest) {
           snapshot: reg24Core.getDashboardSnapshot(),
         });
       }
+      case "run_v2_legal_analysis": {
+        const v2Res = reg24Core.analyzeCorporateCommercialLegalQuestion({
+          query: payload?.query || "Analyze the legal requirements for acquiring a Thai solar power company.",
+          as_of_date: payload?.as_of_date || "2026-10-19",
+          industry_module: payload?.industry_module,
+          legal_domains: payload?.legal_domains,
+          research_mode: payload?.research_mode,
+          tenant_id: payload?.tenant_id || "tenant.law24.prod",
+        });
+        return NextResponse.json({
+          success: true,
+          v2_analysis: v2Res,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "register_industry_module": {
+        const indRes = reg24Core.registerIndustryModule(payload || {});
+        return NextResponse.json({
+          ...indRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "run_agent_mission_v2": {
+        const missionRes = reg24Core.executeAgentMissionV2(payload || {});
+        return NextResponse.json({
+          success: true,
+          mission: missionRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "generate_studio_report": {
+        const reportRes = reg24Core.generateResearchStudioReport(payload || {});
+        return NextResponse.json({
+          success: true,
+          report: reportRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
       case "reset_seed": {
         reg24Core.resetToSeed();
         return NextResponse.json({ success: true, snapshot: reg24Core.getDashboardSnapshot() });

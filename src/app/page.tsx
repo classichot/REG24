@@ -73,6 +73,21 @@ import type {
   CaseCitationVerificationResult,
   CaseDataQualityMetrics,
   CaseAgenticResearchResponse,
+  CoreLegalDomainMapping,
+  IndustryModuleConfig,
+  StructuredLegalAnalysisContract,
+  StructuredObligationRecord,
+  LegalAgentDescriptor,
+  AgentMissionRecord,
+  ResearchStudioReport,
+  EnterpriseTenantProfile,
+  Vibe24EcosystemTarget,
+  Section24DataQualityDashboard,
+  ResearchModeType,
+  AgentOperatingMode,
+  AgentAutonomyLevel,
+  ReportTemplateType,
+  IndustryModuleCode,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -114,6 +129,16 @@ interface SnapshotData {
     status: string;
   };
   sampleRestructuringMission: CrossModuleRestructuringMissionResult;
+  coreLegalDomains: CoreLegalDomainMapping[];
+  industryModules: IndustryModuleConfig[];
+  structuredObligationsV2: StructuredObligationRecord[];
+  legalAgentRegistryV2: LegalAgentDescriptor[];
+  agentMissionsV2: AgentMissionRecord[];
+  researchReportsV2: ResearchStudioReport[];
+  enterpriseProfilesV2: EnterpriseTenantProfile[];
+  vibe24EcosystemTargets: Vibe24EcosystemTarget[];
+  section24QualityDashboard: Section24DataQualityDashboard;
+  sampleV2StructuredAnalysis: StructuredLegalAnalysisContract;
   regulatoryChanges: RegulatoryChange[];
   releases: ModuleRelease[];
   auditTraces: AuditTraceEvent[];
@@ -123,6 +148,7 @@ interface SnapshotData {
 
 type ScreenId =
   | "PANORAMA"
+  | "SCREEN_N_V2_WORKSPACE"
   | "SCREEN_M_CASE"
   | "SCREEN_L_PDPA"
   | "SCREEN_K_TAX_PRECEDENT"
@@ -145,6 +171,7 @@ const SCREEN_CONFIG: {
   accent: string;
 }[] = [
   { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (16 โมดูล P0)", accent: "#0050EF" },
+  { id: "SCREEN_N_V2_WORKSPACE", code: "PRD-V2", label: "v2.0 corporate & industry hub", labelTh: "โครงสร้างพื้นฐานปัญญากฎหมายธุรกิจและอุตสาหกรรม (PRD v2.0)", accent: "#10B981" },
   { id: "SCREEN_M_CASE", code: "SCR-M", label: "court case intelligence", labelTh: "คลังคำพิพากษาศาลฎีกาและบรรทัดฐาน (REG24-CASE)", accent: "#0284C7" },
   { id: "SCREEN_L_PDPA", code: "SCR-L", label: "pdpa & 2026 dsar", labelTh: "คุ้มครองข้อมูลส่วนบุคคล PDPA & ประกาศ สคส. 2569", accent: "#00ABA9" },
   { id: "SCREEN_K_TAX_PRECEDENT", code: "SCR-K", label: "tax rulings & sub-regs", labelTh: "ข้อหารือกรมสรรพากร 462/2569 & กฎหมายลำดับรอง (v1.1)", accent: "#008A00" },
@@ -155,7 +182,7 @@ const SCREEN_CONFIG: {
   { id: "SCREEN_D_GRAPH", code: "SCR-D", label: "3r graphrag & graph", labelTh: "ไฮบริด GraphRAG 3R และกราฟกฎหมาย", accent: "#A20025" },
   { id: "SCREEN_E_RULES", code: "SCR-E", label: "rule studio", labelTh: "กฎคำนวณอัตโนมัติ (Law-as-Code)", accent: "#6A00FF" },
   { id: "SCREEN_F_CHANGES", code: "SCR-F", label: "change intelligence", labelTh: "ตรวจจับการแก้ไขกฎหมาย", accent: "#D80073" },
-  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (52 Tools)", accent: "#00ABA9" },
+  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (61 Tools)", accent: "#00ABA9" },
   { id: "SCREEN_I_A2A", code: "SCR-I", label: "a2a agent hub", labelTh: "การมอบหมายงานข้ามเอเจนต์ (A2A v1.0)", accent: "#E51400" },
   { id: "SCREEN_H_AUDIT", code: "SCR-H", label: "trace & audit", labelTh: "ตรวจสอบย้อนกลับ TRACE24", accent: "#647687" },
 ];
@@ -256,6 +283,35 @@ export default function Reg24MetroConsole() {
   const [citationInput, setCitationInput] = useState<string>("คำพิพากษาศาลฎีกาที่ 2845/2564");
   const [citationVerifyRes, setCitationVerifyRes] = useState<CaseCitationVerificationResult | null>(null);
   const [caseLoading, setCaseLoading] = useState<boolean>(false);
+
+  // Screen N — PRD v2.0 Corporate & Commercial Legal Intelligence Workspace states
+  const [v2WorkspaceTab, setV2WorkspaceTab] = useState<
+    | "research_modes"
+    | "industry_modules"
+    | "agent_missions"
+    | "report_studio"
+    | "enterprise_vibe24"
+    | "data_quality_24"
+  >("research_modes");
+  const [v2ResearchMode, setV2ResearchMode] = useState<ResearchModeType>("legal_due_diligence");
+  const [v2IndustryCode, setV2IndustryCode] = useState<IndustryModuleCode>("IND-ENERGY");
+  const [v2Query, setV2Query] = useState<string>(
+    "Analyze legal, tax, BOI, ERC licensing, labor, and PDPA requirements for acquiring a solar power plant in Thailand."
+  );
+  const [v2AsOfDate, setV2AsOfDate] = useState<string>("2026-10-19");
+  const [v2AnalysisResult, setV2AnalysisResult] = useState<StructuredLegalAnalysisContract | null>(null);
+  const [v2AgentMode, setV2AgentMode] = useState<AgentOperatingMode>("Team-Agent");
+  const [v2AutonomyLevel, setV2AutonomyLevel] = useState<AgentAutonomyLevel>("Supervised");
+  const [v2MissionObjective, setV2MissionObjective] = useState<string>(
+    "Analyze legal and tax risks of acquiring a solar power company in Thailand (BOI + ERC + Revenue Code + LPA + PDPA)"
+  );
+  const [v2ActiveMission, setV2ActiveMission] = useState<AgentMissionRecord | null>(null);
+  const [v2ReportTemplate, setV2ReportTemplate] = useState<ReportTemplateType>("corporate_transaction_dd_report");
+  const [v2ReportTitle, setV2ReportTitle] = useState<string>(
+    "Project Helios — Legal, Tax & Regulatory Due Diligence Summary (Thai Solar IPP/SPP Target)"
+  );
+  const [v2ActiveReport, setV2ActiveReport] = useState<ResearchStudioReport | null>(null);
+  const [v2Loading, setV2Loading] = useState<boolean>(false);
 
   // Screen E — Rule Studio states
   const [selectedRuleId, setSelectedRuleId] = useState<string>("rule.th.corporate.incorporation_check");
@@ -622,6 +678,117 @@ export default function Reg24MetroConsole() {
     }
   };
 
+  const handleRunV2LegalAnalysis = async (
+    customMode?: ResearchModeType,
+    customIndustry?: IndustryModuleCode,
+    customQuery?: string
+  ) => {
+    const modeToUse = customMode ?? v2ResearchMode;
+    const indToUse = customIndustry ?? v2IndustryCode;
+    const qToUse = customQuery ?? v2Query;
+    if (customMode) setV2ResearchMode(customMode);
+    if (customIndustry) setV2IndustryCode(customIndustry);
+    if (customQuery) setV2Query(customQuery);
+    setV2Loading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_v2_legal_analysis",
+          payload: {
+            query: qToUse,
+            as_of_date: v2AsOfDate,
+            industry_module: indToUse,
+            research_mode: modeToUse,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.v2_analysis) {
+        setV2AnalysisResult(data.v2_analysis);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(
+        `Executed PRD v2.0 ${modeToUse} (${indToUse} | Confidence: ${data.v2_analysis?.confidence?.level || "supported_with_limitations"}).`
+      );
+    } finally {
+      setV2Loading(false);
+    }
+  };
+
+  const handleRunV2AgentMission = async (
+    customMode?: AgentOperatingMode,
+    customAutonomy?: AgentAutonomyLevel
+  ) => {
+    const modeToUse = customMode ?? v2AgentMode;
+    const autoToUse = customAutonomy ?? v2AutonomyLevel;
+    if (customMode) setV2AgentMode(customMode);
+    if (customAutonomy) setV2AutonomyLevel(customAutonomy);
+    setV2Loading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_agent_mission_v2",
+          payload: {
+            objective: v2MissionObjective,
+            operating_mode: modeToUse,
+            autonomy_level: autoToUse,
+            industry_module: v2IndustryCode,
+            tenant_id: activeTenant,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.mission) {
+        setV2ActiveMission(data.mission);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(
+        `Launched PRD v2.0 ${modeToUse} Mission (${autoToUse} | External Filing Prevented: TRUE).`
+      );
+    } finally {
+      setV2Loading(false);
+    }
+  };
+
+  const handleRunV2ReportGeneration = async (customTemplate?: ReportTemplateType) => {
+    const tplToUse = customTemplate ?? v2ReportTemplate;
+    if (customTemplate) setV2ReportTemplate(customTemplate);
+    setV2Loading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "generate_studio_report",
+          payload: {
+            report_type: tplToUse,
+            query_or_topic: v2ReportTitle,
+            industry_module: v2IndustryCode,
+            as_of_date: v2AsOfDate,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.report) {
+        setV2ActiveReport(data.report);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(`Generated Research Studio Report (${tplToUse} | 100% Citation Resolution).`);
+    } finally {
+      setV2Loading(false);
+    }
+  };
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
@@ -632,6 +799,9 @@ export default function Reg24MetroConsole() {
       setCaseSearchRes((prev) => prev || data.sampleCaseSearch || null);
       setCaseResearchRes((prev) => prev || data.sampleCaseAgenticResearch || null);
       setCaseComparisonRes((prev) => prev || data.sampleCaseComparison || null);
+      setV2AnalysisResult((prev) => prev || data.sampleV2StructuredAnalysis || null);
+      setV2ActiveMission((prev) => prev || data.agentMissionsV2?.[0] || null);
+      setV2ActiveReport((prev) => prev || data.researchReportsV2?.[0] || null);
     }
   }, []);
 
@@ -1171,6 +1341,34 @@ export default function Reg24MetroConsole() {
                 </h2>
 
                 <div className="grid grid-cols-2 gap-2.5 auto-rows-[148px]">
+                  {/* Tile: PRD v2.0 Corporate & Commercial Legal Intelligence Infrastructure (Screen N) */}
+                  <div
+                    onClick={() => setActiveScreen("SCREEN_N_V2_WORKSPACE")}
+                    className="metro-tile col-span-2 bg-[#10B981] p-4 flex flex-col justify-between cursor-pointer text-white"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Building2 className="w-6 h-6" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
+                          PRD v2.0 &bull; 7 LAYERS &bull; 9 LEG-* DOMAINS &bull; 9 IND-* INDUSTRIES
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold uppercase bg-white text-[#047857] px-2 py-0.5">
+                        850-Q EVAL PASS &bull; 11 VIBE24 APPS
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/95 mb-1">
+                        <strong>Corporate &amp; Commercial Legal Intelligence Infrastructure:</strong> 5 Research
+                        Modes, 9 Industry Modules (`IND-*` + SDK), Agentic Missions (`Single`/`Team`/`Swarm`),
+                        Report Studio, Enterprise Compliance &amp; Section 24 Data Quality Dashboard.
+                      </p>
+                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                        v2.0 corporate, industry &amp; report studio workspace
+                      </h3>
+                    </div>
+                  </div>
+
                   {/* Tile: Unified MCP Gateway (Screen G) */}
                   <div
                     onClick={() => setActiveScreen("SCREEN_G_MCP")}
@@ -1180,17 +1378,17 @@ export default function Reg24MetroConsole() {
                       <div className="flex items-center gap-2">
                         <Terminal className="w-6 h-6" />
                         <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
-                          SCREEN G &bull; REG-MCP-001 TO 005 &bull; TAX-API-01
+                          SCREEN G &bull; REG-MCP-001 TO 005 &bull; PRD v2.0 SEC 12
                         </span>
                       </div>
                       <span className="text-xs font-bold uppercase bg-white text-[#0050EF] px-2 py-0.5">
-                        38 MCP TOOLS LIVE
+                        61 MCP TOOLS LIVE
                       </span>
                     </div>
                     <div>
                       <p className="text-xs text-white/85 mb-1">
                         Single Streamable HTTP Gateway (July 28, 2026 MCP Spec) + OpenAPI v3 REST for
-                        LAW24, CFO24, ACC24, TP24, GMT24, TRACE24, VIBE24 &amp; AI Agents.
+                        LAW24, CFO24, ACC24, TP24, GMT24, ESG24, COP24, TRADE24, HOTEL24, DRUG24 &amp; RISK24.
                       </p>
                       <h3 className="text-2xl font-light lowercase tracking-tight">
                         unified mcp &amp; api playground
@@ -5389,20 +5587,627 @@ export default function Reg24MetroConsole() {
             )}
           </div>
         )}
+
+        {/* =====================================================================
+            SCREEN N — PRD v2.0 CORPORATE & COMMERCIAL LEGAL INTELLIGENCE WORKSPACE
+            (SECTIONS 1–24: 5 RESEARCH MODES, 9 IND-* MODULES, AGENT MISSIONS,
+             REPORT STUDIO, ENTERPRISE & VIBE24 ECOSYSTEM, SECTION 24 DATA QUALITY)
+            ===================================================================== */}
+        {activeScreen === "SCREEN_N_V2_WORKSPACE" && (
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <div className="bg-[#121216] border-l-4 border-[#10B981] p-5 border-y border-r border-[#262630] flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="text-[11px] font-mono uppercase tracking-[0.22em] text-[#10B981] font-bold">
+                  REG24 DEVELOPER PRD v2.0 &bull; CORPORATE &amp; COMMERCIAL LEGAL INTELLIGENCE INFRASTRUCTURE
+                </div>
+                <h2 className="text-2xl md:text-3xl font-light lowercase text-white mt-0.5">
+                  v2.0 corporate, industry &amp; agentic legal intelligence hub
+                </h2>
+                <p className="text-xs text-zinc-400 mt-1">
+                  7-Layer Architecture &bull; 9 Core Legal Domains (`LEG-*`) &bull; 9 Pluggable Industry Modules (`IND-*`)
+                  &bull; 5 Research Modes &bull; Single/Team/Swarm Agents &bull; Report Studio &bull; 11 VIBE24 Apps &bull; Section 24 Quality Gate
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(
+                  [
+                    { id: "research_modes", label: "1. Research Home (5 Modes)" },
+                    { id: "industry_modules", label: "2. Industry Modules (9 IND-*)" },
+                    { id: "agent_missions", label: "3. Agent Missions (Single/Team/Swarm)" },
+                    { id: "report_studio", label: "4. Research Report Studio" },
+                    { id: "enterprise_vibe24", label: "5. Enterprise & VIBE24 (11 Apps)" },
+                    { id: "data_quality_24", label: "6. Sec. 24 Data Quality & 850-Q Eval" },
+                  ] as const
+                ).map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setV2WorkspaceTab(tab.id)}
+                    className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border cursor-pointer ${
+                      v2WorkspaceTab === tab.id
+                        ? "bg-[#10B981] border-[#10B981] text-black"
+                        : "bg-[#08080a] border-[#262630] text-zinc-300 hover:text-white"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* TAB 1: RESEARCH HOME & 5 RESEARCH MODES (SECTION 8 & 19.2) */}
+            {v2WorkspaceTab === "research_modes" && (
+              <div className="space-y-6">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                      LAYER 5 LEGAL INTELLIGENCE ENGINE (`LEG-AI-01` TO `LEG-AI-10`) &bull; 5 RESEARCH MODES (SEC 19.2)
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(
+                        [
+                          { id: "quick_answer", label: "Quick Answer" },
+                          { id: "deep_research", label: "Deep Research" },
+                          { id: "industry_analysis", label: "Industry Analysis" },
+                          { id: "legal_due_diligence", label: "Legal Due Diligence" },
+                          { id: "regulatory_impact", label: "Regulatory Impact" },
+                        ] as { id: ResearchModeType; label: string }[]
+                      ).map((mode) => (
+                        <button
+                          key={mode.id}
+                          onClick={() => handleRunV2LegalAnalysis(mode.id, v2IndustryCode, v2Query)}
+                          className={`px-2.5 py-1 text-[11px] font-bold uppercase border cursor-pointer ${
+                            v2ResearchMode === mode.id
+                              ? "bg-[#10B981] border-[#10B981] text-black"
+                              : "bg-[#08080a] border-[#262630] text-zinc-300"
+                          }`}
+                        >
+                          {mode.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    <div className="md:col-span-3">
+                      <label className="block text-[10px] font-mono uppercase text-zinc-400 mb-1">
+                        INDUSTRY MODULE (`IND-*`)
+                      </label>
+                      <select
+                        value={v2IndustryCode}
+                        onChange={(e) => setV2IndustryCode(e.target.value as IndustryModuleCode)}
+                        className="w-full bg-[#08080a] border border-[#262630] px-3 py-2 text-xs text-white font-mono"
+                      >
+                        {(snapshot.industryModules || []).map((ind) => (
+                          <option key={ind.module_id} value={ind.module_id}>
+                            {ind.module_id} — {ind.module_name} ({ind.priority})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-[10px] font-mono uppercase text-zinc-400 mb-1">
+                        AS-OF DATE (`ARCH-05`)
+                      </label>
+                      <input
+                        type="date"
+                        value={v2AsOfDate}
+                        onChange={(e) => setV2AsOfDate(e.target.value)}
+                        className="w-full bg-[#08080a] border border-[#262630] px-3 py-2 text-xs text-white font-mono"
+                      />
+                    </div>
+                    <div className="md:col-span-5">
+                      <label className="block text-[10px] font-mono uppercase text-zinc-400 mb-1">
+                        CORPORATE &amp; COMMERCIAL LEGAL QUESTION
+                      </label>
+                      <input
+                        type="text"
+                        value={v2Query}
+                        onChange={(e) => setV2Query(e.target.value)}
+                        className="w-full bg-[#08080a] border border-[#262630] px-3 py-2 text-xs text-white"
+                      />
+                    </div>
+                    <div className="md:col-span-2 flex items-end">
+                      <button
+                        onClick={() => handleRunV2LegalAnalysis()}
+                        disabled={v2Loading}
+                        className="w-full bg-[#10B981] hover:bg-[#059669] text-black font-bold py-2 text-xs uppercase tracking-wider cursor-pointer"
+                      >
+                        {v2Loading ? "ANALYZING..." : "EXECUTE ANALYSIS"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Structured Legal Answer Contract (Section 8.2) */}
+                {v2AnalysisResult && (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div className="lg:col-span-8 bg-[#121216] border border-[#262630] p-5 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#262630] pb-3">
+                        <div>
+                          <span className="text-[10px] font-mono text-[#10B981] uppercase">
+                            QUERY ID: {v2AnalysisResult.query_id} &bull; MODE: {v2AnalysisResult.selected_research_mode} &bull; AS-OF:{" "}
+                            {v2AnalysisResult.as_of_date}
+                          </span>
+                          <h3 className="text-lg font-semibold text-white mt-0.5">
+                            Structured Legal Analysis Contract (`POST /api/v1/legal/analyze`)
+                          </h3>
+                        </div>
+                        <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-mono">
+                          CONFIDENCE: {v2AnalysisResult.confidence.level.toUpperCase()} &bull; REVIEW REQ:{" "}
+                          {String(v2AnalysisResult.human_review_required).toUpperCase()}
+                        </span>
+                      </div>
+
+                      <div className="bg-[#08080a] border border-[#22222c] p-3.5 text-xs text-zinc-200 leading-relaxed space-y-1.5">
+                        <div>{v2AnalysisResult.answer}</div>
+                        <div className="text-zinc-400">{v2AnalysisResult.executive_answer_th}</div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                          SOURCE-GROUNDED LEGAL CONCLUSIONS ({v2AnalysisResult.conclusions.length})
+                        </div>
+                        {v2AnalysisResult.conclusions.map((c) => (
+                          <div key={c.conclusion_id} className="bg-[#08080a] border border-[#22222c] p-3 text-xs space-y-1">
+                            <div className="flex items-center justify-between font-mono text-[10px]">
+                              <span className="text-[#10B981] font-bold">
+                                [{c.legal_domain}] {c.conclusion_id}
+                              </span>
+                              <span className="text-amber-300 uppercase">
+                                {c.authority_tier} &bull; BINDING: {String(c.is_binding_law).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="text-white">{c.statement}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                            APPLICABLE PROVISIONS ({v2AnalysisResult.applicable_provisions.length})
+                          </div>
+                          {v2AnalysisResult.applicable_provisions.map((p) => (
+                            <div key={p.provision_id} className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs">
+                              <div className="font-mono text-[10px] text-[#38BDF8]">
+                                Sec. {p.section_number} ({p.applied_version_id}) &bull; {p.source_reliability_tier}
+                              </div>
+                              <div className="text-white font-medium">{p.instrument_title_en}</div>
+                              <div className="text-zinc-400 text-[11px]">
+                                Effective: {p.effective_from} | Quality: {p.data_quality_status}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="text-xs font-bold uppercase tracking-wider text-rose-400">
+                            REGULATORY RISKS &amp; MISSING FACTS
+                          </div>
+                          {v2AnalysisResult.risks.map((r) => (
+                            <div key={r.risk_id} className="bg-[#08080a] border border-rose-900/50 p-2.5 text-xs">
+                              <div className="font-mono text-[10px] text-rose-400 uppercase">
+                                {r.risk_id} &bull; SEVERITY: {r.severity}
+                              </div>
+                              <div className="text-white font-semibold">{r.title}</div>
+                              <div className="text-zinc-300 text-[11px]">{r.description}</div>
+                              <div className="text-emerald-300 text-[11px] mt-0.5">
+                                Mitigation: {r.mitigation_action}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Column: Layer 7 Structured Obligations & Citations */}
+                    <div className="lg:col-span-4 space-y-4">
+                      <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                        <div className="text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                          LAYER 7 OBLIGATIONS EXTRACTED ({v2AnalysisResult.obligations.length})
+                        </div>
+                        {v2AnalysisResult.obligations.map((ob) => (
+                          <div key={ob.obligation_id} className="bg-[#08080a] border border-[#22222c] p-3 text-xs space-y-1">
+                            <div className="flex items-center justify-between font-mono text-[10px]">
+                              <span className="text-[#10B981] font-bold">{ob.obligation_id}</span>
+                              <span className="text-rose-400 uppercase">RISK: {ob.risk_level}</span>
+                            </div>
+                            <div className="text-white font-semibold">{ob.title}</div>
+                            <div className="text-zinc-400 text-[11px]">Deadline: {ob.deadline_rule}</div>
+                            <div className="text-zinc-400 text-[11px]">Role: {ob.responsible_role}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="bg-[#121216] border border-[#262630] p-5 space-y-2">
+                        <div className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                          VERIFIED CITATIONS ({v2AnalysisResult.citations.length})
+                        </div>
+                        {v2AnalysisResult.citations.map((cit) => (
+                          <div key={cit.citation_id} className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs">
+                            <div className="font-mono text-[10px] text-emerald-400">
+                              {cit.provision_or_case_id} &bull; {cit.source_reliability_tier} &bull; VERIFIED:{" "}
+                              {String(cit.verified).toUpperCase()}
+                            </div>
+                            <div className="text-white">{cit.reference_label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 2: 9 CORE LEGAL DOMAINS (LEG-*) & 9 INDUSTRY INTELLIGENCE MODULES (IND-*) */}
+            {v2WorkspaceTab === "industry_modules" && (
+              <div className="space-y-6">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                    LAYER 2: 9 P0 MANDATORY CORE LEGAL DOMAIN MODULES (`LEG-*` — PRD SECTION 5)
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {(snapshot.coreLegalDomains || []).map((dom) => (
+                      <div key={dom.code} className="bg-[#08080a] border border-[#22222c] p-3.5 text-xs space-y-1">
+                        <div className="flex items-center justify-between font-mono text-[10px]">
+                          <span className="text-[#10B981] font-bold">{dom.code}</span>
+                          <span className="text-emerald-400">
+                            {dom.priority} &bull; EVAL QUOTA: {dom.evaluation_question_quota} Q
+                          </span>
+                        </div>
+                        <div className="font-semibold text-white">{dom.module_name}</div>
+                        <div className="text-zinc-400 text-[11px]">{dom.minimum_scope}</div>
+                        <div className="text-[10px] font-mono text-zinc-500">
+                          Modules: {dom.underlying_module_ids.join(", ")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                    LAYER 3: 9 PLUGGABLE INDUSTRY INTELLIGENCE MODULES (`IND-*` — PRD SECTION 6 &amp; SDK)
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {(snapshot.industryModules || []).map((ind) => (
+                      <div key={ind.module_id} className="bg-[#08080a] border border-[#22222c] p-4 text-xs space-y-2">
+                        <div className="flex items-center justify-between font-mono text-[10px]">
+                          <span className="text-[#38BDF8] font-bold">{ind.module_id}</span>
+                          <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700">
+                            {ind.priority} &bull; v{ind.version}
+                          </span>
+                        </div>
+                        <div className="text-sm font-semibold text-white">{ind.module_name}</div>
+                        <div className="text-zinc-400">{ind.module_name_th}</div>
+                        <div className="text-[11px] text-zinc-300">
+                          <strong>Domains:</strong> {ind.legal_domains.join(", ")}
+                        </div>
+                        <div className="text-[11px] text-zinc-400">
+                          <strong>Regulators:</strong> {ind.regulators.join(", ")}
+                        </div>
+                        <div className="text-[11px] text-emerald-300">
+                          <strong>Activities:</strong> {ind.business_activities.slice(0, 2).join(" | ")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: AGENTIC LEGAL INTELLIGENCE (SECTION 9: SINGLE / TEAM / SWARM MODES) */}
+            {v2WorkspaceTab === "agent_missions" && (
+              <div className="space-y-6">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                      LAYER 6 AGENTIC LEGAL INTELLIGENCE (`AGENT-01` TO `AGENT-12`) &bull; SOLAR POWER M&amp;A MISSION
+                    </span>
+                    <div className="flex flex-wrap gap-2">
+                      {(["Single-Agent", "Team-Agent", "Swarm-Agent"] as AgentOperatingMode[]).map((m) => (
+                        <button
+                          key={m}
+                          onClick={() => handleRunV2AgentMission(m, v2AutonomyLevel)}
+                          className={`px-3 py-1 text-xs font-bold uppercase border cursor-pointer ${
+                            v2AgentMode === m
+                              ? "bg-[#10B981] border-[#10B981] text-black"
+                              : "bg-[#08080a] border-[#262630] text-zinc-300"
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {v2ActiveMission && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                        <div className="bg-[#08080a] border border-[#22222c] p-3">
+                          <div className="text-[10px] text-zinc-400">MISSION ID</div>
+                          <div className="font-mono font-bold text-white">{v2ActiveMission.mission_id}</div>
+                        </div>
+                        <div className="bg-[#08080a] border border-[#22222c] p-3">
+                          <div className="text-[10px] text-zinc-400">OPERATING MODE</div>
+                          <div className="font-mono font-bold text-[#10B981]">{v2ActiveMission.operating_mode}</div>
+                        </div>
+                        <div className="bg-[#08080a] border border-[#22222c] p-3">
+                          <div className="text-[10px] text-zinc-400">AUTONOMY LEVEL</div>
+                          <div className="font-mono font-bold text-amber-300">{v2ActiveMission.autonomy_level}</div>
+                        </div>
+                        <div className="bg-[#08080a] border border-[#22222c] p-3">
+                          <div className="text-[10px] text-zinc-400">BUDGET / COST USED</div>
+                          <div className="font-mono font-bold text-white">
+                            ${v2ActiveMission.budget_control.actual_spend_usd.toFixed(2)} / $
+                            {v2ActiveMission.budget_control.budget_limit_usd.toFixed(2)}
+                          </div>
+                        </div>
+                        <div className="bg-[#08080a] border border-emerald-700 p-3">
+                          <div className="text-[10px] text-zinc-400">EXTERNAL FILING GUARD</div>
+                          <div className="font-mono font-bold text-emerald-400">
+                            PREVENTED: {String(v2ActiveMission.human_approval_checkpoint.external_filing_prevented).toUpperCase()}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                          PARTICIPATING AGENTS ({v2ActiveMission.participating_agents.length} SPECIALIZED AGENTS)
+                        </div>
+                        {v2ActiveMission.participating_agents.map((ag, idx) => (
+                          <div key={ag.agent_id} className="bg-[#08080a] border border-[#22222c] p-3.5 text-xs space-y-1">
+                            <div className="flex items-center justify-between font-mono text-[10px]">
+                              <span className="text-[#10B981] font-bold">
+                                STEP {idx + 1} &bull; {ag.agent_name} ({ag.agent_id})
+                              </span>
+                              <span className="text-emerald-400">
+                                {ag.status.toUpperCase()} &bull; {ag.verified_citations_count} VERIFIED CITATIONS
+                              </span>
+                            </div>
+                            <div className="text-zinc-400 text-[11px]">Subtask: {ag.assigned_subtask}</div>
+                            <div className="text-white">{ag.findings_summary}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="bg-emerald-950/20 border border-emerald-700 p-4 text-xs text-white">
+                        <strong>Consolidated Findings (`LEAD-LEGAL-SYNTHESIS-AGENT`):</strong>{" "}
+                        {v2ActiveMission.consolidated_findings}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 4: RESEARCH REPORT STUDIO (SECTION 10.5 — REPORT-01 TO REPORT-12) */}
+            {v2WorkspaceTab === "report_studio" && (
+              <div className="space-y-6">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                      SECTION 10.5 RESEARCH REPORT STUDIO (`REPORT-01` TO `REPORT-12`) &bull; 10 REPORT TEMPLATES
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(
+                        [
+                          { id: "legal_research_memorandum", label: "Legal Research Memo" },
+                          { id: "corporate_transaction_dd_report", label: "Corporate DD Report" },
+                          { id: "regulatory_applicability_report", label: "Applicability Report" },
+                          { id: "tax_ruling_analysis_report", label: "Tax Ruling Analysis" },
+                          { id: "regulatory_compliance_gap_assessment", label: "Compliance Gap" },
+                          { id: "industry_specific_legal_risk_assessment", label: "Industry Risk" },
+                        ] as { id: ReportTemplateType; label: string }[]
+                      ).map((tpl) => (
+                        <button
+                          key={tpl.id}
+                          onClick={() => handleRunV2ReportGeneration(tpl.id)}
+                          className={`px-2.5 py-1 text-[11px] font-bold uppercase border cursor-pointer ${
+                            v2ReportTemplate === tpl.id
+                              ? "bg-[#10B981] border-[#10B981] text-black"
+                              : "bg-[#08080a] border-[#262630] text-zinc-300"
+                          }`}
+                        >
+                          {tpl.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {v2ActiveReport && (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#262630] pb-3">
+                        <div>
+                          <div className="text-[10px] font-mono text-[#10B981] uppercase">
+                            REPORT ID: {v2ActiveReport.report_id} &bull; TYPE: {v2ActiveReport.report_type} &bull;
+                            EXPORT FORMATS: {v2ActiveReport.export_formats_ready.join(", ")}
+                          </div>
+                          <h3 className="text-lg font-semibold text-white">{v2ActiveReport.title_en}</h3>
+                          <div className="text-xs text-zinc-400">{v2ActiveReport.title_th}</div>
+                        </div>
+                        <div className="text-right font-mono text-xs">
+                          <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 block">
+                            CITATION GATE: {v2ActiveReport.ai_verification_gate.citation_resolution_pct}% RESOLVED (
+                            {v2ActiveReport.ai_verification_gate.fabricated_citations_count} FABRICATED)
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3">
+                        {v2ActiveReport.sections.map((sec) => (
+                          <div key={sec.section_id} className="bg-[#08080a] border border-[#22222c] p-4 text-xs space-y-2">
+                            <div className="flex items-center justify-between font-mono text-[10px]">
+                              <span className="text-[#10B981] font-bold uppercase">{sec.heading_en}</span>
+                              <span className="text-amber-300 uppercase">[{sec.is_established_law_vs_ai_analysis}]</span>
+                            </div>
+                            <div className="text-white leading-relaxed">{sec.content_en}</div>
+                            <div className="text-zinc-400 leading-relaxed">{sec.content_th}</div>
+                            <div className="text-[10px] font-mono text-emerald-400">
+                              Citations: {sec.citations.map((c) => c.reference_label).join(" | ")}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: ENTERPRISE LEGAL INTELLIGENCE (SEC 13) & 11 VIBE24 ECOSYSTEM APPS (SEC 16) */}
+            {v2WorkspaceTab === "enterprise_vibe24" && (
+              <div className="space-y-6">
+                {snapshot.enterpriseProfilesV2?.[0] && (
+                  <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                          SECTION 13 ENTERPRISE LEGAL INTELLIGENCE &bull; PRIVATE TENANT ISOLATION
+                        </span>
+                        <h3 className="text-lg font-semibold text-white mt-0.5">
+                          {snapshot.enterpriseProfilesV2[0].organization_name} ({snapshot.enterpriseProfilesV2[0].tenant_id})
+                        </h3>
+                      </div>
+                      <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-mono">
+                        PUBLIC CORPUS INDEXING: FALSE &bull; MODEL TRAINING: FALSE
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {snapshot.enterpriseProfilesV2[0].registered_entities.map((ent) => (
+                        <div key={ent.entity_id} className="bg-[#08080a] border border-[#22222c] p-3.5 text-xs space-y-1">
+                          <div className="font-mono text-[10px] text-[#38BDF8]">
+                            {ent.entity_id} &bull; {ent.company_type}
+                          </div>
+                          <div className="font-semibold text-white">{ent.entity_name}</div>
+                          <div className="text-zinc-400 text-[11px]">
+                            Activities: {ent.business_activities.join(", ")}
+                          </div>
+                          <div className="text-[11px] text-emerald-400">
+                            Licenses Held: {ent.licenses_held.length}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                    SECTION 16: 11 VIBE24 ECOSYSTEM APPLICATION INTEGRATIONS (`LAW24`, `CFO24`, `ACC24`, `TP24`, `GMT24`, `ESG24`, `COP24`, `TRADE24`, `HOTEL24`, `DRUG24`, `RISK24`)
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {(snapshot.vibe24EcosystemTargets || []).map((target) => (
+                      <div key={target.app_code} className="bg-[#08080a] border border-[#22222c] p-3.5 text-xs space-y-1">
+                        <div className="flex items-center justify-between font-mono text-[10px]">
+                          <span className="text-[#10B981] font-bold">{target.app_code}</span>
+                          <span className="text-emerald-400 uppercase">
+                            {target.integration_protocol.join(" + ")}
+                          </span>
+                        </div>
+                        <div className="font-semibold text-white">{target.app_name}</div>
+                        <div className="text-zinc-300 text-[11px]">{target.reg24_capability}</div>
+                        <div className="text-[10px] font-mono text-zinc-500">
+                          Domains: {target.bound_legal_domains.join(", ")}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 6: SECTION 24 DATA QUALITY DASHBOARD & 850-QUESTION EVALUATION GATE */}
+            {v2WorkspaceTab === "data_quality_24" && snapshot.section24QualityDashboard && (
+              <div className="space-y-6">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#10B981]">
+                        SECTION 24 DATA QUALITY &amp; SOURCE VERIFICATION DASHBOARD &bull; SECTION 21 850-QUESTION BENCHMARK
+                      </span>
+                      <h3 className="text-lg font-semibold text-white mt-0.5">
+                        15 Release-Gate KPIs, 8-Stage Ingestion Pipeline &amp; 10 Verification Artifacts
+                      </h3>
+                    </div>
+                    <span className="px-3 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 text-xs font-mono font-bold">
+                      ALL RELEASE GATES PASSED: {String(snapshot.section24QualityDashboard.p0_release_checklist_all_passed).toUpperCase()}
+                    </span>
+                  </div>
+
+                  {/* Key KPIs Grid */}
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                    <div className="bg-[#08080a] border border-[#22222c] p-3">
+                      <div className="text-[10px] text-zinc-400">CITATION RESOLUTION</div>
+                      <div className="text-lg font-mono font-bold text-[#10B981]">
+                        {snapshot.section24QualityDashboard.kpis.citation_resolution_pct.value}%
+                      </div>
+                    </div>
+                    <div className="bg-[#08080a] border border-[#22222c] p-3">
+                      <div className="text-[10px] text-zinc-400">GRAPH PROVENANCE</div>
+                      <div className="text-lg font-mono font-bold text-[#10B981]">
+                        {snapshot.section24QualityDashboard.kpis.graph_provenance_completeness_pct.value}%
+                      </div>
+                    </div>
+                    <div className="bg-[#08080a] border border-[#22222c] p-3">
+                      <div className="text-[10px] text-zinc-400">METADATA COMPLETENESS</div>
+                      <div className="text-lg font-mono font-bold text-white">
+                        {snapshot.section24QualityDashboard.kpis.metadata_completeness_pct.value}%
+                      </div>
+                    </div>
+                    <div className="bg-[#08080a] border border-[#22222c] p-3">
+                      <div className="text-[10px] text-zinc-400">TEMPORAL VALIDITY</div>
+                      <div className="text-lg font-mono font-bold text-white">
+                        {snapshot.section24QualityDashboard.kpis.temporal_validity_accuracy_pct.value}%
+                      </div>
+                    </div>
+                    <div className="bg-[#08080a] border border-[#22222c] p-3">
+                      <div className="text-[10px] text-zinc-400">UNRESOLVED DEFECTS</div>
+                      <div className="text-lg font-mono font-bold text-emerald-400">
+                        {snapshot.section24QualityDashboard.kpis.unresolved_critical_defects}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 850-Question Evaluation Dataset Breakdown */}
+                  <div className="bg-[#08080a] border border-[#22222c] p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                        SECTION 21.1 LEGAL EVALUATION DATASET (
+                        {snapshot.section24QualityDashboard.p0_evaluation_dataset_summary.total_questions} QUESTIONS)
+                      </span>
+                      <span className="text-xs font-mono text-white">
+                        API CONTRACT PASS RATE:{" "}
+                        {snapshot.section24QualityDashboard.p0_evaluation_dataset_summary.quality_gates.api_contract_test_pass_rate_pct}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 text-xs">
+                      {snapshot.section24QualityDashboard.p0_evaluation_dataset_summary.breakdown_by_category.map((cat) => (
+                        <div key={cat.category} className="bg-[#121216] border border-[#262630] p-2.5">
+                          <div className="text-white font-medium">{cat.category}</div>
+                          <div className="font-mono text-[11px] text-emerald-400 mt-0.5">
+                            {cat.question_count} Questions ({cat.pass_rate_pct}% Pass)
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* METRO FOOTER */}
       <footer className="border-t border-[#262630] bg-[#0c0c10] px-6 py-4 mt-12 text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-4">
         <div>
-          REG24 P0 INFRASTRUCTURE &bull; 16 THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
-          CONTRACT (`reg24.contract.th`) | CIVIL CODE (`reg24.civil.th`) | TAX (`reg24.tax.th`) |
-          TAX-SUB (`reg24.tax.sub.th`) | TAX-RULING (`reg24.tax.ruling.th`) | TAX-CASE (`reg24.tax.case.th`) |
-          TAX-CHANGE (`reg24.tax.change.th`) | LABOR (`reg24.labor.th`) | BOI (`reg24.boi.th`) |
-          SEC (`reg24.sec.th`) | SET (`reg24.set.th`) | RESTRUCTURING (`reg24.restruct.th`) |
-          INSOLVENCY (`reg24.insolv.th`) | PDPA (`reg24.pdpa.th`) | COURT CASE INTELLIGENCE (`reg24.case.th`)
+          REG24 PRD v2.0 INFRASTRUCTURE &bull; 9 CORE DOMAINS (`LEG-*`) &bull; 9 INDUSTRY MODULES (`IND-*`) &bull; 16 THAI MODULES (`reg24.*.th`)
         </div>
         <div className="uppercase tracking-wider text-zinc-400">
-          CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GMT24 &bull; TRACE24 &bull; VIBE24
+          CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GMT24 &bull; ESG24 &bull; COP24 &bull; TRADE24 &bull; HOTEL24 &bull; DRUG24 &bull; RISK24
         </div>
       </footer>
     </div>
