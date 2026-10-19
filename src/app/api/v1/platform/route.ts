@@ -92,6 +92,83 @@ export async function POST(req: NextRequest) {
           snapshot: reg24Core.getDashboardSnapshot(),
         });
       }
+      case "run_case_search": {
+        const searchRes = reg24Core.searchLegalCases({
+          query: payload?.query,
+          retrieval_methods: payload?.retrieval_methods,
+          filters: payload?.filters,
+        });
+        return NextResponse.json({
+          success: true,
+          case_search: searchRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "run_case_agentic_research": {
+        const researchRes = reg24Core.analyzeLegalIssueAgentic({
+          query: payload?.query || "คำพิพากษาฎีกาเกี่ยวกับรายจ่ายต้องห้ามตามมาตรา 65 ตรี",
+          transaction_date: payload?.transaction_date,
+          scenario_code: payload?.scenario_code,
+          cited_case_number: payload?.cited_case_number,
+        });
+        return NextResponse.json({
+          success: true,
+          case_research: researchRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "run_case_comparison": {
+        const cmpRes = reg24Core.compareLegalCases(
+          payload?.case_ids || ["case.th.dika.2845_2564", "case.th.dika.6120_2565"],
+          payload?.focus_dimension
+        );
+        return NextResponse.json({
+          success: true,
+          case_comparison: cmpRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "run_case_citation_verify": {
+        const citRes = reg24Core.verifyCaseCitation({
+          citation: payload?.citation || "คำพิพากษาศาลฎีกาที่ 2845/2564",
+          statute_section: payload?.statute_section,
+          quote: payload?.quote,
+          claimed_overruled: payload?.claimed_overruled,
+        });
+        return NextResponse.json({
+          success: true,
+          citation_verification: citRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "run_historical_law_query": {
+        const histRes = reg24Core.getHistoricalLawPointInTime({
+          transaction_date: payload?.transaction_date || "2018-06-30",
+          assessment_date: payload?.assessment_date,
+          filing_date: payload?.filing_date,
+          judgment_date: payload?.judgment_date,
+          topic_or_provision_id: payload?.topic_or_provision_id,
+        });
+        return NextResponse.json({
+          success: true,
+          historical_law: histRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "import_legal_case": {
+        const impRes = reg24Core.importLegalCase(payload || {});
+        return NextResponse.json({
+          ...impRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "register_case_connector": {
+        const connRes = reg24Core.registerCaseSourceConnector(payload || {});
+        return NextResponse.json({
+          ...connRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
       case "reset_seed": {
         reg24Core.resetToSeed();
         return NextResponse.json({ success: true, snapshot: reg24Core.getDashboardSnapshot() });

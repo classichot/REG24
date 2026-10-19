@@ -60,6 +60,19 @@ import type {
   TaxFactComparisonResult,
   PDPASubordinateRegulationRecord,
   PDPAComplianceAssessmentResult,
+  CaseServiceDescriptor,
+  CaseSourceConnector,
+  CaseIngestionJob,
+  LegalCase,
+  CaseLegalIssueNode,
+  CaseGraphNode,
+  CaseGraphEdge,
+  CaseHybridSearchResponse,
+  CaseComparisonResult,
+  HistoricalLawPointInTimeResult,
+  CaseCitationVerificationResult,
+  CaseDataQualityMetrics,
+  CaseAgenticResearchResponse,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -77,6 +90,22 @@ interface SnapshotData {
   taxRulings: TaxRulingRecord[];
   taxJudicialDecisions: TaxJudicialDecisionRecord[];
   pdpaSubordinateRegulations: PDPASubordinateRegulationRecord[];
+  caseServices: CaseServiceDescriptor[];
+  caseConnectors: CaseSourceConnector[];
+  caseIngestionJobs: CaseIngestionJob[];
+  legalCases: LegalCase[];
+  caseLegalIssues: CaseLegalIssueNode[];
+  caseKnowledgeGraph: {
+    nodes: CaseGraphNode[];
+    edges: CaseGraphEdge[];
+    verified_edges_only: CaseGraphEdge[];
+    quarantined_ai_inferred_edges: CaseGraphEdge[];
+  };
+  caseDataQualityMetrics: CaseDataQualityMetrics;
+  sampleCaseSearch: CaseHybridSearchResponse;
+  sampleCaseAgenticResearch: CaseAgenticResearchResponse;
+  sampleCaseComparison: CaseComparisonResult;
+  sampleHistoricalLaw: HistoricalLawPointInTimeResult;
   samplePDPAComplianceAssessment: PDPAComplianceAssessmentResult;
   sampleTaxPrecedentComparison: TaxFactComparisonResult;
   sample3RGraphRAGResult: {
@@ -94,6 +123,7 @@ interface SnapshotData {
 
 type ScreenId =
   | "PANORAMA"
+  | "SCREEN_M_CASE"
   | "SCREEN_L_PDPA"
   | "SCREEN_K_TAX_PRECEDENT"
   | "SCREEN_J_RESTRUCT_MISSION"
@@ -114,17 +144,18 @@ const SCREEN_CONFIG: {
   labelTh: string;
   accent: string;
 }[] = [
-  { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (15 โมดูล P0)", accent: "#0050EF" },
+  { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (16 โมดูล P0)", accent: "#0050EF" },
+  { id: "SCREEN_M_CASE", code: "SCR-M", label: "court case intelligence", labelTh: "คลังคำพิพากษาศาลฎีกาและบรรทัดฐาน (REG24-CASE)", accent: "#0284C7" },
   { id: "SCREEN_L_PDPA", code: "SCR-L", label: "pdpa & 2026 dsar", labelTh: "คุ้มครองข้อมูลส่วนบุคคล PDPA & ประกาศ สคส. 2569", accent: "#00ABA9" },
   { id: "SCREEN_K_TAX_PRECEDENT", code: "SCR-K", label: "tax rulings & sub-regs", labelTh: "ข้อหารือกรมสรรพากร 462/2569 & กฎหมายลำดับรอง (v1.1)", accent: "#008A00" },
   { id: "SCREEN_J_RESTRUCT_MISSION", code: "SCR-J", label: "capital markets & restruct", labelTh: "ภารกิจปรับโครงสร้างหนี้ & ตลาดทุน (6 โมดูล)", accent: "#FA6800" },
-  { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0 (15 โมดูล)", accent: "#008A00" },
+  { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0 (16 โมดูล)", accent: "#008A00" },
   { id: "SCREEN_B_FACTORY", code: "SCR-B", label: "module factory", labelTh: "สร้างและติดตั้งโมดูลใหม่", accent: "#1BA1E2" },
   { id: "SCREEN_C_SOURCES", code: "SCR-C", label: "legal sources", labelTh: "แหล่งข้อมูลและหลักฐานอ้างอิง", accent: "#F0A30A" },
   { id: "SCREEN_D_GRAPH", code: "SCR-D", label: "3r graphrag & graph", labelTh: "ไฮบริด GraphRAG 3R และกราฟกฎหมาย", accent: "#A20025" },
   { id: "SCREEN_E_RULES", code: "SCR-E", label: "rule studio", labelTh: "กฎคำนวณอัตโนมัติ (Law-as-Code)", accent: "#6A00FF" },
   { id: "SCREEN_F_CHANGES", code: "SCR-F", label: "change intelligence", labelTh: "ตรวจจับการแก้ไขกฎหมาย", accent: "#D80073" },
-  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (43 Tools)", accent: "#00ABA9" },
+  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (52 Tools)", accent: "#00ABA9" },
   { id: "SCREEN_I_A2A", code: "SCR-I", label: "a2a agent hub", labelTh: "การมอบหมายงานข้ามเอเจนต์ (A2A v1.0)", accent: "#E51400" },
   { id: "SCREEN_H_AUDIT", code: "SCR-H", label: "trace & audit", labelTh: "ตรวจสอบย้อนกลับ TRACE24", accent: "#647687" },
 ];
@@ -200,6 +231,31 @@ export default function Reg24MetroConsole() {
   >("compliant_2026_dsar");
   const [pdpaResult, setPdpaResult] = useState<PDPAComplianceAssessmentResult | null>(null);
   const [pdpaLoading, setPdpaLoading] = useState<boolean>(false);
+
+  // Screen M — Court Case Intelligence & Legal Precedent Module (REG24-CASE / reg24.case.th) states
+  const [caseSubScreen, setCaseSubScreen] = useState<
+    | "ai_research"
+    | "case_search"
+    | "case_detail"
+    | "related_and_citation"
+    | "case_comparison"
+    | "legal_graph"
+    | "source_admin"
+  >("ai_research");
+  const [caseSearchQuery, setCaseSearchQuery] = useState<string>(
+    "คำพิพากษาฎีกาเกี่ยวกับรายจ่ายต้องห้ามตามมาตรา 65 ตรี"
+  );
+  const [caseDomainFilter, setCaseDomainFilter] = useState<string>("");
+  const [caseSearchRes, setCaseSearchRes] = useState<CaseHybridSearchResponse | null>(null);
+  const [selectedCaseId, setSelectedCaseId] = useState<string>("case.th.dika.2845_2564");
+  const [caseResearchScenario, setCaseResearchScenario] = useState<
+    NonNullable<CaseAgenticResearchResponse["scenario_code"]>
+  >("SCENARIO_A_TAX_65_TER");
+  const [caseResearchRes, setCaseResearchRes] = useState<CaseAgenticResearchResponse | null>(null);
+  const [caseComparisonRes, setCaseComparisonRes] = useState<CaseComparisonResult | null>(null);
+  const [citationInput, setCitationInput] = useState<string>("คำพิพากษาศาลฎีกาที่ 2845/2564");
+  const [citationVerifyRes, setCitationVerifyRes] = useState<CaseCitationVerificationResult | null>(null);
+  const [caseLoading, setCaseLoading] = useState<boolean>(false);
 
   // Screen E — Rule Studio states
   const [selectedRuleId, setSelectedRuleId] = useState<string>("rule.th.corporate.incorporation_check");
@@ -447,6 +503,125 @@ export default function Reg24MetroConsole() {
     }
   };
 
+  const handleRunCaseAgenticResearch = async (
+    scenario: NonNullable<CaseAgenticResearchResponse["scenario_code"]>,
+    customQuery?: string,
+    citedCaseNum?: string
+  ) => {
+    setCaseResearchScenario(scenario);
+    if (customQuery) setCaseSearchQuery(customQuery);
+    setCaseLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_case_agentic_research",
+          payload: {
+            query: customQuery || caseSearchQuery,
+            scenario_code: scenario,
+            transaction_date: scenario === "SCENARIO_C_HISTORICAL_LAW" ? "2018-06-30" : "2026-10-19",
+            cited_case_number: citedCaseNum,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.case_research) {
+        setCaseResearchRes(data.case_research);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(`Executed 8-Step Agentic Legal Research (${scenario}).`);
+    } finally {
+      setCaseLoading(false);
+    }
+  };
+
+  const handleRunCaseHybridSearch = async (customQuery?: string, customPack?: string) => {
+    const q = customQuery !== undefined ? customQuery : caseSearchQuery;
+    const pack = customPack !== undefined ? customPack : caseDomainFilter;
+    if (customQuery !== undefined) setCaseSearchQuery(customQuery);
+    if (customPack !== undefined) setCaseDomainFilter(customPack);
+    setCaseLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_case_search",
+          payload: {
+            query: q,
+            filters: pack ? { domain_pack: pack } : undefined,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.case_search) {
+        setCaseSearchRes(data.case_search);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(`Executed 4-Method Hybrid Case Search (${data.case_search?.total_hits || 0} canonical hits).`);
+    } finally {
+      setCaseLoading(false);
+    }
+  };
+
+  const handleRunCaseComparisonPair = async (pairIds: string[]) => {
+    setCaseLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_case_comparison",
+          payload: { case_ids: pairIds },
+        }),
+      });
+      const data = await res.json();
+      if (data.case_comparison) {
+        setCaseComparisonRes(data.case_comparison);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(`Compared canonical judgments: ${pairIds.join(" vs. ")}.`);
+    } finally {
+      setCaseLoading(false);
+    }
+  };
+
+  const handleVerifyCitationInteractive = async (cit: string) => {
+    setCitationInput(cit);
+    setCaseLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_case_citation_verify",
+          payload: { citation: cit },
+        }),
+      });
+      const data = await res.json();
+      if (data.citation_verification) {
+        setCitationVerifyRes(data.citation_verification);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(
+        data.citation_verification?.verified
+          ? `Citation '${cit}' deterministically verified.`
+          : `Citation '${cit}' blocked (${data.citation_verification?.verification_status}).`
+      );
+    } finally {
+      setCaseLoading(false);
+    }
+  };
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
@@ -454,6 +629,9 @@ export default function Reg24MetroConsole() {
       setSnapshot(data);
       setTaxPrecedentResult((prev) => prev || data.sampleTaxPrecedentComparison || null);
       setPdpaResult((prev) => prev || data.samplePDPAComplianceAssessment || null);
+      setCaseSearchRes((prev) => prev || data.sampleCaseSearch || null);
+      setCaseResearchRes((prev) => prev || data.sampleCaseAgenticResearch || null);
+      setCaseComparisonRes((prev) => prev || data.sampleCaseComparison || null);
     }
   }, []);
 
@@ -4278,17 +4456,950 @@ export default function Reg24MetroConsole() {
             </div>
           </div>
         )}
+
+        {/* =====================================================================
+            SCREEN M: COURT CASE INTELLIGENCE & LEGAL PRECEDENT MODULE (REG24-CASE)
+            SDR Sections 1–18: 7 Required Sub-Screens, 13 Services, Scenarios A–E
+        ===================================================================== */}
+        {activeScreen === "SCREEN_M_CASE" && (
+          <div className="space-y-6">
+            {/* Header Banner */}
+            <div className="bg-[#121216] border-l-8 border-[#0284C7] p-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div>
+                  <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-[#38BDF8]">
+                    MODULE REG24-CASE (`reg24.case.th`) &bull; PRIORITY P0–P2 &bull; 13 LOGICAL SERVICES &bull; 9 MCP TOOLS &amp; 11 REST ENDPOINTS
+                  </div>
+                  <h2 className="text-2xl font-light tracking-tight text-white mt-1">
+                    court case intelligence &amp; legal precedent infrastructure
+                  </h2>
+                  <p className="text-xs text-zinc-400 mt-1">
+                    Default Workflow: <strong>Ask legal question &rarr; Receive source-grounded answer &rarr; Inspect judgments &rarr; Explore legal graph</strong>. Distinguishes Supreme Court precedent from binding statutes and administrative rulings.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {(
+                    [
+                      { id: "ai_research", label: "1. AI Legal Research (8-Step)" },
+                      { id: "case_search", label: "2. Case Search (4-Method)" },
+                      { id: "case_detail", label: "3. Case Detail & Passages" },
+                      { id: "related_and_citation", label: "4. Related & Citation Guard" },
+                      { id: "case_comparison", label: "5. Case Comparison" },
+                      { id: "legal_graph", label: "6. Legal Graph (11 Nodes)" },
+                      { id: "source_admin", label: "7. Source Admin & Quality" },
+                    ] as const
+                  ).map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setCaseSubScreen(tab.id)}
+                      className={`px-3 py-2 text-xs font-bold uppercase tracking-wider border cursor-pointer ${
+                        caseSubScreen === tab.id
+                          ? "bg-[#0284C7] border-white text-white"
+                          : "bg-[#0c0c10] border-[#2d2d3a] text-zinc-300 hover:border-[#0284C7]"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* SUB-SCREEN 1: AI LEGAL RESEARCH (8-Step Agentic Workflow & Scenarios A–E) */}
+            {caseSubScreen === "ai_research" && caseResearchRes && (
+              <div className="space-y-6">
+                {/* 5 Required Test Scenario Presets (SDR Section 16) */}
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                      SDR SECTION 16 REQUIRED TEST SCENARIOS (A–E) &amp; AGENTIC LEGAL RESEARCH QUERY
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-400">
+                      TRACE: {caseResearchRes.trace_id} &bull; SCENARIO: {caseResearchRes.scenario_code}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                    <button
+                      onClick={() =>
+                        handleRunCaseAgenticResearch(
+                          "SCENARIO_A_TAX_65_TER",
+                          "คำพิพากษาฎีกาเกี่ยวกับรายจ่ายต้องห้ามตามมาตรา 65 ตรี"
+                        )
+                      }
+                      disabled={caseLoading}
+                      className={`p-3 text-left border text-xs cursor-pointer ${
+                        caseResearchScenario === "SCENARIO_A_TAX_65_TER"
+                          ? "bg-[#0284C7]/30 border-[#38BDF8] text-white"
+                          : "bg-[#0c0c10] border-[#262630] text-zinc-300"
+                      }`}
+                    >
+                      <div className="font-mono text-[10px] text-[#38BDF8] font-bold">SCENARIO A — TAX</div>
+                      <div className="font-semibold mt-0.5">RC Sec. 65 ter Nondeductible Expenses</div>
+                      <div className="text-[10px] text-zinc-400 mt-1">Dika 2845/2564, 6120/2565 &amp; RD Rulings</div>
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        handleRunCaseAgenticResearch(
+                          "SCENARIO_B_DIRECTOR_LIABILITY",
+                          "กรรมการบริษัทต้องรับผิดส่วนตัวในกรณีใดบ้าง"
+                        )
+                      }
+                      disabled={caseLoading}
+                      className={`p-3 text-left border text-xs cursor-pointer ${
+                        caseResearchScenario === "SCENARIO_B_DIRECTOR_LIABILITY"
+                          ? "bg-[#0284C7]/30 border-[#38BDF8] text-white"
+                          : "bg-[#0c0c10] border-[#262630] text-zinc-300"
+                      }`}
+                    >
+                      <div className="font-mono text-[10px] text-[#38BDF8] font-bold">SCENARIO B — CORPORATE</div>
+                      <div className="font-semibold mt-0.5">Director Personal Liability (CCC 1168)</div>
+                      <div className="text-[10px] text-zinc-400 mt-1">Dika 3412/2564 vs. 7815/2565 &amp; 5190/2566</div>
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        handleRunCaseAgenticResearch(
+                          "SCENARIO_C_HISTORICAL_LAW",
+                          "What law applied in 2018 to transfer pricing adjustments?"
+                        )
+                      }
+                      disabled={caseLoading}
+                      className={`p-3 text-left border text-xs cursor-pointer ${
+                        caseResearchScenario === "SCENARIO_C_HISTORICAL_LAW"
+                          ? "bg-amber-900/30 border-amber-400 text-white"
+                          : "bg-[#0c0c10] border-[#262630] text-zinc-300"
+                      }`}
+                    >
+                      <div className="font-mono text-[10px] text-amber-400 font-bold">SCENARIO C — HISTORICAL</div>
+                      <div className="font-semibold mt-0.5">2018 vs. 2019+ Transfer Pricing Law</div>
+                      <div className="text-[10px] text-zinc-400 mt-1">RC Sec. 65 bis (4) vs. Sec. 71 bis (Dika 4918/2566)</div>
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        handleRunCaseAgenticResearch(
+                          "SCENARIO_D_UNSUPPORTED_CITATION",
+                          "Verify nonexistent Supreme Court Judgment 99999/2599",
+                          "คำพิพากษาศาลฎีกาที่ 99999/2599"
+                        )
+                      }
+                      disabled={caseLoading}
+                      className={`p-3 text-left border text-xs cursor-pointer ${
+                        caseResearchScenario === "SCENARIO_D_UNSUPPORTED_CITATION"
+                          ? "bg-rose-900/30 border-rose-400 text-white"
+                          : "bg-[#0c0c10] border-[#262630] text-zinc-300"
+                      }`}
+                    >
+                      <div className="font-mono text-[10px] text-rose-400 font-bold">SCENARIO D — ANTI-HALLUCINATION</div>
+                      <div className="font-semibold mt-0.5">Nonexistent Citation 99999/2599</div>
+                      <div className="text-[10px] text-zinc-400 mt-1">Deterministically blocks fictional case</div>
+                    </button>
+
+                    <button
+                      onClick={() =>
+                        handleRunCaseAgenticResearch(
+                          "SCENARIO_E_CONFLICTING_CASES",
+                          "Compare conflicting Supreme Court outcomes on intra-group management fees under Section 65 ter"
+                        )
+                      }
+                      disabled={caseLoading}
+                      className={`p-3 text-left border text-xs cursor-pointer ${
+                        caseResearchScenario === "SCENARIO_E_CONFLICTING_CASES"
+                          ? "bg-purple-900/30 border-purple-400 text-white"
+                          : "bg-[#0c0c10] border-[#262630] text-zinc-300"
+                      }`}
+                    >
+                      <div className="font-mono text-[10px] text-purple-400 font-bold">SCENARIO E — CONFLICTING</div>
+                      <div className="font-semibold mt-0.5">Distinguish Divergent Outcomes</div>
+                      <div className="text-[10px] text-zinc-400 mt-1">Explains factual &amp; evidentiary distinctions</div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 8-Step Agentic Workflow Execution Trace + Mandatory 8-Part Research Output (SDR Section 7) */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Left: 8-Step Agentic Workflow & Epistemic Classification (4 cols) */}
+                  <div className="lg:col-span-4 space-y-4">
+                    <div className="bg-[#121216] border border-[#262630] p-4 space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                        8-STEP AGENTIC WORKFLOW (SDR SECTION 7)
+                      </div>
+                      <div className="space-y-2">
+                        {caseResearchRes.workflow_steps_executed.map((st) => (
+                          <div key={st.step_number} className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs">
+                            <div className="flex items-center justify-between font-mono text-[10px]">
+                              <span className="text-[#38BDF8]">
+                                STEP {st.step_number} &bull; {st.service_invoked}
+                              </span>
+                              <span
+                                className={
+                                  st.status === "completed" ? "text-emerald-400" : "text-amber-400"
+                                }
+                              >
+                                {st.status.toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="font-semibold text-white mt-0.5">{st.step_name}</div>
+                            <div className="text-zinc-400 text-[11px] mt-0.5">{st.detail}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#121216] border border-[#262630] p-4 space-y-3">
+                      <div className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                        EPISTEMIC CLASSIFICATION (SDR SECTION 7)
+                      </div>
+                      <div className="space-y-2 text-xs">
+                        <div className="bg-[#08080a] border border-emerald-900/60 p-2.5">
+                          <div className="text-[10px] font-mono text-emerald-400 font-bold">
+                            1. DIRECTLY SUPPORTED FINDINGS ({caseResearchRes.epistemic_classification.directly_supported_findings.length})
+                          </div>
+                          <ul className="list-disc list-inside text-zinc-300 mt-1 space-y-1">
+                            {caseResearchRes.epistemic_classification.directly_supported_findings.map((f, i) => (
+                              <li key={i}>{f}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="bg-[#08080a] border border-sky-900/60 p-2.5">
+                          <div className="text-[10px] font-mono text-sky-400 font-bold">
+                            2. REASONABLE INFERENCES ({caseResearchRes.epistemic_classification.reasonable_inferences.length})
+                          </div>
+                          <ul className="list-disc list-inside text-zinc-300 mt-1 space-y-1">
+                            {caseResearchRes.epistemic_classification.reasonable_inferences.map((f, i) => (
+                              <li key={i}>{f}</li>
+                            ))}
+                          </ul>
+                        </div>
+                        <div className="bg-[#08080a] border border-amber-900/60 p-2.5">
+                          <div className="text-[10px] font-mono text-amber-400 font-bold">
+                            3. UNVERIFIED ASSUMPTIONS ({caseResearchRes.epistemic_classification.unverified_assumptions.length})
+                          </div>
+                          <div className="text-zinc-300 mt-1">
+                            {caseResearchRes.epistemic_classification.unverified_assumptions.join("; ") || "None"}
+                          </div>
+                        </div>
+                        <div className="bg-[#08080a] border border-rose-900/60 p-2.5">
+                          <div className="text-[10px] font-mono text-rose-400 font-bold">
+                            4. MISSING EVIDENCE ({caseResearchRes.epistemic_classification.missing_evidence.length})
+                          </div>
+                          <div className="text-zinc-300 mt-1">
+                            {caseResearchRes.epistemic_classification.missing_evidence.join("; ") || "None"}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right: Mandatory 8-Part Legal Research Memorandum (8 cols) */}
+                  <div className="lg:col-span-8 bg-[#121216] border border-[#262630] p-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#262630] pb-3">
+                      <div>
+                        <div className="text-[10px] font-mono uppercase text-[#38BDF8]">
+                          MANDATORY 8-PART SUBSTANTIVE LEGAL RESEARCH OUTPUT (SDR SECTION 7)
+                        </div>
+                        <h3 className="text-lg font-semibold text-white">
+                          1. Question Presented: {caseResearchRes.mandatory_research_memo.question_presented}
+                        </h3>
+                      </div>
+                      <span
+                        className={`px-3 py-1 text-xs font-bold uppercase ${
+                          caseResearchRes.citation_verification_summary.all_citations_verified
+                            ? "bg-emerald-950 text-emerald-300 border border-emerald-600"
+                            : "bg-rose-950 text-rose-300 border border-rose-600"
+                        }`}
+                      >
+                        {caseResearchRes.citation_verification_summary.all_citations_verified
+                          ? "ALL CITATIONS VERIFIED"
+                          : "UNVERIFIED CITATION BLOCKED"}
+                      </span>
+                    </div>
+
+                    {/* 2. Applicable Law */}
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                        2. Applicable Law &amp; Point-in-Time Version
+                      </div>
+                      {caseResearchRes.mandatory_research_memo.applicable_law.map((law, i) => (
+                        <div key={i} className="bg-[#08080a] border border-[#22222c] p-3 text-xs">
+                          <div className="flex items-center justify-between font-mono text-[11px] text-emerald-400">
+                            <span>
+                              {law.statute_name_th} ({law.statute_name_en}) &mdash; Section {law.section_number}
+                            </span>
+                            <span>
+                              {law.applied_version_id} ({law.effective_period})
+                            </span>
+                          </div>
+                          {law.historical_warning && (
+                            <div className="mt-1.5 p-2 bg-amber-950/40 border border-amber-700 text-amber-200 text-[11px]">
+                              {law.historical_warning}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 3. Relevant Cases & Administrative Rulings */}
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                        3. Relevant Court Judgments &amp; Administrative Rulings (With Authority Distinction)
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {caseResearchRes.mandatory_research_memo.relevant_cases.map((rc) => (
+                          <div
+                            key={rc.case_id}
+                            onClick={() => {
+                              setSelectedCaseId(rc.case_id);
+                              setCaseSubScreen("case_detail");
+                            }}
+                            className="bg-[#08080a] border border-[#262630] hover:border-[#0284C7] p-3 text-xs cursor-pointer"
+                          >
+                            <div className="flex items-center justify-between font-mono text-[10px] text-[#38BDF8]">
+                              <span>{rc.case_number}</span>
+                              <span>
+                                {rc.verification_status.toUpperCase()} &bull; {rc.text_completeness.toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="font-semibold text-white mt-0.5">{rc.court_name}</div>
+                            <div className="text-zinc-300 mt-1">{rc.outcome_summary}</div>
+                            <div className="text-[10px] text-[#38BDF8] mt-1.5 underline">
+                              Click to inspect canonical judgment &amp; verbatim passages &rarr;
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 4. Material Factual Similarities and Differences */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="bg-[#08080a] border border-[#22222c] p-3 text-xs">
+                        <div className="font-bold uppercase text-emerald-400 mb-1">
+                          4A. Material Factual Similarities
+                        </div>
+                        <ul className="list-disc list-inside text-zinc-300 space-y-1">
+                          {caseResearchRes.mandatory_research_memo.material_factual_similarities_and_differences.similarities.map(
+                            (s, i) => (
+                              <li key={i}>{s}</li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                      <div className="bg-[#08080a] border border-[#22222c] p-3 text-xs">
+                        <div className="font-bold uppercase text-amber-400 mb-1">
+                          4B. Material Factual Differences
+                        </div>
+                        <ul className="list-disc list-inside text-zinc-300 space-y-1">
+                          {caseResearchRes.mandatory_research_memo.material_factual_similarities_and_differences.differences.map(
+                            (d, i) => (
+                              <li key={i}>{d}</li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    </div>
+
+                    {/* 5. Legal Analysis & 6. Conflicting Authorities / Uncertainty & 7. Conclusion */}
+                    <div className="space-y-3 text-xs">
+                      <div className="bg-[#08080a] border border-[#22222c] p-3">
+                        <div className="font-bold uppercase text-[#38BDF8] mb-1">5. Legal Analysis</div>
+                        <p className="text-zinc-200 leading-relaxed">
+                          {caseResearchRes.mandatory_research_memo.legal_analysis}
+                        </p>
+                      </div>
+                      <div className="bg-[#08080a] border border-amber-800/50 p-3">
+                        <div className="font-bold uppercase text-amber-400 mb-1">
+                          6. Conflicting Authorities or Uncertainty Disclosure
+                        </div>
+                        <ul className="list-disc list-inside text-zinc-300 space-y-1">
+                          {caseResearchRes.mandatory_research_memo.conflicting_authorities_or_uncertainty.map(
+                            (u, i) => (
+                              <li key={i}>{u}</li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                      <div className="bg-emerald-950/20 border border-emerald-700/60 p-3">
+                        <div className="font-bold uppercase text-emerald-400 mb-1">7. Conclusion</div>
+                        <p className="text-white font-medium">
+                          {caseResearchRes.mandatory_research_memo.conclusion}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 8. Source Citations */}
+                    <div className="space-y-2">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                        8. Deterministic Source Citations (64-Char SHA-256 Verified)
+                      </div>
+                      <div className="space-y-1.5">
+                        {caseResearchRes.mandatory_research_memo.source_citations.map((sc) => (
+                          <div
+                            key={sc.citation_id}
+                            className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs flex flex-wrap items-center justify-between gap-2"
+                          >
+                            <div>
+                              <span className="font-mono text-[10px] text-emerald-400 uppercase mr-2">
+                                [{sc.source_type}]
+                              </span>
+                              <span className="font-semibold text-white">{sc.reference_label}</span>
+                              <span className="text-zinc-400 ml-2">&bull; {sc.locator_or_passage}</span>
+                            </div>
+                            <div className="font-mono text-[10px] text-zinc-400">
+                              SHA256: {sc.sha256_hash.slice(0, 16)}...
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SCREEN 2: UNIFIED 4-METHOD HYBRID CASE SEARCH (SDR Section 6) */}
+            {caseSubScreen === "case_search" && (
+              <div className="space-y-4">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                    UNIFIED 4-METHOD HYBRID LEGAL SEARCH ENGINE (KEYWORD &bull; SEMANTIC &bull; GRAPH &bull; METADATA)
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <input
+                      type="text"
+                      value={caseSearchQuery}
+                      onChange={(e) => setCaseSearchQuery(e.target.value)}
+                      placeholder="Search Thai/English cases, e.g., มาตรา 65 ตรี, กรรมการรับผิดส่วนตัว, transfer pricing..."
+                      className="flex-1 min-w-[280px] bg-[#0c0c10] border border-[#2d2d3a] px-3 py-2 text-xs text-white"
+                    />
+                    <select
+                      value={caseDomainFilter}
+                      onChange={(e) => handleRunCaseHybridSearch(caseSearchQuery, e.target.value)}
+                      className="bg-[#0c0c10] border border-[#2d2d3a] px-3 py-2 text-xs text-white"
+                    >
+                      <option value="">All Domain Packs (P0 Tax, P0 Corporate, P1 Insolvency)</option>
+                      <option value="P0_TAX_PACK">P0 — Tax Case Pack</option>
+                      <option value="P0_CORPORATE_PACK">P0 — Corporate Law Case Pack</option>
+                      <option value="P1_INSOLVENCY_PACK">P1 — Insolvency Case Pack</option>
+                    </select>
+                    <button
+                      onClick={() => handleRunCaseHybridSearch()}
+                      className="bg-[#0284C7] hover:bg-[#0369A1] text-white px-4 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer"
+                    >
+                      Run Hybrid Search
+                    </button>
+                    <button
+                      onClick={() => handleRunCaseHybridSearch("", "")}
+                      className="bg-[#1f1f29] hover:bg-[#2d2d3a] text-zinc-200 px-3 py-2 text-xs font-bold uppercase cursor-pointer"
+                    >
+                      Show All ({snapshot.legalCases?.length || 11})
+                    </button>
+                  </div>
+
+                  {/* Quick Example Queries from SDR Section 6 */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      "คำพิพากษาฎีกาเกี่ยวกับรายจ่ายต้องห้ามตามมาตรา 65 ตรี",
+                      "กรรมการบริษัทต้องรับผิดส่วนตัวในกรณีใดบ้าง",
+                      "Find Supreme Court cases on transfer pricing adjustments",
+                      "Compare cases involving shareholder oppression and director liability",
+                      "ฟื้นฟูกิจการ การจัดกลุ่มเจ้าหนี้ มาตรา 90/42",
+                    ].map((ex) => (
+                      <button
+                        key={ex}
+                        onClick={() => handleRunCaseHybridSearch(ex)}
+                        className="bg-[#08080a] border border-[#262630] hover:border-[#0284C7] px-2.5 py-1 text-[11px] text-zinc-300 cursor-pointer"
+                      >
+                        {ex}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {(caseSearchRes?.results || []).map((item) => (
+                    <div
+                      key={item.case_id}
+                      onClick={() => {
+                        setSelectedCaseId(item.case_id);
+                        setCaseSubScreen("case_detail");
+                      }}
+                      className="bg-[#121216] border border-[#262630] hover:border-[#0284C7] p-4 space-y-2.5 cursor-pointer"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-mono text-xs font-bold text-[#38BDF8]">{item.case_number}</span>
+                        <div className="flex items-center gap-1.5 text-[10px] font-mono">
+                          <span className="px-2 py-0.5 bg-emerald-950 text-emerald-300 border border-emerald-700 uppercase">
+                            {item.verification_status}
+                          </span>
+                          <span className="px-2 py-0.5 bg-sky-950 text-sky-300 border border-sky-700 uppercase">
+                            {item.text_completeness}
+                          </span>
+                          <span className="px-2 py-0.5 bg-zinc-900 text-zinc-300 border border-zinc-700">
+                            SCORE: {item.ranking_breakdown.total_relevance_score}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-xs font-semibold text-white">
+                        {item.court} &bull; Judgment Date: {item.judgment_date}
+                      </div>
+                      <div className="text-xs text-amber-300 font-medium">
+                        Issue: {item.relevant_legal_issue}
+                      </div>
+                      <p className="text-xs text-zinc-300 line-clamp-3">{item.short_factual_summary}</p>
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#22222c] text-[10px] font-mono text-zinc-400">
+                        <span>
+                          Statutes:{" "}
+                          {item.relevant_statutory_provisions
+                            .map((s) => `${s.statute_name_en} Sec. ${s.section_number}`)
+                            .join(", ")}
+                        </span>
+                        <span>Methods: [{item.matched_methods.join(", ")}]</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SCREEN 3: CASE DETAIL & VERBATIM SOURCE PASSAGES (SDR Section 4 & 12) */}
+            {caseSubScreen === "case_detail" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-4 bg-[#121216] border border-[#262630] p-4 space-y-2 max-h-[680px] overflow-y-auto">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8] mb-2">
+                    CANONICAL COURT CASE REGISTRY ({snapshot.legalCases?.length || 0})
+                  </div>
+                  {(snapshot.legalCases || []).map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => setSelectedCaseId(c.id)}
+                      className={`p-3 border text-xs cursor-pointer ${
+                        selectedCaseId === c.id
+                          ? "bg-[#0284C7]/25 border-[#38BDF8]"
+                          : "bg-[#08080a] border-[#22222c]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-mono text-[10px]">
+                        <span className="text-[#38BDF8] font-bold">{c.case_number}</span>
+                        <span className="text-zinc-400">{c.domain_pack}</span>
+                      </div>
+                      <div className="text-white font-medium mt-0.5">{c.case_type}</div>
+                      <div className="text-[10px] text-zinc-400 mt-1">
+                        {c.verification_status} &bull; {c.text_completeness} &bull; Rights: {c.rights_status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="lg:col-span-8 bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  {(() => {
+                    const activeCase =
+                      snapshot.legalCases?.find((c) => c.id === selectedCaseId) ||
+                      snapshot.legalCases?.[0];
+                    if (!activeCase) return null;
+                    return (
+                      <>
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#262630] pb-3">
+                          <div>
+                            <div className="text-[10px] font-mono text-[#38BDF8] uppercase">
+                              {activeCase.id} &bull; {activeCase.court_level} &bull; JUDGMENT DATE: {activeCase.judgment_date}
+                            </div>
+                            <h3 className="text-xl font-semibold text-white mt-0.5">
+                              {activeCase.case_number} &mdash; {activeCase.case_type}
+                            </h3>
+                          </div>
+                          <div className="flex items-center gap-2 text-[10px] font-mono">
+                            <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 uppercase">
+                              {activeCase.verification_status}
+                            </span>
+                            <span className="px-2.5 py-1 bg-sky-950 text-sky-300 border border-sky-700 uppercase">
+                              TEXT: {activeCase.text_completeness}
+                            </span>
+                            <span className="px-2.5 py-1 bg-amber-950 text-amber-300 border border-amber-700 uppercase">
+                              RIGHTS: {activeCase.rights_status}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Authority Distinction Banner (SDR Section 1 & Section 18 Principle 5) */}
+                        <div className="bg-[#08080a] border-l-4 border-amber-500 p-3 text-xs space-y-1">
+                          <div className="font-bold text-amber-400 uppercase">
+                            AUTHORITY DISTINCTION: {activeCase.authority_distinction.document_category} (IS_BINDING_STATUTE: FALSE)
+                          </div>
+                          <div className="text-zinc-300">{activeCase.authority_distinction.precedent_weight_en}</div>
+                        </div>
+
+                        {/* AI-Generated Summary Badge (SDR Section 10 Rule 6) */}
+                        <div className="bg-[#08080a] border border-[#22222c] p-3 text-xs space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold uppercase text-[#38BDF8]">Case Summary</span>
+                            <span className="text-[10px] font-mono px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-700">
+                              AI-GENERATED SUMMARY (GROUNDED IN SOURCE PASSAGES)
+                            </span>
+                          </div>
+                          <p className="text-zinc-200 leading-relaxed">{activeCase.case_summary}</p>
+                        </div>
+
+                        {activeCase.full_text && (
+                          <div className="bg-[#08080a] border border-[#22222c] p-3 text-xs space-y-1">
+                            <div className="font-bold uppercase text-emerald-400">
+                              Authoritative Thai Full Text (`full_text`)
+                            </div>
+                            <p className="text-zinc-200 leading-relaxed">{activeCase.full_text}</p>
+                          </div>
+                        )}
+
+                        {/* Verbatim Supporting Source Passages (SDR Section 4 & Section 10 Rule 5/9) */}
+                        <div className="space-y-2">
+                          <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                            VERBATIM SUPPORTING SOURCE PASSAGES (`supporting_source_passages`)
+                          </div>
+                          {activeCase.supporting_source_passages.map((p) => (
+                            <div key={p.passage_id} className="bg-[#08080a] border border-emerald-900/60 p-3 text-xs space-y-1">
+                              <div className="flex items-center justify-between font-mono text-[10px] text-emerald-400">
+                                <span>
+                                  {p.passage_id} &bull; SUPPORTS: {p.field_supported.toUpperCase()} &bull; {p.locator}
+                                </span>
+                                <span>SHA256: {p.sha256_fragment_hash.slice(0, 16)}...</span>
+                              </div>
+                              <div className="text-white font-medium">&ldquo;{p.verbatim_quote_th}&rdquo;</div>
+                              <div className="text-zinc-400 italic">{p.translation_en}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Cited Statutes & Point-in-Time Versions */}
+                        <div className="space-y-2">
+                          <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                            LINKED STATUTORY PROVISIONS &amp; APPLIED HISTORICAL VERSIONS
+                          </div>
+                          {activeCase.cited_statutes.map((cs, i) => (
+                            <div key={i} className="bg-[#08080a] border border-[#22222c] p-3 text-xs">
+                              <div className="flex items-center justify-between font-mono text-[11px] text-[#38BDF8]">
+                                <span>
+                                  {cs.statute_name_th} ({cs.statute_name_en}) &mdash; Section {cs.section_number}
+                                </span>
+                                <span>Version: {cs.applied_version_id}</span>
+                              </div>
+                              {cs.historical_version_warning && (
+                                <div className="text-amber-300 text-[11px] mt-1">{cs.historical_version_warning}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SCREEN 4: RELATED CASES & DETERMINISTIC CITATION VERIFIER (SDR Section 10 & Scenario D) */}
+            {caseSubScreen === "related_and_citation" && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                    DETERMINISTIC CITATION VERIFIER &amp; ANTI-HALLUCINATION GUARD (SDR SECTION 10)
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={citationInput}
+                      onChange={(e) => setCitationInput(e.target.value)}
+                      className="flex-1 bg-[#0c0c10] border border-[#2d2d3a] px-3 py-2 text-xs text-white"
+                    />
+                    <button
+                      onClick={() => handleVerifyCitationInteractive(citationInput)}
+                      className="bg-[#0284C7] text-white px-4 py-2 text-xs font-bold uppercase cursor-pointer"
+                    >
+                      Verify Citation
+                    </button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handleVerifyCitationInteractive("คำพิพากษาศาลฎีกาที่ 2845/2564")}
+                      className="bg-[#08080a] border border-emerald-800 px-2.5 py-1 text-[11px] text-emerald-300 cursor-pointer"
+                    >
+                      Test Verified: 2845/2564
+                    </button>
+                    <button
+                      onClick={() => handleVerifyCitationInteractive("คำพิพากษาศาลฎีกาที่ 3412/2564")}
+                      className="bg-[#08080a] border border-emerald-800 px-2.5 py-1 text-[11px] text-emerald-300 cursor-pointer"
+                    >
+                      Test Verified: 3412/2564
+                    </button>
+                    <button
+                      onClick={() => handleVerifyCitationInteractive("คำพิพากษาศาลฎีกาที่ 99999/2599")}
+                      className="bg-[#08080a] border border-rose-800 px-2.5 py-1 text-[11px] text-rose-300 cursor-pointer"
+                    >
+                      Test Nonexistent (Scenario D): 99999/2599
+                    </button>
+                  </div>
+
+                  {citationVerifyRes && (
+                    <div
+                      className={`p-4 border text-xs space-y-2 ${
+                        citationVerifyRes.verified
+                          ? "bg-emerald-950/30 border-emerald-600"
+                          : "bg-rose-950/30 border-rose-600"
+                      }`}
+                    >
+                      <div className="font-mono font-bold uppercase">
+                        STATUS: {citationVerifyRes.verification_status} &bull; HALLUCINATION BLOCKED:{" "}
+                        {String(citationVerifyRes.hallucination_blocked).toUpperCase()}
+                      </div>
+                      <p className="text-zinc-200">{citationVerifyRes.explanation}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                  <div className="text-xs font-bold uppercase tracking-wider text-amber-400">
+                    QUARANTINED AI-INFERRED EDGES VS. VERIFIED CITATION LINKS (SDR SECTION 5)
+                  </div>
+                  <div className="space-y-2">
+                    {(snapshot.caseKnowledgeGraph?.quarantined_ai_inferred_edges || []).map((qe) => (
+                      <div key={qe.id} className="bg-rose-950/30 border border-rose-700 p-3 text-xs space-y-1">
+                        <div className="font-mono text-[10px] text-rose-300">
+                          QUARANTINED EDGE: {qe.source_id} &mdash;[{qe.relationship}]&rarr; {qe.target_id} (Confidence: {qe.confidence})
+                        </div>
+                        <div className="text-zinc-200">{qe.notes}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SCREEN 5: SIDE-BY-SIDE CASE COMPARISON (SDR Section 12 & Scenario E) */}
+            {caseSubScreen === "case_comparison" && caseComparisonRes && (
+              <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                      SIDE-BY-SIDE FACTUAL &amp; JUDICIAL REASONING COMPARISON (SDR SECTION 12 &amp; SCENARIO E)
+                    </div>
+                    <div className="text-xs text-zinc-400 mt-0.5">
+                      Classification: <strong>{caseComparisonRes.relationship_classification}</strong>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() =>
+                        handleRunCaseComparisonPair(["case.th.dika.2845_2564", "case.th.dika.6120_2565"])
+                      }
+                      className="bg-[#0284C7] text-white px-3 py-1.5 text-xs font-bold uppercase cursor-pointer"
+                    >
+                      Compare Tax Cases (2845/2564 vs. 6120/2565)
+                    </button>
+                    <button
+                      onClick={() =>
+                        handleRunCaseComparisonPair(["case.th.dika.3412_2564", "case.th.dika.7815_2565"])
+                      }
+                      className="bg-purple-700 text-white px-3 py-1.5 text-xs font-bold uppercase cursor-pointer"
+                    >
+                      Compare Director Liability (3412/2564 vs. 7815/2565)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {caseComparisonRes.compared_cases.map((cc) => (
+                    <div key={cc.id} className="bg-[#08080a] border border-[#262630] p-4 text-xs space-y-1">
+                      <div className="font-mono text-sm font-bold text-[#38BDF8]">{cc.case_number}</div>
+                      <div className="text-zinc-300">{cc.court_name}</div>
+                      <div className="text-emerald-300 font-medium mt-1">Outcome: {cc.outcome}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2">
+                  {caseComparisonRes.judicial_reasoning_comparison.map((row, idx) => (
+                    <div key={idx} className="bg-[#08080a] border border-[#22222c] p-3 text-xs space-y-2">
+                      <div className="font-bold text-[#38BDF8] uppercase">{row.dimension}</div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="p-2 bg-[#121216] border border-emerald-900/50 text-zinc-200">
+                          {row.case_a_position}
+                        </div>
+                        <div className="p-2 bg-[#121216] border border-amber-900/50 text-zinc-200">
+                          {row.case_b_position}
+                        </div>
+                      </div>
+                      <div className="text-zinc-400 text-[11px]">
+                        <strong>Legal Significance:</strong> {row.legal_significance}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="bg-emerald-950/20 border border-emerald-700/60 p-3 text-xs text-white">
+                  <strong>Synthesis Conclusion:</strong> {caseComparisonRes.synthesis_conclusion}
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SCREEN 6: LEGAL KNOWLEDGE GRAPH (11 Node Types & 10 Relationships — SDR Section 5) */}
+            {caseSubScreen === "legal_graph" && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                    PROVENANCE-AWARE GRAPH EDGES ({snapshot.caseKnowledgeGraph?.edges.length || 0})
+                  </div>
+                  <div className="space-y-2 max-h-[540px] overflow-y-auto">
+                    {(snapshot.caseKnowledgeGraph?.edges || []).map((e) => (
+                      <div
+                        key={e.id}
+                        className={`p-3 border text-xs ${
+                          e.is_ai_inferred
+                            ? "bg-rose-950/25 border-rose-700"
+                            : "bg-[#08080a] border-[#22222c]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between font-mono text-[10px]">
+                          <span className="text-[#38BDF8] font-bold">
+                            {e.source_id} &mdash;[{e.relationship}]&rarr; {e.target_id}
+                          </span>
+                          <span className={e.is_ai_inferred ? "text-rose-400" : "text-emerald-400"}>
+                            {e.verification_status} ({Math.round(e.confidence * 100)}%)
+                          </span>
+                        </div>
+                        <div className="text-zinc-300 mt-1">Provenance: {e.provenance_citation}</div>
+                        {e.notes && <div className="text-zinc-400 text-[11px] mt-0.5">{e.notes}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                    11 CANONICAL GRAPH NODE TYPES ({snapshot.caseKnowledgeGraph?.nodes.length || 0} NODES)
+                  </div>
+                  <div className="space-y-2 max-h-[540px] overflow-y-auto">
+                    {(snapshot.caseKnowledgeGraph?.nodes || []).map((n) => (
+                      <div key={n.id} className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs">
+                        <div className="flex items-center justify-between font-mono text-[10px] text-emerald-400">
+                          <span>[{n.node_type}]</span>
+                          <span>{n.id}</span>
+                        </div>
+                        <div className="text-white font-medium mt-0.5">{n.label_th}</div>
+                        <div className="text-zinc-400 text-[11px]">{n.label_en}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-SCREEN 7: SOURCE ADMINISTRATION, 13 SERVICES & DATA QUALITY METRICS (SDR Section 2, 3, 10) */}
+            {caseSubScreen === "source_admin" && (
+              <div className="space-y-6">
+                {/* Data Quality Metrics Bar */}
+                {snapshot.caseDataQualityMetrics && (
+                  <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                        DATA QUALITY METRICS &amp; RELEASE THRESHOLDS (SDR SECTION 10)
+                      </span>
+                      <span className="px-2.5 py-1 bg-emerald-950 text-emerald-300 border border-emerald-700 text-[10px] font-mono">
+                        ALL RELEASE THRESHOLDS MET: {String(snapshot.caseDataQualityMetrics.all_release_thresholds_met).toUpperCase()}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+                      <div className="bg-[#08080a] border border-[#22222c] p-3">
+                        <div className="text-[10px] text-zinc-400">METADATA COMPLETENESS</div>
+                        <div className="text-lg font-mono font-bold text-white">
+                          {snapshot.caseDataQualityMetrics.metrics.metadata_completeness_pct}%
+                        </div>
+                      </div>
+                      <div className="bg-[#08080a] border border-[#22222c] p-3">
+                        <div className="text-[10px] text-zinc-400">DUPLICATE RATE</div>
+                        <div className="text-lg font-mono font-bold text-emerald-400">
+                          {snapshot.caseDataQualityMetrics.metrics.duplicate_rate_pct}%
+                        </div>
+                      </div>
+                      <div className="bg-[#08080a] border border-[#22222c] p-3">
+                        <div className="text-[10px] text-zinc-400">CITATION VALIDITY</div>
+                        <div className="text-lg font-mono font-bold text-emerald-400">
+                          {snapshot.caseDataQualityMetrics.metrics.citation_validity_pct}%
+                        </div>
+                      </div>
+                      <div className="bg-[#08080a] border border-[#22222c] p-3">
+                        <div className="text-[10px] text-zinc-400">STATUTORY LINK ACCURACY</div>
+                        <div className="text-lg font-mono font-bold text-emerald-400">
+                          {snapshot.caseDataQualityMetrics.metrics.statutory_link_accuracy_pct}%
+                        </div>
+                      </div>
+                      <div className="bg-[#08080a] border border-[#22222c] p-3">
+                        <div className="text-[10px] text-zinc-400">EXTRACTION CONFIDENCE</div>
+                        <div className="text-lg font-mono font-bold text-[#38BDF8]">
+                          {snapshot.caseDataQualityMetrics.metrics.avg_extraction_confidence}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Source Connectors */}
+                  <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                      AUTHORIZED P0 &amp; P1 SOURCE CONNECTORS ({snapshot.caseConnectors?.length || 0})
+                    </div>
+                    <div className="space-y-2.5">
+                      {(snapshot.caseConnectors || []).map((conn) => (
+                        <div key={conn.connector_id} className="bg-[#08080a] border border-[#22222c] p-3 text-xs space-y-1">
+                          <div className="flex items-center justify-between font-mono text-[10px]">
+                            <span className="text-[#38BDF8] font-bold">{conn.connector_id}</span>
+                            <span className="text-emerald-400">
+                              {conn.priority_tier} &bull; RIGHTS: {conn.licensing_and_rights.rights_status.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="font-semibold text-white">{conn.source_name}</div>
+                          <div className="text-zinc-400 text-[11px]">{conn.data_scope}</div>
+                          <div className="text-[10px] font-mono text-zinc-500">
+                            Ingested: {conn.operational_status.documents_ingested} | Dup Skipped:{" "}
+                            {conn.operational_status.duplicate_imports_skipped} | Isolated Failures:{" "}
+                            {conn.operational_status.failed_ingestions_isolated}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* 13 CASE-* Services */}
+                  <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#38BDF8]">
+                      13 LOGICALLY SEPARATED SERVICES (`CASE-SOURCE` TO `CASE-TRACE` — SDR SECTION 2)
+                    </div>
+                    <div className="space-y-2 max-h-[480px] overflow-y-auto">
+                      {(snapshot.caseServices || []).map((svc) => (
+                        <div key={svc.service_id} className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs">
+                          <div className="flex items-center justify-between font-mono text-[10px]">
+                            <span className="text-[#38BDF8] font-bold">{svc.service_id}</span>
+                            <span className="text-emerald-400 uppercase">{svc.status}</span>
+                          </div>
+                          <div className="text-zinc-200 mt-0.5">{svc.responsibility}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* METRO FOOTER */}
       <footer className="border-t border-[#262630] bg-[#0c0c10] px-6 py-4 mt-12 text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-4">
         <div>
-          REG24 P0 INFRASTRUCTURE &bull; 15 THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
+          REG24 P0 INFRASTRUCTURE &bull; 16 THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
           CONTRACT (`reg24.contract.th`) | CIVIL CODE (`reg24.civil.th`) | TAX (`reg24.tax.th`) |
           TAX-SUB (`reg24.tax.sub.th`) | TAX-RULING (`reg24.tax.ruling.th`) | TAX-CASE (`reg24.tax.case.th`) |
           TAX-CHANGE (`reg24.tax.change.th`) | LABOR (`reg24.labor.th`) | BOI (`reg24.boi.th`) |
           SEC (`reg24.sec.th`) | SET (`reg24.set.th`) | RESTRUCTURING (`reg24.restruct.th`) |
-          INSOLVENCY (`reg24.insolv.th`) | PDPA (`reg24.pdpa.th`)
+          INSOLVENCY (`reg24.insolv.th`) | PDPA (`reg24.pdpa.th`) | COURT CASE INTELLIGENCE (`reg24.case.th`)
         </div>
         <div className="uppercase tracking-wider text-zinc-400">
           CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GMT24 &bull; TRACE24 &bull; VIBE24

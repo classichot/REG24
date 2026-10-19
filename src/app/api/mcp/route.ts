@@ -316,6 +316,52 @@ export const MCP_TOOLS_CATALOG = [
     description: "REG24-PDPA: Execute end-to-end PDPA B.E. 2562 & 2026 Access-Request Notification compliance assessment with Privacy-by-Design PII minimization and cross-module GraphRAG dependencies",
     inputSchema: { type: "object", properties: { as_of_date: { type: "string" }, facts: { type: "object" } } },
   },
+  // Court Case Intelligence & Legal Precedent Module (v1.0 — Module REG24-CASE / reg24.case.th) MCP Services (SDR Section 11)
+  {
+    name: "reg24_search_cases",
+    description: "REG24-CASE: Unified 4-method hybrid legal search (Keyword, Semantic, Graph, Metadata) across Thai Supreme Court judgments, Specialist Courts, and Revenue Department rulings",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, facts: { type: "object" }, result_limit: { type: "number" } } },
+  },
+  {
+    name: "reg24_get_case",
+    description: "REG24-CASE: Retrieve canonical LegalCase record with verbatim source passages, SHA-256 fingerprint, authority distinction, and rights/licensing status",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, facts: { type: "object" } } },
+  },
+  {
+    name: "reg24_find_similar_cases",
+    description: "REG24-CASE: Retrieve explicitly connected decisions (CASE_CITES_CASE, CASE_DISTINGUISHES_CASE, CASE_RELATED_TO_CASE) and issue-similar cases while quarantining AI-inferred edges",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, facts: { type: "object" } } },
+  },
+  {
+    name: "reg24_compare_cases",
+    description: "REG24-CASE: Side-by-side factual and legal comparison between two or more Thai judgments, explaining material distinctions and conflicting outcomes",
+    inputSchema: { type: "object", properties: { facts: { type: "object" } } },
+  },
+  {
+    name: "reg24_get_statute_case_links",
+    description: "REG24-CASE: Retrieve all judicial decisions and administrative rulings interpreting a statutory provision or historical version",
+    inputSchema: { type: "object", properties: { provision_id: { type: "string" }, query: { type: "string" } } },
+  },
+  {
+    name: "reg24_search_tax_rulings",
+    description: "REG24-CASE: Search Revenue Department tax consultation letters (ข้อหารือภาษีอากร) and Tax Ruling Committee decisions linked to judicial precedents",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, provision_id: { type: "string" } } },
+  },
+  {
+    name: "reg24_analyze_legal_issue",
+    description: "REG24-CASE: Execute the 8-step agentic legal research workflow with mandatory 8-part output structure, epistemic classification, and deterministic citation verification",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "reg24_verify_case_citation",
+    description: "REG24-CASE: Deterministically verify judgment numbers, statutory sections, verbatim quotations, and overruling claims to prevent AI hallucinations",
+    inputSchema: { type: "object", properties: { query: { type: "string" }, facts: { type: "object" } } },
+  },
+  {
+    name: "reg24_get_historical_law",
+    description: "REG24-CASE: Point-in-time historical law resolver distinguishing transaction date, assessment date, filing date, and judgment date (e.g., 2018 vs. 2019+ Transfer Pricing)",
+    inputSchema: { type: "object", properties: { as_of_date: { type: "string" }, provision_id: { type: "string" }, facts: { type: "object" } } },
+  },
 ];
 
 export async function GET() {
@@ -325,7 +371,7 @@ export async function GET() {
     transport: "Streamable HTTP (JSON-RPC 2.0)",
     server_info: {
       name: "reg24-unified-mcp-gateway",
-      version: "2.1.0",
+      version: "2.2.0",
       jurisdiction: "TH",
       connected_consumers: ["LAW24", "CFO24", "ACC24", "TP24", "GMT24", "TRACE24", "VIBE24", "External AI Agents"],
     },

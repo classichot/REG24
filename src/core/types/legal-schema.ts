@@ -56,7 +56,17 @@ export type GraphRelationshipType =
   | "INTERPRETATION_CHANGED_BY"
   | "CONDITIONAL_ON"
   | "SUPPORTED_BY"
-  | "CONFLICTS_WITH";
+  | "CONFLICTS_WITH"
+  | "CASE_CITES_CASE"
+  | "CASE_INTERPRETS_SECTION"
+  | "CASE_ADDRESSES_ISSUE"
+  | "CASE_APPLIES_VERSION"
+  | "RULING_INTERPRETS_SECTION"
+  | "SECTION_AMENDED_BY"
+  | "CASE_RELATED_TO_CASE"
+  | "CASE_DISTINGUISHES_CASE"
+  | "CASE_OVERRULES_CASE"
+  | "DOCUMENT_PUBLISHED_BY";
 
 export type TaxDocumentAuthorityClass =
   | "primary_legislation"
@@ -1036,5 +1046,500 @@ export interface PDPAComplianceAssessmentResult {
   overall_compliance_status: "COMPLIANT" | "NON_COMPLIANT_ENFORCEMENT_RISK" | "REQUIRES_HUMAN_LEGAL_REVIEW";
   human_review_required: boolean;
 }
+
+// ============================================================================
+// COURT CASE INTELLIGENCE & LEGAL PRECEDENT MODULE (v1.0 OCT 2026) — MODULE REG24-CASE (reg24.case.th)
+// SDR Sections 1–18: 13 Services • Connectors • LegalCase • Graph RAG • 8-Step Agentic Research • Point-in-Time Law
+// ============================================================================
+
+export type CaseServiceId =
+  | "CASE-SOURCE"
+  | "CASE-INGEST"
+  | "CASE-PARSER"
+  | "CASE-NORMALIZER"
+  | "CASE-VALIDATOR"
+  | "CASE-GRAPH"
+  | "CASE-INDEX"
+  | "CASE-RETRIEVAL"
+  | "CASE-REASONER"
+  | "CASE-CITATION"
+  | "CASE-MONITOR"
+  | "CASE-API"
+  | "CASE-TRACE";
+
+export interface CaseServiceDescriptor {
+  service_id: CaseServiceId;
+  responsibility: string;
+  implementation_mode: "logical_in_process_module_p0";
+  shared_reg24_dependencies: string[];
+  status: "operational" | "degraded";
+}
+
+export interface CaseSourceConnector {
+  connector_id: string;
+  source_name: string;
+  source_name_th: string;
+  priority_tier: "P0_MANDATORY" | "P1_SPECIALIST";
+  base_url: string;
+  data_scope: string;
+  required_action: string;
+  supported_formats: ("PDF" | "HTML" | "TXT" | "STRUCTURED_JSON")[];
+  incremental_ingestion_enabled: boolean;
+  manual_import_enabled: boolean;
+  fingerprinting_and_dedup: "SHA256_CANONICAL_DEDUP";
+  licensing_and_rights: {
+    rights_status: "approved" | "restricted" | "unknown";
+    redistribution_permitted: boolean;
+    respects_robots_txt: true;
+    retention_policy: string;
+    access_permission_roles: UserRole[];
+  };
+  operational_status: {
+    status: "active_verified" | "authorized_metadata_only" | "reused_internal_corpus" | "standby";
+    last_sync_at: string;
+    documents_ingested: number;
+    duplicate_imports_skipped: number;
+    failed_ingestions_isolated: number;
+  };
+}
+
+export interface CaseIngestionJob {
+  job_id: string;
+  connector_id: string;
+  source_name: string;
+  started_at: string;
+  completed_at: string;
+  mode: "scheduled_incremental" | "manual_admin_import" | "connector_discovery";
+  format: "PDF" | "HTML" | "TXT" | "STRUCTURED_JSON";
+  status: "completed_verified" | "duplicate_skipped" | "isolated_failure" | "quarantined_prompt_injection";
+  source_url: string;
+  source_hash: string;
+  canonical_case_id?: string;
+  notes: string;
+}
+
+export interface StatuteReference {
+  statute_id: string;
+  provision_id: string;
+  statute_name_th: string;
+  statute_name_en: string;
+  section_number: string;
+  applied_version_id: string;
+  effective_from: string;
+  effective_to?: string;
+  historical_version_warning?: string;
+}
+
+export interface CaseReference {
+  target_case_id: string;
+  case_number: string;
+  court_name: string;
+  relationship:
+    | "CASE_CITES_CASE"
+    | "CASE_DISTINGUISHES_CASE"
+    | "CASE_OVERRULES_CASE"
+    | "CASE_RELATED_TO_CASE";
+  citation_context_note: string;
+  verified: boolean;
+}
+
+export interface SourcePassageLink {
+  passage_id: string;
+  field_supported: "facts" | "disputed_issues" | "reasoning" | "outcome" | "case_summary";
+  verbatim_quote_th: string;
+  translation_en: string;
+  locator: string;
+  sha256_fragment_hash: string;
+}
+
+export interface LegalCase {
+  id: string;
+  jurisdiction: string;
+  court_name: string;
+  court_level: string;
+  court_division?: string;
+
+  case_number: string;
+  judgment_number?: string;
+  judgment_date?: string;
+  publication_date?: string;
+  transaction_or_event_date?: string;
+  assessment_or_filing_date?: string;
+
+  case_type: string;
+  legal_domains: string[];
+  legal_issues: string[];
+  legal_issue_ids: string[];
+  domain_pack: "P0_TAX_PACK" | "P0_CORPORATE_PACK" | "P1_INSOLVENCY_PACK" | "CROSS_DOMAIN_LABOR_PDPA_SEC";
+
+  authority_distinction: {
+    document_category:
+      | "supreme_court_judgment"
+      | "supreme_court_general_assembly_judgment"
+      | "specialist_court_judgment"
+      | "administrative_ruling";
+    is_binding_statute: false;
+    can_override_statute: false;
+    precedent_weight_th: string;
+    precedent_weight_en: string;
+  };
+
+  original_language: string;
+  full_text?: string;
+  case_summary?: string;
+  is_ai_generated_summary: boolean;
+
+  facts?: string;
+  disputed_issues?: string[];
+  reasoning?: string;
+  outcome?: string;
+
+  cited_statutes: StatuteReference[];
+  cited_cases: CaseReference[];
+  supporting_source_passages: SourcePassageLink[];
+
+  source_name: string;
+  source_url: string;
+  source_document_id?: string;
+  source_hash: string;
+
+  text_completeness: "full" | "partial" | "summary_only";
+  verification_status: "unverified" | "machine_verified" | "human_verified";
+  rights_status: "approved" | "restricted" | "unknown";
+
+  extraction_confidence: number;
+  pdpa_redacted: boolean;
+  ingestion_timestamp: string;
+  last_verified_at?: string;
+}
+
+export type CaseGraphNodeType =
+  | "LegalCase"
+  | "Court"
+  | "LegalIssue"
+  | "Statute"
+  | "StatuteSection"
+  | "StatuteVersion"
+  | "AdministrativeRuling"
+  | "RegulatoryInstrument"
+  | "LegalConcept"
+  | "Organization"
+  | "SourceDocument";
+
+export interface CaseGraphNode {
+  id: string;
+  node_type: CaseGraphNodeType;
+  label_th: string;
+  label_en: string;
+  module_id: string;
+  metadata: Record<string, string | number | boolean>;
+}
+
+export interface CaseGraphEdge {
+  id: string;
+  source_id: string;
+  target_id: string;
+  relationship:
+    | "CASE_CITES_CASE"
+    | "CASE_INTERPRETS_SECTION"
+    | "CASE_ADDRESSES_ISSUE"
+    | "CASE_APPLIES_VERSION"
+    | "RULING_INTERPRETS_SECTION"
+    | "SECTION_AMENDED_BY"
+    | "CASE_RELATED_TO_CASE"
+    | "CASE_DISTINGUISHES_CASE"
+    | "CASE_OVERRULES_CASE"
+    | "DOCUMENT_PUBLISHED_BY";
+  provenance_citation: string;
+  confidence: number;
+  extraction_method: "explicit_source_text" | "deterministic_parser" | "ai_inferred_quarantined";
+  verification_status: "human_verified" | "machine_verified" | "unverified_ai_inferred";
+  is_ai_inferred: boolean;
+  notes?: string;
+}
+
+export interface CaseLegalIssueNode {
+  id: string;
+  code: string;
+  title_th: string;
+  title_en: string;
+  domain: string;
+  governing_statute_sections: string[];
+  linked_case_ids: string[];
+  has_conflicting_or_distinguished_decisions: boolean;
+}
+
+export interface CaseHybridSearchRequest {
+  query?: string;
+  retrieval_methods?: ("keyword" | "semantic" | "graph" | "metadata")[];
+  filters?: {
+    court?: string;
+    date_from?: string;
+    date_to?: string;
+    legal_domain?: string;
+    statute_or_section?: string;
+    case_type?: string;
+    domain_pack?: string;
+    verification_status?: "unverified" | "machine_verified" | "human_verified";
+    include_restricted?: boolean;
+  };
+  limit?: number;
+  tenant_id?: string;
+  role?: UserRole;
+}
+
+export interface CaseSearchResultItem {
+  case_id: string;
+  case_number: string;
+  court: string;
+  court_level: string;
+  judgment_date: string;
+  domain_pack: string;
+  relevant_legal_issue: string;
+  short_factual_summary: string;
+  is_ai_generated_summary: boolean;
+  relevant_statutory_provisions: {
+    provision_id: string;
+    section_number: string;
+    statute_name_en: string;
+    applied_version_id: string;
+  }[];
+  source_link: string;
+  source_name: string;
+  verification_status: "unverified" | "machine_verified" | "human_verified";
+  text_completeness: "full" | "partial" | "summary_only";
+  rights_status: "approved" | "restricted" | "unknown";
+  authority_distinction_badge: string;
+  matched_methods: ("keyword" | "semantic" | "graph" | "metadata")[];
+  ranking_breakdown: {
+    exact_issue_match_score: number;
+    material_fact_similarity_score: number;
+    statutory_version_relevance_score: number;
+    court_authority_score: number;
+    completeness_and_verification_score: number;
+    total_relevance_score: number;
+  };
+}
+
+export interface CaseHybridSearchResponse {
+  trace_id: string;
+  query: string;
+  methods_executed: ("keyword" | "semantic" | "graph" | "metadata")[];
+  total_hits: number;
+  results: CaseSearchResultItem[];
+  related_tax_rulings: {
+    ruling_id: string;
+    reference_number: string;
+    issue_date: string;
+    subject_th: string;
+    subject_en: string;
+    authority_classification: TaxDocumentAuthorityClass;
+    official_url: string;
+  }[];
+}
+
+export interface CaseComparisonResult {
+  comparison_id: string;
+  trace_id: string;
+  compared_cases: {
+    id: string;
+    case_number: string;
+    court_name: string;
+    judgment_date: string;
+    domain_pack: string;
+    outcome: string;
+    verification_status: string;
+    text_completeness: string;
+  }[];
+  shared_statutory_provisions: {
+    provision_id: string;
+    section_number: string;
+    statute_name_en: string;
+    applied_versions: string[];
+  }[];
+  material_factual_similarities: string[];
+  material_factual_differences: string[];
+  judicial_reasoning_comparison: {
+    dimension: string;
+    case_a_position: string;
+    case_b_position: string;
+    legal_significance: string;
+  }[];
+  relationship_classification:
+    | "DISTINGUISHED_ON_MATERIAL_FACTS"
+    | "CONISTENT_PRECEDENT_LINE"
+    | "CONFLICTING_INTERPRETATION_REQUIRES_REVIEW"
+    | "HISTORICAL_STATUTE_AMENDMENT_DIVERGENCE";
+  synthesis_conclusion: string;
+  supporting_source_passages: SourcePassageLink[];
+  human_review_required: boolean;
+}
+
+export interface HistoricalLawPointInTimeResult {
+  trace_id: string;
+  queried_provision_or_topic: string;
+  timeline_dates: {
+    transaction_date: string;
+    assessment_date?: string;
+    filing_date?: string;
+    judgment_date?: string;
+  };
+  governing_date_used: string;
+  historically_applicable_law: {
+    provision_id: string;
+    statute_name_th: string;
+    statute_name_en: string;
+    section_number: string;
+    historical_version_id: string;
+    effective_from: string;
+    effective_to?: string;
+    historical_rule_summary_th: string;
+    historical_rule_summary_en: string;
+    official_source_url: string;
+  };
+  current_law_comparison: {
+    current_version_id: string;
+    current_effective_from: string;
+    differs_from_historical_law: boolean;
+    amendment_instrument_title: string;
+    material_change_warning: string;
+  };
+  illustrative_cases_applying_historical_version: {
+    case_id: string;
+    case_number: string;
+    judgment_date: string;
+    how_applied: string;
+  }[];
+}
+
+export interface CaseCitationVerificationResult {
+  trace_id: string;
+  submitted_citation: string;
+  submitted_statute_section?: string;
+  submitted_quote?: string;
+  claimed_overruled?: boolean;
+  verified: boolean;
+  verification_status:
+    | "DETERMINISTICALLY_VERIFIED"
+    | "UNVERIFIED_CITATION_NOT_FOUND"
+    | "STATUTE_SECTION_MISMATCH"
+    | "UNSUPPORTED_OVERRULING_CLAIM"
+    | "QUOTE_NOT_IN_SOURCE_PASSAGES";
+  hallucination_blocked: boolean;
+  matched_case?: {
+    id: string;
+    case_number: string;
+    court_name: string;
+    judgment_date?: string;
+    source_url: string;
+    source_hash: string;
+    text_completeness: "full" | "partial" | "summary_only";
+    verification_status: "unverified" | "machine_verified" | "human_verified";
+    rights_status: "approved" | "restricted" | "unknown";
+  };
+  checks_performed: {
+    no_invented_judgment_number: boolean;
+    no_invented_statutory_section: boolean;
+    no_fabricated_quotation: boolean;
+    no_unsupported_overruling_claim: boolean;
+    resolves_to_stored_source_passage: boolean;
+    restricted_content_policy_enforced: boolean;
+  };
+  explanation: string;
+}
+
+export interface CaseDataQualityMetrics {
+  evaluated_at: string;
+  benchmark_dataset_name: string;
+  total_canonical_cases: number;
+  metrics: {
+    metadata_completeness_pct: number;
+    duplicate_rate_pct: number;
+    citation_validity_pct: number;
+    source_coverage_pct: number;
+    avg_extraction_confidence: number;
+    statutory_link_accuracy_pct: number;
+    human_review_verified_pct: number;
+    source_freshness_hours: number;
+    full_text_availability_pct: number;
+  };
+  release_thresholds: {
+    min_metadata_completeness_pct: number;
+    max_duplicate_rate_pct: number;
+    min_citation_validity_pct: number;
+    min_statutory_link_accuracy_pct: number;
+  };
+  all_release_thresholds_met: boolean;
+}
+
+export interface CaseAgenticResearchResponse {
+  research_id: string;
+  trace_id: string;
+  scenario_code?: "SCENARIO_A_TAX_65_TER" | "SCENARIO_B_DIRECTOR_LIABILITY" | "SCENARIO_C_HISTORICAL_LAW" | "SCENARIO_D_UNSUPPORTED_CITATION" | "SCENARIO_E_CONFLICTING_CASES" | "CUSTOM_LEGAL_RESEARCH";
+  workflow_steps_executed: {
+    step_number: number;
+    step_name: string;
+    service_invoked: CaseServiceId;
+    status: "completed" | "flagged_uncertainty";
+    detail: string;
+  }[];
+  mandatory_research_memo: {
+    question_presented: string;
+    applicable_law: {
+      provision_id: string;
+      statute_name_th: string;
+      statute_name_en: string;
+      section_number: string;
+      applied_version_id: string;
+      effective_period: string;
+      historical_warning?: string;
+    }[];
+    relevant_cases: {
+      case_id: string;
+      case_number: string;
+      court_name: string;
+      judgment_date: string;
+      authority_category: string;
+      outcome_summary: string;
+      verification_status: string;
+      text_completeness: string;
+    }[];
+    relevant_administrative_rulings: {
+      ruling_id: string;
+      reference_number: string;
+      authority_classification: string;
+      can_override_statute: false;
+      summary_en: string;
+    }[];
+    material_factual_similarities_and_differences: {
+      similarities: string[];
+      differences: string[];
+    };
+    legal_analysis: string;
+    conflicting_authorities_or_uncertainty: string[];
+    conclusion: string;
+    source_citations: {
+      citation_id: string;
+      source_type: "statute" | "supreme_court_judgment" | "specialist_court_judgment" | "administrative_ruling";
+      reference_label: string;
+      locator_or_passage: string;
+      source_url: string;
+      sha256_hash: string;
+      verified: boolean;
+    }[];
+  };
+  epistemic_classification: {
+    directly_supported_findings: string[];
+    reasonable_inferences: string[];
+    unverified_assumptions: string[];
+    missing_evidence: string[];
+  };
+  citation_verification_summary: {
+    all_citations_verified: boolean;
+    unverified_citations_blocked: string[];
+    human_review_required: boolean;
+  };
+}
+
 
 
