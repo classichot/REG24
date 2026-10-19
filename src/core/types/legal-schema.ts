@@ -187,12 +187,21 @@ export interface Provision {
   executable_rule_ids: string[];
 }
 
+export interface ProvisionClause {
+  clause_id: string; // e.g., "clause.th.pdpa.24.1"
+  clause_number: string; // e.g., "(1)", "Paragraph 2", "Clause 5(3)"
+  text_th: string;
+  text_en: string;
+  legal_effect: "obligation" | "lawful_basis" | "exception" | "condition" | "refusal_ground" | "penalty";
+}
+
 export interface ProvisionVersion {
   id: string; // Separate version ID e.g., "ver.th.ccc.1097.v2566"
   provision_id: string;
   version_number: string; // e.g., "B.E. 2566 (2023 Amendment)"
   text_th: string; // Authoritative Thai text (REG-DATA-004)
   translation_en: TranslationRepresentation;
+  clauses?: ProvisionClause[]; // Clause-level legal indexing (PDPA Deliverable 2)
   publication_date: string;
   effective_from: string; // Legal effective time start
   effective_to?: string; // null/undefined if currently in force
@@ -236,6 +245,12 @@ export interface Obligation {
   regulator_id: string;
   statutory_vs_constitutional: "statutory_obligation" | "constitutional_article_option" | "case_specific_interpretation";
   penalties_summary?: string;
+  enforcement_consequences?: {
+    civil_liability?: string;
+    criminal_penalty?: string;
+    administrative_fine_max_thb?: number;
+    enforcement_provision_id?: string;
+  };
 }
 
 export interface Condition {
@@ -438,6 +453,8 @@ export interface AuditTraceEvent {
   rules_evaluated: string[];
   prompt_injection_checked: boolean;
   prompt_injection_blocked: boolean;
+  privacy_by_design_redacted?: boolean;
+  pii_redacted_fields?: string[];
   latency_ms: number;
   status: "success" | "blocked" | "requires_review" | "error";
   summary: string;
@@ -904,4 +921,120 @@ export interface TaxFactComparisonResult {
     autonomous_tax_filing_permitted: false;
   };
 }
+
+// ============================================================================
+// PDPA SCOPE EXPANSION (v1.2 OCT 2026) — MODULE REG24-PDPA (reg24.pdpa.th)
+// PDPA B.E. 2562 • 2026 Access-Request Notification • Breach • DPO • Cross-Border
+// ============================================================================
+
+export interface PDPASubordinateRegulationRecord {
+  id: string;
+  module_id: string;
+  regulation_code: string;
+  title_th: string;
+  title_en: string;
+  buddhist_era_year: number;
+  enabling_pdpa_sections: string[];
+  publication_date: string;
+  effective_from: string;
+  key_requirements_th: string[];
+  key_requirements_en: string[];
+  official_url: string;
+  sha256_hash: string;
+  binding_status: RegulatoryBindingStatus;
+}
+
+export interface PDPAComplianceAssessmentResult {
+  assessment_id: string;
+  trace_id: string;
+  tenant_id: string;
+  evaluated_as_of_date: string;
+  access_request_regime: "PRE_2026_BASELINE_DSAR" | "2026_PDPC_ACCESS_REQUEST_NOTIFICATION_REGIME";
+  privacy_by_design_guard: {
+    pii_minimization_applied: boolean;
+    redacted_fields: string[];
+    tenant_isolation_verified: boolean;
+    sanitized_scenario_summary: string;
+  };
+  domain_evaluations: {
+    applicability: {
+      outcome: ApplicabilityOutcome;
+      section_cited: string;
+      basis_type: "domestic_establishment_sec_5_para_1" | "extraterritorial_offering_or_monitoring_sec_5_para_2" | "exempt_sec_4";
+      explanation: string;
+    };
+    lawful_basis_and_consent: {
+      outcome: ApplicabilityOutcome;
+      section_cited: string;
+      relied_basis: string;
+      involves_sensitive_data_sec_26: boolean;
+      consent_validity_sec_19_passed: boolean;
+      explanation: string;
+    };
+    data_subject_access_request_2026: {
+      outcome: ApplicabilityOutcome;
+      section_cited: string;
+      notification_applied: string;
+      days_elapsed: number;
+      statutory_max_days: 30;
+      within_statutory_deadline: boolean;
+      identity_verification_compliant: boolean;
+      permissible_refusal_ground_applicable: boolean;
+      explanation: string;
+    };
+    breach_notification: {
+      outcome: ApplicabilityOutcome;
+      section_cited: string;
+      hours_since_discovery: number;
+      statutory_pdpc_deadline_hours: 72;
+      pdpc_notification_required: boolean;
+      late_notification_violation: boolean;
+      immediate_data_subject_notice_required: boolean;
+      explanation: string;
+    };
+    dpo_designation: {
+      outcome: ApplicabilityOutcome;
+      section_cited: string;
+      mandatory_dpo_required: boolean;
+      dpo_appointed: boolean;
+      trigger_reason: string;
+      explanation: string;
+    };
+    cross_border_transfer: {
+      outcome: ApplicabilityOutcome;
+      section_cited: string;
+      transfer_mechanism: string;
+      lawful_transfer_verified: boolean;
+      explanation: string;
+    };
+  };
+  cross_module_dependencies: {
+    target_module_id: string;
+    relationship: GraphRelationshipType;
+    target_provision_id: string;
+    legal_impact_summary: string;
+  }[];
+  enforcement_exposure: {
+    civil_liability_sec_77_78: string;
+    criminal_penalty_sec_79_81: string;
+    administrative_fine_sec_82_90_max_thb: number;
+    referenced_pdpc_expert_committee_orders: {
+      case_number: string;
+      title_en: string;
+      holding_summary_en: string;
+    }[];
+  };
+  verified_citations: {
+    provision_id: string;
+    section_number: string;
+    version_id: string;
+    clause_ids_matched: string[];
+    citation_locator: string;
+    official_url: string;
+    sha256_hash: string;
+  }[];
+  overall_compliance_status: "COMPLIANT" | "NON_COMPLIANT_ENFORCEMENT_RISK" | "REQUIRES_HUMAN_LEGAL_REVIEW";
+  human_review_required: boolean;
+}
+
 

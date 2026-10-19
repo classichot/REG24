@@ -290,6 +290,32 @@ export const MCP_TOOLS_CATALOG = [
     description: "REG-TAX-CHANGE / TAX-API-01: Retrieve statutory amendments, Top-up Tax B.E. 2567 updates, and new RD consultation letters affecting TP24, CFO24, ACC24, GMT24, and LAW24",
     inputSchema: { type: "object", properties: { module_ids: { type: "array", items: { type: "string" } } } },
   },
+  // PDPA Scope Expansion (v1.2 — Module REG24-PDPA / reg24.pdpa.th) MCP Services
+  {
+    name: "assess_pdpa_applicability_and_basis",
+    description: "REG24-PDPA: Deterministically evaluate PDPA territorial/extraterritorial scope (Sec. 3–5), consent validity (Sec. 19), general lawful bases (Sec. 24), and sensitive personal data protection (Sec. 26)",
+    inputSchema: { type: "object", properties: { facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "evaluate_pdpa_dsar_and_breach",
+    description: "REG24-PDPA: Evaluate compliance with the 2026 PDPC Access-Request Notification (30-day DSAR window & identity minimization) and 72-hour breach reporting (Sec. 37(4))",
+    inputSchema: { type: "object", properties: { facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "check_pdpa_cross_border_and_dpo",
+    description: "REG24-PDPA: Verify mandatory DPO designation (Sec. 41) and cross-border personal data transfer mechanisms (Adequacy, BCRs, SCCs under Sec. 28–29)",
+    inputSchema: { type: "object", properties: { facts: { type: "object" }, as_of_date: { type: "string" } } },
+  },
+  {
+    name: "get_pdpa_subordinate_regulations",
+    description: "REG24-PDPA: Retrieve verified PDPC notifications (including the 2026 Access-Request Notification B.E. 2569) and PDPC Expert Committee administrative enforcement orders",
+    inputSchema: { type: "object", properties: { as_of_date: { type: "string" } } },
+  },
+  {
+    name: "run_pdpa_compliance_assessment",
+    description: "REG24-PDPA: Execute end-to-end PDPA B.E. 2562 & 2026 Access-Request Notification compliance assessment with Privacy-by-Design PII minimization and cross-module GraphRAG dependencies",
+    inputSchema: { type: "object", properties: { as_of_date: { type: "string" }, facts: { type: "object" } } },
+  },
 ];
 
 export async function GET() {

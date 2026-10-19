@@ -79,6 +79,19 @@ export async function POST(req: NextRequest) {
           snapshot: reg24Core.getDashboardSnapshot(),
         });
       }
+      case "run_pdpa_compliance_mission": {
+        const res = reg24Core.executePDPAComplianceMission({
+          as_of_date: payload?.as_of_date || "2026-10-18",
+          tenant_id: payload?.tenant_id || "tenant.law24.prod",
+          scenario_summary: payload?.scenario_summary,
+          facts: payload?.facts,
+        });
+        return NextResponse.json({
+          success: true,
+          pdpa_compliance_assessment: res.result,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
       case "reset_seed": {
         reg24Core.resetToSeed();
         return NextResponse.json({ success: true, snapshot: reg24Core.getDashboardSnapshot() });

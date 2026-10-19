@@ -12,7 +12,7 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     core = new Reg24PlatformCore();
   });
 
-  it("REG-QA-001: Publishes all 14 mandatory P0 Thailand legal modules (6 Foundation + 4 Capital Markets & Restructuring + 4 Tax Rulings & Sub-Regulations Expansion) with visible scope and limitations", () => {
+  it("REG-QA-001: Publishes all 15 mandatory P0 Thailand legal modules (6 Foundation + 4 Capital Markets & Restructuring + 4 Tax Rulings & Sub-Regulations + 1 PDPA Scope Expansion) with visible scope and limitations", () => {
     const modules = core.listModules(false);
     const ids = modules.map((m) => m.module_id);
     expect(ids).toContain("reg24.corporate.th");
@@ -29,7 +29,8 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     expect(ids).toContain("reg24.set.th");
     expect(ids).toContain("reg24.restruct.th");
     expect(ids).toContain("reg24.insolv.th");
-    expect(modules.length).toBe(14);
+    expect(ids).toContain("reg24.pdpa.th");
+    expect(modules.length).toBe(15);
 
     for (const mod of modules) {
       expect(mod.source_coverage.provision_boundary_accuracy_pct).toBeGreaterThanOrEqual(95);
@@ -132,8 +133,8 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
 
   it("REG-QA-006: Installs a dynamic module, discovers it via MCP, upgrades/rolls back, and preserves canonical Civil Code records upon removal", () => {
     const installRes = core.installDynamicModule({
-      module_id: "reg24.pdpa.th",
-      display_name: "Personal Data Protection (PDPA)",
+      module_id: "reg24.cyber.th",
+      display_name: "Cybersecurity Act (NCSA)",
     });
     expect(installRes.success).toBe(true);
 
@@ -141,11 +142,11 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     const mcpList = core.executeMCPTool("reg24.list_modules") as {
       result: { total_published_modules: number; modules: { module_id: string }[] };
     };
-    expect(mcpList.result.total_published_modules).toBe(15);
-    expect(mcpList.result.modules.some((m) => m.module_id === "reg24.pdpa.th")).toBe(true);
+    expect(mcpList.result.total_published_modules).toBe(16);
+    expect(mcpList.result.modules.some((m) => m.module_id === "reg24.cyber.th")).toBe(true);
 
     // Uninstall dynamic module and verify canonical Civil Code provisions remain intact
-    const uninstallRes = core.uninstallModuleSafely("reg24.pdpa.th");
+    const uninstallRes = core.uninstallModuleSafely("reg24.cyber.th");
     expect(uninstallRes.success).toBe(true);
     expect(uninstallRes.preservedCanonicalProvisions).toBeGreaterThanOrEqual(13);
   });
@@ -466,6 +467,138 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
       traceBasis.result.article_to_regulation_to_ruling_graph.interpreting_rulings.some(
         (r) => r.id === "ruling.th.rd.0702_462_2569"
       )
+    ).toBe(true);
+  });
+
+  it("REG24-PDPA Scope Expansion (Deliverables 1–10): Ingests PDPA B.E. 2562 & 2026 Access-Request Notification, supports document/section/clause indexing & temporal versioning, executes deterministic rules (applicability, lawful basis, consent, 2026 DSAR, 72h breach, DPO, cross-border SCC/BCR), links cross-module GraphRAG & PDPC 7M THB Order, and enforces Privacy-by-Design PII redaction", () => {
+    // 1. Deliverable 1 & 2: Clause-level indexing and effective-date versioning (Pre-2026 vs. 2026 Access-Request Notification B.E. 2569)
+    const pre2026Dsar = core.searchLaw({
+      query: "Section 30",
+      module_ids: ["reg24.pdpa.th"],
+      as_of_date: "2025-06-15",
+    });
+    expect(pre2026Dsar.result.hits[0].provision_id).toBe("prov.th.pdpa.30_36");
+    expect(pre2026Dsar.result.hits[0].effective_from).toBe("2022-06-01");
+
+    const post2026Dsar = core.searchLaw({
+      query: "2026 Notification Data Minimization",
+      module_ids: ["reg24.pdpa.th"],
+      as_of_date: "2026-10-18",
+    });
+    expect(post2026Dsar.result.hits[0].provision_id).toBe("prov.th.pdpa.30_36");
+    expect(post2026Dsar.result.hits[0].effective_from).toBe("2026-02-01");
+    expect(post2026Dsar.result.hits[0].clauses.length).toBeGreaterThanOrEqual(4);
+    expect(
+      post2026Dsar.result.hits[0].clauses.some(
+        (c: { clause_id: string }) => c.clause_id === "clause.th.pdpa.30.2026_id_minimization"
+      )
+    ).toBe(true);
+
+    // 2. Deliverable 5: Deterministic rules for applicability (Sec. 3–5), consent (Sec. 19), lawful basis (Sec. 24), and sensitive data (Sec. 26)
+    const biometricViolation = core.evaluateRule({
+      rule_id: "rule.th.pdpa.applicability_and_lawful_basis",
+      facts: {
+        controller_in_thailand: false,
+        data_subjects_in_thailand: true,
+        offers_goods_or_monitors_behavior_in_thailand: true,
+        statutory_exemption_sec_4: false,
+        involves_sensitive_data_sec_26: true,
+        lawful_basis_claimed: "legitimate_interest_sec_24_5",
+        consent_unbundled_and_freely_given: false,
+      },
+    });
+    expect(biometricViolation.result.outcome).toBe("requires_review");
+    expect(
+      biometricViolation.result.calculated_result.requires_local_representative_sec_37_5
+    ).toBe(true);
+    expect(biometricViolation.result.calculated_result.lawful_basis_and_consent_valid).toBe(false);
+    expect(biometricViolation.result.calculated_result.max_administrative_fine_thb).toBe(5000000);
+
+    // 3. Deliverable 5: Deterministic rules for 2026 DSAR (30-day clock), 72h breach notification, DPO (Sec. 41), and Cross-Border SCCs/BCRs (Sec. 28–29)
+    const compliantOps = core.evaluateRule({
+      rule_id: "rule.th.pdpa.dsar_and_breach_compliance",
+      as_of_date: "2026-10-18",
+      facts: {
+        dsar_days_elapsed: 14,
+        dsar_identity_verification_minimized: true,
+        dsar_refusal_ground: "none",
+        breach_occurred: true,
+        breach_hours_since_discovery: 48,
+        breach_risk_level: "risk_to_rights_and_freedoms",
+        pdpc_notified: true,
+        data_subjects_notified: true,
+        requires_mandatory_dpo: true,
+        dpo_appointed: true,
+        cross_border_transfer_mechanism: "scc_appropriate_safeguards_sec_29",
+      },
+    });
+    expect(compliantOps.result.outcome).toBe("applicable");
+    expect(compliantOps.result.calculated_result.access_request_regime_applied).toBe(
+      "2026_PDPC_ACCESS_REQUEST_NOTIFICATION_B_E_2569"
+    );
+    expect(compliantOps.result.calculated_result.dsar_overall_compliant).toBe(true);
+    expect(compliantOps.result.calculated_result.breach_overall_compliant).toBe(true);
+    expect(compliantOps.result.calculated_result.dpo_overall_compliant).toBe(true);
+    expect(
+      compliantOps.result.calculated_result.cross_border_transfer_compliant_sec_28_29
+    ).toBe(true);
+
+    // Non-compliant DSAR (>30d), late breach (>72h), and missing DPO triggers enforcement escalation
+    const nonCompliantOps = core.evaluateRule({
+      rule_id: "rule.th.pdpa.dsar_and_breach_compliance",
+      as_of_date: "2026-10-18",
+      facts: {
+        dsar_days_elapsed: 45,
+        dsar_identity_verification_minimized: false,
+        dsar_refusal_ground: "arbitrary_refusal",
+        breach_occurred: true,
+        breach_hours_since_discovery: 96,
+        breach_risk_level: "high_risk",
+        pdpc_notified: false,
+        data_subjects_notified: false,
+        requires_mandatory_dpo: true,
+        dpo_appointed: false,
+        cross_border_transfer_mechanism: "unverified_transfer",
+      },
+    });
+    expect(nonCompliantOps.result.outcome).toBe("requires_review");
+    expect(
+      Number(nonCompliantOps.result.calculated_result.estimated_administrative_fine_exposure_thb)
+    ).toBeGreaterThanOrEqual(7000000);
+
+    // 4. Deliverable 3, 6, 7, 8 & 9: End-to-end PDPA Compliance Mission, Cross-Module GraphRAG, Regulatory Change Detection, and Privacy-by-Design PII Redaction
+    const mission = core.executePDPAComplianceMission({
+      as_of_date: "2026-10-18",
+      tenant_id: "tenant.law24.prod",
+      scenario_summary:
+        "Employee Somchai (Thai ID 1-1004-00982-12-9, email somchai@company.co.th, phone 089-123-4567) submitted a 2026 DSAR for biometric records.",
+    });
+    expect(mission.result.access_request_regime).toBe(
+      "2026_PDPC_ACCESS_REQUEST_NOTIFICATION_REGIME"
+    );
+    expect(mission.result.privacy_by_design_guard.pii_minimization_applied).toBe(true);
+    expect(mission.result.privacy_by_design_guard.redacted_fields).toContain(
+      "thai_national_id_13_digit"
+    );
+    expect(mission.result.privacy_by_design_guard.redacted_fields).toContain("email_address");
+    expect(mission.result.privacy_by_design_guard.redacted_fields).toContain("thai_phone_number");
+    expect(mission.result.privacy_by_design_guard.sanitized_scenario_summary).not.toContain(
+      "1-1004-00982-12-9"
+    );
+    expect(mission.result.privacy_by_design_guard.sanitized_scenario_summary).toContain(
+      "[REDACTED_THAI_ID]"
+    );
+    expect(mission.result.cross_module_dependencies.length).toBe(4);
+    expect(
+      mission.result.enforcement_exposure.referenced_pdpc_expert_committee_orders.length
+    ).toBeGreaterThanOrEqual(2);
+
+    // Verify Regulatory Change Detection for the 2026 Access-Request Notification
+    const pdpaChanges = core.executeMCPTool("reg24.get_regulatory_changes", {
+      module_ids: ["reg24.pdpa.th"],
+    }) as { result: { regulatory_changes: { id: string; impacted_module_ids: string[] }[] } };
+    expect(
+      pdpaChanges.result.regulatory_changes.some((c) => c.id === "chg.th.pdpa.2026.001")
     ).toBe(true);
   });
 });

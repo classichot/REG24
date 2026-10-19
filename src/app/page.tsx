@@ -58,6 +58,8 @@ import type {
   TaxRulingRecord,
   TaxJudicialDecisionRecord,
   TaxFactComparisonResult,
+  PDPASubordinateRegulationRecord,
+  PDPAComplianceAssessmentResult,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -74,6 +76,8 @@ interface SnapshotData {
   taxSubRegulations: TaxSubRegulationRecord[];
   taxRulings: TaxRulingRecord[];
   taxJudicialDecisions: TaxJudicialDecisionRecord[];
+  pdpaSubordinateRegulations: PDPASubordinateRegulationRecord[];
+  samplePDPAComplianceAssessment: PDPAComplianceAssessmentResult;
   sampleTaxPrecedentComparison: TaxFactComparisonResult;
   sample3RGraphRAGResult: {
     result: ThreeRGraphRAGResponse;
@@ -90,6 +94,7 @@ interface SnapshotData {
 
 type ScreenId =
   | "PANORAMA"
+  | "SCREEN_L_PDPA"
   | "SCREEN_K_TAX_PRECEDENT"
   | "SCREEN_J_RESTRUCT_MISSION"
   | "SCREEN_A_REGISTRY"
@@ -109,16 +114,17 @@ const SCREEN_CONFIG: {
   labelTh: string;
   accent: string;
 }[] = [
-  { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (14 โมดูล P0)", accent: "#0050EF" },
+  { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (15 โมดูล P0)", accent: "#0050EF" },
+  { id: "SCREEN_L_PDPA", code: "SCR-L", label: "pdpa & 2026 dsar", labelTh: "คุ้มครองข้อมูลส่วนบุคคล PDPA & ประกาศ สคส. 2569", accent: "#00ABA9" },
   { id: "SCREEN_K_TAX_PRECEDENT", code: "SCR-K", label: "tax rulings & sub-regs", labelTh: "ข้อหารือกรมสรรพากร 462/2569 & กฎหมายลำดับรอง (v1.1)", accent: "#008A00" },
   { id: "SCREEN_J_RESTRUCT_MISSION", code: "SCR-J", label: "capital markets & restruct", labelTh: "ภารกิจปรับโครงสร้างหนี้ & ตลาดทุน (6 โมดูล)", accent: "#FA6800" },
-  { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0 (14 โมดูล)", accent: "#008A00" },
+  { id: "SCREEN_A_REGISTRY", code: "SCR-A", label: "module registry", labelTh: "ทะเบียนโมดูลกฎหมาย P0 (15 โมดูล)", accent: "#008A00" },
   { id: "SCREEN_B_FACTORY", code: "SCR-B", label: "module factory", labelTh: "สร้างและติดตั้งโมดูลใหม่", accent: "#1BA1E2" },
   { id: "SCREEN_C_SOURCES", code: "SCR-C", label: "legal sources", labelTh: "แหล่งข้อมูลและหลักฐานอ้างอิง", accent: "#F0A30A" },
   { id: "SCREEN_D_GRAPH", code: "SCR-D", label: "3r graphrag & graph", labelTh: "ไฮบริด GraphRAG 3R และกราฟกฎหมาย", accent: "#A20025" },
   { id: "SCREEN_E_RULES", code: "SCR-E", label: "rule studio", labelTh: "กฎคำนวณอัตโนมัติ (Law-as-Code)", accent: "#6A00FF" },
   { id: "SCREEN_F_CHANGES", code: "SCR-F", label: "change intelligence", labelTh: "ตรวจจับการแก้ไขกฎหมาย", accent: "#D80073" },
-  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (38 Tools)", accent: "#00ABA9" },
+  { id: "SCREEN_G_MCP", code: "SCR-G", label: "mcp & api gateway", labelTh: "เกตเวย์ MCP 2026 & REST (43 Tools)", accent: "#00ABA9" },
   { id: "SCREEN_I_A2A", code: "SCR-I", label: "a2a agent hub", labelTh: "การมอบหมายงานข้ามเอเจนต์ (A2A v1.0)", accent: "#E51400" },
   { id: "SCREEN_H_AUDIT", code: "SCR-H", label: "trace & audit", labelTh: "ตรวจสอบย้อนกลับ TRACE24", accent: "#647687" },
 ];
@@ -160,10 +166,10 @@ export default function Reg24MetroConsole() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [liveTileTick, setLiveTileTick] = useState<number>(0);
 
-  // Screen B — Module Factory states
-  const [newModId, setNewModId] = useState("reg24.pdpa.th");
-  const [newModNameEn, setNewModNameEn] = useState("Personal Data Protection (PDPA)");
-  const [newModNameTh, setNewModNameTh] = useState("พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล (PDPA)");
+  // Screen B — Module Factory states (uses reg24.cyber.th since reg24.pdpa.th is native P0-15)
+  const [newModId, setNewModId] = useState("reg24.cyber.th");
+  const [newModNameEn, setNewModNameEn] = useState("Cybersecurity Act (NCSA)");
+  const [newModNameTh, setNewModNameTh] = useState("พ.ร.บ. การรักษาความมั่นคงปลอดภัยไซเบอร์");
   const [newModColor, setNewModColor] = useState("#1BA1E2");
   const [factoryStep, setFactoryStep] = useState<number>(10);
 
@@ -187,6 +193,13 @@ export default function Reg24MetroConsole() {
   const [taxScenarioPreset, setTaxScenarioPreset] = useState<"qualifying_zero_boot" | "disqualifying_cash_boot">("qualifying_zero_boot");
   const [taxPrecedentResult, setTaxPrecedentResult] = useState<TaxFactComparisonResult | null>(null);
   const [taxPrecedentLoading, setTaxPrecedentLoading] = useState<boolean>(false);
+
+  // Screen L — PDPA B.E. 2562 & 2026 Access-Request Notification states (v1.2 Oct 2026)
+  const [pdpaScenarioPreset, setPdpaScenarioPreset] = useState<
+    "compliant_2026_dsar" | "violation_7m_fine_risk" | "pre_2026_historical"
+  >("compliant_2026_dsar");
+  const [pdpaResult, setPdpaResult] = useState<PDPAComplianceAssessmentResult | null>(null);
+  const [pdpaLoading, setPdpaLoading] = useState<boolean>(false);
 
   // Screen E — Rule Studio states
   const [selectedRuleId, setSelectedRuleId] = useState<string>("rule.th.corporate.incorporation_check");
@@ -355,12 +368,92 @@ export default function Reg24MetroConsole() {
     }
   };
 
+  const handleRunPDPAComplianceMission = async (
+    customPreset?: "compliant_2026_dsar" | "violation_7m_fine_risk" | "pre_2026_historical"
+  ) => {
+    const preset = customPreset ?? pdpaScenarioPreset;
+    if (customPreset) setPdpaScenarioPreset(customPreset);
+    setPdpaLoading(true);
+
+    const asOfDate = preset === "pre_2026_historical" ? "2025-06-15" : "2026-10-18";
+    const factsPayload =
+      preset === "violation_7m_fine_risk"
+        ? {
+            controller_in_thailand: false,
+            data_subjects_in_thailand: true,
+            offers_goods_or_monitors_behavior_in_thailand: true,
+            statutory_exemption_sec_4: false,
+            involves_sensitive_data_sec_26: true,
+            lawful_basis_claimed: "legitimate_interest_sec_24_5",
+            consent_unbundled_and_freely_given: false,
+            dsar_days_elapsed: 45,
+            dsar_identity_verification_minimized: false,
+            dsar_refusal_ground: "arbitrary_refusal",
+            breach_occurred: true,
+            breach_hours_since_discovery: 96,
+            breach_risk_level: "high_risk",
+            pdpc_notified: false,
+            data_subjects_notified: false,
+            requires_mandatory_dpo: true,
+            dpo_appointed: false,
+            cross_border_transfer_mechanism: "unverified_transfer",
+          }
+        : {
+            controller_in_thailand: true,
+            data_subjects_in_thailand: true,
+            offers_goods_or_monitors_behavior_in_thailand: true,
+            statutory_exemption_sec_4: false,
+            involves_sensitive_data_sec_26: true,
+            lawful_basis_claimed: "explicit_consent_sec_26",
+            consent_unbundled_and_freely_given: true,
+            dsar_days_elapsed: 14,
+            dsar_identity_verification_minimized: true,
+            dsar_refusal_ground: "none",
+            breach_occurred: true,
+            breach_hours_since_discovery: 48,
+            breach_risk_level: "high_risk",
+            pdpc_notified: true,
+            data_subjects_notified: true,
+            requires_mandatory_dpo: true,
+            dpo_appointed: true,
+            cross_border_transfer_mechanism: "scc_appropriate_safeguards_sec_29",
+          };
+
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_pdpa_compliance_mission",
+          payload: {
+            as_of_date: asOfDate,
+            tenant_id: activeTenant,
+            facts: factsPayload,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.pdpa_compliance_assessment) {
+        setPdpaResult(data.pdpa_compliance_assessment);
+      }
+      if (data.snapshot) {
+        setSnapshot(data.snapshot);
+      }
+      showToast(
+        `Executed REG24-PDPA Compliance Mission (${preset.toUpperCase()} | As-Of: ${asOfDate}).`
+      );
+    } finally {
+      setPdpaLoading(false);
+    }
+  };
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
       const data = await res.json();
       setSnapshot(data);
       setTaxPrecedentResult((prev) => prev || data.sampleTaxPrecedentComparison || null);
+      setPdpaResult((prev) => prev || data.samplePDPAComplianceAssessment || null);
     }
   }, []);
 
@@ -1028,11 +1121,39 @@ export default function Reg24MetroConsole() {
                     </div>
                     <div>
                       <p className="text-xs text-white/90 mb-1">
-                        Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 14 domain
+                        Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 15 domain
                         modules. Serves LAW24, CFO24, ACC24, TP24, GMT24 &amp; External AI Agents via A2A v1.0.
                       </p>
                       <h3 className="text-2xl font-light lowercase tracking-tight">
                         agent-to-agent (a2a) legal task hub
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Tile: PDPA B.E. 2562 & 2026 Access-Request Notification Expansion (Screen L) */}
+                  <div
+                    onClick={() => setActiveScreen("SCREEN_L_PDPA")}
+                    className="metro-tile col-span-2 bg-[#00ABA9] p-4 flex flex-col justify-between cursor-pointer text-white"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="w-6 h-6" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
+                          SCREEN L &bull; EXPANSION v1.2 &bull; MODULE REG24-PDPA (reg24.pdpa.th)
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold uppercase bg-white text-[#00ABA9] px-2 py-0.5">
+                        2026 ACCESS-REQUEST NOTIFICATION &bull; 72H BREACH
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/95 mb-1">
+                        <strong>PDPA B.E. 2562 &amp; Subordinate PDPC Regulations:</strong> 2026 Access-Request
+                        Notification (30d DSAR &amp; ID Minimization), 72-Hour Breach Clock, DPO Sec. 41,
+                        Cross-Border BCRs/SCCs, PDPC 7M THB Order &amp; Privacy-by-Design PII Redaction.
+                      </p>
+                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                        pdpa regulatory intelligence &amp; 2026 dsar engine
                       </h3>
                     </div>
                   </div>
@@ -3808,6 +3929,302 @@ export default function Reg24MetroConsole() {
           </div>
         )}
 
+        {/* =====================================================================
+            SCREEN L — PDPA B.E. 2562 & 2026 ACCESS-REQUEST NOTIFICATION (REG24-PDPA)
+            ===================================================================== */}
+        {activeScreen === "SCREEN_L_PDPA" && pdpaResult && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#262630] pb-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#00ABA9]">
+                  CONSOLE SCREEN L &bull; MODULE REG24-PDPA (`reg24.pdpa.th` &bull; P0-15) &bull; SHARED INFRASTRUCTURE
+                </span>
+                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                  pdpa b.e. 2562 &amp; 2026 access-request notification intelligence
+                </h2>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => handleRunPDPAComplianceMission("compliant_2026_dsar")}
+                  disabled={pdpaLoading}
+                  className={`px-3 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer border ${
+                    pdpaScenarioPreset === "compliant_2026_dsar"
+                      ? "bg-[#00ABA9] border-[#00ABA9] text-white"
+                      : "bg-[#121216] border-[#262630] text-zinc-300"
+                  }`}
+                >
+                  SCENARIO A: COMPLIANT 2026 DSAR (14D) + 48H BREACH + SCC
+                </button>
+                <button
+                  onClick={() => handleRunPDPAComplianceMission("violation_7m_fine_risk")}
+                  disabled={pdpaLoading}
+                  className={`px-3 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer border ${
+                    pdpaScenarioPreset === "violation_7m_fine_risk"
+                      ? "bg-[#E51400] border-[#E51400] text-white"
+                      : "bg-[#121216] border-[#262630] text-zinc-300"
+                  }`}
+                >
+                  SCENARIO B: 45D DSAR DELAY + 96H LATE BREACH + NO DPO
+                </button>
+                <button
+                  onClick={() => handleRunPDPAComplianceMission("pre_2026_historical")}
+                  disabled={pdpaLoading}
+                  className={`px-3 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer border ${
+                    pdpaScenarioPreset === "pre_2026_historical"
+                      ? "bg-[#6A00FF] border-[#6A00FF] text-white"
+                      : "bg-[#121216] border-[#262630] text-zinc-300"
+                  }`}
+                >
+                  SCENARIO C: PRE-2026 HISTORICAL REGIME (2025-06-15)
+                </button>
+              </div>
+            </div>
+
+            {/* PRIVACY-BY-DESIGN PII MINIMIZATION & TENANT ISOLATION GUARD (DELIVERABLE 9) */}
+            <div className="bg-[#121216] border-l-4 border-[#00ABA9] border-y border-r border-[#262630] p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Lock className="w-4 h-4 text-[#00ABA9]" />
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#00ABA9]">
+                    DELIVERABLE 9 &bull; PRIVACY-BY-DESIGN PII MINIMIZATION &amp; TENANT ISOLATION GUARD
+                  </span>
+                </div>
+                <p className="text-xs text-zinc-200 font-mono">
+                  {pdpaResult.privacy_by_design_guard.sanitized_scenario_summary}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <span className="bg-emerald-950/60 border border-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-emerald-300">
+                  REDACTED: {pdpaResult.privacy_by_design_guard.redacted_fields.join(", ") || "NONE"}
+                </span>
+                <span className="bg-[#08080a] border border-[#262630] px-2.5 py-1 text-[10px] font-mono text-zinc-300">
+                  TENANT: {pdpaResult.tenant_id}
+                </span>
+                <span className="bg-[#08080a] border border-[#262630] px-2.5 py-1 text-[10px] font-mono text-[#1BA1E2]">
+                  REGIME: {pdpaResult.access_request_regime}
+                </span>
+              </div>
+            </div>
+
+            {/* 6 DETERMINISTIC PDPA DOMAIN EVALUATIONS (DELIVERABLE 5) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* 1. Territorial & Extraterritorial Applicability */}
+              <div className="bg-[#121216] border border-[#262630] p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#00ABA9]">
+                    01 &bull; {pdpaResult.domain_evaluations.applicability.section_cited}
+                  </span>
+                  <span className="text-[10px] font-bold uppercase bg-emerald-950/60 text-emerald-300 px-2 py-0.5">
+                    {pdpaResult.domain_evaluations.applicability.outcome}
+                  </span>
+                </div>
+                <h3 className="text-base font-semibold text-white">
+                  Territorial &amp; Extraterritorial Scope
+                </h3>
+                <p className="text-xs text-zinc-300">
+                  {pdpaResult.domain_evaluations.applicability.explanation}
+                </p>
+              </div>
+
+              {/* 2. Lawful Basis, Consent & Sensitive Data */}
+              <div className="bg-[#121216] border border-[#262630] p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#00ABA9]">
+                    02 &bull; {pdpaResult.domain_evaluations.lawful_basis_and_consent.section_cited}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 ${
+                      pdpaResult.domain_evaluations.lawful_basis_and_consent.outcome === "applicable"
+                        ? "bg-emerald-950/60 text-emerald-300"
+                        : "bg-rose-950/60 text-rose-300"
+                    }`}
+                  >
+                    {pdpaResult.domain_evaluations.lawful_basis_and_consent.outcome}
+                  </span>
+                </div>
+                <h3 className="text-base font-semibold text-white">
+                  Consent (Sec. 19), Lawful Basis (Sec. 24) &amp; Sensitive Data (Sec. 26)
+                </h3>
+                <p className="text-xs text-zinc-300">
+                  {pdpaResult.domain_evaluations.lawful_basis_and_consent.explanation}
+                </p>
+              </div>
+
+              {/* 3. 2026 Access-Request Notification (DSAR) */}
+              <div className="bg-[#121216] border border-[#00ABA9] p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#00ABA9]">
+                    03 &bull; 2026 DSAR NOTIFICATION (B.E. 2569)
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 ${
+                      pdpaResult.domain_evaluations.data_subject_access_request_2026.outcome === "applicable"
+                        ? "bg-emerald-950/60 text-emerald-300"
+                        : "bg-rose-950/60 text-rose-300"
+                    }`}
+                  >
+                    {pdpaResult.domain_evaluations.data_subject_access_request_2026.days_elapsed} / 30 DAYS
+                  </span>
+                </div>
+                <h3 className="text-base font-semibold text-white">
+                  Data Subject Access &amp; Copy Right (Sec. 30–36)
+                </h3>
+                <p className="text-xs text-zinc-300">
+                  {pdpaResult.domain_evaluations.data_subject_access_request_2026.explanation}
+                </p>
+                <div className="text-[10px] font-mono text-zinc-400">
+                  Active Instrument: {pdpaResult.domain_evaluations.data_subject_access_request_2026.notification_applied}
+                </div>
+              </div>
+
+              {/* 4. 72-Hour Breach Notification */}
+              <div className="bg-[#121216] border border-[#262630] p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#00ABA9]">
+                    04 &bull; {pdpaResult.domain_evaluations.breach_notification.section_cited}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 ${
+                      pdpaResult.domain_evaluations.breach_notification.outcome === "applicable"
+                        ? "bg-emerald-950/60 text-emerald-300"
+                        : "bg-rose-950/60 text-rose-300"
+                    }`}
+                  >
+                    {pdpaResult.domain_evaluations.breach_notification.hours_since_discovery} / 72 HOURS
+                  </span>
+                </div>
+                <h3 className="text-base font-semibold text-white">
+                  72-Hour PDPC Breach Reporting &amp; High-Risk Notice
+                </h3>
+                <p className="text-xs text-zinc-300">
+                  {pdpaResult.domain_evaluations.breach_notification.explanation}
+                </p>
+              </div>
+
+              {/* 5. Mandatory DPO Designation */}
+              <div className="bg-[#121216] border border-[#262630] p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#00ABA9]">
+                    05 &bull; {pdpaResult.domain_evaluations.dpo_designation.section_cited}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 ${
+                      pdpaResult.domain_evaluations.dpo_designation.outcome === "applicable"
+                        ? "bg-emerald-950/60 text-emerald-300"
+                        : "bg-rose-950/60 text-rose-300"
+                    }`}
+                  >
+                    DPO APPOINTED: {String(pdpaResult.domain_evaluations.dpo_designation.dpo_appointed).toUpperCase()}
+                  </span>
+                </div>
+                <h3 className="text-base font-semibold text-white">
+                  Data Protection Officer (DPO) Duties (Sec. 41–42)
+                </h3>
+                <p className="text-xs text-zinc-300">
+                  {pdpaResult.domain_evaluations.dpo_designation.explanation}
+                </p>
+              </div>
+
+              {/* 6. Cross-Border Personal Data Transfers */}
+              <div className="bg-[#121216] border border-[#262630] p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#00ABA9]">
+                    06 &bull; {pdpaResult.domain_evaluations.cross_border_transfer.section_cited}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold uppercase px-2 py-0.5 ${
+                      pdpaResult.domain_evaluations.cross_border_transfer.outcome === "applicable"
+                        ? "bg-emerald-950/60 text-emerald-300"
+                        : "bg-rose-950/60 text-rose-300"
+                    }`}
+                  >
+                    {pdpaResult.domain_evaluations.cross_border_transfer.transfer_mechanism}
+                  </span>
+                </div>
+                <h3 className="text-base font-semibold text-white">
+                  Cross-Border Transfers: Adequacy, BCRs &amp; SCCs
+                </h3>
+                <p className="text-xs text-zinc-300">
+                  {pdpaResult.domain_evaluations.cross_border_transfer.explanation}
+                </p>
+              </div>
+            </div>
+
+            {/* SUBORDINATE PDPC REGULATIONS & ENFORCEMENT ORDERS */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-[#121216] border border-[#262630] p-5 space-y-3">
+                <div className="text-xs font-bold uppercase tracking-wider text-[#00ABA9]">
+                  VERIFIED PDPC SUBORDINATE NOTIFICATIONS ({snapshot.pdpaSubordinateRegulations?.length || 4})
+                </div>
+                <div className="space-y-3">
+                  {(snapshot.pdpaSubordinateRegulations || []).map((sub) => (
+                    <div key={sub.id} className="bg-[#08080a] border border-[#22222c] p-3 space-y-1.5">
+                      <div className="flex items-center justify-between text-[10px] font-mono text-[#00ABA9]">
+                        <span>{sub.regulation_code}</span>
+                        <span>EFFECTIVE: {sub.effective_from}</span>
+                      </div>
+                      <div className="text-sm font-semibold text-white">{sub.title_en}</div>
+                      <div className="text-xs text-zinc-400">{sub.title_th}</div>
+                      <ul className="list-disc list-inside text-xs text-zinc-300 space-y-1 pt-1">
+                        {sub.key_requirements_en.map((req, idx) => (
+                          <li key={idx}>{req}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-[#121216] border border-[#262630] p-5 space-y-4">
+                <div className="text-xs font-bold uppercase tracking-wider text-rose-400">
+                  PDPC EXPERT COMMITTEE ENFORCEMENT ORDERS &amp; CROSS-MODULE GRAPHRAG LINKS
+                </div>
+                <div className="bg-rose-950/30 border border-rose-800/70 p-3 text-xs space-y-1.5">
+                  <div className="font-bold text-rose-300 uppercase">
+                    ENFORCEMENT EXPOSURE MATRIX (SECTIONS 77–90):
+                  </div>
+                  <div className="text-zinc-200">
+                    <strong>Civil Liability:</strong> {pdpaResult.enforcement_exposure.civil_liability_sec_77_78}
+                  </div>
+                  <div className="text-zinc-200">
+                    <strong>Criminal &amp; Director Liability:</strong> {pdpaResult.enforcement_exposure.criminal_penalty_sec_79_81}
+                  </div>
+                  <div className="text-zinc-200">
+                    <strong>Administrative Fine Exposure:</strong> THB{" "}
+                    {pdpaResult.enforcement_exposure.administrative_fine_sec_82_90_max_thb.toLocaleString()}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  {pdpaResult.enforcement_exposure.referenced_pdpc_expert_committee_orders.map((ord, idx) => (
+                    <div key={idx} className="bg-[#08080a] border border-[#22222c] p-3 text-xs space-y-1">
+                      <div className="text-[10px] font-mono text-amber-400">{ord.case_number}</div>
+                      <div className="font-semibold text-white">{ord.title_en}</div>
+                      <div className="text-zinc-400">{ord.holding_summary_en}</div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="space-y-2 pt-2">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-[#1BA1E2]">
+                    CROSS-MODULE GRAPHRAG DEPENDENCIES (`reg24.pdpa.th` &rarr; LABOR / CONTRACT / CIVIL / CORPORATE):
+                  </div>
+                  {pdpaResult.cross_module_dependencies.map((dep, idx) => (
+                    <div key={idx} className="bg-[#08080a] border border-[#22222c] p-2.5 text-xs">
+                      <div className="flex items-center justify-between font-mono text-[10px] text-[#00ABA9]">
+                        <span>reg24.pdpa.th &mdash;[{dep.relationship}]&rarr; {dep.target_module_id}</span>
+                        <span>{dep.target_provision_id}</span>
+                      </div>
+                      <div className="text-zinc-300 mt-1">{dep.legal_impact_summary}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* EXPERT VIEW TECHNICAL DIAGNOSTICS DRAWER (SECTION 11 UX REQUIREMENT) */}
         {expertView && (
           <div className="mt-8 bg-[#0c0c12] border-2 border-[#0050EF] p-5 space-y-4">
@@ -3866,11 +4283,12 @@ export default function Reg24MetroConsole() {
       {/* METRO FOOTER */}
       <footer className="border-t border-[#262630] bg-[#0c0c10] px-6 py-4 mt-12 text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-4">
         <div>
-          REG24 P0 INFRASTRUCTURE &bull; 14 THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
+          REG24 P0 INFRASTRUCTURE &bull; 15 THAILAND LEGAL MODULES: CORPORATE (`reg24.corporate.th`) |
           CONTRACT (`reg24.contract.th`) | CIVIL CODE (`reg24.civil.th`) | TAX (`reg24.tax.th`) |
           TAX-SUB (`reg24.tax.sub.th`) | TAX-RULING (`reg24.tax.ruling.th`) | TAX-CASE (`reg24.tax.case.th`) |
           TAX-CHANGE (`reg24.tax.change.th`) | LABOR (`reg24.labor.th`) | BOI (`reg24.boi.th`) |
-          SEC (`reg24.sec.th`) | SET (`reg24.set.th`) | RESTRUCTURING (`reg24.restruct.th`) | INSOLVENCY (`reg24.insolv.th`)
+          SEC (`reg24.sec.th`) | SET (`reg24.set.th`) | RESTRUCTURING (`reg24.restruct.th`) |
+          INSOLVENCY (`reg24.insolv.th`) | PDPA (`reg24.pdpa.th`)
         </div>
         <div className="uppercase tracking-wider text-zinc-400">
           CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GMT24 &bull; TRACE24 &bull; VIBE24

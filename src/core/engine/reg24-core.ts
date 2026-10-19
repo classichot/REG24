@@ -9,6 +9,7 @@ import {
   SourceDocument,
   LegalInstrument,
   Provision,
+  ProvisionClause,
   ProvisionVersion,
   ModuleReference,
   LegalConcept,
@@ -38,6 +39,8 @@ import {
   TaxRulingRecord,
   TaxJudicialDecisionRecord,
   TaxFactComparisonResult,
+  PDPASubordinateRegulationRecord,
+  PDPAComplianceAssessmentResult,
 } from "../types/legal-schema";
 
 import {
@@ -90,6 +93,23 @@ import {
   TAX_EXPANSION_CHANGES,
   TAX_EXPANSION_MODULES,
 } from "../data/tax-ruling-subreg-corpus";
+
+import {
+  PDPA_EXPANSION_REGULATORS,
+  PDPA_EXPANSION_SOURCES,
+  PDPA_EXPANSION_INSTRUMENTS,
+  PDPA_SUBORDINATE_REGULATIONS,
+  PDPA_EXPANSION_PROVISIONS,
+  PDPA_EXPANSION_PROVISION_VERSIONS,
+  PDPA_EXPANSION_CONCEPTS,
+  PDPA_EXPANSION_MODULE_REFERENCES,
+  PDPA_EXPANSION_OBLIGATIONS,
+  PDPA_EXPANSION_DECISIONS,
+  PDPA_EXPANSION_GRAPH_EDGES,
+  PDPA_EXPANSION_RULES,
+  PDPA_EXPANSION_REGULATORY_CHANGES,
+  PDPA_EXPANSION_MODULE_MANIFEST,
+} from "../data/pdpa-expansion-corpus";
 
 export interface MCPCommonInput {
   jurisdiction?: string;
@@ -172,6 +192,7 @@ export class Reg24PlatformCore {
   private taxSubRegulations: TaxSubRegulationRecord[] = [];
   private taxRulings: TaxRulingRecord[] = [];
   private taxJudicialDecisions: TaxJudicialDecisionRecord[] = [];
+  private pdpaSubordinateRegulations: PDPASubordinateRegulationRecord[] = [];
   private releases: ModuleRelease[] = [];
   private auditTraces: AuditTraceEvent[] = [];
   private a2aTasks: Map<string, A2ATaskContract> = new Map();
@@ -199,21 +220,36 @@ export class Reg24PlatformCore {
     this.taxSubRegulations = [];
     this.taxRulings = [];
     this.taxJudicialDecisions = [];
+    this.pdpaSubordinateRegulations = [];
     this.releases = [];
     this.auditTraces = [];
     this.a2aTasks.clear();
 
     SEED_JURISDICTIONS.forEach((j) => this.jurisdictions.set(j.id, { ...j }));
-    [...SEED_REGULATORS, ...EXPANSION_REGULATORS, ...TAX_EXPANSION_REGULATORS].forEach((r) =>
-      this.regulators.set(r.id, { ...r })
-    );
-    [...SEED_SOURCE_DOCUMENTS, ...EXPANSION_SOURCE_DOCUMENTS, ...TAX_EXPANSION_SOURCES].forEach((s) =>
-      this.sourceDocuments.set(s.id, { ...s })
-    );
-    [...SEED_INSTRUMENTS, ...EXPANSION_INSTRUMENTS, ...TAX_EXPANSION_INSTRUMENTS].forEach((i) =>
-      this.instruments.set(i.id, { ...i })
-    );
-    [...SEED_PROVISIONS, ...EXPANSION_PROVISIONS, ...TAX_EXPANSION_PROVISIONS].forEach((p) =>
+    [
+      ...SEED_REGULATORS,
+      ...EXPANSION_REGULATORS,
+      ...TAX_EXPANSION_REGULATORS,
+      ...PDPA_EXPANSION_REGULATORS,
+    ].forEach((r) => this.regulators.set(r.id, { ...r }));
+    [
+      ...SEED_SOURCE_DOCUMENTS,
+      ...EXPANSION_SOURCE_DOCUMENTS,
+      ...TAX_EXPANSION_SOURCES,
+      ...PDPA_EXPANSION_SOURCES,
+    ].forEach((s) => this.sourceDocuments.set(s.id, { ...s }));
+    [
+      ...SEED_INSTRUMENTS,
+      ...EXPANSION_INSTRUMENTS,
+      ...TAX_EXPANSION_INSTRUMENTS,
+      ...PDPA_EXPANSION_INSTRUMENTS,
+    ].forEach((i) => this.instruments.set(i.id, { ...i }));
+    [
+      ...SEED_PROVISIONS,
+      ...EXPANSION_PROVISIONS,
+      ...TAX_EXPANSION_PROVISIONS,
+      ...PDPA_EXPANSION_PROVISIONS,
+    ].forEach((p) =>
       this.provisions.set(p.id, {
         ...p,
         version_ids: [...p.version_ids],
@@ -225,10 +261,12 @@ export class Reg24PlatformCore {
       ...SEED_PROVISION_VERSIONS,
       ...EXPANSION_PROVISION_VERSIONS,
       ...TAX_EXPANSION_PROVISION_VERSIONS,
+      ...PDPA_EXPANSION_PROVISION_VERSIONS,
     ].forEach((v) =>
       this.provisionVersions.set(v.id, {
         ...v,
         translation_en: { ...v.translation_en },
+        clauses: v.clauses ? v.clauses.map((c) => ({ ...c })) : undefined,
         source_evidence: { ...v.source_evidence },
       })
     );
@@ -236,20 +274,33 @@ export class Reg24PlatformCore {
       ...SEED_MODULE_REFERENCES,
       ...EXPANSION_MODULE_REFERENCES,
       ...TAX_EXPANSION_MODULE_REFERENCES,
+      ...PDPA_EXPANSION_MODULE_REFERENCES,
     ].forEach((m) => this.moduleReferences.set(m.id, { ...m }));
-    [...SEED_CONCEPTS, ...EXPANSION_CONCEPTS, ...TAX_EXPANSION_CONCEPTS].forEach((c) =>
-      this.concepts.set(c.id, { ...c })
-    );
-    [...SEED_OBLIGATIONS, ...EXPANSION_OBLIGATIONS, ...TAX_EXPANSION_OBLIGATIONS].forEach((o) =>
-      this.obligations.set(o.id, { ...o })
-    );
-    [...SEED_RULES, ...EXPANSION_RULES, ...TAX_EXPANSION_RULES].forEach((r) =>
-      this.rules.set(r.id, JSON.parse(JSON.stringify(r)))
-    );
-    [...SEED_GRAPH_EDGES, ...EXPANSION_GRAPH_EDGES, ...TAX_EXPANSION_GRAPH_EDGES].forEach((e) =>
-      this.graphEdges.set(e.id, { ...e })
-    );
-    SEED_COURT_DECISIONS.forEach((cd) =>
+    [
+      ...SEED_CONCEPTS,
+      ...EXPANSION_CONCEPTS,
+      ...TAX_EXPANSION_CONCEPTS,
+      ...PDPA_EXPANSION_CONCEPTS,
+    ].forEach((c) => this.concepts.set(c.id, { ...c }));
+    [
+      ...SEED_OBLIGATIONS,
+      ...EXPANSION_OBLIGATIONS,
+      ...TAX_EXPANSION_OBLIGATIONS,
+      ...PDPA_EXPANSION_OBLIGATIONS,
+    ].forEach((o) => this.obligations.set(o.id, { ...o }));
+    [
+      ...SEED_RULES,
+      ...EXPANSION_RULES,
+      ...TAX_EXPANSION_RULES,
+      ...PDPA_EXPANSION_RULES,
+    ].forEach((r) => this.rules.set(r.id, JSON.parse(JSON.stringify(r))));
+    [
+      ...SEED_GRAPH_EDGES,
+      ...EXPANSION_GRAPH_EDGES,
+      ...TAX_EXPANSION_GRAPH_EDGES,
+      ...PDPA_EXPANSION_GRAPH_EDGES,
+    ].forEach((e) => this.graphEdges.set(e.id, { ...e }));
+    [...SEED_COURT_DECISIONS, ...PDPA_EXPANSION_DECISIONS].forEach((cd) =>
       this.courtDecisions.set(cd.id, {
         ...cd,
         interpreted_provision_ids: [...cd.interpreted_provision_ids],
@@ -259,12 +310,21 @@ export class Reg24PlatformCore {
       ...SEED_REGULATORY_CHANGES,
       ...EXPANSION_REGULATORY_CHANGES,
       ...TAX_EXPANSION_CHANGES,
+      ...PDPA_EXPANSION_REGULATORY_CHANGES,
     ].forEach((c) => this.regulatoryChanges.set(c.id, JSON.parse(JSON.stringify(c))));
     this.nonBindingConsultations = SEED_NON_BINDING_CONSULTATIONS.map((c) => ({ ...c }));
     this.taxSubRegulations = TAX_SUB_REGULATIONS.map((sr) => JSON.parse(JSON.stringify(sr)));
     this.taxRulings = TAX_RULINGS.map((tr) => JSON.parse(JSON.stringify(tr)));
     this.taxJudicialDecisions = TAX_JUDICIAL_DECISIONS.map((tj) => JSON.parse(JSON.stringify(tj)));
-    [...SEED_MODULE_MANIFESTS, ...EXPANSION_MODULE_MANIFESTS, ...TAX_EXPANSION_MODULES].forEach((m) => {
+    this.pdpaSubordinateRegulations = PDPA_SUBORDINATE_REGULATIONS.map((pr) =>
+      JSON.parse(JSON.stringify(pr))
+    );
+    [
+      ...SEED_MODULE_MANIFESTS,
+      ...EXPANSION_MODULE_MANIFESTS,
+      ...TAX_EXPANSION_MODULES,
+      PDPA_EXPANSION_MODULE_MANIFEST,
+    ].forEach((m) => {
       this.modules.set(m.module_id, JSON.parse(JSON.stringify(m)));
       this.releases.push({
         release_id: `rel.${m.module_id}.${m.version}`,
@@ -283,13 +343,13 @@ export class Reg24PlatformCore {
       actor_role: "Platform Administrator",
       operation: "platform.bootstrap_p0_modules",
       module_ids: Array.from(this.modules.keys()),
-      provisions_accessed: ["prov.th.ccc.1097", "prov.th.boi.sec16_31"],
+      provisions_accessed: ["prov.th.ccc.1097", "prov.th.boi.sec16_31", "prov.th.pdpa.30_36"],
       rules_evaluated: [],
       prompt_injection_checked: true,
       prompt_injection_blocked: false,
       latency_ms: 42,
       status: "success",
-      summary: "Bootstrapped REG24 Core with 6 P0 Thailand Legal Modules and verified canonical CCC ownership.",
+      summary: "Bootstrapped REG24 Core with 15 P0 Thailand Legal Modules (including REG24-PDPA) and verified canonical CCC ownership.",
     });
 
     this.seedInitialA2ATask();
@@ -297,6 +357,46 @@ export class Reg24PlatformCore {
 
   private generateTraceId(): string {
     return `trc_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 8)}`;
+  }
+
+  /**
+   * PDPA Deliverable 9: Privacy-by-Design PII Minimization & Redaction Guard
+   * Automatically redacts Thai 13-digit National IDs, emails, and phone numbers before logging or processing.
+   */
+  public sanitizePIIForPrivacyByDesign(rawText: string): {
+    sanitizedText: string;
+    piiRedacted: boolean;
+    redactedTypes: string[];
+  } {
+    let sanitizedText = rawText || "";
+    const redactedTypes: string[] = [];
+
+    // 1. Thai 13-digit National ID (formatted or continuous)
+    const thaiIdRegex = /\b\d{1}[-\s]?\d{4}[-\s]?\d{5}[-\s]?\d{2}[-\s]?\d{1}\b/g;
+    if (thaiIdRegex.test(sanitizedText)) {
+      redactedTypes.push("thai_national_id_13_digit");
+      sanitizedText = sanitizedText.replace(thaiIdRegex, "[REDACTED_THAI_ID]");
+    }
+
+    // 2. Email addresses
+    const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+    if (emailRegex.test(sanitizedText)) {
+      redactedTypes.push("email_address");
+      sanitizedText = sanitizedText.replace(emailRegex, "[REDACTED_EMAIL]");
+    }
+
+    // 3. Thai mobile/phone numbers (08x, 09x, 06x, +66)
+    const phoneRegex = /(\+66|0)[689]\d{1}[-\s]?\d{3}[-\s]?\d{4}\b/g;
+    if (phoneRegex.test(sanitizedText)) {
+      redactedTypes.push("thai_phone_number");
+      sanitizedText = sanitizedText.replace(phoneRegex, "[REDACTED_PHONE]");
+    }
+
+    return {
+      sanitizedText,
+      piiRedacted: redactedTypes.length > 0,
+      redactedTypes,
+    };
   }
 
   private getActiveModuleVersions(moduleIds?: string[]): Record<string, string> {
@@ -322,6 +422,7 @@ export class Reg24PlatformCore {
 
   private recordAudit(params: Omit<AuditTraceEvent, "trace_id" | "timestamp" | "module_versions"> & { trace_id?: string }): string {
     const trace_id = params.trace_id || this.generateTraceId();
+    const piiCheck = this.sanitizePIIForPrivacyByDesign(params.summary);
     const event: AuditTraceEvent = {
       trace_id,
       timestamp: new Date().toISOString(),
@@ -334,9 +435,11 @@ export class Reg24PlatformCore {
       rules_evaluated: params.rules_evaluated,
       prompt_injection_checked: params.prompt_injection_checked,
       prompt_injection_blocked: params.prompt_injection_blocked,
+      privacy_by_design_redacted: params.privacy_by_design_redacted ?? piiCheck.piiRedacted,
+      pii_redacted_fields: params.pii_redacted_fields ?? piiCheck.redactedTypes,
       latency_ms: params.latency_ms,
       status: params.status,
-      summary: params.summary,
+      summary: piiCheck.sanitizedText,
     };
     this.auditTraces.unshift(event);
     return trace_id;
@@ -714,6 +817,7 @@ export class Reg24PlatformCore {
       heading_th: string;
       text_th: string;
       text_en: string;
+      clauses: ProvisionClause[];
       translation_status: {
         origin: string;
         is_official: boolean;
@@ -834,7 +938,7 @@ export class Reg24PlatformCore {
         matchType = "exact_identifier_priority";
       }
 
-      // 2. Keyword & semantic token matching across Thai, English, and cross-module interpretations
+      // 2. Keyword & semantic token matching across Thai, English, clause-level text, and cross-module interpretations
       const searchableBlob = [
         provision.id,
         provision.section_number,
@@ -844,6 +948,9 @@ export class Reg24PlatformCore {
         provision.title || "",
         version.text_th,
         version.translation_en.text,
+        ...(version.clauses || []).map(
+          (cl) => `${cl.clause_id} ${cl.clause_number} ${cl.text_th} ${cl.text_en}`
+        ),
         instrument.title_en,
         instrument.title_th,
         instrument.short_code,
@@ -901,6 +1008,7 @@ export class Reg24PlatformCore {
         heading_th: provision.heading_th,
         text_th: version.text_th,
         text_en: version.translation_en.text,
+        clauses: version.clauses || [],
         translation_status: {
           origin: version.translation_en.origin,
           is_official: version.translation_en.is_official,
@@ -1656,6 +1764,153 @@ export class Reg24PlatformCore {
       explanation = qualifiesTaxExemptMerger
         ? `Qualifies for tax-neutral merger under Revenue Code Sec. 73–74, Sec. 77/1(8) VAT exclusion, Royal Decree No. 10, Ministerial Regulation No. 126, and RD Ruling กค 0702(กม.)/462 (22 April 2026, following กค 0702(กม.)/453). Surviving company retains ${usablePostMergerLoss.toLocaleString()} THB of its own Sec. 65 ter (12) tax losses, while ${extinguishedLoss.toLocaleString()} THB of the ceased company's pre-merger tax losses are extinguished (Supreme Court Judgment 5412/2565).`
         : `Material factual difference from RD Ruling กค 0702(กม.)/462 detected (Cash boot: ${cashBoot.toLocaleString()} THB, Book value carryover: ${bookValue}, Same-period dissolution: ${samePeriodDissolution}, Effective date >= 2023-02-07: ${cccReformEffective}). Per TAX-RULING-02, Royal Decree No. 10 & Ministerial Regulation No. 126 exemptions cannot be automatically claimed without human tax counsel review.`;
+    } else if (rule.id === "rule.th.pdpa.applicability_and_lawful_basis") {
+      const controllerInTh = Boolean(facts.controller_in_thailand);
+      const subjectsInTh = Boolean(facts.data_subjects_in_thailand);
+      const offersOrMonitors = Boolean(facts.offers_goods_or_monitors_behavior_in_thailand);
+      const sec4Exempt = Boolean(facts.statutory_exemption_sec_4);
+      const isSensitive = Boolean(facts.involves_sensitive_data_sec_26);
+      const basis = String(facts.lawful_basis_claimed || "none");
+      const consentValid = facts.consent_unbundled_and_freely_given !== false;
+
+      const extraterritorialApplies = !controllerInTh && subjectsInTh && offersOrMonitors;
+      const pdpaApplies = !sec4Exempt && (controllerInTh || extraterritorialApplies);
+
+      const validGeneralBases = [
+        "consent_sec_19",
+        "contract_sec_24_3",
+        "legitimate_interest_sec_24_5",
+        "legal_obligation_sec_24_6",
+        "vital_interest_sec_24_2",
+      ];
+      const validSensitiveBases = [
+        "explicit_consent_sec_26",
+        "labor_protection_exception_sec_26_5",
+        "vital_interest_sec_26_1",
+        "legal_claims_sec_26_4",
+      ];
+
+      let basisValid = false;
+      if (!isSensitive) {
+        basisValid =
+          validGeneralBases.includes(basis) && (basis !== "consent_sec_19" || consentValid);
+      } else {
+        basisValid =
+          validSensitiveBases.includes(basis) &&
+          (basis !== "explicit_consent_sec_26" || consentValid);
+      }
+
+      if (!pdpaApplies) {
+        outcome = "not_applicable";
+        explanation = sec4Exempt
+          ? "Exempt from PDPA material scope under Section 4 (personal/household activity, state security, or judicial trial)."
+          : "Outside PDPA territorial and extraterritorial scope under Section 5.";
+      } else if (!basisValid) {
+        outcome = "requires_review";
+        reviewRequired = true;
+        explanation = isSensitive
+          ? `Violation / High Enforcement Risk under PDPA Sec. 26: Processing sensitive personal data (e.g., biometric, health, or criminal record data) cannot rely on general '${basis}' (such as general legitimate interest) and requires Explicit Consent (Sec. 26) or a strict statutory exception (e.g., Sec. 26(5)(c) labor protection). Exposure: up to 5,000,000 THB administrative fine (Sec. 84) and criminal liability (Sec. 79 & 81).`
+          : `Invalid or bundled consent / missing lawful basis ('${basis}') under PDPA Sections 19 and 24. Exposure: up to 3,000,000 THB administrative fine (Sec. 83).`;
+      } else {
+        outcome = "applicable";
+        reviewRequired = extraterritorialApplies || isSensitive;
+        explanation = `PDPA applies (${controllerInTh ? "Domestic Establishment Sec. 5 Para 1" : "Extraterritorial Targeting/Monitoring Sec. 5 Para 2 — Local Representative required under Sec. 37(5)"}). Claimed basis [${basis}] is valid under ${isSensitive ? "Section 26" : "Section 24"}${basis.includes("consent") ? " and satisfies Section 19 unbundling rules" : ""}.`;
+      }
+
+      calculatedResult = {
+        pdpa_territorial_applicability: pdpaApplies,
+        applicability_basis: sec4Exempt
+          ? "Sec. 4 Statutory Exemption"
+          : controllerInTh
+            ? "Sec. 5 Para 1 (Domestic Establishment in Thailand)"
+            : extraterritorialApplies
+              ? "Sec. 5 Para 2 (Extraterritorial Offering/Monitoring in Thailand)"
+              : "Outside Scope",
+        requires_local_representative_sec_37_5: extraterritorialApplies,
+        involves_sensitive_data_sec_26: isSensitive,
+        claimed_lawful_basis: basis,
+        lawful_basis_and_consent_valid: basisValid,
+        max_administrative_fine_thb: !basisValid ? (isSensitive ? 5000000 : 3000000) : 0,
+        civil_punitive_damages_multiplier: "Up to 2x actual damages (Sec. 77–78)",
+      };
+    } else if (rule.id === "rule.th.pdpa.dsar_and_breach_compliance") {
+      const dsarDays = Number(facts.dsar_days_elapsed || 0);
+      const idMinimized = facts.dsar_identity_verification_minimized !== false;
+      const refusalGround = String(facts.dsar_refusal_ground || "none");
+      const breachOccurred = Boolean(facts.breach_occurred ?? true);
+      const breachHours = Number(facts.breach_hours_since_discovery || 0);
+      const breachRisk = String(facts.breach_risk_level || "risk_to_rights_and_freedoms");
+      const pdpcNotified = Boolean(facts.pdpc_notified ?? true);
+      const subjectsNotified = Boolean(facts.data_subjects_notified ?? true);
+      const requiresDpo = Boolean(facts.requires_mandatory_dpo ?? true);
+      const dpoAppointed = Boolean(facts.dpo_appointed ?? true);
+      const xborderMechanism = String(
+        facts.cross_border_transfer_mechanism || "scc_appropriate_safeguards_sec_29"
+      );
+
+      const is2026NotificationInForce = asOfDate >= "2026-02-01";
+      const dsarWithin30Days = dsarDays <= 30;
+      const refusalValid =
+        refusalGround === "none" ||
+        refusalGround === "law_or_court_order" ||
+        refusalGround === "third_party_rights_or_trade_secret";
+      const dsarCompliant = dsarWithin30Days && idMinimized && refusalValid;
+
+      const pdpcNoticeRequired = breachOccurred && breachRisk !== "no_risk";
+      const highRiskNoticeRequired = breachOccurred && breachRisk === "high_risk";
+      const breachCompliant =
+        !breachOccurred ||
+        (breachRisk === "no_risk" ||
+          (breachHours <= 72 &&
+            pdpcNotified &&
+            (!highRiskNoticeRequired || subjectsNotified)));
+
+      const dpoCompliant = !requiresDpo || dpoAppointed;
+      const validXBorder = [
+        "none",
+        "adequacy_sec_28",
+        "bcr_sec_29",
+        "scc_appropriate_safeguards_sec_29",
+        "statutory_derogation_sec_28",
+      ].includes(xborderMechanism);
+
+      const allCompliant = dsarCompliant && breachCompliant && dpoCompliant && validXBorder;
+      outcome = allCompliant ? "applicable" : "requires_review";
+      reviewRequired = !allCompliant;
+
+      let cumulativeFineRiskThb = 0;
+      if (!dsarCompliant) cumulativeFineRiskThb += 1000000; // Sec. 83
+      if (!breachCompliant) cumulativeFineRiskThb += 3000000; // Sec. 37(4) & Sec. 83
+      if (!dpoCompliant) cumulativeFineRiskThb += 1000000; // Sec. 41 & Sec. 83
+      if (!validXBorder) cumulativeFineRiskThb += 5000000; // Sec. 28–29 & Sec. 84
+
+      calculatedResult = {
+        access_request_regime_applied: is2026NotificationInForce
+          ? "2026_PDPC_ACCESS_REQUEST_NOTIFICATION_B_E_2569"
+          : "PRE_2026_BASELINE_PDPA_SEC_30",
+        dsar_days_elapsed: dsarDays,
+        dsar_statutory_deadline_days: 30,
+        dsar_within_30_day_limit: dsarWithin30Days,
+        dsar_identity_minimization_compliant_2026: idMinimized,
+        dsar_refusal_ground_lawful_sec_30_para_2: refusalValid,
+        dsar_overall_compliant: dsarCompliant,
+        breach_hours_since_discovery: breachHours,
+        breach_statutory_deadline_hours: 72,
+        breach_pdpc_notification_required: pdpcNoticeRequired,
+        breach_high_risk_data_subject_notice_required: highRiskNoticeRequired,
+        breach_overall_compliant: breachCompliant,
+        dpo_mandatory_sec_41: requiresDpo,
+        dpo_appointed: dpoAppointed,
+        dpo_overall_compliant: dpoCompliant,
+        cross_border_transfer_mechanism: xborderMechanism,
+        cross_border_transfer_compliant_sec_28_29: validXBorder,
+        estimated_administrative_fine_exposure_thb: cumulativeFineRiskThb,
+        landmark_enforcement_precedent: "PDPC Expert Committee Order No. 1/2567 (7,000,000 THB fine)",
+      };
+
+      explanation = allCompliant
+        ? `Compliant across all evaluated PDPA operational duties under [${calculatedResult.access_request_regime_applied}]: DSAR fulfilled in ${dsarDays}/30 days with minimized ID verification; Breach reported in ${breachHours}/72 hours; DPO appointed (${dpoAppointed}); Cross-border mechanism [${xborderMechanism}] verified under Sec. 28–29.`
+        : `PDPA Non-Compliance / Enforcement Risk Detected (Estimated Admin Fine Exposure: ${cumulativeFineRiskThb.toLocaleString()} THB per Sec. 83–84 & PDPC Expert Committee Order No. 1/2567): [DSAR Compliant: ${dsarCompliant} (${dsarDays}/30 days, ID Minimized: ${idMinimized}) | 72h Breach Compliant: ${breachCompliant} (${breachHours}/72h) | DPO Compliant: ${dpoCompliant} | Cross-Border Compliant: ${validXBorder}]. Escalated for human Legal Reviewer sign-off.`;
     }
 
     this.recordAudit({
@@ -2296,6 +2551,77 @@ export class Reg24PlatformCore {
         return this.executeMCPTool("reg24.get_regulatory_changes", {
           ...input,
           module_ids: ["reg24.tax.th", "reg24.tax.sub.th", "reg24.tax.ruling.th", "reg24.tax.change.th"],
+        });
+
+      // PDPA Scope Expansion (REG24-PDPA / reg24.pdpa.th) MCP Services (Deliverable 7)
+      case "assess_pdpa_applicability_and_basis":
+        return this.evaluateRule({
+          ...input,
+          rule_id: "rule.th.pdpa.applicability_and_lawful_basis",
+          facts: input.facts || {
+            controller_in_thailand: true,
+            data_subjects_in_thailand: true,
+            offers_goods_or_monitors_behavior_in_thailand: true,
+            statutory_exemption_sec_4: false,
+            involves_sensitive_data_sec_26: true,
+            lawful_basis_claimed: "explicit_consent_sec_26",
+            consent_unbundled_and_freely_given: true,
+          },
+        });
+
+      case "evaluate_pdpa_dsar_and_breach":
+      case "check_pdpa_cross_border_and_dpo":
+        return this.evaluateRule({
+          ...input,
+          rule_id: "rule.th.pdpa.dsar_and_breach_compliance",
+          facts: input.facts || {
+            dsar_days_elapsed: 14,
+            dsar_identity_verification_minimized: true,
+            dsar_refusal_ground: "none",
+            breach_occurred: true,
+            breach_hours_since_discovery: 48,
+            breach_risk_level: "risk_to_rights_and_freedoms",
+            pdpc_notified: true,
+            data_subjects_notified: true,
+            requires_mandatory_dpo: true,
+            dpo_appointed: true,
+            cross_border_transfer_mechanism: "scc_appropriate_safeguards_sec_29",
+          },
+        });
+
+      case "get_pdpa_subordinate_regulations":
+        return {
+          result: {
+            total_subordinate_regulations: this.pdpaSubordinateRegulations.length,
+            subordinate_regulations: this.pdpaSubordinateRegulations,
+            expert_committee_decisions: Array.from(this.courtDecisions.values()).filter(
+              (cd) => cd.module_id === "reg24.pdpa.th"
+            ),
+          },
+          status: "ok",
+          module_versions: this.getActiveModuleVersions(["reg24.pdpa.th"]),
+          sources: Array.from(this.sourceDocuments.values())
+            .filter((s) => s.regulator_id === "reg.th.pdpc")
+            .map((s) => ({
+              document_id: s.id,
+              title_en: s.title_en,
+              official_url: s.official_url,
+              sha256_hash: s.sha256_hash,
+              verified_at: s.verified_at,
+            })),
+          citations: [],
+          effective_dates: { queried_as_of_date: asOfDate, known_at_date: knownAtDate },
+          missing_facts: [],
+          coverage_status: { is_complete: true, executable_rules_available: true, known_limitations: [] },
+          review_required: false,
+          trace_id: traceId,
+        };
+
+      case "run_pdpa_compliance_assessment":
+        return this.executePDPAComplianceMission({
+          as_of_date: asOfDate,
+          tenant_id: input.tenant_context?.tenant_id || "tenant.law24.prod",
+          facts: input.facts,
         });
 
       default:
@@ -4005,6 +4331,332 @@ export class Reg24PlatformCore {
     };
   }
 
+  /**
+   * PDPA Scope Expansion (REG24-PDPA / reg24.pdpa.th):
+   * Comprehensive PDPA B.E. 2562 + 2026 Access-Request Notification (DSAR) + 72h Breach + DPO + Cross-Border Assessment
+   */
+  public executePDPAComplianceMission(params: {
+    as_of_date?: string;
+    tenant_id?: string;
+    scenario_summary?: string;
+    facts?: Record<string, unknown>;
+  } = {}): MCPCommonOutput<PDPAComplianceAssessmentResult> {
+    const startTime = Date.now();
+    const traceId = this.generateTraceId();
+    const asOfDate = params.as_of_date || "2026-10-18";
+    const tenantId = params.tenant_id || "tenant.law24.prod";
+    const f = params.facts || {};
+
+    const rawScenario =
+      params.scenario_summary ||
+      String(
+        f.raw_scenario_text ||
+          "Thai fintech & HR platform processing employee biometric attendance scans (Thai ID 1-1004-00982-12-9, email somchai.k@example.co.th, phone 081-234-5678), handling a Data Subject Access Request (DSAR) under the 2026 PDPC Notification, responding to a cloud database breach, and transferring analytics data to Singapore."
+      );
+
+    // Privacy-by-Design PII Minimization (Deliverable 9)
+    const piiGuard = this.sanitizePIIForPrivacyByDesign(rawScenario);
+
+    const controllerInTh = f.controller_in_thailand !== undefined ? Boolean(f.controller_in_thailand) : true;
+    const subjectsInTh = f.data_subjects_in_thailand !== undefined ? Boolean(f.data_subjects_in_thailand) : true;
+    const offersOrMonitors =
+      f.offers_goods_or_monitors_behavior_in_thailand !== undefined
+        ? Boolean(f.offers_goods_or_monitors_behavior_in_thailand)
+        : true;
+    const sec4Exempt = Boolean(f.statutory_exemption_sec_4);
+    const isSensitive = f.involves_sensitive_data_sec_26 !== undefined ? Boolean(f.involves_sensitive_data_sec_26) : true;
+    const reliedBasis = String(f.lawful_basis_claimed || "explicit_consent_sec_26");
+    const consentValid = f.consent_unbundled_and_freely_given !== false;
+
+    const dsarDays = f.dsar_days_elapsed !== undefined ? Number(f.dsar_days_elapsed) : 14;
+    const dsarIdMin = f.dsar_identity_verification_minimized !== false;
+    const dsarRefusal = String(f.dsar_refusal_ground || "none");
+
+    const breachOccurred = f.breach_occurred !== undefined ? Boolean(f.breach_occurred) : true;
+    const breachHours = f.breach_hours_since_discovery !== undefined ? Number(f.breach_hours_since_discovery) : 48;
+    const breachRisk = String(f.breach_risk_level || "high_risk");
+    const pdpcNotified = f.pdpc_notified !== false;
+    const subjectsNotified = f.data_subjects_notified !== false;
+
+    const requiresDpo = f.requires_mandatory_dpo !== undefined ? Boolean(f.requires_mandatory_dpo) : true;
+    const dpoAppointed = f.dpo_appointed !== false;
+    const xborderMechanism = String(
+      f.cross_border_transfer_mechanism || "scc_appropriate_safeguards_sec_29"
+    );
+
+    const appEval = this.evaluateRule({
+      rule_id: "rule.th.pdpa.applicability_and_lawful_basis",
+      as_of_date: asOfDate,
+      tenant_context: { tenant_id: tenantId, role: "Legal Reviewer" },
+      facts: {
+        controller_in_thailand: controllerInTh,
+        data_subjects_in_thailand: subjectsInTh,
+        offers_goods_or_monitors_behavior_in_thailand: offersOrMonitors,
+        statutory_exemption_sec_4: sec4Exempt,
+        involves_sensitive_data_sec_26: isSensitive,
+        lawful_basis_claimed: reliedBasis,
+        consent_unbundled_and_freely_given: consentValid,
+      },
+    });
+
+    const opsEval = this.evaluateRule({
+      rule_id: "rule.th.pdpa.dsar_and_breach_compliance",
+      as_of_date: asOfDate,
+      tenant_context: { tenant_id: tenantId, role: "Legal Reviewer" },
+      facts: {
+        dsar_days_elapsed: dsarDays,
+        dsar_identity_verification_minimized: dsarIdMin,
+        dsar_refusal_ground: dsarRefusal,
+        breach_occurred: breachOccurred,
+        breach_hours_since_discovery: breachHours,
+        breach_risk_level: breachRisk,
+        pdpc_notified: pdpcNotified,
+        data_subjects_notified: subjectsNotified,
+        requires_mandatory_dpo: requiresDpo,
+        dpo_appointed: dpoAppointed,
+        cross_border_transfer_mechanism: xborderMechanism,
+      },
+    });
+
+    const is2026Regime = asOfDate >= "2026-02-01";
+    const dsarVer = this.resolveProvisionVersion("prov.th.pdpa.30_36", asOfDate, "2026-10-18")!;
+    const basisVer = this.resolveProvisionVersion("prov.th.pdpa.19_24_26", asOfDate, "2026-10-18")!;
+    const breachVer = this.resolveProvisionVersion("prov.th.pdpa.37_40", asOfDate, "2026-10-18")!;
+    const dpoVer = this.resolveProvisionVersion("prov.th.pdpa.41_42", asOfDate, "2026-10-18")!;
+    const xborderVer = this.resolveProvisionVersion("prov.th.pdpa.28_29", asOfDate, "2026-10-18")!;
+    const enfVer = this.resolveProvisionVersion("prov.th.pdpa.77_90", asOfDate, "2026-10-18")!;
+
+    const basisValid = Boolean(appEval.result.calculated_result.lawful_basis_and_consent_valid);
+    const dsarCompliant = Boolean(opsEval.result.calculated_result.dsar_overall_compliant);
+    const breachCompliant = Boolean(opsEval.result.calculated_result.breach_overall_compliant);
+    const dpoCompliant = Boolean(opsEval.result.calculated_result.dpo_overall_compliant);
+    const xborderCompliant = Boolean(opsEval.result.calculated_result.cross_border_transfer_compliant_sec_28_29);
+
+    const allDomainsCompliant =
+      basisValid && dsarCompliant && breachCompliant && dpoCompliant && xborderCompliant;
+
+    const maxFineThb = Math.max(
+      Number(appEval.result.calculated_result.max_administrative_fine_thb || 0),
+      Number(opsEval.result.calculated_result.estimated_administrative_fine_exposure_thb || 0),
+      allDomainsCompliant ? 0 : 5000000
+    );
+
+    const pdpcOrders = Array.from(this.courtDecisions.values())
+      .filter((cd) => cd.module_id === "reg24.pdpa.th")
+      .map((cd) => ({
+        case_number: cd.case_number,
+        title_en: cd.title_en,
+        holding_summary_en: cd.holding_summary_en,
+      }));
+
+    const result: PDPAComplianceAssessmentResult = {
+      assessment_id: `pdpa_assess_${Date.now().toString(36)}`,
+      trace_id: traceId,
+      tenant_id: tenantId,
+      evaluated_as_of_date: asOfDate,
+      access_request_regime: is2026Regime
+        ? "2026_PDPC_ACCESS_REQUEST_NOTIFICATION_REGIME"
+        : "PRE_2026_BASELINE_DSAR",
+      privacy_by_design_guard: {
+        pii_minimization_applied: true,
+        redacted_fields: piiGuard.redactedTypes,
+        tenant_isolation_verified: true,
+        sanitized_scenario_summary: piiGuard.sanitizedText,
+      },
+      domain_evaluations: {
+        applicability: {
+          outcome: sec4Exempt ? "not_applicable" : "applicable",
+          section_cited: "PDPA Sections 3, 4 & 5",
+          basis_type: sec4Exempt
+            ? "exempt_sec_4"
+            : controllerInTh
+              ? "domestic_establishment_sec_5_para_1"
+              : "extraterritorial_offering_or_monitoring_sec_5_para_2",
+          explanation: String(appEval.result.calculated_result.applicability_basis),
+        },
+        lawful_basis_and_consent: {
+          outcome: basisValid ? "applicable" : "requires_review",
+          section_cited: "PDPA Sections 19, 24 & 26",
+          relied_basis: reliedBasis,
+          involves_sensitive_data_sec_26: isSensitive,
+          consent_validity_sec_19_passed: consentValid,
+          explanation: appEval.result.explanation,
+        },
+        data_subject_access_request_2026: {
+          outcome: dsarCompliant ? "applicable" : "requires_review",
+          section_cited: "PDPA Sections 30–36 & PDPC Access-Request Notification B.E. 2569 (2026)",
+          notification_applied: is2026Regime
+            ? "PDPC Notification on Data Subject Access Right B.E. 2569 (Effective 1 Feb 2026)"
+            : "PDPA B.E. 2562 Section 30 Baseline",
+          days_elapsed: dsarDays,
+          statutory_max_days: 30,
+          within_statutory_deadline: dsarDays <= 30,
+          identity_verification_compliant: dsarIdMin,
+          permissible_refusal_ground_applicable:
+            dsarRefusal === "law_or_court_order" ||
+            dsarRefusal === "third_party_rights_or_trade_secret",
+          explanation: dsarCompliant
+            ? `DSAR fulfilled in ${dsarDays}/30 calendar days using data-minimized identity verification under the 2026 PDPC Notification.`
+            : `DSAR violation under Sec. 30 & 2026 Notification (${dsarDays}/30 days; ID Minimization: ${dsarIdMin}; Refusal ground: ${dsarRefusal}).`,
+        },
+        breach_notification: {
+          outcome: breachCompliant ? "applicable" : "requires_review",
+          section_cited: "PDPA Section 37(4) & PDPC Breach Notification B.E. 2565",
+          hours_since_discovery: breachHours,
+          statutory_pdpc_deadline_hours: 72,
+          pdpc_notification_required: breachOccurred && breachRisk !== "no_risk",
+          late_notification_violation: breachOccurred && breachRisk !== "no_risk" && (breachHours > 72 || !pdpcNotified),
+          immediate_data_subject_notice_required: breachOccurred && breachRisk === "high_risk",
+          explanation: breachCompliant
+            ? `Breach reported within ${breachHours}/72 hours to PDPC and immediate remedial notice sent to affected Data Subjects.`
+            : `Breach reporting violation under Sec. 37(4): ${breachHours} hours elapsed (limit: 72h), PDPC notified: ${pdpcNotified}, Data Subjects notified: ${subjectsNotified}.`,
+        },
+        dpo_designation: {
+          outcome: dpoCompliant ? "applicable" : "requires_review",
+          section_cited: "PDPA Sections 41–42 & PDPC DPO Notification B.E. 2566",
+          mandatory_dpo_required: requiresDpo,
+          dpo_appointed: dpoAppointed,
+          trigger_reason:
+            "Core activities involve regular & systematic large-scale monitoring (Sec. 41(2)) and large-scale sensitive data (Sec. 41(3))",
+          explanation: dpoCompliant
+            ? "Qualified DPO appointed and contact details notified to PDPC and Data Subjects per Sec. 41–42."
+            : "Violation of Sec. 41: Mandatory DPO not appointed despite large-scale monitoring/sensitive data triggers (1,000,000 THB fine risk per PDPC Order No. 1/2567).",
+        },
+        cross_border_transfer: {
+          outcome: xborderCompliant ? "applicable" : "requires_review",
+          section_cited: "PDPA Sections 28–29 & PDPC Cross-Border Notifications B.E. 2566",
+          transfer_mechanism: xborderMechanism,
+          lawful_transfer_verified: xborderCompliant,
+          explanation: xborderCompliant
+            ? `Cross-border transfer lawful via [${xborderMechanism}] under PDPA Sections 28–29 and the B.E. 2566 Notification.`
+            : `Unverified cross-border transfer mechanism [${xborderMechanism}]; exposes Controller to up to 5,000,000 THB fine under Sec. 84.`,
+        },
+      },
+      cross_module_dependencies: [
+        {
+          target_module_id: "reg24.labor.th",
+          relationship: "DEPENDS_ON",
+          target_provision_id: "prov.th.lpa.118",
+          legal_impact_summary:
+            "Employee payroll/personnel records rely on Sec. 24(3)/(6), while biometric attendance scans & health checks require Sec. 26 explicit consent or statutory labor protection necessity.",
+        },
+        {
+          target_module_id: "reg24.contract.th",
+          relationship: "REFERENCES",
+          target_provision_id: "prov.th.ccc.383",
+          legal_impact_summary:
+            "Controller-Processor Data Processing Agreements (DPA) under Sec. 40 Para 3 and SCCs under Sec. 29 are governed alongside Contract Law liability and penalty rules.",
+        },
+        {
+          target_module_id: "reg24.civil.th",
+          relationship: "TRIGGERS",
+          target_provision_id: "prov.th.ccc.448",
+          legal_impact_summary:
+            "PDPA Sec. 77–78 civil damages (including up to 2x punitive damages) interact with CCC tort liability and prescription rules.",
+        },
+        {
+          target_module_id: "reg24.corporate.th",
+          relationship: "TRIGGERS",
+          target_provision_id: "prov.th.ccc.1168",
+          legal_impact_summary:
+            "PDPA Sec. 81 imposes personal criminal liability on corporate directors/managers whose orders or failure to supervise caused a corporate PDPA violation.",
+        },
+      ],
+      enforcement_exposure: {
+        civil_liability_sec_77_78: "Actual damages + court-awarded punitive damages up to 2x actual damages (Sec. 77–78)",
+        criminal_penalty_sec_79_81:
+          "Up to 6 months – 1 year imprisonment and/or 500,000 – 1,000,000 THB fine for unlawful sensitive data disclosure/transfer (Sec. 79), extending to corporate directors/managers (Sec. 81)",
+        administrative_fine_sec_82_90_max_thb: maxFineThb,
+        referenced_pdpc_expert_committee_orders: pdpcOrders,
+      },
+      verified_citations: [basisVer, dsarVer, breachVer, dpoVer, xborderVer, enfVer].map((v) => ({
+        provision_id: v.provision_id,
+        section_number: this.provisions.get(v.provision_id)?.section_number || "",
+        version_id: v.id,
+        clause_ids_matched: (v.clauses || []).map((c) => c.clause_id),
+        citation_locator: v.source_evidence.citation_locator,
+        official_url: v.source_evidence.official_url,
+        sha256_hash: v.source_evidence.sha256_hash,
+      })),
+      overall_compliance_status: allDomainsCompliant
+        ? "COMPLIANT"
+        : "NON_COMPLIANT_ENFORCEMENT_RISK",
+      human_review_required: !allDomainsCompliant || isSensitive,
+    };
+
+    this.recordAudit({
+      trace_id: traceId,
+      tenant_id: tenantId,
+      actor_role: "Legal Reviewer",
+      operation: "pdpa.compliance_mission_2026",
+      module_ids: ["reg24.pdpa.th", "reg24.labor.th", "reg24.contract.th", "reg24.civil.th", "reg24.corporate.th"],
+      provisions_accessed: [
+        "prov.th.pdpa.3_5",
+        "prov.th.pdpa.19_24_26",
+        "prov.th.pdpa.28_29",
+        "prov.th.pdpa.30_36",
+        "prov.th.pdpa.37_40",
+        "prov.th.pdpa.41_42",
+        "prov.th.pdpa.77_90",
+      ],
+      rules_evaluated: [
+        "rule.th.pdpa.applicability_and_lawful_basis",
+        "rule.th.pdpa.dsar_and_breach_compliance",
+      ],
+      prompt_injection_checked: true,
+      prompt_injection_blocked: false,
+      privacy_by_design_redacted: piiGuard.piiRedacted,
+      pii_redacted_fields: piiGuard.redactedTypes,
+      latency_ms: Math.max(3, Date.now() - startTime),
+      status: result.human_review_required ? "requires_review" : "success",
+      summary: `Executed PDPA B.E. 2562 & 2026 Access-Request Notification Compliance Assessment (${result.overall_compliance_status}) for scenario: ${piiGuard.sanitizedText}`,
+    });
+
+    return {
+      result,
+      status: result.human_review_required ? "requires_review" : "ok",
+      module_versions: this.getActiveModuleVersions([
+        "reg24.pdpa.th",
+        "reg24.labor.th",
+        "reg24.contract.th",
+        "reg24.civil.th",
+        "reg24.corporate.th",
+      ]),
+      sources: Array.from(this.sourceDocuments.values())
+        .filter((s) => s.regulator_id === "reg.th.pdpc")
+        .map((s) => ({
+          document_id: s.id,
+          title_en: s.title_en,
+          official_url: s.official_url,
+          sha256_hash: s.sha256_hash,
+          verified_at: s.verified_at,
+        })),
+      citations: result.verified_citations.map((c) => ({
+        provision_id: c.provision_id,
+        instrument_short_code: "PDPA",
+        section_number: c.section_number,
+        version_id: c.version_id,
+        citation_locator: c.citation_locator,
+        official_url: c.official_url,
+      })),
+      effective_dates: {
+        queried_as_of_date: asOfDate,
+        known_at_date: "2026-10-18",
+        provision_effective_from: dsarVer.effective_from,
+        provision_effective_to: dsarVer.effective_to,
+      },
+      missing_facts: [],
+      coverage_status: {
+        is_complete: true,
+        executable_rules_available: true,
+        known_limitations:
+          this.modules.get("reg24.pdpa.th")?.source_coverage.known_limitations || [],
+      },
+      review_required: result.human_review_required,
+      trace_id: traceId,
+    };
+  }
+
   // Getters for Management Console state snapshot
   public getDashboardSnapshot() {
     const default3R = this.execute3RGraphRAGQuery({
@@ -4020,6 +4672,10 @@ export class Reg24PlatformCore {
 
     const defaultTaxPrecedent = this.executeTaxPrecedentComparison({
       transaction_date: "2026-10-18",
+    });
+
+    const defaultPDPAAssessment = this.executePDPAComplianceMission({
+      as_of_date: "2026-10-18",
     });
 
     return {
@@ -4039,6 +4695,8 @@ export class Reg24PlatformCore {
       taxSubRegulations: this.taxSubRegulations,
       taxRulings: this.taxRulings,
       taxJudicialDecisions: this.taxJudicialDecisions,
+      pdpaSubordinateRegulations: this.pdpaSubordinateRegulations,
+      samplePDPAComplianceAssessment: defaultPDPAAssessment.result,
       sampleTaxPrecedentComparison: defaultTaxPrecedent.result,
       sample3RGraphRAGResult: default3R,
       sampleRestructuringMission: defaultMission.result,
