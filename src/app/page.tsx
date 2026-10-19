@@ -232,7 +232,7 @@ function getModuleIcon(iconName: string, className = "w-7 h-7") {
 export default function Reg24MetroConsole() {
   const [snapshot, setSnapshot] = useState<SnapshotData | null>(null);
   const [activeScreen, setActiveScreen] = useState<ScreenId>("PANORAMA");
-  const [vibeMode, setVibeMode] = useState<"easy" | "professional">("easy");
+  const [vibeMode, setVibeMode] = useState<"minimal" | "easy" | "professional">("minimal");
   const [lightSurfaceMode, setLightSurfaceMode] = useState<boolean>(false);
   const [expertView, setExpertView] = useState<boolean>(false);
   const [languageMode, setLanguageMode] = useState<"bilingual" | "th" | "en">("bilingual");
@@ -1268,9 +1268,10 @@ export default function Reg24MetroConsole() {
           ======================================================================= */}
       <header className="border-b border-[#1e293b] bg-[#0c111d] sticky top-0 z-50">
         <div className="max-w-[1060px] mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
-          {/* Left Brand Lockup: [24] REG24 / Corporate Legal Intelligence */}
+          {/* Left Brand Lockup: [24] REG24 / Legal Intelligence */}
           <button
             onClick={() => {
+              setVibeMode("minimal");
               setActiveScreen("PANORAMA");
             }}
             className="flex flex-col items-start text-left cursor-pointer group"
@@ -1282,26 +1283,32 @@ export default function Reg24MetroConsole() {
               <span className="text-lg font-extrabold tracking-tight text-white leading-none group-hover:text-[#f5b700] transition-colors">
                 REG24
               </span>
+              <span className="text-[11px] font-medium text-[#f5b700] border-l border-[#24324b] pl-2">
+                Legal Intelligence
+              </span>
             </div>
             <span className="text-[9px] text-slate-400 tracking-wide mt-0.5">
-              Integrate Law into AI Universe
+              Thai Law &bull; Court Decisions &bull; Tax Rulings &bull; SEC / SET
             </span>
           </button>
 
-          {/* Center & Right Navigation Controls matching reference layout */}
+          {/* Center & Right Navigation Controls */}
           <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            <button
-              onClick={() => {
-                setWebActiveTab("ai_research");
-                setActiveScreen("SCREEN_O_WEB_STUDIO");
-              }}
-              className="text-slate-300 hover:text-[#f5b700] px-2 py-1 font-medium cursor-pointer transition-colors"
-            >
-              {languageMode === "th" ? "ถาม REG24" : "Ask REG24"}
-            </button>
-
-            {/* Segmented Mode Pill: [ Easy | Professional | Deep on/off ] */}
+            {/* Segmented Mode Pill: [ Minimal | Easy 1-2-3-4 | Studio | Professional ] */}
             <div className="bg-[#121a2b] border border-[#24324b] p-0.5 flex items-center">
+              <button
+                onClick={() => {
+                  setVibeMode("minimal");
+                  setActiveScreen("PANORAMA");
+                }}
+                className={`px-2.5 py-1 font-semibold cursor-pointer transition-colors ${
+                  vibeMode === "minimal" && activeScreen === "PANORAMA"
+                    ? "bg-[#f5b700] text-[#0a192f] font-bold"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                Minimal
+              </button>
               <button
                 onClick={() => {
                   setVibeMode("easy");
@@ -1313,36 +1320,32 @@ export default function Reg24MetroConsole() {
                     : "text-slate-300 hover:text-white"
                 }`}
               >
-                Easy
+                Easy 1-2-3-4
+              </button>
+              <button
+                onClick={() => {
+                  setActiveScreen("SCREEN_O_WEB_STUDIO");
+                }}
+                className={`px-2.5 py-1 font-semibold cursor-pointer transition-colors ${
+                  activeScreen === "SCREEN_O_WEB_STUDIO"
+                    ? "bg-[#f5b700] text-[#0a192f] font-bold"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                Research Studio
               </button>
               <button
                 onClick={() => {
                   setVibeMode("professional");
+                  setActiveScreen("PANORAMA");
                 }}
                 className={`px-2.5 py-1 font-semibold cursor-pointer transition-colors ${
-                  vibeMode === "professional"
+                  vibeMode === "professional" && activeScreen !== "SCREEN_O_WEB_STUDIO"
                     ? "bg-[#0f2c59] text-[#f5b700] border border-[#f5b700]/60 font-bold"
                     : "text-slate-300 hover:text-white"
                 }`}
               >
-                Professional
-              </button>
-              <button
-                onClick={() => {
-                  setWebMode((prev) => (prev === "Deep Research" ? "Quick Answer" : "Deep Research"));
-                  showToast(
-                    webMode === "Deep Research"
-                      ? "Switched to Quick Answer mode."
-                      : "Switched to 9-Step Deep Research mode."
-                  );
-                }}
-                className={`px-2.5 py-1 font-medium cursor-pointer transition-colors ${
-                  webMode === "Deep Research"
-                    ? "text-[#f5b700]"
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
-              >
-                {webMode === "Deep Research" ? "Deep on" : "Deep off"}
+                Infrastructure
               </button>
             </div>
 
@@ -1396,41 +1399,30 @@ export default function Reg24MetroConsole() {
 
             <button
               onClick={() => {
+                setWebActiveTab("legal_search");
+                setActiveScreen("SCREEN_O_WEB_STUDIO");
+              }}
+              className="text-slate-300 hover:text-[#f5b700] px-1.5 py-1 cursor-pointer"
+            >
+              Legal Search
+            </button>
+            <button
+              onClick={() => {
+                setWebActiveTab("temporal_compare");
+                setActiveScreen("SCREEN_O_WEB_STUDIO");
+              }}
+              className="text-slate-300 hover:text-[#f5b700] px-1.5 py-1 cursor-pointer"
+            >
+              Temporal Law
+            </button>
+            <button
+              onClick={() => {
                 setWebActiveTab("workspace_exports");
                 setActiveScreen("SCREEN_O_WEB_STUDIO");
               }}
               className="text-slate-300 hover:text-[#f5b700] px-1.5 py-1 cursor-pointer"
             >
-              My dashboard
-            </button>
-            <button
-              onClick={() => {
-                setVibeMode("professional");
-                setActiveScreen("SCREEN_A_REGISTRY");
-              }}
-              className="text-slate-300 hover:text-[#f5b700] px-1.5 py-1 cursor-pointer"
-            >
-              Modules
-            </button>
-            <button
-              onClick={() => {
-                setVibeMode("professional");
-                setActiveScreen("SCREEN_G_MCP");
-              }}
-              className="text-slate-300 hover:text-[#f5b700] px-1.5 py-1 cursor-pointer"
-            >
-              Help
-            </button>
-
-            <button
-              onClick={() => {
-                setWebActiveTab("ai_research");
-                setActiveScreen("SCREEN_O_WEB_STUDIO");
-                handleRunWebLegalResearch("Deep Research");
-              }}
-              className="bg-[#121a2b] hover:bg-[#1a263e] border border-[#2d3e5e] text-white px-3 py-1 font-semibold cursor-pointer"
-            >
-              Try demo
+              Workspace
             </button>
 
             <button
@@ -1442,25 +1434,6 @@ export default function Reg24MetroConsole() {
               Sign in
             </button>
           </div>
-        </div>
-
-        {/* Sub-Header Strip matching "Explore a sample business, or sign in to manage your own organization. Claim business ↗" */}
-        <div className="border-t border-[#192334] bg-[#090d16] py-2 px-4 text-center text-[11px] text-slate-300">
-          <span>
-            {languageMode === "th"
-              ? "สำรวจคดีตัวอย่างและข้อกฎหมายธุรกิจไทย หรือเข้าสู่ระบบเพื่อจัดการองค์กรของท่าน "
-              : "Explore a sample Thai corporate legal matter, or sign in to manage your own organization. "}
-          </span>
-          <button
-            onClick={() => {
-              setWebActiveTab("ai_research");
-              setActiveScreen("SCREEN_O_WEB_STUDIO");
-            }}
-            className="underline text-[#f5b700] hover:text-[#facc15] font-semibold inline-flex items-center gap-0.5 ml-1 cursor-pointer"
-          >
-            <span>{languageMode === "th" ? "เปิดสตูดิโอวิจัยกฎหมาย" : "Claim workspace"}</span>
-            <ArrowUpRight className="w-3 h-3" />
-          </button>
         </div>
       </header>
 
@@ -1488,12 +1461,12 @@ export default function Reg24MetroConsole() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => {
-                    setVibeMode("easy");
+                    setVibeMode("minimal");
                     setActiveScreen("PANORAMA");
                   }}
                   className="bg-[#0f2c59] hover:bg-[#163e7a] border border-[#f5b700]/70 text-[#f5b700] px-3 py-1 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>&larr; Easy Mode (1-2-3-4 Starting Point)</span>
+                  <span>&larr; Minimal Legal Research Home</span>
                 </button>
                 <div>
                   <span className="text-[10px] uppercase tracking-[0.22em] text-[#f5b700] font-bold block">
@@ -1576,7 +1549,602 @@ export default function Reg24MetroConsole() {
       {/* MAIN CONTENT VIEWPORT */}
       <main className="flex-1 px-4 md:px-6 py-6 max-w-[1480px] w-full mx-auto">
         {/* =====================================================================
-            EASY MODE (DEFAULT): VIBE24 / REG24 DIRECT "CHOOSE A STARTING POINT"
+            MINIMAL HOMEPAGE (DEFAULT): REG24 LEGAL INTELLIGENCE (REG24-WEB-001)
+            Matches recommended minimal homepage with Navy Blue & Lacquer Yellow
+            ===================================================================== */}
+        {activeScreen === "PANORAMA" && vibeMode === "minimal" && (() => {
+          const currentSession =
+            snapshot.webResearchStudio.sessions.find((s) => s.session_id === webSelectedSessionId) ||
+            snapshot.webResearchStudio.sessions[0];
+          const latestTurn = currentSession?.turns[currentSession.turns.length - 1];
+          const activeCitation =
+            webSelectedCitation || latestTurn?.citations[0] || null;
+
+          const exampleTopics: { labelEn: string; labelTh: string; mode: WebResearchMode; query: string }[] = [
+            {
+              labelEn: "Corporate restructuring",
+              labelTh: "การปรับโครงสร้างบริษัทและโอนกิจการ (EBT)",
+              mode: "Deep Research",
+              query:
+                languageMode === "en"
+                  ? "What are the Thai corporate, BOI, and tax exemption requirements for an Entire Business Transfer (EBT) corporate restructuring?"
+                  : "การปรับโครงสร้างกลุ่มบริษัทและการโอนกิจการทั้งหมด (Entire Business Transfer - EBT) ตามประมวลรัษฎากรและกฎหมายบริษัทไทย มีเงื่อนไขยกเว้นภาษีและขั้นตอนอย่างไร?",
+            },
+            {
+              labelEn: "Tax rulings",
+              labelTh: "ข้อหารือกรมสรรพากรและภาษีนิติบุคคล",
+              mode: "Quick Answer",
+              query:
+                languageMode === "en"
+                  ? "How do Revenue Department tax rulings and Supreme Court decisions interpret non-deductible expenses under Section 65 Ter and bad debt write-offs?"
+                  : "แนววินิจฉัยข้อหารือกรมสรรพากรและคำพิพากษาศาลฎีกาเกี่ยวกับรายจ่ายต้องห้ามตามมาตรา 65 ตรี และการจำหน่ายหนี้สูญตามกฎกระทรวง ฉบับที่ 374",
+            },
+            {
+              labelEn: "SEC / SET compliance",
+              labelTh: "เกณฑ์ ก.ล.ต. / ตลท. รายการได้มาและเกี่ยวโยงกัน",
+              mode: "Obligation Analysis",
+              query:
+                languageMode === "en"
+                  ? "What are the SEC and SET compliance obligations for a listed company acquiring a solar energy subsidiary and entering into connected transactions?"
+                  : "บริษัทจดทะเบียนในตลาดหลักทรัพย์ฯ เข้าซื้อกิจการโรงไฟฟ้าพลังงานแสงอาทิตย์และทำรายการที่เกี่ยวโยงกัน ต้องปฏิบัติตามเกณฑ์ ก.ล.ต. และ ตลท. อย่างไร?",
+            },
+            {
+              labelEn: "PDPA obligations",
+              labelTh: "หน้าที่ตามกฎหมาย PDPA และการแจ้งเหตุข้อมูลรั่วไหล",
+              mode: "Obligation Analysis",
+              query:
+                languageMode === "en"
+                  ? "What are a data controller's mandatory PDPA obligations in Thailand for sensitive personal data, 72-hour breach notification, and cross-border transfers?"
+                  : "หน้าที่ของผู้ควบคุมข้อมูลส่วนบุคคลตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล (PDPA) กรณีข้อมูลอ่อนไหว การแจ้งเหตุละเมิดภายใน 72 ชั่วโมง และการโอนข้อมูลไปต่างประเทศ",
+            },
+          ];
+
+          return (
+            <div className="max-w-[960px] mx-auto pt-6 pb-16 space-y-10">
+              {/* 1. MINIMAL HERO & RESEARCH COMPOSER */}
+              <div className="max-w-[740px] mx-auto text-center space-y-4">
+                <div className="inline-flex items-center gap-2 bg-[#0f2c59] border border-[#f5b700]/70 px-3 py-1 text-xs">
+                  <span className="font-extrabold text-[#f5b700] tracking-wider">REG24</span>
+                  <span className="text-slate-400">&bull;</span>
+                  <span className="text-white font-medium">
+                    {languageMode === "th" ? "ระบบอัจฉริยะทางกฎหมาย" : "Legal Intelligence"}
+                  </span>
+                </div>
+
+                <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight leading-tight">
+                  {languageMode === "th"
+                    ? "มีคำถามข้อกฎหมายใดให้ช่วยวิเคราะห์?"
+                    : "What legal question can I help with?"}
+                </h1>
+
+                <p className="text-sm text-slate-300 tracking-wide">
+                  {languageMode === "th"
+                    ? "กฎหมายไทย · คำพิพากษาศาลฎีกา · ข้อหารือกรมสรรพากร · ก.ล.ต. / ตลท. / BOI / PDPA"
+                    : "Thai Law · Court Decisions · Tax Rulings · SEC / SET"}
+                </p>
+
+                {/* MAIN MINIMAL RESEARCH COMPOSER BOX */}
+                <div className="mt-6 bg-[#101829] border-2 border-[#263859] focus-within:border-[#f5b700] p-4 md:p-5 text-left space-y-4 shadow-[0_24px_60px_rgba(0,0,0,0.55)] transition-colors">
+                  {/* Three Research Modes (WEB-08): Quick Answer | Deep Research | Obligations */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1e2d47] pb-3">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {(
+                        [
+                          {
+                            mode: "Quick Answer" as WebResearchMode,
+                            labelEn: "Quick Answer",
+                            labelTh: "Quick Answer (คำตอบด่วน)",
+                          },
+                          {
+                            mode: "Deep Research" as WebResearchMode,
+                            labelEn: "Deep Research",
+                            labelTh: "Deep Research (วิจัยเชิงลึก)",
+                          },
+                          {
+                            mode: "Obligation Analysis" as WebResearchMode,
+                            labelEn: "Obligations",
+                            labelTh: "Obligations (หน้าที่ตามกฎหมาย)",
+                          },
+                        ]
+                      ).map((item) => {
+                        const isActive = webMode === item.mode;
+                        return (
+                          <button
+                            key={item.mode}
+                            onClick={() => setWebMode(item.mode)}
+                            className={`px-3.5 py-1.5 text-xs font-bold tracking-wide cursor-pointer transition-all border ${
+                              isActive
+                                ? "bg-[#f5b700] border-[#f5b700] text-[#0a192f] shadow-[0_0_12px_rgba(245,183,0,0.3)]"
+                                : "bg-[#0b111e] border-[#24324b] text-slate-300 hover:border-[#f5b700]/60 hover:text-white"
+                            }`}
+                          >
+                            {languageMode === "th" ? item.labelTh : item.labelEn}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <button
+                      onClick={() => setWebShowAdvancedControls((prev) => !prev)}
+                      className="text-[11px] text-slate-400 hover:text-[#f5b700] cursor-pointer"
+                    >
+                      {webShowAdvancedControls
+                        ? languageMode === "th"
+                          ? "ซ่อนตัวเลือกขั้นสูง"
+                          : "Hide options"
+                        : languageMode === "th"
+                          ? "+ ขอบเขตกฎหมายและภาษา"
+                          : "+ Domains & options"}
+                    </button>
+                  </div>
+
+                  {/* Prominent Question Textarea */}
+                  <div>
+                    <textarea
+                      rows={3}
+                      aria-label="Legal Question Input"
+                      value={webQueryInput}
+                      onChange={(e) => setWebQueryInput(e.target.value)}
+                      placeholder={
+                        languageMode === "th"
+                          ? "พิมพ์คำถามข้อกฎหมายภาษาไทยหรือภาษาอังกฤษ..."
+                          : "Ask any Thai corporate, tax, court precedent, SEC/SET, BOI, or PDPA question..."
+                      }
+                      className="w-full bg-transparent text-base text-white placeholder-slate-400 focus:outline-none resize-none leading-relaxed"
+                    />
+                  </div>
+
+                  {/* Hidden-by-default Advanced Domain & Language Controls (Section 3) */}
+                  {webShowAdvancedControls && (
+                    <div className="bg-[#0b101b] border border-[#24324b] p-3.5 space-y-2.5 text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#f5b700]">
+                          LEGAL DOMAINS (WEB-01) &amp; RESPONSE LANGUAGE (DEFAULT: THAI)
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-400">Response:</span>
+                          <select
+                            value={webResponseLang}
+                            onChange={(e) =>
+                              setWebResponseLang(e.target.value as "th" | "en" | "bilingual")
+                            }
+                            className="bg-[#11192a] border border-[#24324b] px-2 py-0.5 text-xs text-white"
+                          >
+                            <option value="th">ภาษาไทย (Thai Default)</option>
+                            <option value="en">English (EN)</option>
+                            <option value="bilingual">Bilingual (ไทย + EN)</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(
+                          [
+                            "LEG-CORP",
+                            "LEG-CONTRACT",
+                            "LEG-LABOR",
+                            "LEG-TAX",
+                            "LEG-BOI",
+                            "LEG-SEC",
+                            "LEG-PDPA",
+                            "LEG-RESTRUCT",
+                            "LEG-CASE",
+                          ] as CoreLegalDomainCode[]
+                        ).map((dom) => {
+                          const selected = webSelectedDomains.includes(dom);
+                          return (
+                            <button
+                              key={dom}
+                              onClick={() =>
+                                setWebSelectedDomains((prev) =>
+                                  prev.includes(dom)
+                                    ? prev.filter((d) => d !== dom)
+                                    : [...prev, dom]
+                                )
+                              }
+                              className={`px-2 py-0.5 text-[11px] font-mono border cursor-pointer ${
+                                selected
+                                  ? "bg-[#0f2c59] border-[#f5b700] text-[#f5b700]"
+                                  : "bg-[#111724] border-[#24324b] text-slate-400"
+                              }`}
+                            >
+                              {dom}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Bottom Action Row: [Current law (Date Picker)]  ----------------  [Research] */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#1e2d47]">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="inline-flex items-center gap-2 bg-[#0b111e] border border-[#24324b] px-3 py-1.5 text-xs">
+                        <Clock className="w-3.5 h-3.5 text-[#f5b700]" />
+                        <span className="text-slate-300 font-medium">
+                          {webAsOfDate === "2026-10-19"
+                            ? languageMode === "th"
+                              ? "กฎหมายปัจจุบัน (Current law)"
+                              : "Current law"
+                            : `Point-in-time: ${webAsOfDate}`}
+                        </span>
+                        <input
+                          type="date"
+                          aria-label="Applicable Legal Date"
+                          value={webAsOfDate}
+                          onChange={(e) => setWebAsOfDate(e.target.value)}
+                          className="bg-transparent text-[#f5b700] font-mono text-xs focus:outline-none cursor-pointer"
+                        />
+                      </div>
+
+                      <button
+                        onClick={() => setWebShowGraphPanel((prev) => !prev)}
+                        className={`px-2.5 py-1.5 text-xs border cursor-pointer ${
+                          webShowGraphPanel
+                            ? "bg-[#0f2c59] border-[#f5b700] text-[#f5b700]"
+                            : "bg-[#0b111e] border-[#24324b] text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {webShowGraphPanel ? "Graph: On" : "Graph Explorer"}
+                      </button>
+                    </div>
+
+                    <button
+                      disabled={webLoading}
+                      onClick={() => handleRunWebLegalResearch()}
+                      className="bg-[#f5b700] hover:bg-[#facc15] text-[#0a192f] font-bold px-6 py-2.5 text-sm inline-flex items-center gap-2 cursor-pointer shadow-[0_0_18px_rgba(245,183,0,0.32)]"
+                    >
+                      <Search className="w-4 h-4" />
+                      <span>
+                        {webLoading
+                          ? languageMode === "th"
+                            ? "กำลังค้นคว้า..."
+                            : "Researching..."
+                          : languageMode === "th"
+                            ? "ค้นคว้า (Research)"
+                            : "Research"}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* EXAMPLE RESEARCH TOPICS */}
+                <div className="pt-3 space-y-2.5">
+                  <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">
+                    {languageMode === "th" ? "หัวข้อตัวอย่างสำหรับเริ่มต้นค้นคว้า" : "Example research topics"}
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {exampleTopics.map((topic) => (
+                      <button
+                        key={topic.labelEn}
+                        onClick={() => {
+                          handleRunWebLegalResearch(topic.mode, topic.query);
+                        }}
+                        className="bg-[#111a2c] hover:bg-[#0f2c59] border border-[#263859] hover:border-[#f5b700] text-slate-200 hover:text-[#f5b700] px-3.5 py-2 text-xs font-medium transition-all cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <span>{languageMode === "th" ? topic.labelTh : topic.labelEn}</span>
+                        <ArrowUpRight className="w-3.5 h-3.5 text-[#f5b700]" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. LIVE CONNECTED RESEARCH OUTPUT & INTEGRATED SOURCE VIEWER (WEB-01, WEB-03, WEB-04, WEB-08) */}
+              {latestTurn && (
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#24324b] pb-3">
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="bg-[#f5b700] text-[#0a192f] font-bold px-2.5 py-0.5 uppercase">
+                        {latestTurn.mode}
+                      </span>
+                      <span className="bg-[#0f2c59] border border-[#f5b700]/50 text-[#f5b700] px-2.5 py-0.5 font-mono">
+                        AS-OF LEGAL DATE: {latestTurn.as_of_date}
+                      </span>
+                      <span className="text-slate-400 font-mono text-[11px]">
+                        TRACE: {latestTurn.provenance_metadata.trace_id}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button
+                        onClick={() => {
+                          handleExportWebSession("PDF");
+                          setWebActiveTab("workspace_exports");
+                          setActiveScreen("SCREEN_O_WEB_STUDIO");
+                        }}
+                        className="bg-[#121a2b] hover:bg-[#0f2c59] border border-[#24324b] hover:border-[#f5b700] text-slate-200 px-3 py-1 text-xs font-semibold cursor-pointer"
+                      >
+                        Export PDF
+                      </button>
+                      <button
+                        onClick={() => {
+                          handleExportWebSession("DOCX");
+                          setWebActiveTab("workspace_exports");
+                          setActiveScreen("SCREEN_O_WEB_STUDIO");
+                        }}
+                        className="bg-[#121a2b] hover:bg-[#0f2c59] border border-[#24324b] hover:border-[#f5b700] text-slate-200 px-3 py-1 text-xs font-semibold cursor-pointer"
+                      >
+                        Export DOCX
+                      </button>
+                      <button
+                        onClick={() => {
+                          setWebActiveTab("ai_research");
+                          setActiveScreen("SCREEN_O_WEB_STUDIO");
+                        }}
+                        className="bg-[#0f2c59] hover:bg-[#163e7a] border border-[#f5b700] text-[#f5b700] px-3 py-1 text-xs font-bold cursor-pointer inline-flex items-center gap-1"
+                      >
+                        <span>Open Full Studio Workspace</span>
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* 9-Step Deep Research Progress Bar (Shown when in Deep Research mode — WEB-04) */}
+                  {latestTurn.deep_research_workflow && (
+                    <div className="bg-[#101726] border border-[#24324b] p-4 space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="text-xs font-bold uppercase tracking-wider text-[#f5b700]">
+                          WEB-04 9-STEP DEEP RESEARCH WORKFLOW ({latestTurn.deep_research_workflow.progress_pct}% &bull; {latestTurn.deep_research_workflow.state.toUpperCase()})
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleCancelOrRetryDeepResearch("cancel")}
+                            className="px-2.5 py-1 text-[10px] font-bold uppercase bg-rose-950/60 border border-rose-700 text-rose-200 cursor-pointer"
+                          >
+                            Cancel Job
+                          </button>
+                          <button
+                            onClick={() => handleCancelOrRetryDeepResearch("retry")}
+                            className="px-2.5 py-1 text-[10px] font-bold uppercase bg-[#0f2c59] border border-[#f5b700] text-[#f5b700] cursor-pointer"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 md:grid-cols-9 gap-1.5 text-[10px]">
+                        {latestTurn.deep_research_workflow.steps.map((st) => (
+                          <div
+                            key={st.step_number}
+                            className={`p-2 border ${
+                              st.status === "completed"
+                                ? "bg-[#0f2c59]/60 border-[#f5b700]/60 text-white"
+                                : "bg-[#0b101b] border-[#1e293b] text-slate-400"
+                            }`}
+                          >
+                            <div className="font-mono text-[#f5b700] font-bold">0{st.step_number}</div>
+                            <div className="truncate mt-0.5">{st.step_title_en}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 2-Column Split: Source-Grounded Legal Analysis (Left) + Integrated Legal Source Viewer (Right) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    {/* Left 7 Cols: Structured Legal Analysis & Citations (WEB-01 & WEB-08) */}
+                    <div className="lg:col-span-7 bg-[#101726] border border-[#24324b] p-5 space-y-4">
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#f5b700]">
+                        SOURCE-GROUNDED LEGAL ANALYSIS ({webResponseLang === "en" ? "ENGLISH" : "THAI DEFAULT — WEB-01"})
+                      </div>
+                      <p className="text-sm text-white leading-relaxed">
+                        {webResponseLang === "en" ? latestTurn.answer_en : latestTurn.answer_th}
+                      </p>
+
+                      {/* Verified Citations Bar (Click to inspect in Source Viewer) */}
+                      <div className="space-y-2 pt-2 border-t border-[#1e2d47]">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                          VERIFIED LEGAL CITATIONS (CLICK TO INSPECT ORIGINAL SOURCE — AC-WEB-02):
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {latestTurn.citations.map((cit) => {
+                            const selected = activeCitation?.citation_id === cit.citation_id;
+                            return (
+                              <button
+                                key={cit.citation_id}
+                                onClick={() => setWebSelectedCitation(cit)}
+                                className={`px-3 py-1.5 text-xs font-mono border cursor-pointer transition-colors ${
+                                  selected
+                                    ? "bg-[#f5b700] border-[#f5b700] text-[#0a192f] font-bold"
+                                    : "bg-[#0b111e] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
+                                }`}
+                              >
+                                [{cit.section_or_locator}] {cit.title_th}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Applicable Obligations Preview (WEB-08) */}
+                      <div className="space-y-2 pt-2 border-t border-[#1e2d47]">
+                        <div className="text-[11px] font-bold uppercase tracking-wider text-[#f5b700]">
+                          APPLICABLE STATUTORY &amp; REGULATORY OBLIGATIONS ({latestTurn.applicable_obligations.length}):
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {latestTurn.applicable_obligations.slice(0, 4).map((ob) => (
+                            <div key={ob.obligation_id} className="bg-[#0b111e] border border-[#1e2d47] p-2.5 text-xs">
+                              <div className="font-semibold text-white">
+                                {webResponseLang === "en" ? ob.title : ob.title_th}
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">
+                                Domain: {ob.legal_domain} &bull; Risk: {ob.risk_level.toUpperCase()}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right 5 Cols: Integrated Legal Source Viewer (WEB-03 — Original Text vs AI Interpretation) */}
+                    <div className="lg:col-span-5 bg-[#101726] border border-[#24324b] p-5 space-y-4">
+                      <div className="flex items-center justify-between border-b border-[#1e2d47] pb-2.5">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#f5b700]">
+                            WEB-03 LEGAL SOURCE VIEWER
+                          </span>
+                          <h3 className="text-sm font-bold text-white">
+                            Original Legal Text vs AI Interpretation
+                          </h3>
+                        </div>
+                        <span className="text-[10px] font-mono bg-[#0f2c59] border border-[#f5b700] px-2 py-0.5 text-[#f5b700]">
+                          SHA-256 VERIFIED
+                        </span>
+                      </div>
+
+                      {activeCitation && (
+                        <div className="space-y-3 text-xs">
+                          <div className="bg-[#0b111e] border border-[#1e2d47] p-3 space-y-1">
+                            <div className="font-bold text-white">{activeCitation.title_th}</div>
+                            <div className="text-slate-400">{activeCitation.title_en}</div>
+                            <div className="text-[11px] font-mono text-[#f5b700]">
+                              {activeCitation.section_or_locator} &bull; Effective: {activeCitation.effective_from}
+                            </div>
+                          </div>
+
+                          {/* Original Authoritative Source Text */}
+                          <div className="bg-[#0f2c59]/40 border-l-4 border-[#f5b700] p-3 space-y-1.5">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-[#f5b700]">
+                              ORIGINAL AUTHORITATIVE SOURCE TEXT (ตัวบทกฎหมายต้นฉบับ)
+                            </div>
+                            <p className="text-white font-serif leading-relaxed">
+                              {activeCitation.highlighted_source_passage_th}
+                            </p>
+                            <p className="text-slate-300 font-serif text-[11px] leading-relaxed">
+                              {activeCitation.highlighted_source_passage_en}
+                            </p>
+                          </div>
+
+                          {/* AI-Generated Legal Interpretation */}
+                          <div className="bg-[#0b111e] border border-[#24324b] p-3 space-y-1.5">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-sky-400">
+                              AI-GENERATED LEGAL INTERPRETATION (คำอธิบายโดย AI)
+                            </div>
+                            <p className="text-slate-200 leading-relaxed">
+                              {activeCitation.ai_interpretation_summary_th}
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Optional Knowledge Graph Explorer Panel (WEB-06) */}
+                  {webShowGraphPanel && (
+                    <div className="bg-[#101726] border border-[#f5b700] p-5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#f5b700]">
+                          WEB-06 LEGAL KNOWLEDGE GRAPH EXPLORER (VERIFIED EDGES ONLY)
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-400">
+                          UNSUPPORTED / UNVERIFIED EDGES QUARANTINED
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        {snapshot.caseKnowledgeGraph.nodes.slice(0, 8).map((node) => (
+                          <div key={node.id} className="bg-[#0b111e] border border-[#24324b] p-3">
+                            <div className="text-[10px] font-mono uppercase text-[#f5b700]">
+                              {node.node_type}
+                            </div>
+                            <div className="font-semibold text-white mt-0.5">{node.label_th}</div>
+                            <div className="text-[11px] text-slate-400">{node.label_en}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 3. ARCHITECTURAL PRINCIPLE DIAGRAM: ONE ENGINE, TWO DISTRIBUTION CHANNELS */}
+              <div className="border border-[#24324b] bg-[#0e1524] p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#f5b700]">
+                      ARCHITECTURAL PRINCIPLE (REG24-WEB-001 &bull; AC-WEB-01 &amp; AC-WEB-10)
+                    </span>
+                    <h3 className="text-sm font-bold text-white mt-0.5">
+                      One Legal Intelligence Engine &bull; Two Distribution Channels (Human Web Studio + AI API/MCP)
+                    </h3>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => {
+                        setWebActiveTab("legal_search");
+                        setActiveScreen("SCREEN_O_WEB_STUDIO");
+                      }}
+                      className="text-xs text-[#f5b700] hover:underline cursor-pointer"
+                    >
+                      7-Category Legal Search &rarr;
+                    </button>
+                    <span className="text-slate-600">|</span>
+                    <button
+                      onClick={() => {
+                        setWebActiveTab("temporal_compare");
+                        setActiveScreen("SCREEN_O_WEB_STUDIO");
+                      }}
+                      className="text-xs text-[#f5b700] hover:underline cursor-pointer"
+                    >
+                      Temporal Law Diff &rarr;
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                  <div className="bg-[#0a101d] border border-[#24324b] p-3.5">
+                    <div className="text-[10px] font-bold uppercase text-[#f5b700]">
+                      1. REG24 CORE INFRASTRUCTURE
+                    </div>
+                    <div className="font-semibold text-white mt-1">
+                      Single Source of Truth
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      Legal data &bull; Temporal Graph RAG &bull; Reasoning &bull; Verification &bull; Obligation Engine
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0a101d] border border-[#24324b] p-3.5">
+                    <div className="text-[10px] font-bold uppercase text-[#f5b700]">
+                      2. REG24 GATEWAY
+                    </div>
+                    <div className="font-semibold text-white mt-1">
+                      Unified Access Layer
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      REST API &bull; MCP (61 Tools) &bull; Authentication &bull; Tenant Isolation &bull; Metering
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0f2c59]/50 border border-[#f5b700] p-3.5">
+                    <div className="text-[10px] font-bold uppercase text-[#f5b700]">
+                      3. REG24 WEB (CHANNEL 1)
+                    </div>
+                    <div className="font-semibold text-white mt-1">
+                      Legal Research Studio
+                    </div>
+                    <div className="text-[11px] text-slate-200 mt-1">
+                      First-party web application for lawyers, tax advisors, and corporate teams
+                    </div>
+                  </div>
+
+                  <div className="bg-[#0a101d] border border-[#24324b] p-3.5">
+                    <div className="text-[10px] font-bold uppercase text-[#f5b700]">
+                      4. EXTERNAL CONSUMERS (CHANNEL 2)
+                    </div>
+                    <div className="font-semibold text-white mt-1">
+                      Ecosystem &amp; AI Agents
+                    </div>
+                    <div className="text-[11px] text-slate-400 mt-1">
+                      LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; AI agents &bull; Enterprise applications
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* =====================================================================
+            EASY MODE (1-2-3-4 BENTO GRID): VIBE24 / REG24 DIRECT "CHOOSE A STARTING POINT"
             Exact layout match with Navy Blue (#0F2C59 / #163E7A) & Lacquer Yellow (#F5B700)
             ===================================================================== */}
         {activeScreen === "PANORAMA" && vibeMode === "easy" && (
