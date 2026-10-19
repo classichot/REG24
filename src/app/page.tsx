@@ -100,6 +100,8 @@ import type {
   WebResearchCitationLink,
   WebUnifiedSearchResultItem,
   WebExportPackage,
+  WebSourceResearchMode,
+  WebUploadedDocumentContext,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -233,13 +235,24 @@ export default function Reg24MetroConsole() {
   const [snapshot, setSnapshot] = useState<SnapshotData | null>(null);
   const [activeScreen, setActiveScreen] = useState<ScreenId>("PANORAMA");
   const [vibeMode, setVibeMode] = useState<"minimal" | "easy" | "professional">("minimal");
-  const [lightSurfaceMode, setLightSurfaceMode] = useState<boolean>(false);
+  const [lightSurfaceMode, setLightSurfaceMode] = useState<boolean>(true);
   const [expertView, setExpertView] = useState<boolean>(false);
-  const [languageMode, setLanguageMode] = useState<"bilingual" | "th" | "en">("bilingual");
+  const [languageMode, setLanguageMode] = useState<"bilingual" | "th" | "en">("en");
   const [activeRole, setActiveRole] = useState<UserRole>("Platform Administrator");
   const [activeTenant, setActiveTenant] = useState<string>("tenant.law24.prod");
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [liveTileTick, setLiveTileTick] = useState<number>(0);
+
+  // UX/UI v2.0 Super Minimal Redesign States (Sections 1-11, UX-01..UX-15)
+  const [uxExperience, setUxExperience] = useState<"research" | "infrastructure" | "control">("research");
+  const [uxResearchDestination, setUxResearchDestination] = useState<"research" | "workspace" | "library">("research");
+  const [uxHasSubmittedResearch, setUxHasSubmittedResearch] = useState<boolean>(false);
+  const [uxDeepResearchExpanded, setUxDeepResearchExpanded] = useState<boolean>(false);
+  const [uxEvidenceDrawerOpen, setUxEvidenceDrawerOpen] = useState<boolean>(false);
+  const [uxSourceResearchMode, setUxSourceResearchMode] = useState<WebSourceResearchMode>("official_only");
+  const [uxManualModuleFilterEnabled, setUxManualModuleFilterEnabled] = useState<boolean>(false);
+  const [uxUploadedDoc, setUxUploadedDoc] = useState<WebUploadedDocumentContext | null>(null);
+  const [uxConsoleMenuOpen, setUxConsoleMenuOpen] = useState<boolean>(false);
 
   // Screen B — Module Factory states (uses reg24.cyber.th since reg24.pdpa.th is native P0-15)
   const [newModId, setNewModId] = useState("reg24.cyber.th");
@@ -335,10 +348,8 @@ export default function Reg24MetroConsole() {
     "ai_research" | "legal_search" | "temporal_compare" | "workspace_exports"
   >("ai_research");
   const [webSelectedSessionId, setWebSelectedSessionId] = useState<string>("websess.th.solar_dd.001");
-  const [webQueryInput, setWebQueryInput] = useState<string>(
-    "บริษัทจดทะเบียนในตลาดหลักทรัพย์ฯ ประสงค์จะเข้าซื้อกิจการโรงไฟฟ้าพลังงานแสงอาทิตย์ที่ได้รับส่งเสริม BOI ในประเทศไทย ต้องปฏิบัติตามกฎหมายบริษัท ภาษีอากร (EBT / ควบรวม), เกณฑ์ ก.ล.ต./ตลท., แรงงาน และ PDPA อย่างไร?"
-  );
-  const [webMode, setWebMode] = useState<WebResearchMode>("Deep Research");
+  const [webQueryInput, setWebQueryInput] = useState<string>("");
+  const [webMode, setWebMode] = useState<WebResearchMode>("Quick Answer");
   const [webResponseLang, setWebResponseLang] = useState<"th" | "en" | "bilingual">("th"); // Default Thai per WEB-01
   const [webAsOfDate, setWebAsOfDate] = useState<string>("2026-10-19");
   const [webSelectedDomains, setWebSelectedDomains] = useState<CoreLegalDomainCode[]>([
@@ -411,7 +422,12 @@ export default function Reg24MetroConsole() {
 
   const handleRunWebLegalResearch = async (overrideMode?: WebResearchMode, overrideQuery?: string) => {
     const modeToUse = overrideMode || webMode;
-    const queryToUse = overrideQuery !== undefined ? overrideQuery : webQueryInput;
+    const rawQuery = overrideQuery !== undefined ? overrideQuery : webQueryInput;
+    const queryToUse =
+      rawQuery.trim() ||
+      (languageMode === "th"
+        ? "ผลกระทบทางกฎหมายบริษัทและภาษีอากรของการแปลงหนี้เงินกู้ผู้ถือหุ้นเป็นทุน (Debt-to-Equity Conversion) ในบริษัทจำกัดไทยเป็นอย่างไร?"
+        : "What are the tax and corporate law implications of converting shareholder debt into equity in a Thai private limited company?");
     if (overrideMode) setWebMode(overrideMode);
     if (overrideQuery !== undefined) setWebQueryInput(overrideQuery);
     setWebLoading(true);
@@ -426,9 +442,11 @@ export default function Reg24MetroConsole() {
             tenant_id: activeTenant,
             query: queryToUse,
             mode: modeToUse,
-            response_language: webResponseLang,
+            response_language: languageMode === "en" ? "en" : "th",
             as_of_date: webAsOfDate,
-            domains: webSelectedDomains,
+            domains: uxManualModuleFilterEnabled ? webSelectedDomains : undefined,
+            source_research_mode: uxSourceResearchMode,
+            uploaded_document: uxUploadedDoc || undefined,
           },
         }),
       });
@@ -441,8 +459,14 @@ export default function Reg24MetroConsole() {
       if (data.turn?.citations?.[0]) {
         setWebSelectedCitation(data.turn.citations[0]);
       }
+      setUxHasSubmittedResearch(true);
+      if (modeToUse === "Deep Research") {
+        setUxDeepResearchExpanded(true);
+      }
       showToast(
-        `REG24 Web Research (${modeToUse} | Lang: ${webResponseLang.toUpperCase()}) completed via REG24 Core API.`
+        `Research completed • Automatically routed across ${
+          data.turn?.auto_routed_modules?.length || data.turn?.selected_domains?.length || 3
+        } legal modules.`
       );
     } finally {
       setWebLoading(false);
@@ -1257,203 +1281,340 @@ export default function Reg24MetroConsole() {
     (r) => r.lifecycle_state === "executable_approved"
   ).length;
 
+  const isMinimalResearchUi =
+    activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "research";
+  const isLightMinimal = isMinimalResearchUi && lightSurfaceMode;
+
   return (
     <div
       className={`min-h-screen flex flex-col transition-colors ${
-        lightSurfaceMode ? "bg-[#0e1525] text-slate-100" : "bg-[#0a0e17] text-slate-100"
+        isLightMinimal
+          ? "bg-[#f8fafc] text-[#0f172a]"
+          : lightSurfaceMode
+          ? "bg-[#0e1525] text-slate-100"
+          : "bg-[#0a0e17] text-slate-100"
       }`}
     >
       {/* =======================================================================
-          VIBE24 / REG24 UNIFIED TOP NAVIGATION BAR (NAVY BLUE & LACQUER YELLOW)
+          UX/UI v2.0 MINIMAL TOP NAVIGATION BAR
+          Section 5: Only three top-level destinations visible to ordinary users:
+          [ Research | Workspace | Library ]
+          Developer (02. Infrastructure) & Admin (03. Control) separated into
+          the Account / Console Switcher.
           ======================================================================= */}
-      <header className="border-b border-[#1e293b] bg-[#0c111d] sticky top-0 z-50">
-        <div className="max-w-[1060px] mx-auto px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
-          {/* Left Brand Lockup: [24] REG24 / Legal Intelligence */}
+      <header
+        className={`sticky top-0 z-50 border-b transition-colors ${
+          isLightMinimal
+            ? "bg-white/95 border-[#e2e8f0] backdrop-blur"
+            : "bg-[#0c111d] border-[#1e293b]"
+        }`}
+      >
+        <div className="max-w-[1120px] mx-auto px-4 md:px-6 h-14 flex items-center justify-between gap-4">
+          {/* Left Brand Lockup: REG24 */}
           <button
             onClick={() => {
+              setUxExperience("research");
+              setUxResearchDestination("research");
+              setUxHasSubmittedResearch(false);
+              setUxEvidenceDrawerOpen(false);
               setVibeMode("minimal");
               setActiveScreen("PANORAMA");
             }}
-            className="flex flex-col items-start text-left cursor-pointer group"
+            className="flex items-center gap-2.5 text-left cursor-pointer group"
           >
-            <div className="flex items-center gap-2">
-              <span className="w-6 h-6 bg-[#f5b700] text-[#0a192f] font-black text-xs flex items-center justify-center tracking-tighter shadow-[0_0_12px_rgba(245,183,0,0.35)]">
-                24
-              </span>
-              <span className="text-lg font-extrabold tracking-tight text-white leading-none group-hover:text-[#f5b700] transition-colors">
+            <span className="w-7 h-7 rounded-lg bg-[#0f2c59] border border-[#f5b700] text-[#f5b700] font-bold text-xs flex items-center justify-center tracking-tight">
+              24
+            </span>
+            <div className="flex items-baseline gap-2">
+              <span
+                className={`text-base font-bold tracking-tight transition-colors ${
+                  isLightMinimal ? "text-[#0f172a]" : "text-white"
+                }`}
+              >
                 REG24
               </span>
-              <span className="text-[11px] font-medium text-[#f5b700] border-l border-[#24324b] pl-2">
-                Legal Intelligence
+              <span
+                className={`hidden sm:inline text-xs font-medium ${
+                  isLightMinimal ? "text-slate-500" : "text-slate-400"
+                }`}
+              >
+                {uxExperience === "research"
+                  ? languageMode === "th"
+                    ? "วิจัยกฎหมายธุรกิจ"
+                    : "Legal Research"
+                  : uxExperience === "infrastructure"
+                  ? "02. Infrastructure (Developer)"
+                  : "03. Control (Administrator)"}
               </span>
             </div>
-            <span className="text-[9px] text-slate-400 tracking-wide mt-0.5">
-              Thai Law &bull; Court Decisions &bull; Tax Rulings &bull; SEC / SET
-            </span>
           </button>
 
-          {/* Center & Right Navigation Controls */}
-          <div className="flex flex-wrap items-center gap-2 text-[11px]">
-            {/* Segmented Mode Pill: [ Minimal | Easy 1-2-3-4 | Studio | Professional ] */}
-            <div className="bg-[#121a2b] border border-[#24324b] p-0.5 flex items-center">
+          {/* Center: Only Three Top-Level Destinations for Normal Users (Section 5) */}
+          {uxExperience === "research" && activeScreen === "PANORAMA" && vibeMode === "minimal" ? (
+            <nav
+              aria-label="REG24 Research Primary Navigation"
+              className={`flex items-center gap-1 p-1 rounded-xl border ${
+                isLightMinimal
+                  ? "bg-[#f8fafc] border-[#e2e8f0]"
+                  : "bg-[#121a2b] border-[#24324b]"
+              }`}
+            >
+              {(
+                [
+                  {
+                    id: "research" as const,
+                    labelEn: "Research",
+                    labelTh: "ค้นคว้า (Research)",
+                  },
+                  {
+                    id: "workspace" as const,
+                    labelEn: "Workspace",
+                    labelTh: "พื้นที่ทำงาน (Workspace)",
+                  },
+                  {
+                    id: "library" as const,
+                    labelEn: "Library",
+                    labelTh: "คลังกฎหมาย (Library)",
+                  },
+                ]
+              ).map((dest) => {
+                const active = uxResearchDestination === dest.id;
+                return (
+                  <button
+                    key={dest.id}
+                    onClick={() => setUxResearchDestination(dest.id)}
+                    className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                      active
+                        ? isLightMinimal
+                          ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
+                          : "bg-[#f5b700] text-[#0a192f] font-bold"
+                        : isLightMinimal
+                        ? "text-slate-600 hover:text-[#0f172a]"
+                        : "text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    {languageMode === "th" ? dest.labelTh : dest.labelEn}
+                  </button>
+                );
+              })}
+            </nav>
+          ) : (
+            <div className="flex items-center gap-2 text-xs">
               <button
                 onClick={() => {
+                  setUxExperience("research");
+                  setUxResearchDestination("research");
                   setVibeMode("minimal");
                   setActiveScreen("PANORAMA");
                 }}
-                className={`px-2.5 py-1 font-semibold cursor-pointer transition-colors ${
-                  vibeMode === "minimal" && activeScreen === "PANORAMA"
-                    ? "bg-[#f5b700] text-[#0a192f] font-bold"
-                    : "text-slate-300 hover:text-white"
-                }`}
+                className="px-3 py-1.5 rounded-lg bg-[#0f2c59] border border-[#f5b700]/70 text-[#f5b700] font-semibold cursor-pointer"
               >
-                Minimal
-              </button>
-              <button
-                onClick={() => {
-                  setVibeMode("easy");
-                  setActiveScreen("PANORAMA");
-                }}
-                className={`px-2.5 py-1 font-semibold cursor-pointer transition-colors ${
-                  vibeMode === "easy" && activeScreen === "PANORAMA"
-                    ? "bg-[#f5b700] text-[#0a192f] font-bold"
-                    : "text-slate-300 hover:text-white"
-                }`}
-              >
-                Easy 1-2-3-4
-              </button>
-              <button
-                onClick={() => {
-                  setActiveScreen("SCREEN_O_WEB_STUDIO");
-                }}
-                className={`px-2.5 py-1 font-semibold cursor-pointer transition-colors ${
-                  activeScreen === "SCREEN_O_WEB_STUDIO"
-                    ? "bg-[#f5b700] text-[#0a192f] font-bold"
-                    : "text-slate-300 hover:text-white"
-                }`}
-              >
-                Research Studio
-              </button>
-              <button
-                onClick={() => {
-                  setVibeMode("professional");
-                  setActiveScreen("PANORAMA");
-                }}
-                className={`px-2.5 py-1 font-semibold cursor-pointer transition-colors ${
-                  vibeMode === "professional" && activeScreen !== "SCREEN_O_WEB_STUDIO"
-                    ? "bg-[#0f2c59] text-[#f5b700] border border-[#f5b700]/60 font-bold"
-                    : "text-slate-300 hover:text-white"
-                }`}
-              >
-                Infrastructure
+                &larr; Return to 01. REG24 Research
               </button>
             </div>
+          )}
 
-            {/* Segmented Language Pill: [ EN | ไทย ] */}
-            <div className="bg-[#121a2b] border border-[#24324b] p-0.5 flex items-center">
-              <button
-                onClick={() => {
-                  setLanguageMode("en");
-                  setWebResponseLang("en");
-                }}
-                className={`px-2 py-1 font-bold cursor-pointer transition-colors ${
-                  languageMode === "en"
-                    ? "bg-[#f5b700] text-[#0a192f]"
-                    : "text-slate-300 hover:text-white"
-                }`}
-              >
-                EN
-              </button>
+          {/* Right Controls: TH / EN toggle (UX-06), Theme toggle (Section 7), and Account / Console Switcher (Sections 1 & 5) */}
+          <div className="flex items-center gap-2 text-xs relative">
+            {/* Language Toggle: TH / EN (UX-06) */}
+            <div
+              className={`p-0.5 rounded-lg border flex items-center ${
+                isLightMinimal
+                  ? "bg-[#f8fafc] border-[#e2e8f0]"
+                  : "bg-[#121a2b] border-[#24324b]"
+              }`}
+            >
               <button
                 onClick={() => {
                   setLanguageMode("th");
                   setWebResponseLang("th");
                 }}
-                className={`px-2 py-1 font-bold cursor-pointer transition-colors ${
-                  languageMode !== "en"
-                    ? "bg-[#f5b700] text-[#0a192f]"
+                className={`px-2 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
+                  languageMode === "th"
+                    ? isLightMinimal
+                      ? "bg-[#0f2c59] text-white"
+                      : "bg-[#f5b700] text-[#0a192f]"
+                    : isLightMinimal
+                    ? "text-slate-600 hover:text-[#0f172a]"
                     : "text-slate-300 hover:text-white"
                 }`}
               >
-                ไทย
+                TH
+              </button>
+              <button
+                onClick={() => {
+                  setLanguageMode("en");
+                  setWebResponseLang("en");
+                }}
+                className={`px-2 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
+                  languageMode === "en"
+                    ? isLightMinimal
+                      ? "bg-[#0f2c59] text-white"
+                      : "bg-[#f5b700] text-[#0a192f]"
+                    : isLightMinimal
+                    ? "text-slate-600 hover:text-[#0f172a]"
+                    : "text-slate-300 hover:text-white"
+                }`}
+              >
+                EN
               </button>
             </div>
 
-            {/* Light / Surface Mode Toggle Pill */}
+            {/* Light / Dark Surface Toggle (Section 7) */}
             <button
               onClick={() => setLightSurfaceMode((prev) => !prev)}
-              className="bg-[#121a2b] hover:bg-[#182338] border border-[#24324b] px-2.5 py-1 text-slate-200 flex items-center gap-1.5 cursor-pointer"
+              title="Toggle Light / Dark Surface"
+              className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+                isLightMinimal
+                  ? "bg-white border-[#e2e8f0] text-slate-700 hover:bg-slate-100"
+                  : "bg-[#121a2b] border-[#24324b] text-[#f5b700] hover:bg-[#182338]"
+              }`}
             >
-              {lightSurfaceMode ? (
-                <>
-                  <Moon className="w-3.5 h-3.5 text-[#f5b700]" />
-                  <span>Dark mode</span>
-                </>
-              ) : (
-                <>
-                  <Sun className="w-3.5 h-3.5 text-[#f5b700]" />
-                  <span>Light mode</span>
-                </>
+              {lightSurfaceMode ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+            </button>
+
+            {/* Account / Workspace Switcher (Separates 01. Research, 02. Infrastructure, 03. Control per Section 1 & 5) */}
+            <div className="relative">
+              <button
+                onClick={() => setUxConsoleMenuOpen((prev) => !prev)}
+                className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors ${
+                  isLightMinimal
+                    ? "bg-white border-[#e2e8f0] text-[#0f172a] hover:bg-slate-50"
+                    : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>
+                  {uxExperience === "research"
+                    ? "01. Research"
+                    : uxExperience === "infrastructure"
+                    ? "02. Developer"
+                    : "03. Control"}
+                </span>
+                <span className="text-[10px] opacity-60">&#9662;</span>
+              </button>
+
+              {uxConsoleMenuOpen && (
+                <div
+                  className={`absolute right-0 mt-2 w-80 rounded-xl border shadow-xl p-2 z-50 space-y-1 text-left ${
+                    isLightMinimal
+                      ? "bg-white border-[#e2e8f0] text-[#0f172a]"
+                      : "bg-[#0f172a] border-[#24324b] text-slate-100"
+                  }`}
+                >
+                  <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    REG24 Product Experiences (Section 1)
+                  </div>
+                  <button
+                    onClick={() => {
+                      setUxExperience("research");
+                      setUxResearchDestination("research");
+                      setVibeMode("minimal");
+                      setActiveScreen("PANORAMA");
+                      setUxConsoleMenuOpen(false);
+                    }}
+                    className={`w-full p-2.5 rounded-lg text-left cursor-pointer transition-colors ${
+                      uxExperience === "research" && vibeMode === "minimal"
+                        ? isLightMinimal
+                          ? "bg-slate-100 font-semibold"
+                          : "bg-[#0f2c59] text-[#f5b700]"
+                        : "hover:bg-slate-500/10"
+                    }`}
+                  >
+                    <div className="text-xs font-bold">01. REG24 Research — Default</div>
+                    <div className="text-[11px] opacity-75 mt-0.5">
+                      Ask questions, analyze rulings, compare laws, upload documents &amp; generate memos.
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUxExperience("infrastructure");
+                      setVibeMode("minimal");
+                      setActiveScreen("PANORAMA");
+                      setUxConsoleMenuOpen(false);
+                    }}
+                    className={`w-full p-2.5 rounded-lg text-left cursor-pointer transition-colors ${
+                      uxExperience === "infrastructure"
+                        ? isLightMinimal
+                          ? "bg-slate-100 font-semibold"
+                          : "bg-[#0f2c59] text-[#f5b700]"
+                        : "hover:bg-slate-500/10"
+                    }`}
+                  >
+                    <div className="text-xs font-bold">02. REG24 Infrastructure — Developer</div>
+                    <div className="text-[11px] opacity-75 mt-0.5">
+                      API keys, MCP access (61 tools), module capabilities, usage quotas &amp; integrations.
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setUxExperience("control");
+                      setVibeMode("minimal");
+                      setActiveScreen("PANORAMA");
+                      setUxConsoleMenuOpen(false);
+                    }}
+                    className={`w-full p-2.5 rounded-lg text-left cursor-pointer transition-colors ${
+                      uxExperience === "control"
+                        ? isLightMinimal
+                          ? "bg-slate-100 font-semibold"
+                          : "bg-[#0f2c59] text-[#f5b700]"
+                        : "hover:bg-slate-500/10"
+                    }`}
+                  >
+                    <div className="text-xs font-bold">03. REG24 Control — Administrator</div>
+                    <div className="text-[11px] opacity-75 mt-0.5">
+                      Source ingestion, Graph RAG, 2R/3R processing, data quality &amp; agent monitoring.
+                    </div>
+                  </button>
+
+                  <div className="border-t border-slate-500/20 pt-1 mt-1 flex items-center justify-between px-2 py-1">
+                    <button
+                      onClick={() => {
+                        setVibeMode("easy");
+                        setActiveScreen("PANORAMA");
+                        setUxConsoleMenuOpen(false);
+                      }}
+                      className="text-[11px] text-blue-600 dark:text-[#f5b700] hover:underline cursor-pointer"
+                    >
+                      Easy 1-2-3-4 Mode
+                    </button>
+                    <button
+                      onClick={() => {
+                        setVibeMode("professional");
+                        setActiveScreen("PANORAMA");
+                        setUxConsoleMenuOpen(false);
+                      }}
+                      className="text-[11px] text-blue-600 dark:text-[#f5b700] hover:underline cursor-pointer"
+                    >
+                      16-Module Matrix &rarr;
+                    </button>
+                  </div>
+                </div>
               )}
-            </button>
-
-            <button
-              onClick={() => {
-                setWebActiveTab("legal_search");
-                setActiveScreen("SCREEN_O_WEB_STUDIO");
-              }}
-              className="text-slate-300 hover:text-[#f5b700] px-1.5 py-1 cursor-pointer"
-            >
-              Legal Search
-            </button>
-            <button
-              onClick={() => {
-                setWebActiveTab("temporal_compare");
-                setActiveScreen("SCREEN_O_WEB_STUDIO");
-              }}
-              className="text-slate-300 hover:text-[#f5b700] px-1.5 py-1 cursor-pointer"
-            >
-              Temporal Law
-            </button>
-            <button
-              onClick={() => {
-                setWebActiveTab("workspace_exports");
-                setActiveScreen("SCREEN_O_WEB_STUDIO");
-              }}
-              className="text-slate-300 hover:text-[#f5b700] px-1.5 py-1 cursor-pointer"
-            >
-              Workspace
-            </button>
-
-            <button
-              onClick={() => {
-                setActiveScreen("SCREEN_O_WEB_STUDIO");
-              }}
-              className="bg-[#f5b700] hover:bg-[#facc15] text-[#0a192f] px-3 py-1 font-bold cursor-pointer shadow-[0_0_12px_rgba(245,183,0,0.28)]"
-            >
-              Sign in
-            </button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* TOAST BANNER */}
       {toastMessage && (
-        <div className="bg-[#0f2c59] border-b border-[#f5b700] text-white px-6 py-2.5 text-xs font-semibold uppercase tracking-wider flex items-center justify-between">
+        <div className="bg-[#0f2c59] border-b border-[#f5b700] text-white px-6 py-2 text-xs font-medium flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <span className="w-2 h-2 bg-[#f5b700] inline-block" />
+            <span className="w-2 h-2 rounded-full bg-[#f5b700] inline-block" />
             {toastMessage}
           </span>
           <button
             onClick={() => setToastMessage(null)}
-            className="underline text-[#f5b700] text-[10px] ml-4 cursor-pointer"
+            className="underline text-[#f5b700] text-[11px] ml-4 cursor-pointer"
           >
-            DISMISS
+            Dismiss
           </button>
         </div>
       )}
 
-      {/* PROFESSIONAL INFRASTRUCTURE PIVOT RIBBON (Shown when in Professional mode or inside sub-screens) */}
+      {/* PROFESSIONAL INFRASTRUCTURE PIVOT RIBBON (Only shown when explicitly in 16-screen matrix mode) */}
       {(vibeMode === "professional" || activeScreen !== "PANORAMA") && (
         <div className="px-6 pt-4 pb-2 border-b border-[#1e293b] bg-[#0c121e]">
           <div className="max-w-[1480px] mx-auto">
@@ -1461,10 +1622,12 @@ export default function Reg24MetroConsole() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => {
+                    setUxExperience("research");
+                    setUxResearchDestination("research");
                     setVibeMode("minimal");
                     setActiveScreen("PANORAMA");
                   }}
-                  className="bg-[#0f2c59] hover:bg-[#163e7a] border border-[#f5b700]/70 text-[#f5b700] px-3 py-1 text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  className="bg-[#0f2c59] hover:bg-[#163e7a] border border-[#f5b700]/70 text-[#f5b700] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
                 >
                   <span>&larr; Minimal Legal Research Home</span>
                 </button>
@@ -1549,599 +1712,1309 @@ export default function Reg24MetroConsole() {
       {/* MAIN CONTENT VIEWPORT */}
       <main className="flex-1 px-4 md:px-6 py-6 max-w-[1480px] w-full mx-auto">
         {/* =====================================================================
-            MINIMAL HOMEPAGE (DEFAULT): REG24 LEGAL INTELLIGENCE (REG24-WEB-001)
-            Matches recommended minimal homepage with Navy Blue & Lacquer Yellow
+            01. REG24 RESEARCH — DEFAULT EXPERIENCE (UX/UI v2.0, Priority P0)
+            "Simple outside. Powerful inside. One input. Automatic legal intelligence. Verifiable sources."
             ===================================================================== */}
-        {activeScreen === "PANORAMA" && vibeMode === "minimal" && (() => {
+        {activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "research" && (() => {
           const currentSession =
             snapshot.webResearchStudio.sessions.find((s) => s.session_id === webSelectedSessionId) ||
             snapshot.webResearchStudio.sessions[0];
           const latestTurn = currentSession?.turns[currentSession.turns.length - 1];
           const activeCitation =
             webSelectedCitation || latestTurn?.citations[0] || null;
+          const autoModules =
+            latestTurn?.auto_routed_modules && latestTurn.auto_routed_modules.length > 0
+              ? latestTurn.auto_routed_modules
+              : [
+                  {
+                    domain: "LEG-CORP" as CoreLegalDomainCode,
+                    module_id: "reg24.corporate.th",
+                    module_label_en: "Corporate & CCC Law",
+                    module_label_th: "กฎหมายบริษัทและ ป.พ.พ.",
+                    routing_confidence: 0.99,
+                    routing_reason_en: "Auto-routed corporate governance & share capital",
+                  },
+                  {
+                    domain: "LEG-TAX" as CoreLegalDomainCode,
+                    module_id: "reg24.tax.th",
+                    module_label_en: "Revenue Code & Tax Rulings",
+                    module_label_th: "ภาษีอากรและข้อหารือกรมสรรพากร",
+                    routing_confidence: 0.98,
+                    routing_reason_en: "Auto-routed Revenue Code & tax ruling analysis",
+                  },
+                ];
 
-          const exampleTopics: { labelEn: string; labelTh: string; mode: WebResearchMode; query: string }[] = [
-            {
-              labelEn: "Corporate restructuring",
-              labelTh: "การปรับโครงสร้างบริษัทและโอนกิจการ (EBT)",
-              mode: "Deep Research",
-              query:
-                languageMode === "en"
-                  ? "What are the Thai corporate, BOI, and tax exemption requirements for an Entire Business Transfer (EBT) corporate restructuring?"
-                  : "การปรับโครงสร้างกลุ่มบริษัทและการโอนกิจการทั้งหมด (Entire Business Transfer - EBT) ตามประมวลรัษฎากรและกฎหมายบริษัทไทย มีเงื่อนไขยกเว้นภาษีและขั้นตอนอย่างไร?",
-            },
-            {
-              labelEn: "Tax rulings",
-              labelTh: "ข้อหารือกรมสรรพากรและภาษีนิติบุคคล",
-              mode: "Quick Answer",
-              query:
-                languageMode === "en"
-                  ? "How do Revenue Department tax rulings and Supreme Court decisions interpret non-deductible expenses under Section 65 Ter and bad debt write-offs?"
-                  : "แนววินิจฉัยข้อหารือกรมสรรพากรและคำพิพากษาศาลฎีกาเกี่ยวกับรายจ่ายต้องห้ามตามมาตรา 65 ตรี และการจำหน่ายหนี้สูญตามกฎกระทรวง ฉบับที่ 374",
-            },
-            {
-              labelEn: "SEC / SET compliance",
-              labelTh: "เกณฑ์ ก.ล.ต. / ตลท. รายการได้มาและเกี่ยวโยงกัน",
-              mode: "Obligation Analysis",
-              query:
-                languageMode === "en"
-                  ? "What are the SEC and SET compliance obligations for a listed company acquiring a solar energy subsidiary and entering into connected transactions?"
-                  : "บริษัทจดทะเบียนในตลาดหลักทรัพย์ฯ เข้าซื้อกิจการโรงไฟฟ้าพลังงานแสงอาทิตย์และทำรายการที่เกี่ยวโยงกัน ต้องปฏิบัติตามเกณฑ์ ก.ล.ต. และ ตลท. อย่างไร?",
-            },
-            {
-              labelEn: "PDPA obligations",
-              labelTh: "หน้าที่ตามกฎหมาย PDPA และการแจ้งเหตุข้อมูลรั่วไหล",
-              mode: "Obligation Analysis",
-              query:
-                languageMode === "en"
-                  ? "What are a data controller's mandatory PDPA obligations in Thailand for sensitive personal data, 72-hour breach notification, and cross-border transfers?"
-                  : "หน้าที่ของผู้ควบคุมข้อมูลส่วนบุคคลตาม พ.ร.บ. คุ้มครองข้อมูลส่วนบุคคล (PDPA) กรณีข้อมูลอ่อนไหว การแจ้งเหตุละเมิดภายใน 72 ชั่วโมง และการโอนข้อมูลไปต่างประเทศ",
-            },
-          ];
+          const surfaceCard = isLightMinimal
+            ? "bg-white border border-[#e2e8f0] text-[#0f172a] shadow-xs"
+            : "bg-[#101829] border border-[#24324b] text-slate-100";
+          const subtleBox = isLightMinimal
+            ? "bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a]"
+            : "bg-[#0b111e] border border-[#1e2d47] text-slate-200";
+          const mutedText = isLightMinimal ? "text-slate-500" : "text-slate-400";
 
           return (
-            <div className="max-w-[960px] mx-auto pt-6 pb-16 space-y-10">
-              {/* 1. MINIMAL HERO & RESEARCH COMPOSER */}
-              <div className="max-w-[740px] mx-auto text-center space-y-4">
-                <div className="inline-flex items-center gap-2 bg-[#0f2c59] border border-[#f5b700]/70 px-3 py-1 text-xs">
-                  <span className="font-extrabold text-[#f5b700] tracking-wider">REG24</span>
-                  <span className="text-slate-400">&bull;</span>
-                  <span className="text-white font-medium">
-                    {languageMode === "th" ? "ระบบอัจฉริยะทางกฎหมาย" : "Legal Intelligence"}
-                  </span>
-                </div>
+            <div className="max-w-[920px] mx-auto">
+              {/* ===============================================================
+                  DESTINATION 1: RESEARCH (Default — Section 2 Home Screen & Section 3 Results)
+                  =============================================================== */}
+              {uxResearchDestination === "research" && (
+                <>
+                  {/* STATE A: NEW REG24 HOME SCREEN (Section 2 Wireframe) */}
+                  {!uxHasSubmittedResearch ? (
+                    <div className="min-h-[72vh] flex flex-col justify-between py-10">
+                      <div className="my-auto max-w-[700px] w-full mx-auto text-center space-y-6">
+                        {/* Minimal Brand Pill */}
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase bg-[#0f2c59] text-[#f5b700]">
+                          <span>REG24</span>
+                        </div>
 
-                <h1 className="text-3xl md:text-5xl font-bold text-white tracking-tight leading-tight">
-                  {languageMode === "th"
-                    ? "มีคำถามข้อกฎหมายใดให้ช่วยวิเคราะห์?"
-                    : "What legal question can I help with?"}
-                </h1>
-
-                <p className="text-sm text-slate-300 tracking-wide">
-                  {languageMode === "th"
-                    ? "กฎหมายไทย · คำพิพากษาศาลฎีกา · ข้อหารือกรมสรรพากร · ก.ล.ต. / ตลท. / BOI / PDPA"
-                    : "Thai Law · Court Decisions · Tax Rulings · SEC / SET"}
-                </p>
-
-                {/* MAIN MINIMAL RESEARCH COMPOSER BOX */}
-                <div className="mt-6 bg-[#101829] border-2 border-[#263859] focus-within:border-[#f5b700] p-4 md:p-5 text-left space-y-4 shadow-[0_24px_60px_rgba(0,0,0,0.55)] transition-colors">
-                  {/* Three Research Modes (WEB-08): Quick Answer | Deep Research | Obligations */}
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#1e2d47] pb-3">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      {(
-                        [
-                          {
-                            mode: "Quick Answer" as WebResearchMode,
-                            labelEn: "Quick Answer",
-                            labelTh: "Quick Answer (คำตอบด่วน)",
-                          },
-                          {
-                            mode: "Deep Research" as WebResearchMode,
-                            labelEn: "Deep Research",
-                            labelTh: "Deep Research (วิจัยเชิงลึก)",
-                          },
-                          {
-                            mode: "Obligation Analysis" as WebResearchMode,
-                            labelEn: "Obligations",
-                            labelTh: "Obligations (หน้าที่ตามกฎหมาย)",
-                          },
-                        ]
-                      ).map((item) => {
-                        const isActive = webMode === item.mode;
-                        return (
-                          <button
-                            key={item.mode}
-                            onClick={() => setWebMode(item.mode)}
-                            className={`px-3.5 py-1.5 text-xs font-bold tracking-wide cursor-pointer transition-all border ${
-                              isActive
-                                ? "bg-[#f5b700] border-[#f5b700] text-[#0a192f] shadow-[0_0_12px_rgba(245,183,0,0.3)]"
-                                : "bg-[#0b111e] border-[#24324b] text-slate-300 hover:border-[#f5b700]/60 hover:text-white"
+                        {/* Headline & Subtitle (Section 2) */}
+                        <div className="space-y-2.5">
+                          <h1
+                            className={`text-3xl sm:text-[40px] font-semibold tracking-tight leading-tight ${
+                              isLightMinimal ? "text-[#0f172a]" : "text-white"
                             }`}
                           >
-                            {languageMode === "th" ? item.labelTh : item.labelEn}
-                          </button>
-                        );
-                      })}
-                    </div>
+                            {languageMode === "th"
+                              ? "มีคำถามข้อกฎหมายใดให้ช่วยวิเคราะห์?"
+                              : "What legal question can I help with?"}
+                          </h1>
+                          <p className={`text-sm sm:text-base ${mutedText}`}>
+                            {languageMode === "th"
+                              ? "ระบบอัจฉริยะด้านกฎหมายธุรกิจ การค้า และกฎระเบียบของประเทศไทย"
+                              : "Thai corporate, commercial and regulatory intelligence"}
+                          </p>
+                        </div>
 
-                    <button
-                      onClick={() => setWebShowAdvancedControls((prev) => !prev)}
-                      className="text-[11px] text-slate-400 hover:text-[#f5b700] cursor-pointer"
-                    >
-                      {webShowAdvancedControls
-                        ? languageMode === "th"
-                          ? "ซ่อนตัวเลือกขั้นสูง"
-                          : "Hide options"
-                        : languageMode === "th"
-                          ? "+ ขอบเขตกฎหมายและภาษา"
-                          : "+ Domains & options"}
-                    </button>
-                  </div>
-
-                  {/* Prominent Question Textarea */}
-                  <div>
-                    <textarea
-                      rows={3}
-                      aria-label="Legal Question Input"
-                      value={webQueryInput}
-                      onChange={(e) => setWebQueryInput(e.target.value)}
-                      placeholder={
-                        languageMode === "th"
-                          ? "พิมพ์คำถามข้อกฎหมายภาษาไทยหรือภาษาอังกฤษ..."
-                          : "Ask any Thai corporate, tax, court precedent, SEC/SET, BOI, or PDPA question..."
-                      }
-                      className="w-full bg-transparent text-base text-white placeholder-slate-400 focus:outline-none resize-none leading-relaxed"
-                    />
-                  </div>
-
-                  {/* Hidden-by-default Advanced Domain & Language Controls (Section 3) */}
-                  {webShowAdvancedControls && (
-                    <div className="bg-[#0b101b] border border-[#24324b] p-3.5 space-y-2.5 text-xs">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#f5b700]">
-                          LEGAL DOMAINS (WEB-01) &amp; RESPONSE LANGUAGE (DEFAULT: THAI)
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <span className="text-[11px] text-slate-400">Response:</span>
-                          <select
-                            value={webResponseLang}
-                            onChange={(e) =>
-                              setWebResponseLang(e.target.value as "th" | "en" | "bilingual")
+                        {/* Dominant Universal Legal Input (UX-01, UX-02, UX-07, UX-11, UX-12) */}
+                        <div
+                          className={`rounded-2xl p-4 sm:p-5 text-left transition-all ${
+                            isLightMinimal
+                              ? "bg-white border border-[#cbd5e1] focus-within:border-[#0f2c59] shadow-[0_12px_36px_rgba(15,23,42,0.06)]"
+                              : "bg-[#101829] border border-[#263859] focus-within:border-[#f5b700] shadow-[0_20px_50px_rgba(0,0,0,0.45)]"
+                          }`}
+                        >
+                          <textarea
+                            rows={3}
+                            aria-label="Universal Legal Research Input"
+                            value={webQueryInput}
+                            onChange={(e) => setWebQueryInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" && !e.shiftKey) {
+                                e.preventDefault();
+                                handleRunWebLegalResearch("Quick Answer");
+                              }
+                            }}
+                            placeholder={
+                              languageMode === "th"
+                                ? "ถามเกี่ยวกับกฎหมาย กฎระเบียบ ข้อหารือ คำพิพากษา สัญญา หรือประเด็นธุรกิจ..."
+                                : "Ask about a regulation, ruling, case, contract, or business issue..."
                             }
-                            className="bg-[#11192a] border border-[#24324b] px-2 py-0.5 text-xs text-white"
+                            className={`w-full bg-transparent text-base resize-none focus:outline-none leading-relaxed ${
+                              isLightMinimal
+                                ? "text-[#0f172a] placeholder-slate-400"
+                                : "text-white placeholder-slate-400"
+                            }`}
+                          />
+
+                          {/* Uploaded Document Chip if attached (UX-07) */}
+                          {uxUploadedDoc && (
+                            <div
+                              className={`mt-2 mb-3 px-3 py-2 rounded-xl flex items-center justify-between text-xs ${subtleBox}`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileCheck2 className="w-4 h-4 text-[#1d4ed8]" />
+                                <div>
+                                  <span className="font-semibold">{uxUploadedDoc.filename}</span>
+                                  <span className={`ml-2 text-[11px] ${mutedText}`}>
+                                    ({uxUploadedDoc.document_type} &bull; Auto-detected:{" "}
+                                    {uxUploadedDoc.detected_domains.join(", ")})
+                                  </span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setUxUploadedDoc(null)}
+                                className="text-xs text-rose-500 hover:underline cursor-pointer"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+
+                          {/* Optional Collapsible Contextual Controls (UX-11, UX-12 — Hidden by default) */}
+                          {webShowAdvancedControls && (
+                            <div className={`mt-3 pt-3 border-t rounded-xl p-3 space-y-3 text-xs ${subtleBox}`}>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                {/* Applicable Legal Date (UX-12) */}
+                                <div>
+                                  <label className={`block text-[11px] font-medium mb-1 ${mutedText}`}>
+                                    {languageMode === "th"
+                                      ? "วันที่กฎหมายมีผลใช้บังคับ (Point-in-Time)"
+                                      : "Applicable legal date"}
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={webAsOfDate}
+                                    onChange={(e) => setWebAsOfDate(e.target.value)}
+                                    className={`w-full px-2.5 py-1.5 rounded-lg border text-xs ${
+                                      isLightMinimal
+                                        ? "bg-white border-[#cbd5e1] text-[#0f172a]"
+                                        : "bg-[#0b111e] border-[#24324b] text-white"
+                                    }`}
+                                  />
+                                </div>
+
+                                {/* Web Research Source Scope (UX-11) */}
+                                <div>
+                                  <label className={`block text-[11px] font-medium mb-1 ${mutedText}`}>
+                                    {languageMode === "th"
+                                      ? "ขอบเขตแหล่งอ้างอิง (Source Scope — UX-11)"
+                                      : "Source mode (UX-11)"}
+                                  </label>
+                                  <select
+                                    value={uxSourceResearchMode}
+                                    onChange={(e) =>
+                                      setUxSourceResearchMode(e.target.value as WebSourceResearchMode)
+                                    }
+                                    className={`w-full px-2.5 py-1.5 rounded-lg border text-xs ${
+                                      isLightMinimal
+                                        ? "bg-white border-[#cbd5e1] text-[#0f172a]"
+                                        : "bg-[#0b111e] border-[#24324b] text-white"
+                                    }`}
+                                  >
+                                    <option value="official_only">
+                                      Official legal sources (Default)
+                                    </option>
+                                    <option value="official_plus_web">
+                                      Official + web research
+                                    </option>
+                                    <option value="web_only">
+                                      Web research only
+                                    </option>
+                                  </select>
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-between pt-1">
+                                <span className={`text-[11px] ${mutedText}`}>
+                                  {uxManualModuleFilterEnabled
+                                    ? "Manual module filter active"
+                                    : "Automatic legal-module routing active (Corporate, Tax, SEC/SET, BOI, Labor, PDPA, Case)"}
+                                </span>
+                                <button
+                                  onClick={() => setUxManualModuleFilterEnabled((prev) => !prev)}
+                                  className="text-[11px] font-semibold text-[#1d4ed8] dark:text-[#f5b700] hover:underline cursor-pointer"
+                                >
+                                  {uxManualModuleFilterEnabled ? "Use Auto-Routing" : "Filter modules manually"}
+                                </button>
+                              </div>
+
+                              {uxManualModuleFilterEnabled && (
+                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                  {(
+                                    [
+                                      "LEG-CORP",
+                                      "LEG-TAX",
+                                      "LEG-SEC",
+                                      "LEG-BOI",
+                                      "LEG-LABOR",
+                                      "LEG-PDPA",
+                                      "LEG-RESTRUCT",
+                                      "LEG-CASE",
+                                    ] as CoreLegalDomainCode[]
+                                  ).map((dom) => {
+                                    const sel = webSelectedDomains.includes(dom);
+                                    return (
+                                      <button
+                                        key={dom}
+                                        onClick={() =>
+                                          setWebSelectedDomains((prev) =>
+                                            prev.includes(dom)
+                                              ? prev.filter((d) => d !== dom)
+                                              : [...prev, dom]
+                                          )
+                                        }
+                                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border cursor-pointer ${
+                                          sel
+                                            ? "bg-[#0f2c59] border-[#0f2c59] text-white"
+                                            : "border-slate-300 text-slate-500"
+                                        }`}
+                                      >
+                                        {dom}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Input Bottom Bar: Two small contextual controls + Submit (Section 2) */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 pt-3 mt-2 border-t border-slate-200/70 dark:border-slate-800">
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* Contextual Control 1: Jurisdiction & Scope Pill */}
+                              <button
+                                onClick={() => setWebShowAdvancedControls((prev) => !prev)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer transition-colors ${
+                                  isLightMinimal
+                                    ? "bg-[#f8fafc] border-[#e2e8f0] text-slate-700 hover:bg-slate-100"
+                                    : "bg-[#0b111e] border-[#24324b] text-slate-300 hover:text-white"
+                                }`}
+                              >
+                                <Globe className="w-3.5 h-3.5 text-[#0f2c59] dark:text-[#f5b700]" />
+                                <span>Thailand</span>
+                                <span className="opacity-50">&bull;</span>
+                                <span className="text-[11px] opacity-80">
+                                  {webAsOfDate === "2026-10-19" ? "Current law" : webAsOfDate}
+                                </span>
+                              </button>
+
+                              {/* Contextual Control 2: Document Upload / Attachment (UX-07) */}
+                              <button
+                                onClick={() => {
+                                  setUxUploadedDoc({
+                                    document_id: "doc.upload.dte_termsheet.2026",
+                                    filename: "Shareholder_Loan_Debt_to_Equity_TermSheet.pdf",
+                                    document_type: "contract",
+                                    extracted_summary_th:
+                                      "ร่างข้อตกลงแปลงหนี้เงินกู้ผู้ถือหุ้นจำนวน 150 ล้านบาทเป็นหุ้นสามัญเพิ่มทุนในบริษัทจำกัด",
+                                    extracted_summary_en:
+                                      "Draft term sheet converting THB 150M shareholder loan into newly issued ordinary shares of a Thai private limited company.",
+                                    detected_domains: ["LEG-CORP", "LEG-TAX", "LEG-RESTRUCT"],
+                                  });
+                                  showToast(
+                                    "Attached document: Shareholder_Loan_Debt_to_Equity_TermSheet.pdf (UX-07)"
+                                  );
+                                }}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer transition-colors ${
+                                  isLightMinimal
+                                    ? "bg-[#f8fafc] border-[#e2e8f0] text-slate-700 hover:bg-slate-100"
+                                    : "bg-[#0b111e] border-[#24324b] text-slate-300 hover:text-white"
+                                }`}
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>
+                                  {languageMode === "th" ? "แนบเอกสาร / สัญญา" : "Upload document"}
+                                </span>
+                              </button>
+                            </div>
+
+                            {/* Primary Action Button */}
+                            <button
+                              disabled={webLoading}
+                              onClick={() => handleRunWebLegalResearch("Quick Answer")}
+                              className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] hover:bg-[#163e7a] text-white border border-[#f5b700]/60 inline-flex items-center gap-2 cursor-pointer transition-all shadow-xs"
+                            >
+                              <span>
+                                {webLoading
+                                  ? languageMode === "th"
+                                    ? "กำลังวิเคราะห์..."
+                                    : "Analyzing..."
+                                  : languageMode === "th"
+                                  ? "ถาม REG24"
+                                  : "Ask REG24"}
+                              </span>
+                              <ArrowUpRight className="w-4 h-4 text-[#f5b700]" />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Three Starter Action Pills (Exact Section 2 Wireframe: Find regulations | Analyze a ruling | Research a legal issue) */}
+                        <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                          <button
+                            onClick={() =>
+                              handleRunWebLegalResearch(
+                                "Quick Answer",
+                                languageMode === "th"
+                                  ? "ผลกระทบทางกฎหมายบริษัทและภาษีอากรของการแปลงหนี้เงินกู้ผู้ถือหุ้นเป็นทุนในบริษัทจำกัดไทยเป็นอย่างไร?"
+                                  : "What are the tax and corporate law implications of converting shareholder debt into equity in a Thai private limited company?"
+                              )
+                            }
+                            className={`px-4 py-2 rounded-xl text-xs font-medium border cursor-pointer transition-all ${
+                              isLightMinimal
+                                ? "bg-white border-[#e2e8f0] text-slate-700 hover:border-[#0f2c59] hover:text-[#0f172a]"
+                                : "bg-[#111a2c] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
+                            }`}
                           >
-                            <option value="th">ภาษาไทย (Thai Default)</option>
-                            <option value="en">English (EN)</option>
-                            <option value="bilingual">Bilingual (ไทย + EN)</option>
-                          </select>
+                            {languageMode === "th" ? "ค้นหากฎหมายและระเบียบ (Find regulations)" : "Find regulations"}
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleRunWebLegalResearch(
+                                "Quick Answer",
+                                languageMode === "th"
+                                  ? "วิเคราะห์หนังสือตอบข้อหารือกรมสรรพากร กค 0702(กม.)/462 และคำพิพากษาศาลฎีกาที่ 2845/2564"
+                                  : "Analyze Revenue Department Ruling GorKor 0702(KorMor.)/462 and Supreme Court Judgment 2845/2564 on corporate restructuring and Section 65 ter."
+                              )
+                            }
+                            className={`px-4 py-2 rounded-xl text-xs font-medium border cursor-pointer transition-all ${
+                              isLightMinimal
+                                ? "bg-white border-[#e2e8f0] text-slate-700 hover:border-[#0f2c59] hover:text-[#0f172a]"
+                                : "bg-[#111a2c] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
+                            }`}
+                          >
+                            {languageMode === "th" ? "วิเคราะห์ข้อหารือ / ฎีกา (Analyze a ruling)" : "Analyze a ruling"}
+                          </button>
+
+                          <button
+                            onClick={() =>
+                              handleRunWebLegalResearch(
+                                "Deep Research",
+                                languageMode === "th"
+                                  ? "วิเคราะห์ผลกระทบด้านกฎหมายบริษัท ภาษีอากร และ ก.ล.ต. ของการปรับโครงสร้างบริษัทที่ได้รับการส่งเสริมการลงทุน BOI"
+                                  : "What are the corporate, tax and SEC implications of a restructuring involving a BOI-promoted company?"
+                              )
+                            }
+                            className={`px-4 py-2 rounded-xl text-xs font-medium border cursor-pointer transition-all ${
+                              isLightMinimal
+                                ? "bg-white border-[#e2e8f0] text-slate-700 hover:border-[#0f2c59] hover:text-[#0f172a]"
+                                : "bg-[#111a2c] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
+                            }`}
+                          >
+                            {languageMode === "th" ? "วิจัยประเด็นข้อกฎหมายเชิงลึก (Research a legal issue)" : "Research a legal issue"}
+                          </button>
                         </div>
                       </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        {(
-                          [
-                            "LEG-CORP",
-                            "LEG-CONTRACT",
-                            "LEG-LABOR",
-                            "LEG-TAX",
-                            "LEG-BOI",
-                            "LEG-SEC",
-                            "LEG-PDPA",
-                            "LEG-RESTRUCT",
-                            "LEG-CASE",
-                          ] as CoreLegalDomainCode[]
-                        ).map((dom) => {
-                          const selected = webSelectedDomains.includes(dom);
-                          return (
-                            <button
-                              key={dom}
-                              onClick={() =>
-                                setWebSelectedDomains((prev) =>
-                                  prev.includes(dom)
-                                    ? prev.filter((d) => d !== dom)
-                                    : [...prev, dom]
-                                )
-                              }
-                              className={`px-2 py-0.5 text-[11px] font-mono border cursor-pointer ${
-                                selected
-                                  ? "bg-[#0f2c59] border-[#f5b700] text-[#f5b700]"
-                                  : "bg-[#111724] border-[#24324b] text-slate-400"
-                              }`}
-                            >
-                              {dom}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
 
-                  {/* Bottom Action Row: [Current law (Date Picker)]  ----------------  [Research] */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#1e2d47]">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <div className="inline-flex items-center gap-2 bg-[#0b111e] border border-[#24324b] px-3 py-1.5 text-xs">
-                        <Clock className="w-3.5 h-3.5 text-[#f5b700]" />
-                        <span className="text-slate-300 font-medium">
-                          {webAsOfDate === "2026-10-19"
-                            ? languageMode === "th"
-                              ? "กฎหมายปัจจุบัน (Current law)"
-                              : "Current law"
-                            : `Point-in-time: ${webAsOfDate}`}
-                        </span>
-                        <input
-                          type="date"
-                          aria-label="Applicable Legal Date"
-                          value={webAsOfDate}
-                          onChange={(e) => setWebAsOfDate(e.target.value)}
-                          className="bg-transparent text-[#f5b700] font-mono text-xs focus:outline-none cursor-pointer"
-                        />
-                      </div>
-
-                      <button
-                        onClick={() => setWebShowGraphPanel((prev) => !prev)}
-                        className={`px-2.5 py-1.5 text-xs border cursor-pointer ${
-                          webShowGraphPanel
-                            ? "bg-[#0f2c59] border-[#f5b700] text-[#f5b700]"
-                            : "bg-[#0b111e] border-[#24324b] text-slate-400 hover:text-white"
+                      {/* Minimal Bottom Footer Bar (Exact Section 2 Wireframe: REG24 · Legal Intelligence Infrastructure   TH / EN) */}
+                      <div
+                        className={`pt-8 border-t flex items-center justify-between text-xs ${
+                          isLightMinimal
+                            ? "border-[#e2e8f0] text-slate-500"
+                            : "border-[#1e293b] text-slate-400"
                         }`}
                       >
-                        {webShowGraphPanel ? "Graph: On" : "Graph Explorer"}
-                      </button>
+                        <span>REG24 &middot; Legal Intelligence Infrastructure</span>
+                        <div className="flex items-center gap-3">
+                          <button
+                            onClick={() => {
+                              setLanguageMode("th");
+                              setWebResponseLang("th");
+                            }}
+                            className={`cursor-pointer ${
+                              languageMode === "th" ? "font-bold text-[#0f2c59] dark:text-[#f5b700]" : ""
+                            }`}
+                          >
+                            TH
+                          </button>
+                          <span>/</span>
+                          <button
+                            onClick={() => {
+                              setLanguageMode("en");
+                              setWebResponseLang("en");
+                            }}
+                            className={`cursor-pointer ${
+                              languageMode === "en" ? "font-bold text-[#0f2c59] dark:text-[#f5b700]" : ""
+                            }`}
+                          >
+                            EN
+                          </button>
+                        </div>
+                      </div>
                     </div>
+                  ) : (
+                    /* =============================================================
+                       STATE B: RESEARCH RESULTS VIEW (Sections 3, 4 & 9)
+                       Progressive Disclosure:
+                       - Level 1: Answer (Default — Legal analysis, Key issues, Sources, Actions)
+                       - Level 2: Research (Deep Research — Multi-module synthesis, Rulings, Cases, Obligations)
+                       - Level 3: Evidence (Contextual Source Drawer — 4 Verification States, Excerpt, Dates)
+                       ============================================================= */
+                    latestTurn && (
+                      <div className="py-4 space-y-6">
+                        {/* Top Bar: New Question & Compact Follow-up Composer */}
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <button
+                            onClick={() => {
+                              setUxHasSubmittedResearch(false);
+                              setUxDeepResearchExpanded(false);
+                              setUxEvidenceDrawerOpen(false);
+                            }}
+                            className={`px-3.5 py-1.5 rounded-xl text-xs font-medium border cursor-pointer transition-colors ${
+                              isLightMinimal
+                                ? "bg-white border-[#e2e8f0] text-slate-700 hover:bg-slate-50"
+                                : "bg-[#111a2c] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
+                            }`}
+                          >
+                            &larr; {languageMode === "th" ? "ถามคำถามใหม่" : "New question"}
+                          </button>
 
-                    <button
-                      disabled={webLoading}
-                      onClick={() => handleRunWebLegalResearch()}
-                      className="bg-[#f5b700] hover:bg-[#facc15] text-[#0a192f] font-bold px-6 py-2.5 text-sm inline-flex items-center gap-2 cursor-pointer shadow-[0_0_18px_rgba(245,183,0,0.32)]"
-                    >
-                      <Search className="w-4 h-4" />
-                      <span>
-                        {webLoading
-                          ? languageMode === "th"
-                            ? "กำลังค้นคว้า..."
-                            : "Researching..."
-                          : languageMode === "th"
-                            ? "ค้นคว้า (Research)"
-                            : "Research"}
-                      </span>
-                    </button>
-                  </div>
-                </div>
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                            <span className={mutedText}>
+                              {languageMode === "th" ? "คัดแยกโมดูลอัตโนมัติ:" : "Auto-routed modules:"}
+                            </span>
+                            {autoModules.map((m) => (
+                              <span
+                                key={m.domain}
+                                title={m.routing_reason_en}
+                                className={`px-2.5 py-0.5 rounded-full font-medium border ${
+                                  isLightMinimal
+                                    ? "bg-slate-100 border-slate-200 text-[#0f2c59]"
+                                    : "bg-[#0f2c59]/60 border-[#f5b700]/40 text-[#f5b700]"
+                                }`}
+                              >
+                                {languageMode === "th" ? m.module_label_th : m.module_label_en}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
 
-                {/* EXAMPLE RESEARCH TOPICS */}
-                <div className="pt-3 space-y-2.5">
-                  <div className="text-xs font-semibold uppercase tracking-widest text-slate-400">
-                    {languageMode === "th" ? "หัวข้อตัวอย่างสำหรับเริ่มต้นค้นคว้า" : "Example research topics"}
-                  </div>
-                  <div className="flex flex-wrap items-center justify-center gap-2">
-                    {exampleTopics.map((topic) => (
-                      <button
-                        key={topic.labelEn}
-                        onClick={() => {
-                          handleRunWebLegalResearch(topic.mode, topic.query);
-                        }}
-                        className="bg-[#111a2c] hover:bg-[#0f2c59] border border-[#263859] hover:border-[#f5b700] text-slate-200 hover:text-[#f5b700] px-3.5 py-2 text-xs font-medium transition-all cursor-pointer inline-flex items-center gap-1.5"
-                      >
-                        <span>{languageMode === "th" ? topic.labelTh : topic.labelEn}</span>
-                        <ArrowUpRight className="w-3.5 h-3.5 text-[#f5b700]" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+                        {/* Main Layout: Clean Research Workspace + Optional Contextual Source Drawer (Level 3) */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                          <div
+                            className={`${
+                              uxEvidenceDrawerOpen ? "lg:col-span-7" : "lg:col-span-12"
+                            } space-y-5 transition-all`}
+                          >
+                            {/* LEVEL 1 — ANSWER CARD (Matches Section 3 Wireframe) */}
+                            <div className={`rounded-2xl p-6 sm:p-8 space-y-6 ${surfaceCard}`}>
+                              {/* Question Header & Status Line */}
+                              <div className="space-y-2 border-b pb-5 border-slate-200/80 dark:border-slate-800">
+                                <h2 className="text-xl sm:text-2xl font-semibold tracking-tight leading-snug">
+                                  {latestTurn.question}
+                                </h2>
+                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                  <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+                                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                                    {languageMode === "th" ? "วิเคราะห์เสร็จสมบูรณ์" : "Research completed"}
+                                  </span>
+                                  <span className={mutedText}>&middot;</span>
+                                  <span className={mutedText}>
+                                    Thailand &middot;{" "}
+                                    {latestTurn.as_of_date === "2026-10-19"
+                                      ? "Current law"
+                                      : `Law as of ${latestTurn.as_of_date}`}
+                                  </span>
+                                  <span className={mutedText}>&middot;</span>
+                                  <span
+                                    className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${
+                                      latestTurn.source_research_mode === "official_only" ||
+                                      !latestTurn.source_research_mode
+                                        ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                                        : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                    }`}
+                                  >
+                                    {latestTurn.source_research_mode === "official_plus_web"
+                                      ? "Official + Web Sources (UX-11)"
+                                      : latestTurn.source_research_mode === "web_only"
+                                      ? "Web Research Only (UX-11)"
+                                      : "Official Legal Sources"}
+                                  </span>
+                                </div>
+                              </div>
 
-              {/* 2. LIVE CONNECTED RESEARCH OUTPUT & INTEGRATED SOURCE VIEWER (WEB-01, WEB-03, WEB-04, WEB-08) */}
-              {latestTurn && (
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#24324b] pb-3">
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      <span className="bg-[#f5b700] text-[#0a192f] font-bold px-2.5 py-0.5 uppercase">
-                        {latestTurn.mode}
-                      </span>
-                      <span className="bg-[#0f2c59] border border-[#f5b700]/50 text-[#f5b700] px-2.5 py-0.5 font-mono">
-                        AS-OF LEGAL DATE: {latestTurn.as_of_date}
-                      </span>
-                      <span className="text-slate-400 font-mono text-[11px]">
-                        TRACE: {latestTurn.provenance_metadata.trace_id}
-                      </span>
+                              {/* 1. Legal Analysis (Answer First — UX-04) */}
+                              <div className="space-y-2.5">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                  {languageMode === "th" ? "การวิเคราะห์ข้อกฎหมาย (Legal analysis)" : "Legal analysis"}
+                                </div>
+                                <div className="text-[15px] leading-[1.75] whitespace-pre-line">
+                                  {languageMode === "th" ? latestTurn.answer_th : latestTurn.answer_en}
+                                </div>
+                              </div>
+
+                              {/* 2. Key Issues to Examine (Legal Reasoning — Section 3 Wireframe) */}
+                              <div className="space-y-2.5 pt-2">
+                                <div className="text-xs font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                  {languageMode === "th"
+                                    ? "ประเด็นสำคัญที่ต้องพิจารณา (Key issues to examine)"
+                                    : "Key issues to examine"}
+                                </div>
+                                <ul className="space-y-2 text-sm leading-relaxed list-disc pl-5">
+                                  {latestTurn.identified_legal_issues.map((iss) => (
+                                    <li key={iss.issue_id}>
+                                      {languageMode === "th" ? iss.issue_title_th : iss.issue_title_en}
+                                    </li>
+                                  ))}
+                                  {latestTurn.uncertainty_and_missing_facts.missing_facts.map((mf, i) => (
+                                    <li key={i} className={mutedText}>
+                                      {languageMode === "th" ? `[ข้อเท็จจริงที่ควรตรวจสอบเพิ่ม] ${mf}` : `[Fact to verify] ${mf}`}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              {/* 3. Verified Inline Source Pills (Click to open Level 3 Evidence Drawer — UX-05) */}
+                              <div className="space-y-2.5 pt-2">
+                                <div className={`text-xs font-medium ${mutedText}`}>
+                                  {languageMode === "th"
+                                    ? "แหล่งอ้างอิงที่ตรวจสอบแล้ว (คลิกเพื่อเปิดดูตัวบทต้นฉบับ):"
+                                    : "Verified legal authorities (click to inspect original source):"}
+                                </div>
+                                <div className="flex flex-wrap gap-2">
+                                  {latestTurn.citations.map((cit) => {
+                                    const isSelected =
+                                      uxEvidenceDrawerOpen &&
+                                      activeCitation?.citation_id === cit.citation_id;
+                                    const isWebSecondary =
+                                      cit.four_state_verification?.source_origin_type ===
+                                      "secondary_web_evidence";
+                                    return (
+                                      <button
+                                        key={cit.citation_id}
+                                        onClick={() => {
+                                          setWebSelectedCitation(cit);
+                                          setUxEvidenceDrawerOpen(true);
+                                        }}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border cursor-pointer transition-all flex items-center gap-1.5 ${
+                                          isSelected
+                                            ? "bg-[#0f2c59] border-[#0f2c59] text-white shadow-xs"
+                                            : isLightMinimal
+                                            ? "bg-[#f8fafc] border-[#e2e8f0] text-[#0f172a] hover:border-[#0f2c59]"
+                                            : "bg-[#0b111e] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
+                                        }`}
+                                      >
+                                        <CheckCircle2
+                                          className={`w-3.5 h-3.5 ${
+                                            isWebSecondary
+                                              ? "text-amber-500"
+                                              : isSelected
+                                              ? "text-[#f5b700]"
+                                              : "text-emerald-600"
+                                          }`}
+                                        />
+                                        <span>{cit.section_or_locator}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* 4. Next Actions Bar (Exact Section 3 Wireframe: Sources | Deep Research | Export + LAW24 Handoff) */}
+                              <div className="pt-4 border-t border-slate-200/80 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <button
+                                    onClick={() => {
+                                      if (!webSelectedCitation && latestTurn.citations[0]) {
+                                        setWebSelectedCitation(latestTurn.citations[0]);
+                                      }
+                                      setUxEvidenceDrawerOpen((prev) => !prev);
+                                    }}
+                                    className={`px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
+                                      uxEvidenceDrawerOpen
+                                        ? "bg-[#0f2c59] border-[#0f2c59] text-white"
+                                        : isLightMinimal
+                                        ? "bg-white border-[#cbd5e1] text-[#0f172a] hover:bg-slate-50"
+                                        : "bg-[#0b111e] border-[#24324b] text-white hover:border-[#f5b700]"
+                                    }`}
+                                  >
+                                    {languageMode === "th"
+                                      ? `แหล่งอ้างอิง (${latestTurn.citations.length})`
+                                      : `Sources (${latestTurn.citations.length})`}
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      if (!uxDeepResearchExpanded) {
+                                        setUxDeepResearchExpanded(true);
+                                        if (latestTurn.mode !== "Deep Research") {
+                                          handleRunWebLegalResearch("Deep Research", latestTurn.question);
+                                        }
+                                      } else {
+                                        setUxDeepResearchExpanded(false);
+                                      }
+                                    }}
+                                    className={`px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
+                                      uxDeepResearchExpanded
+                                        ? "bg-[#0f2c59] border-[#0f2c59] text-white"
+                                        : isLightMinimal
+                                        ? "bg-white border-[#cbd5e1] text-[#0f172a] hover:bg-slate-50"
+                                        : "bg-[#0b111e] border-[#24324b] text-white hover:border-[#f5b700]"
+                                    }`}
+                                  >
+                                    {languageMode === "th" ? "วิจัยเชิงลึก (Deep Research)" : "Deep Research"}
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleExportWebSession("PDF")}
+                                    className={`px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
+                                      isLightMinimal
+                                        ? "bg-white border-[#cbd5e1] text-[#0f172a] hover:bg-slate-50"
+                                        : "bg-[#0b111e] border-[#24324b] text-white hover:border-[#f5b700]"
+                                    }`}
+                                  >
+                                    {languageMode === "th" ? "ส่งออก (Export PDF)" : "Export"}
+                                  </button>
+
+                                  <button
+                                    onClick={() => handleExportWebSession("DOCX")}
+                                    className={`px-3 py-2 rounded-xl text-xs font-medium border cursor-pointer transition-all ${
+                                      isLightMinimal
+                                        ? "bg-white border-[#e2e8f0] text-slate-600 hover:bg-slate-50"
+                                        : "bg-[#0b111e] border-[#24324b] text-slate-300 hover:border-[#f5b700]"
+                                    }`}
+                                  >
+                                    DOCX
+                                  </button>
+                                </div>
+
+                                <button
+                                  onClick={() => handleManageWebSession("handoff_law24")}
+                                  className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] text-[#f5b700] hover:bg-[#163e7a] cursor-pointer inline-flex items-center gap-1.5"
+                                >
+                                  <span>
+                                    {languageMode === "th" ? "ส่งต่อไปยัง LAW24" : "Send to LAW24"}
+                                  </span>
+                                  <ArrowUpRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* LEVEL 2 — DEEP RESEARCH & STRUCTURED MEMORANDUM (Progressive Disclosure Depth 2 — UX-09, UX-14) */}
+                            {uxDeepResearchExpanded && (
+                              <div className={`rounded-2xl p-6 sm:p-8 space-y-6 ${surfaceCard}`}>
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-4 border-slate-200/80 dark:border-slate-800">
+                                  <div>
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                      LEVEL 2 &bull; EXTENDED MULTI-MODULE RESEARCH &amp; MEMORANDUM
+                                    </span>
+                                    <h3 className="text-lg font-semibold mt-0.5">
+                                      {languageMode === "th"
+                                        ? "บันทึกความเห็นทางกฎหมาย ข้อหารือกรมสรรพากร คำพิพากษาศาลฎีกา และหน้าที่ตามกฎหมาย"
+                                        : "Extended Legal Analysis, Rulings, Supreme Court Decisions & Compliance Obligations"}
+                                    </h3>
+                                  </div>
+                                  <button
+                                    onClick={() => setUxDeepResearchExpanded(false)}
+                                    className={`text-xs underline cursor-pointer ${mutedText}`}
+                                  >
+                                    {languageMode === "th" ? "ย่อส่วนวิจัยเชิงลึก" : "Collapse Deep Research"}
+                                  </button>
+                                </div>
+
+                                {/* Governing Rules & Application to Facts */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className={`p-4 rounded-xl space-y-2 ${subtleBox}`}>
+                                    <div className="text-xs font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                      {languageMode === "th"
+                                        ? "หลักกฎหมายและบรรทัดฐานที่ใช้บังคับ"
+                                        : "Governing Statutes, Rulings & Precedents"}
+                                    </div>
+                                    <ul className="space-y-1.5 text-xs leading-relaxed list-disc pl-4">
+                                      {(languageMode === "th"
+                                        ? latestTurn.structured_analysis.governing_rules_th
+                                        : latestTurn.structured_analysis.governing_rules_en
+                                      ).map((r, i) => (
+                                        <li key={i}>{r}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+
+                                  <div className={`p-4 rounded-xl space-y-2 ${subtleBox}`}>
+                                    <div className="text-xs font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                      {languageMode === "th"
+                                        ? "การปรับใช้กับข้อเท็จจริงและข้อยกเว้น"
+                                        : "Application to Facts & Competing Interpretations"}
+                                    </div>
+                                    <ul className="space-y-1.5 text-xs leading-relaxed list-disc pl-4">
+                                      {(languageMode === "th"
+                                        ? latestTurn.structured_analysis.application_to_facts_th
+                                        : latestTurn.structured_analysis.application_to_facts_en
+                                      ).map((a, i) => (
+                                        <li key={i}>{a}</li>
+                                      ))}
+                                      {latestTurn.structured_analysis.exceptions_and_conflicts.map(
+                                        (ex, i) => (
+                                          <li key={`ex-${i}`} className={mutedText}>
+                                            {ex}
+                                          </li>
+                                        )
+                                      )}
+                                    </ul>
+                                  </div>
+                                </div>
+
+                                {/* Applicable Compliance Obligations */}
+                                <div className="space-y-2.5">
+                                  <div className="text-xs font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                    {languageMode === "th"
+                                      ? `หน้าที่ตามกฎหมายที่เกี่ยวข้อง (${latestTurn.applicable_obligations.length} รายการ)`
+                                      : `Applicable Compliance Obligations (${latestTurn.applicable_obligations.length})`}
+                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                    {latestTurn.applicable_obligations.map((ob) => (
+                                      <div key={ob.obligation_id} className={`p-3.5 rounded-xl text-xs space-y-1 ${subtleBox}`}>
+                                        <div className="font-semibold">
+                                          {languageMode === "th" ? ob.title_th : ob.title}
+                                        </div>
+                                        <div className={`text-[11px] ${mutedText}`}>
+                                          {ob.legal_domain} &bull; Role: {ob.responsible_role || "Corporate Counsel"}
+                                        </div>
+                                        <div className="text-[11px] font-medium text-amber-600 dark:text-[#f5b700]">
+                                          Risk: {ob.risk_level.toUpperCase()} &bull; {ob.deadline_rule || "Prior to closing"}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Follow-up Question Input in Context */}
+                                <div className={`p-4 rounded-xl flex items-center gap-3 ${subtleBox}`}>
+                                  <input
+                                    type="text"
+                                    value={webQueryInput}
+                                    onChange={(e) => setWebQueryInput(e.target.value)}
+                                    placeholder={
+                                      languageMode === "th"
+                                        ? "ถามคำถามต่อเนื่องในบริบทเดิม..."
+                                        : "Ask a follow-up question in this research session..."
+                                    }
+                                    className="flex-1 bg-transparent text-xs focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={() => handleRunWebLegalResearch("Deep Research")}
+                                    className="px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#0f2c59] text-white cursor-pointer"
+                                  >
+                                    {languageMode === "th" ? "ถามต่อ" : "Follow up"}
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* LEVEL 3 — EVIDENCE DRAWER (Contextual Source Inspector — UX-05, UX-11, UX-13, Section 9) */}
+                          {uxEvidenceDrawerOpen && activeCitation && (
+                            <aside
+                              aria-label="Level 3 Source Evidence Inspector"
+                              className={`lg:col-span-5 rounded-2xl p-6 space-y-5 sticky top-20 ${surfaceCard}`}
+                            >
+                              <div className="flex items-start justify-between gap-2 border-b pb-4 border-slate-200/80 dark:border-slate-800">
+                                <div>
+                                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#0f2c59] dark:text-[#f5b700]">
+                                    LEVEL 3 &bull; SOURCE &amp; EVIDENCE INSPECTOR (UX-05)
+                                  </span>
+                                  <h3 className="text-sm font-semibold mt-0.5">
+                                    {languageMode === "th" ? activeCitation.title_th : activeCitation.title_en}
+                                  </h3>
+                                </div>
+                                <button
+                                  onClick={() => setUxEvidenceDrawerOpen(false)}
+                                  className={`text-xs px-2 py-1 rounded-lg border cursor-pointer ${subtleBox}`}
+                                >
+                                  Close
+                                </button>
+                              </div>
+
+                              {/* 4 Distinct Verification States (Section 9 Mandatory Requirement) */}
+                              <div className={`p-3.5 rounded-xl space-y-2 ${subtleBox}`}>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wider">
+                                    {languageMode === "th"
+                                      ? "สถานะการตรวจสอบ 4 ขั้นตอน (Section 9)"
+                                      : "4-State Verification Status (Section 9)"}
+                                  </span>
+                                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold">
+                                    {activeCitation.four_state_verification?.source_origin_type ===
+                                    "secondary_web_evidence"
+                                      ? "SECONDARY WEB SOURCE"
+                                      : "OFFICIAL PRIMARY AUTHORITY"}
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                                  <div className="flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>1. Source retrieved</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>2. Citation checked</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>3. Currently effective</span>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>4. Interpretation assessed</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Issuing Authority, Section & Dates */}
+                              <div className="grid grid-cols-2 gap-2.5 text-xs">
+                                <div className={`p-3 rounded-xl ${subtleBox}`}>
+                                  <div className={`text-[10px] uppercase ${mutedText}`}>Issuing Authority</div>
+                                  <div className="font-medium mt-0.5">{activeCitation.authority_name}</div>
+                                </div>
+                                <div className={`p-3 rounded-xl ${subtleBox}`}>
+                                  <div className={`text-[10px] uppercase ${mutedText}`}>Section / Locator</div>
+                                  <div className="font-medium mt-0.5">{activeCitation.section_or_locator}</div>
+                                </div>
+                                <div className={`p-3 rounded-xl ${subtleBox}`}>
+                                  <div className={`text-[10px] uppercase ${mutedText}`}>
+                                    Published / Effective
+                                  </div>
+                                  <div className="font-mono text-[11px] mt-0.5">
+                                    Pub: {activeCitation.publication_date} &bull; Eff: {activeCitation.effective_from}
+                                  </div>
+                                </div>
+                                <div className={`p-3 rounded-xl ${subtleBox}`}>
+                                  <div className={`text-[10px] uppercase ${mutedText}`}>Official Source Link</div>
+                                  <a
+                                    href={activeCitation.official_url}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-blue-600 dark:text-[#f5b700] hover:underline font-mono text-[11px] truncate block mt-0.5"
+                                  >
+                                    {activeCitation.official_url}
+                                  </a>
+                                </div>
+                              </div>
+
+                              {/* Exact Authoritative Excerpt (Visually Distinguished from AI Interpretation — WEB-03 / UX-05) */}
+                              <div className="p-4 rounded-xl border-l-4 border-[#0f2c59] dark:border-[#f5b700] bg-slate-100/80 dark:bg-[#0f2c59]/30 space-y-2">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                  {languageMode === "th"
+                                    ? "ตัวบทกฎหมายต้นฉบับ (Authoritative Excerpt)"
+                                    : "Exact Authoritative Source Excerpt"}
+                                </div>
+                                <p className="text-xs font-serif leading-relaxed">
+                                  {languageMode === "th"
+                                    ? activeCitation.highlighted_source_passage_th
+                                    : activeCitation.highlighted_source_passage_en}
+                                </p>
+                              </div>
+
+                              {/* AI Legal Interpretation */}
+                              <div className={`p-4 rounded-xl space-y-1.5 ${subtleBox}`}>
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
+                                  {languageMode === "th"
+                                    ? "การตีความทางกฎหมายโดย AI (AI Legal Interpretation)"
+                                    : "AI Legal Interpretation Assessment"}
+                                </div>
+                                <p className="text-xs leading-relaxed">
+                                  {languageMode === "th"
+                                    ? activeCitation.ai_interpretation_summary_th
+                                    : activeCitation.ai_interpretation_summary_en}
+                                </p>
+                              </div>
+
+                              {/* Optional Contextual Legal Relationship Graph (UX-13) */}
+                              <div className="pt-2 border-t border-slate-200/80 dark:border-slate-800">
+                                <button
+                                  onClick={() => setWebShowGraphPanel((prev) => !prev)}
+                                  className="text-xs font-semibold text-[#0f2c59] dark:text-[#f5b700] hover:underline cursor-pointer"
+                                >
+                                  {webShowGraphPanel
+                                    ? "Hide related legal graph (UX-13)"
+                                    : "+ View connected statutes, rulings & cases (UX-13)"}
+                                </button>
+                                {webShowGraphPanel && (
+                                  <div className="grid grid-cols-2 gap-2 mt-3 text-[11px]">
+                                    {snapshot.caseKnowledgeGraph.nodes.slice(0, 4).map((node) => (
+                                      <div key={node.id} className={`p-2.5 rounded-lg ${subtleBox}`}>
+                                        <div className="text-[9px] font-mono uppercase opacity-70">
+                                          {node.node_type}
+                                        </div>
+                                        <div className="font-semibold truncate mt-0.5">
+                                          {languageMode === "th" ? node.label_th : node.label_en}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </aside>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  )}
+                </>
+              )}
+
+              {/* ===============================================================
+                  DESTINATION 2: WORKSPACE (Saved work, notes, exports & LAW24 handoff — Section 5, UX-08, UX-10, UX-15)
+                  =============================================================== */}
+              {uxResearchDestination === "workspace" && (
+                <div className="py-6 space-y-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h1 className="text-2xl font-semibold tracking-tight">
+                        {languageMode === "th"
+                          ? "พื้นที่ทำงานและงานวิจัยที่บันทึกไว้ (Workspace)"
+                          : "Workspace — Saved Research, Exports & Handoff"}
+                      </h1>
+                      <p className={`text-xs mt-1 ${mutedText}`}>
+                        {languageMode === "th"
+                          ? "ประวัติการค้นคว้า โฟลเดอร์โครงการ ส่งออกรายงาน PDF/DOCX และส่งต่องานไปยัง LAW24"
+                          : "Conversation history, project folders, notes, bookmarks, PDF/DOCX exports, and LAW24 handoff."}
+                      </p>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={() => {
-                          handleExportWebSession("PDF");
-                          setWebActiveTab("workspace_exports");
-                          setActiveScreen("SCREEN_O_WEB_STUDIO");
-                        }}
-                        className="bg-[#121a2b] hover:bg-[#0f2c59] border border-[#24324b] hover:border-[#f5b700] text-slate-200 px-3 py-1 text-xs font-semibold cursor-pointer"
+                        onClick={() => handleExportWebSession("PDF")}
+                        className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] text-white cursor-pointer"
                       >
                         Export PDF
                       </button>
                       <button
-                        onClick={() => {
-                          handleExportWebSession("DOCX");
-                          setWebActiveTab("workspace_exports");
-                          setActiveScreen("SCREEN_O_WEB_STUDIO");
-                        }}
-                        className="bg-[#121a2b] hover:bg-[#0f2c59] border border-[#24324b] hover:border-[#f5b700] text-slate-200 px-3 py-1 text-xs font-semibold cursor-pointer"
+                        onClick={() => handleExportWebSession("DOCX")}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-semibold border cursor-pointer ${surfaceCard}`}
                       >
                         Export DOCX
-                      </button>
-                      <button
-                        onClick={() => {
-                          setWebActiveTab("ai_research");
-                          setActiveScreen("SCREEN_O_WEB_STUDIO");
-                        }}
-                        className="bg-[#0f2c59] hover:bg-[#163e7a] border border-[#f5b700] text-[#f5b700] px-3 py-1 text-xs font-bold cursor-pointer inline-flex items-center gap-1"
-                      >
-                        <span>Open Full Studio Workspace</span>
-                        <ArrowUpRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
 
-                  {/* 9-Step Deep Research Progress Bar (Shown when in Deep Research mode — WEB-04) */}
-                  {latestTurn.deep_research_workflow && (
-                    <div className="bg-[#101726] border border-[#24324b] p-4 space-y-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="text-xs font-bold uppercase tracking-wider text-[#f5b700]">
-                          WEB-04 9-STEP DEEP RESEARCH WORKFLOW ({latestTurn.deep_research_workflow.progress_pct}% &bull; {latestTurn.deep_research_workflow.state.toUpperCase()})
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => handleCancelOrRetryDeepResearch("cancel")}
-                            className="px-2.5 py-1 text-[10px] font-bold uppercase bg-rose-950/60 border border-rose-700 text-rose-200 cursor-pointer"
-                          >
-                            Cancel Job
-                          </button>
-                          <button
-                            onClick={() => handleCancelOrRetryDeepResearch("retry")}
-                            className="px-2.5 py-1 text-[10px] font-bold uppercase bg-[#0f2c59] border border-[#f5b700] text-[#f5b700] cursor-pointer"
-                          >
-                            Retry
-                          </button>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 md:grid-cols-9 gap-1.5 text-[10px]">
-                        {latestTurn.deep_research_workflow.steps.map((st) => (
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+                    {/* Folders & Saved Sessions */}
+                    <div className="md:col-span-7 space-y-3">
+                      {snapshot.webResearchStudio.sessions.map((sess) => {
+                        const active = sess.session_id === webSelectedSessionId;
+                        return (
                           <div
-                            key={st.step_number}
-                            className={`p-2 border ${
-                              st.status === "completed"
-                                ? "bg-[#0f2c59]/60 border-[#f5b700]/60 text-white"
-                                : "bg-[#0b101b] border-[#1e293b] text-slate-400"
+                            key={sess.session_id}
+                            onClick={() => setWebSelectedSessionId(sess.session_id)}
+                            className={`p-5 rounded-2xl cursor-pointer transition-all ${surfaceCard} ${
+                              active ? "ring-2 ring-[#0f2c59] dark:ring-[#f5b700]" : ""
                             }`}
                           >
-                            <div className="font-mono text-[#f5b700] font-bold">0{st.step_number}</div>
-                            <div className="truncate mt-0.5">{st.step_title_en}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 2-Column Split: Source-Grounded Legal Analysis (Left) + Integrated Legal Source Viewer (Right) */}
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-                    {/* Left 7 Cols: Structured Legal Analysis & Citations (WEB-01 & WEB-08) */}
-                    <div className="lg:col-span-7 bg-[#101726] border border-[#24324b] p-5 space-y-4">
-                      <div className="text-xs font-bold uppercase tracking-wider text-[#f5b700]">
-                        SOURCE-GROUNDED LEGAL ANALYSIS ({webResponseLang === "en" ? "ENGLISH" : "THAI DEFAULT — WEB-01"})
-                      </div>
-                      <p className="text-sm text-white leading-relaxed">
-                        {webResponseLang === "en" ? latestTurn.answer_en : latestTurn.answer_th}
-                      </p>
-
-                      {/* Verified Citations Bar (Click to inspect in Source Viewer) */}
-                      <div className="space-y-2 pt-2 border-t border-[#1e2d47]">
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                          VERIFIED LEGAL CITATIONS (CLICK TO INSPECT ORIGINAL SOURCE — AC-WEB-02):
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {latestTurn.citations.map((cit) => {
-                            const selected = activeCitation?.citation_id === cit.citation_id;
-                            return (
-                              <button
-                                key={cit.citation_id}
-                                onClick={() => setWebSelectedCitation(cit)}
-                                className={`px-3 py-1.5 text-xs font-mono border cursor-pointer transition-colors ${
-                                  selected
-                                    ? "bg-[#f5b700] border-[#f5b700] text-[#0a192f] font-bold"
-                                    : "bg-[#0b111e] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
-                                }`}
-                              >
-                                [{cit.section_or_locator}] {cit.title_th}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      {/* Applicable Obligations Preview (WEB-08) */}
-                      <div className="space-y-2 pt-2 border-t border-[#1e2d47]">
-                        <div className="text-[11px] font-bold uppercase tracking-wider text-[#f5b700]">
-                          APPLICABLE STATUTORY &amp; REGULATORY OBLIGATIONS ({latestTurn.applicable_obligations.length}):
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {latestTurn.applicable_obligations.slice(0, 4).map((ob) => (
-                            <div key={ob.obligation_id} className="bg-[#0b111e] border border-[#1e2d47] p-2.5 text-xs">
-                              <div className="font-semibold text-white">
-                                {webResponseLang === "en" ? ob.title : ob.title_th}
-                              </div>
-                              <div className="text-[11px] text-slate-400 mt-0.5">
-                                Domain: {ob.legal_domain} &bull; Risk: {ob.risk_level.toUpperCase()}
+                            <div className="flex items-center justify-between gap-2 text-xs">
+                              <span className="font-mono text-[11px] opacity-75">{sess.session_id}</span>
+                              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300">
+                                {sess.active_mode} &bull; {sess.as_of_date}
+                              </span>
+                            </div>
+                            <h3 className="text-base font-semibold mt-1.5">{sess.title}</h3>
+                            <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800 text-xs">
+                              <span className={mutedText}>
+                                {sess.turns.length} turns &bull; {sess.bookmarked_source_ids.length} bookmarked sources
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setWebSelectedSessionId(sess.session_id);
+                                    setUxResearchDestination("research");
+                                    setUxHasSubmittedResearch(true);
+                                  }}
+                                  className="text-blue-600 dark:text-[#f5b700] font-semibold hover:underline cursor-pointer"
+                                >
+                                  Reopen session &rarr;
+                                </button>
                               </div>
                             </div>
-                          ))}
-                        </div>
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
 
-                    {/* Right 5 Cols: Integrated Legal Source Viewer (WEB-03 — Original Text vs AI Interpretation) */}
-                    <div className="lg:col-span-5 bg-[#101726] border border-[#24324b] p-5 space-y-4">
-                      <div className="flex items-center justify-between border-b border-[#1e2d47] pb-2.5">
-                        <div>
-                          <span className="text-[10px] font-bold uppercase tracking-widest text-[#f5b700]">
-                            WEB-03 LEGAL SOURCE VIEWER
-                          </span>
-                          <h3 className="text-sm font-bold text-white">
-                            Original Legal Text vs AI Interpretation
-                          </h3>
+                    {/* Export Preview & LAW24 Handoff Card */}
+                    <div className="md:col-span-5 space-y-4">
+                      <div className={`p-5 rounded-2xl space-y-3 ${surfaceCard}`}>
+                        <div className="text-xs font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                          LAW24 Matter Handoff (UX-15)
                         </div>
-                        <span className="text-[10px] font-mono bg-[#0f2c59] border border-[#f5b700] px-2 py-0.5 text-[#f5b700]">
-                          SHA-256 VERIFIED
-                        </span>
+                        <p className={`text-xs leading-relaxed ${mutedText}`}>
+                          Transfer verified research findings, statutory citations, and compliance obligations directly into a LAW24 legal execution workflow.
+                        </p>
+                        {currentSession?.law24_handoff_status?.handed_off && (
+                          <div className={`p-3 rounded-xl text-xs ${subtleBox}`}>
+                            <div className="font-semibold text-emerald-600">
+                              ✓ Handed off: {currentSession.law24_handoff_status.handoff_id}
+                            </div>
+                            <div className={`text-[11px] mt-0.5 ${mutedText}`}>
+                              Target: {currentSession.law24_handoff_status.target_workflow}
+                            </div>
+                          </div>
+                        )}
+                        <button
+                          onClick={() => handleManageWebSession("handoff_law24")}
+                          className="w-full py-2.5 rounded-xl text-xs font-semibold bg-[#0f2c59] text-[#f5b700] cursor-pointer"
+                        >
+                          Handoff Current Session to LAW24
+                        </button>
                       </div>
 
-                      {activeCitation && (
-                        <div className="space-y-3 text-xs">
-                          <div className="bg-[#0b111e] border border-[#1e2d47] p-3 space-y-1">
-                            <div className="font-bold text-white">{activeCitation.title_th}</div>
-                            <div className="text-slate-400">{activeCitation.title_en}</div>
-                            <div className="text-[11px] font-mono text-[#f5b700]">
-                              {activeCitation.section_or_locator} &bull; Effective: {activeCitation.effective_from}
-                            </div>
+                      {webExportPreview && (
+                        <div className={`p-5 rounded-2xl space-y-2 text-xs ${surfaceCard}`}>
+                          <div className="font-semibold text-emerald-600">
+                            ✓ Export Ready: {webExportPreview.download_filename}
                           </div>
-
-                          {/* Original Authoritative Source Text */}
-                          <div className="bg-[#0f2c59]/40 border-l-4 border-[#f5b700] p-3 space-y-1.5">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-[#f5b700]">
-                              ORIGINAL AUTHORITATIVE SOURCE TEXT (ตัวบทกฎหมายต้นฉบับ)
-                            </div>
-                            <p className="text-white font-serif leading-relaxed">
-                              {activeCitation.highlighted_source_passage_th}
-                            </p>
-                            <p className="text-slate-300 font-serif text-[11px] leading-relaxed">
-                              {activeCitation.highlighted_source_passage_en}
-                            </p>
-                          </div>
-
-                          {/* AI-Generated Legal Interpretation */}
-                          <div className="bg-[#0b111e] border border-[#24324b] p-3 space-y-1.5">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-sky-400">
-                              AI-GENERATED LEGAL INTERPRETATION (คำอธิบายโดย AI)
-                            </div>
-                            <p className="text-slate-200 leading-relaxed">
-                              {activeCitation.ai_interpretation_summary_th}
-                            </p>
+                          <div className={mutedText}>
+                            Format: {webExportPreview.format} &bull; Applicable Date:{" "}
+                            {webExportPreview.applicable_legal_date} &bull; Verified Citations:{" "}
+                            {webExportPreview.preserved_citations.length}
                           </div>
                         </div>
                       )}
                     </div>
                   </div>
-
-                  {/* Optional Knowledge Graph Explorer Panel (WEB-06) */}
-                  {webShowGraphPanel && (
-                    <div className="bg-[#101726] border border-[#f5b700] p-5 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-[#f5b700]">
-                          WEB-06 LEGAL KNOWLEDGE GRAPH EXPLORER (VERIFIED EDGES ONLY)
-                        </span>
-                        <span className="text-[10px] font-mono text-slate-400">
-                          UNSUPPORTED / UNVERIFIED EDGES QUARANTINED
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-                        {snapshot.caseKnowledgeGraph.nodes.slice(0, 8).map((node) => (
-                          <div key={node.id} className="bg-[#0b111e] border border-[#24324b] p-3">
-                            <div className="text-[10px] font-mono uppercase text-[#f5b700]">
-                              {node.node_type}
-                            </div>
-                            <div className="font-semibold text-white mt-0.5">{node.label_th}</div>
-                            <div className="text-[11px] text-slate-400">{node.label_en}</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               )}
 
-              {/* 3. ARCHITECTURAL PRINCIPLE DIAGRAM: ONE ENGINE, TWO DISTRIBUTION CHANNELS */}
-              <div className="border border-[#24324b] bg-[#0e1524] p-5 space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              {/* ===============================================================
+                  DESTINATION 3: LIBRARY (Browse legal sources across 7 categories & Temporal Diff — Section 5, UX-12)
+                  =============================================================== */}
+              {uxResearchDestination === "library" && (
+                <div className="py-6 space-y-6">
                   <div>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-[#f5b700]">
-                      ARCHITECTURAL PRINCIPLE (REG24-WEB-001 &bull; AC-WEB-01 &amp; AC-WEB-10)
-                    </span>
-                    <h3 className="text-sm font-bold text-white mt-0.5">
-                      One Legal Intelligence Engine &bull; Two Distribution Channels (Human Web Studio + AI API/MCP)
-                    </h3>
+                    <h1 className="text-2xl font-semibold tracking-tight">
+                      {languageMode === "th"
+                        ? "คลังแหล่งข้อมูลกฎหมายไทย (Legal Source Library)"
+                        : "Library — Authoritative Thai Legal Sources"}
+                    </h1>
+                    <p className={`text-xs mt-1 ${mutedText}`}>
+                      {languageMode === "th"
+                        ? "ค้นหาและเปิดอ่านตัวบทกฎหมาย กฎหมายลำดับรอง คำพิพากษาศาลฎีกา ข้อหารือกรมสรรพากร ก.ล.ต./ตลท. และ BOI"
+                        : "Browse and filter statutes, subordinate regulations, Supreme Court judgments, Revenue Department tax rulings, SEC/SET rules, and BOI announcements."}
+                    </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      onClick={() => {
-                        setWebActiveTab("legal_search");
-                        setActiveScreen("SCREEN_O_WEB_STUDIO");
-                      }}
-                      className="text-xs text-[#f5b700] hover:underline cursor-pointer"
-                    >
-                      7-Category Legal Search &rarr;
-                    </button>
-                    <span className="text-slate-600">|</span>
-                    <button
-                      onClick={() => {
-                        setWebActiveTab("temporal_compare");
-                        setActiveScreen("SCREEN_O_WEB_STUDIO");
-                      }}
-                      className="text-xs text-[#f5b700] hover:underline cursor-pointer"
-                    >
-                      Temporal Law Diff &rarr;
-                    </button>
+
+                  {/* Search & Contextual Module Filters (UX-12) */}
+                  <div className={`p-4 rounded-2xl space-y-3 ${surfaceCard}`}>
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <input
+                        type="text"
+                        value={webSearchQuery}
+                        onChange={(e) => setWebSearchQuery(e.target.value)}
+                        placeholder={
+                          languageMode === "th"
+                            ? "ค้นหาด้วยชื่อกฎหมาย เลขมาตรา เลขฎีกา หรือคำสำคัญ..."
+                            : "Search by statute title, section number, Dika judgment, or keyword..."
+                        }
+                        className={`flex-1 px-3.5 py-2 rounded-xl border text-xs ${subtleBox}`}
+                      />
+                      <select
+                        value={webSearchCategory}
+                        onChange={(e) =>
+                          setWebSearchCategory(e.target.value as WebSearchDocumentCategory | "ALL")
+                        }
+                        className={`px-3 py-2 rounded-xl border text-xs ${subtleBox}`}
+                      >
+                        <option value="ALL">All 7 Legal Categories</option>
+                        <option value="Statutes and codes">1. Statutes and codes</option>
+                        <option value="Subordinate regulations">2. Subordinate regulations</option>
+                        <option value="Court judgments">3. Court judgments</option>
+                        <option value="Revenue Department tax rulings">4. Revenue Department tax rulings</option>
+                        <option value="SEC and SET regulations">5. SEC and SET regulations</option>
+                        <option value="BOI announcements">6. BOI announcements</option>
+                        <option value="Regulatory interpretations">7. Regulatory interpretations</option>
+                      </select>
+                      <button
+                        onClick={() => handleWebUnifiedSearch()}
+                        className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] text-white cursor-pointer"
+                      >
+                        Search Library
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Source Items Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(webSearchResults || snapshot.webResearchStudio.source_viewer_documents).map(
+                      (doc) => (
+                        <div
+                          key={doc.record_id}
+                          className={`p-5 rounded-2xl flex flex-col justify-between space-y-4 ${surfaceCard}`}
+                        >
+                          <div className="space-y-2">
+                            <div className="flex items-center justify-between gap-2 text-[11px]">
+                              <span className="px-2.5 py-0.5 rounded-full font-medium bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]">
+                                {doc.document_category} &bull; {doc.legal_domain}
+                              </span>
+                              <span className="text-emerald-600 font-medium">
+                                ✓ {doc.verification_status === "human_verified" ? "Verified" : "Checked"}
+                              </span>
+                            </div>
+                            <h3 className="text-sm font-semibold leading-snug">
+                              {languageMode === "th" ? doc.title_th : doc.title_en}
+                            </h3>
+                            <div className={`text-xs ${mutedText}`}>
+                              {doc.source_authority} &bull; Effective: {doc.effective_from}
+                            </div>
+                            <p className="text-xs font-serif leading-relaxed pt-1 opacity-90">
+                              {languageMode === "th"
+                                ? doc.original_source_snippet_th
+                                : doc.original_source_snippet_en}
+                            </p>
+                          </div>
+                          <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-xs">
+                            <span className="font-mono text-[11px] opacity-70">{doc.section_or_reference}</span>
+                            <button
+                              onClick={() => {
+                                setWebSelectedCitation({
+                                  citation_id: `cit.lib.${doc.record_id}`,
+                                  source_record_id: doc.record_id,
+                                  document_category: doc.document_category,
+                                  title_th: doc.title_th,
+                                  title_en: doc.title_en,
+                                  section_or_locator: doc.section_or_reference,
+                                  authority_name: doc.source_authority,
+                                  publication_date: doc.publication_date,
+                                  effective_from: doc.effective_from,
+                                  effective_to: doc.effective_to,
+                                  verification_status: doc.verification_status,
+                                  official_url: doc.official_url,
+                                  sha256_hash: doc.sha256_hash,
+                                  highlighted_source_passage_th: doc.original_source_snippet_th,
+                                  highlighted_source_passage_en: doc.original_source_snippet_en,
+                                  ai_interpretation_summary_th: doc.ai_summary_interpretation_th,
+                                  ai_interpretation_summary_en: doc.ai_summary_interpretation_en,
+                                  four_state_verification: {
+                                    source_retrieved: true,
+                                    citation_checked: true,
+                                    currently_effective: true,
+                                    legal_interpretation_assessed: true,
+                                    retrieved_at: new Date().toISOString(),
+                                    source_origin_type: "official_primary_authority",
+                                  },
+                                });
+                                setUxResearchDestination("research");
+                                setUxHasSubmittedResearch(true);
+                                setUxEvidenceDrawerOpen(true);
+                              }}
+                              className="text-blue-600 dark:text-[#f5b700] font-semibold hover:underline cursor-pointer"
+                            >
+                              Inspect in Evidence Drawer &rarr;
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    )}
                   </div>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
-                  <div className="bg-[#0a101d] border border-[#24324b] p-3.5">
-                    <div className="text-[10px] font-bold uppercase text-[#f5b700]">
-                      1. REG24 CORE INFRASTRUCTURE
-                    </div>
-                    <div className="font-semibold text-white mt-1">
-                      Single Source of Truth
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1">
-                      Legal data &bull; Temporal Graph RAG &bull; Reasoning &bull; Verification &bull; Obligation Engine
-                    </div>
-                  </div>
-
-                  <div className="bg-[#0a101d] border border-[#24324b] p-3.5">
-                    <div className="text-[10px] font-bold uppercase text-[#f5b700]">
-                      2. REG24 GATEWAY
-                    </div>
-                    <div className="font-semibold text-white mt-1">
-                      Unified Access Layer
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1">
-                      REST API &bull; MCP (61 Tools) &bull; Authentication &bull; Tenant Isolation &bull; Metering
-                    </div>
-                  </div>
-
-                  <div className="bg-[#0f2c59]/50 border border-[#f5b700] p-3.5">
-                    <div className="text-[10px] font-bold uppercase text-[#f5b700]">
-                      3. REG24 WEB (CHANNEL 1)
-                    </div>
-                    <div className="font-semibold text-white mt-1">
-                      Legal Research Studio
-                    </div>
-                    <div className="text-[11px] text-slate-200 mt-1">
-                      First-party web application for lawyers, tax advisors, and corporate teams
-                    </div>
-                  </div>
-
-                  <div className="bg-[#0a101d] border border-[#24324b] p-3.5">
-                    <div className="text-[10px] font-bold uppercase text-[#f5b700]">
-                      4. EXTERNAL CONSUMERS (CHANNEL 2)
-                    </div>
-                    <div className="font-semibold text-white mt-1">
-                      Ecosystem &amp; AI Agents
-                    </div>
-                    <div className="text-[11px] text-slate-400 mt-1">
-                      LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; AI agents &bull; Enterprise applications
-                    </div>
-                  </div>
-                </div>
-              </div>
+              )}
             </div>
           );
         })()}
+
+        {/* =====================================================================
+            02. REG24 INFRASTRUCTURE — DEVELOPER CONSOLE (Section 1 & Section 8)
+            Separate permission-controlled console for API keys, MCP access (61 tools),
+            module capabilities, usage quotas, and VIBE24 integrations.
+            ===================================================================== */}
+        {activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "infrastructure" && (
+          <div className="max-w-[1060px] mx-auto py-6 space-y-6">
+            <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-[#f5b700]">
+                  02. REG24 INFRASTRUCTURE &bull; DEVELOPER CONSOLE
+                </span>
+                <h1 className="text-2xl font-bold text-white mt-1">
+                  API Gateway, MCP Tools &amp; Module Capabilities
+                </h1>
+                <p className="text-xs text-slate-300 mt-1">
+                  Separated from the lawyer research interface per UX/UI v2.0 Section 1 &amp; Section 8.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setActiveScreen("SCREEN_G_MCP")}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#f5b700] text-[#0a192f] cursor-pointer"
+                >
+                  Open MCP &amp; REST Playground (61 Tools)
+                </button>
+                <button
+                  onClick={() => setActiveScreen("SCREEN_A_REGISTRY")}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] border border-[#f5b700]/60 text-white cursor-pointer"
+                >
+                  Module Registry (16 Modules)
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+              <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-5 space-y-2">
+                <div className="text-[#f5b700] font-bold uppercase">REST API &amp; Authentication</div>
+                <div className="text-lg font-bold text-white">/api/v1/legal/analyze</div>
+                <p className="text-slate-400">
+                  Tenant-scoped API keys, rate limiting, and deterministic parity with REG24 Research.
+                </p>
+              </div>
+              <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-5 space-y-2">
+                <div className="text-[#f5b700] font-bold uppercase">Model Context Protocol (MCP)</div>
+                <div className="text-lg font-bold text-white">61 Legal Tools Registered</div>
+                <p className="text-slate-400">
+                  JSON-RPC 2.0 MCP server for third-party AI agents and A2A task delegation.
+                </p>
+              </div>
+              <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-5 space-y-2">
+                <div className="text-[#f5b700] font-bold uppercase">VIBE24 Ecosystem Integrations</div>
+                <div className="text-lg font-bold text-white">
+                  {snapshot.vibe24EcosystemTargets.length} Connected Apps
+                </div>
+                <p className="text-slate-400">
+                  LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GOV24 &bull; TRACE24
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* =====================================================================
+            03. REG24 CONTROL — ADMINISTRATOR CONSOLE (Section 1 & Section 8)
+            Restricted to administrators: Legal source ingestion, Graph RAG, 2R/3R
+            processing, data quality, jurisdiction, versioning, and agent monitoring.
+            ===================================================================== */}
+        {activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "control" && (
+          <div className="max-w-[1060px] mx-auto py-6 space-y-6">
+            <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <span className="text-[11px] font-bold uppercase tracking-widest text-[#f5b700]">
+                  03. REG24 CONTROL &bull; ADMINISTRATOR CONSOLE
+                </span>
+                <h1 className="text-2xl font-bold text-white mt-1">
+                  Source Ingestion, 3R Graph RAG, Data Quality &amp; Audit Control
+                </h1>
+                <p className="text-xs text-slate-300 mt-1">
+                  Restricted to platform administrators and legal knowledge engineers per UX/UI v2.0 Section 1.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
+                  className="px-4 py-2 rounded-xl text-xs font-bold bg-[#f5b700] text-[#0a192f] cursor-pointer"
+                >
+                  3R Graph RAG &amp; Knowledge Graph
+                </button>
+                <button
+                  onClick={() => setActiveScreen("SCREEN_C_SOURCES")}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] border border-[#f5b700]/60 text-white cursor-pointer"
+                >
+                  Source Ingestion &amp; SHA-256
+                </button>
+                <button
+                  onClick={() => setActiveScreen("SCREEN_H_AUDIT")}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] border border-[#f5b700]/60 text-white cursor-pointer"
+                >
+                  TRACE24 Audit Log
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-xs">
+              <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-5 space-y-1">
+                <div className="text-[#f5b700] font-bold uppercase">Provisions Indexed</div>
+                <div className="text-2xl font-bold text-white">
+                  {totalProvisionsIndexed.toLocaleString()}
+                </div>
+                <div className="text-slate-400">Across {publishedModules.length} published P0 modules</div>
+              </div>
+              <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-5 space-y-1">
+                <div className="text-[#f5b700] font-bold uppercase">Citation Verification</div>
+                <div className="text-2xl font-bold text-emerald-400">
+                  {snapshot.section24QualityDashboard.kpis.citation_resolution_pct.value}%
+                </div>
+                <div className="text-slate-400">Target &ge; 99.0% (0 fabricated citations)</div>
+              </div>
+              <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-5 space-y-1">
+                <div className="text-[#f5b700] font-bold uppercase">Temporal Accuracy</div>
+                <div className="text-2xl font-bold text-emerald-400">
+                  {snapshot.section24QualityDashboard.kpis.temporal_validity_accuracy_pct.value}%
+                </div>
+                <div className="text-slate-400">Bi-temporal point-in-time retrieval</div>
+              </div>
+              <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-5 space-y-1">
+                <div className="text-[#f5b700] font-bold uppercase">Executable Rules</div>
+                <div className="text-2xl font-bold text-white">{approvedRulesCount} Approved</div>
+                <div className="text-slate-400">Human-reviewed Law-as-Code rules</div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* =====================================================================
             EASY MODE (1-2-3-4 BENTO GRID): VIBE24 / REG24 DIRECT "CHOOSE A STARTING POINT"

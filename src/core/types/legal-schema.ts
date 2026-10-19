@@ -1575,6 +1575,8 @@ export type CoreLegalDomainCode =
   | "LEG-BOI"
   | "LEG-SEC"
   | "LEG-INSOLVENCY"
+  | "LEG-RESTRUCT"
+  | "LEG-CASE"
   | "LEG-PDPA";
 
 export type IndustryModuleCode =
@@ -2057,6 +2059,26 @@ export interface WebDeepResearchStep {
   elapsed_ms: number;
 }
 
+export type WebSourceResearchMode = "official_only" | "official_plus_web" | "web_only";
+
+export interface WebCitationFourStateVerification {
+  source_retrieved: boolean;
+  citation_checked: boolean;
+  currently_effective: boolean;
+  legal_interpretation_assessed: boolean;
+  retrieved_at: string;
+  source_origin_type: "official_primary_authority" | "secondary_web_evidence";
+}
+
+export interface WebUploadedDocumentContext {
+  document_id: string;
+  filename: string;
+  document_type: "contract" | "ruling" | "pleading" | "corporate_filing" | "regulatory_notice";
+  extracted_summary_th: string;
+  extracted_summary_en: string;
+  detected_domains: CoreLegalDomainCode[];
+}
+
 export interface WebResearchCitationLink {
   citation_id: string;
   source_record_id: string;
@@ -2075,6 +2097,7 @@ export interface WebResearchCitationLink {
   highlighted_source_passage_en: string;
   ai_interpretation_summary_th: string;
   ai_interpretation_summary_en: string;
+  four_state_verification?: WebCitationFourStateVerification;
 }
 
 export interface WebResearchTurn {
@@ -2085,6 +2108,16 @@ export interface WebResearchTurn {
   mode: WebResearchMode;
   as_of_date: string;
   selected_domains: CoreLegalDomainCode[];
+  auto_routed_modules?: {
+    domain: CoreLegalDomainCode;
+    module_id: string;
+    module_label_en: string;
+    module_label_th: string;
+    routing_confidence: number;
+    routing_reason_en: string;
+  }[];
+  source_research_mode?: WebSourceResearchMode;
+  uploaded_document?: WebUploadedDocumentContext;
   identified_legal_issues: {
     issue_id: string;
     domain: CoreLegalDomainCode;

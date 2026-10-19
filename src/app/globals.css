@@ -1,6 +1,14 @@
 @import "tailwindcss";
 
 :root {
+  /* UX/UI v2.0 Super Minimal Palette: White · Mist · Ink · Accent Blue · Border Gray */
+  --ux-white: #ffffff;
+  --ux-mist: #f8fafc;
+  --ux-ink: #0f172a;
+  --ux-accent-blue: #1d4ed8;
+  --ux-border-gray: #e2e8f0;
+
+  /* REG24 Brand & Infrastructure Tokens */
   --metro-bg: #0a0e17;
   --metro-surface: #111722;
   --metro-surface-hover: #172030;
@@ -22,19 +30,17 @@
   --metro-cyan: #f5b700;
 }
 
-* {
-  border-radius: 2px;
-}
-
 body {
-  background-color: var(--metro-bg);
-  color: #f8fafc;
+  background-color: var(--ux-white);
+  color: var(--ux-ink);
   font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Thai", sans-serif;
   overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
 }
 
 .metro-tile {
   position: relative;
+  border-radius: 2px;
   transition: transform 140ms cubic-bezier(0.16, 1, 0.3, 1), filter 140ms ease, outline 120ms ease;
   user-select: none;
 }
@@ -55,11 +61,12 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0a0e17;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #1e293b;
+  background: #94a3b8;
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #f5b700;
+  background: #475569;
 }

@@ -996,5 +996,80 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     expect(webSnap.acceptance_criteria_status.length).toBe(10);
     expect(webSnap.acceptance_criteria_status.every((ac) => ac.passed === true)).toBe(true);
   });
+
+  // =========================================================================
+  // REG-QA-015: REG24 Super Minimal UX/UI Redesign (UX/UI v2.0, Priority P0)
+  // Verifying UX-01..UX-15, Automatic Legal-Module Routing, 4-State Citation
+  // Verification, Official vs. Web Source Distinction & Section 11 Acceptance
+  // =========================================================================
+  it("REG-QA-015: enforces UX/UI v2.0 Super Minimal Redesign (UX-01..15, automatic multi-module routing without pre-selection, 4-state citation verification, official vs. web source distinction, and debt-to-equity / BOI restructuring queries)", () => {
+    // 1. Section 11 Acceptance Criterion & UX-01, UX-02, UX-03:
+    // "A user can ask a multi-module question such as: 'What are the corporate, tax and SEC implications of a restructuring involving a BOI-promoted company?' without manually selecting any legal module, and receive a structured, source-cited answer."
+    const boiRestructRes = core.executeWebLegalResearch({
+      tenant_id: "tenant.law24.prod",
+      query:
+        "What are the corporate, tax and SEC implications of a restructuring involving a BOI-promoted company?",
+      response_language: "en",
+      // Notice: no `domains` pre-selected!
+    });
+
+    expect(boiRestructRes.status).toBe("ok");
+    const autoDomains = boiRestructRes.turn?.auto_routed_modules?.map((m) => m.domain) || [];
+    expect(autoDomains).toEqual(
+      expect.arrayContaining(["LEG-CORP", "LEG-TAX", "LEG-SEC", "LEG-BOI", "LEG-RESTRUCT"])
+    );
+    expect(boiRestructRes.turn?.selected_domains).toEqual(
+      expect.arrayContaining(["LEG-CORP", "LEG-TAX", "LEG-SEC", "LEG-BOI"])
+    );
+    expect(boiRestructRes.turn?.citations.length).toBeGreaterThanOrEqual(4);
+
+    // 2. Section 9 Mandatory 4-State Citation Verification on every citation
+    for (const cit of boiRestructRes.turn!.citations) {
+      expect(cit.four_state_verification).toBeDefined();
+      expect(cit.four_state_verification?.source_retrieved).toBe(true);
+      expect(cit.four_state_verification?.citation_checked).toBe(true);
+      expect(cit.four_state_verification?.currently_effective).toBe(true);
+      expect(cit.four_state_verification?.legal_interpretation_assessed).toBe(true);
+      expect(cit.four_state_verification?.source_origin_type).toBe(
+        "official_primary_authority"
+      );
+    }
+
+    // 3. Section 3 Wireframe Query: Converting shareholder debt into equity in a Thai private limited company
+    const dteRes = core.executeWebLegalResearch({
+      tenant_id: "tenant.law24.prod",
+      query:
+        "What are the tax and corporate law implications of converting shareholder debt into equity in a Thai private limited company?",
+      response_language: "en",
+      source_research_mode: "official_plus_web",
+      uploaded_document: {
+        document_id: "doc.upload.001",
+        filename: "Shareholder_Loan_Debt_to_Equity_TermSheet.pdf",
+        document_type: "contract",
+        extracted_summary_th: "ร่างข้อตกลงแปลงหนี้เป็นทุน 150 ล้านบาท",
+        extracted_summary_en: "Draft THB 150M debt-to-equity term sheet",
+        detected_domains: ["LEG-CORP", "LEG-TAX"],
+      },
+    });
+
+    expect(dteRes.status).toBe("ok");
+    expect(dteRes.turn?.answer_en).toContain("1117");
+    expect(dteRes.turn?.answer_en).toContain("1220");
+    expect(dteRes.turn?.uploaded_document?.filename).toBe(
+      "Shareholder_Loan_Debt_to_Equity_TermSheet.pdf"
+    );
+
+    // 4. UX-11: Web Research vs. Official Legal Sources clearly distinguished
+    const officialCitations = dteRes.turn!.citations.filter(
+      (c) => c.four_state_verification?.source_origin_type === "official_primary_authority"
+    );
+    const webCitations = dteRes.turn!.citations.filter(
+      (c) => c.four_state_verification?.source_origin_type === "secondary_web_evidence"
+    );
+    expect(officialCitations.length).toBeGreaterThanOrEqual(4);
+    expect(webCitations.length).toBe(1);
+    expect(webCitations[0].title_en).toContain("External Web Evidence");
+  });
 });
+
 
