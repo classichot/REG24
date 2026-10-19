@@ -1,28 +1,35 @@
 @import "tailwindcss";
 
 :root {
-  --metro-bg: #08080a;
-  --metro-surface: #121216;
-  --metro-surface-hover: #1a1a22;
-  --metro-border: #262630;
-  --metro-cobalt: #0050EF;
+  --metro-bg: #0a0e17;
+  --metro-surface: #111722;
+  --metro-surface-hover: #172030;
+  --metro-border: #243046;
+  --reg-navy-deep: #0a192f;
+  --reg-navy: #0f2c59;
+  --reg-navy-mid: #163e7a;
+  --reg-navy-light: #1e4e96;
+  --reg-lacquer: #f5b700;
+  --reg-lacquer-hover: #facc15;
+  --reg-lacquer-soft: #fde047;
+  --metro-cobalt: #0f2c59;
   --metro-emerald: #008A00;
-  --metro-amber: #F0A30A;
+  --metro-amber: #f5b700;
   --metro-crimson: #A20025;
-  --metro-violet: #6A00FF;
+  --metro-violet: #163e7a;
   --metro-teal: #00ABA9;
   --metro-magenta: #D80073;
-  --metro-cyan: #1BA1E2;
+  --metro-cyan: #f5b700;
 }
 
 * {
-  border-radius: 0px !important;
+  border-radius: 2px;
 }
 
 body {
   background-color: var(--metro-bg);
   color: #f8fafc;
-  font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Thai", sans-serif;
+  font-family: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Noto Sans Thai", sans-serif;
   overflow-x: hidden;
 }
 
@@ -33,14 +40,14 @@ body {
 }
 
 .metro-tile:hover {
-  transform: scale(0.992);
-  filter: brightness(1.08);
-  outline: 2px solid rgba(255, 255, 255, 0.45);
-  outline-offset: -2px;
+  transform: scale(0.995);
+  filter: brightness(1.06);
+  outline: 1px solid rgba(245, 183, 0, 0.55);
+  outline-offset: -1px;
 }
 
 .metro-tile:active {
-  transform: scale(0.97) perspective(600px) rotateX(2deg);
+  transform: scale(0.985);
 }
 
 ::-webkit-scrollbar {
@@ -48,11 +55,11 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #08080a;
+  background: #0a0e17;
 }
 ::-webkit-scrollbar-thumb {
-  background: #272732;
+  background: #1e293b;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #0050EF;
+  background: #f5b700;
 }
