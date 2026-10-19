@@ -2030,6 +2030,259 @@ export interface Section24DataQualityDashboard {
   }[];
 }
 
+// ============================================================================
+// REG24-WEB-001 — LEGAL RESEARCH WEB MODE (REG24 WEB RESEARCH STUDIO, P0)
+// WEB-01 to WEB-08, Section 3–8 & Acceptance Criteria AC-WEB-01 to AC-WEB-10
+// ============================================================================
+
+export type WebResearchMode = "Quick Answer" | "Deep Research" | "Obligation Analysis";
+
+export type WebSearchDocumentCategory =
+  | "Statutes and codes"
+  | "Subordinate regulations"
+  | "Court judgments"
+  | "Revenue Department tax rulings"
+  | "SEC and SET regulations"
+  | "BOI announcements"
+  | "Regulatory interpretations";
+
+export interface WebDeepResearchStep {
+  step_number: 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9;
+  step_title_th: string;
+  step_title_en: string;
+  status: "completed" | "in_progress" | "pending" | "canceled";
+  detail_th: string;
+  detail_en: string;
+  supporting_source_ids: string[];
+  elapsed_ms: number;
+}
+
+export interface WebResearchCitationLink {
+  citation_id: string;
+  source_record_id: string;
+  document_category: WebSearchDocumentCategory;
+  title_th: string;
+  title_en: string;
+  section_or_locator: string;
+  authority_name: string;
+  publication_date: string;
+  effective_from: string;
+  effective_to?: string;
+  verification_status: "human_verified" | "machine_verified";
+  official_url: string;
+  sha256_hash: string;
+  highlighted_source_passage_th: string;
+  highlighted_source_passage_en: string;
+  ai_interpretation_summary_th: string;
+  ai_interpretation_summary_en: string;
+}
+
+export interface WebResearchTurn {
+  turn_id: string;
+  created_at: string;
+  question: string;
+  response_language: "th" | "en" | "bilingual";
+  mode: WebResearchMode;
+  as_of_date: string;
+  selected_domains: CoreLegalDomainCode[];
+  identified_legal_issues: {
+    issue_id: string;
+    domain: CoreLegalDomainCode;
+    issue_title_th: string;
+    issue_title_en: string;
+  }[];
+  answer_th: string;
+  answer_en: string;
+  structured_analysis: {
+    governing_rules_th: string[];
+    governing_rules_en: string[];
+    application_to_facts_th: string[];
+    application_to_facts_en: string[];
+    exceptions_and_conflicts: string[];
+  };
+  applicable_obligations: StructuredObligationRecord[];
+  uncertainty_and_missing_facts: {
+    uncertainty_level: "low" | "medium" | "high_abstention";
+    missing_facts: string[];
+    scope_warnings: string[];
+  };
+  citations: WebResearchCitationLink[];
+  deep_research_workflow?: {
+    job_id: string;
+    state: "completed" | "running" | "canceled";
+    progress_pct: number;
+    execution_limits: {
+      max_steps: number;
+      max_duration_seconds: number;
+      max_cost_usd: number;
+    };
+    steps: WebDeepResearchStep[];
+    memorandum_summary_th: string;
+    memorandum_summary_en: string;
+  };
+  provenance_metadata: {
+    gateway_endpoint_used: string;
+    trace_id: string;
+    model_version: string;
+    source_index_version: string;
+    legal_data_versions: Record<string, string>;
+    latency_ms: number;
+    reproducible_api_payload: Record<string, unknown>;
+  };
+}
+
+export interface WebResearchSession {
+  session_id: string;
+  title: string;
+  folder_id: string;
+  tenant_id: string;
+  workspace_scope: "personal" | "organization";
+  owner_user_id: string;
+  owner_role: UserRole;
+  default_language: "th" | "en";
+  active_mode: WebResearchMode;
+  as_of_date: string;
+  selected_domains: CoreLegalDomainCode[];
+  turns: WebResearchTurn[];
+  user_notes: string[];
+  bookmarked_source_ids: string[];
+  citation_collection_ids: string[];
+  law24_handoff_status?: {
+    handed_off: boolean;
+    handoff_id: string;
+    target_workflow: string;
+    handed_off_at: string;
+  };
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WebUnifiedSearchFilterRequest {
+  query?: string;
+  search_method?: "keyword" | "semantic" | "citation" | "hybrid_all";
+  document_category?: WebSearchDocumentCategory | "ALL";
+  legal_domain?: CoreLegalDomainCode | "ALL";
+  authority?: string;
+  effective_date?: string;
+  tenant_id?: string;
+}
+
+export interface WebUnifiedSearchResultItem {
+  record_id: string;
+  document_category: WebSearchDocumentCategory;
+  legal_domain: CoreLegalDomainCode;
+  title_th: string;
+  title_en: string;
+  section_or_reference: string;
+  source_authority: string;
+  publication_date: string;
+  effective_from: string;
+  effective_to?: string;
+  verification_status: "human_verified" | "machine_verified";
+  official_url: string;
+  sha256_hash: string;
+  original_source_snippet_th: string;
+  original_source_snippet_en: string;
+  ai_summary_interpretation_th: string;
+  ai_summary_interpretation_en: string;
+  related_provision_ids: string[];
+  superseded_or_amended_info?: string;
+}
+
+export interface WebTemporalResearchComparison {
+  trace_id: string;
+  queried_as_of_date: string;
+  comparison_target_date: string;
+  provision_id: string;
+  instrument_title_th: string;
+  instrument_title_en: string;
+  section_number: string;
+  historical_version: {
+    version_id: string;
+    effective_from: string;
+    effective_to?: string;
+    status_on_queried_date: "in_force" | "superseded" | "repealed" | "not_yet_enacted";
+    original_text_th: string;
+    original_text_en: string;
+  };
+  current_version: {
+    version_id: string;
+    effective_from: string;
+    original_text_th: string;
+    original_text_en: string;
+  };
+  amendment_diff_summary_th: string;
+  amendment_diff_summary_en: string;
+  transitional_provision_note: string;
+  repealed_provisions_identified: string[];
+  historical_coverage_incomplete_warning: string | null;
+}
+
+export interface WebExportPackage {
+  export_id: string;
+  session_id: string;
+  format: "PDF" | "DOCX";
+  generated_at: string;
+  research_date: string;
+  applicable_legal_date: string;
+  verification_status: "100%_CITATIONS_RESOLVED_AND_VERIFIED";
+  model_version: string;
+  source_index_version: string;
+  legal_data_versions: Record<string, string>;
+  title: string;
+  sections: {
+    heading: string;
+    body_th: string;
+    body_en: string;
+    visual_badge: "ORIGINAL_SOURCE_TEXT" | "SOURCE_GROUNDED_AI_ANALYSIS";
+  }[];
+  preserved_citations: WebResearchCitationLink[];
+  download_filename: string;
+}
+
+export interface WebResearchWorkspaceSnapshot {
+  requirement_id: "REG24-WEB-001";
+  module_name: "REG24 Web Research Studio";
+  gateway_only_architecture: true;
+  default_response_language: "th";
+  authenticated_user: {
+    user_id: string;
+    display_name: string;
+    email: string;
+    role: UserRole;
+    tenant_id: string;
+    workspace_type: "personal" | "organization";
+    api_calls_metered_session: number;
+  };
+  folders: {
+    folder_id: string;
+    name_th: string;
+    name_en: string;
+    workspace_scope: "personal" | "organization";
+    session_count: number;
+  }[];
+  sessions: WebResearchSession[];
+  source_viewer_documents: WebUnifiedSearchResultItem[];
+  sample_temporal_comparison: WebTemporalResearchComparison;
+  acceptance_criteria_status: {
+    ac_id:
+      | "AC-WEB-01"
+      | "AC-WEB-02"
+      | "AC-WEB-03"
+      | "AC-WEB-04"
+      | "AC-WEB-05"
+      | "AC-WEB-06"
+      | "AC-WEB-07"
+      | "AC-WEB-08"
+      | "AC-WEB-09"
+      | "AC-WEB-10";
+    criterion: string;
+    measured_result: string;
+    passed: true;
+  }[];
+}
+
+
 
 
 

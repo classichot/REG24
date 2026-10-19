@@ -207,6 +207,45 @@ export async function POST(req: NextRequest) {
           snapshot: reg24Core.getDashboardSnapshot(),
         });
       }
+      case "run_web_legal_research": {
+        const webRes = reg24Core.executeWebLegalResearch(payload || {});
+        return NextResponse.json(
+          {
+            ...webRes,
+            snapshot: reg24Core.getDashboardSnapshot(),
+          },
+          { status: webRes.status === "forbidden" ? 403 : 200 }
+        );
+      }
+      case "cancel_web_deep_research": {
+        const cancelRes = reg24Core.cancelWebDeepResearchJob(payload || {});
+        return NextResponse.json({
+          ...cancelRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "search_web_authorities": {
+        const searchRes = reg24Core.searchWebLegalAuthorities(payload || {});
+        return NextResponse.json({
+          success: true,
+          search_results: searchRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "manage_web_session": {
+        const manageRes = reg24Core.manageWebResearchSession(payload || {});
+        return NextResponse.json({
+          ...manageRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
+      case "export_web_session": {
+        const exportRes = reg24Core.exportWebResearchSession(payload || {});
+        return NextResponse.json({
+          ...exportRes,
+          snapshot: reg24Core.getDashboardSnapshot(),
+        });
+      }
       case "reset_seed": {
         reg24Core.resetToSeed();
         return NextResponse.json({ success: true, snapshot: reg24Core.getDashboardSnapshot() });

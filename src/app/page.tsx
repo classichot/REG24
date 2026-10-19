@@ -88,6 +88,13 @@ import type {
   AgentAutonomyLevel,
   ReportTemplateType,
   IndustryModuleCode,
+  CoreLegalDomainCode,
+  WebResearchMode,
+  WebSearchDocumentCategory,
+  WebResearchWorkspaceSnapshot,
+  WebResearchCitationLink,
+  WebUnifiedSearchResultItem,
+  WebExportPackage,
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
@@ -138,6 +145,7 @@ interface SnapshotData {
   enterpriseProfilesV2: EnterpriseTenantProfile[];
   vibe24EcosystemTargets: Vibe24EcosystemTarget[];
   section24QualityDashboard: Section24DataQualityDashboard;
+  webResearchStudio: WebResearchWorkspaceSnapshot;
   sampleV2StructuredAnalysis: StructuredLegalAnalysisContract;
   regulatoryChanges: RegulatoryChange[];
   releases: ModuleRelease[];
@@ -148,6 +156,7 @@ interface SnapshotData {
 
 type ScreenId =
   | "PANORAMA"
+  | "SCREEN_O_WEB_STUDIO"
   | "SCREEN_N_V2_WORKSPACE"
   | "SCREEN_M_CASE"
   | "SCREEN_L_PDPA"
@@ -171,6 +180,7 @@ const SCREEN_CONFIG: {
   accent: string;
 }[] = [
   { id: "PANORAMA", code: "START", label: "metro start hub", labelTh: "หน้าหลักพาโนรามา (16 โมดูล P0)", accent: "#0050EF" },
+  { id: "SCREEN_O_WEB_STUDIO", code: "WEB-001", label: "web research studio", labelTh: "ระบบค้นคว้าและวิจัยกฎหมายทางเว็บ (REG24-WEB-001)", accent: "#2563EB" },
   { id: "SCREEN_N_V2_WORKSPACE", code: "PRD-V2", label: "v2.0 corporate & industry hub", labelTh: "โครงสร้างพื้นฐานปัญญากฎหมายธุรกิจและอุตสาหกรรม (PRD v2.0)", accent: "#10B981" },
   { id: "SCREEN_M_CASE", code: "SCR-M", label: "court case intelligence", labelTh: "คลังคำพิพากษาศาลฎีกาและบรรทัดฐาน (REG24-CASE)", accent: "#0284C7" },
   { id: "SCREEN_L_PDPA", code: "SCR-L", label: "pdpa & 2026 dsar", labelTh: "คุ้มครองข้อมูลส่วนบุคคล PDPA & ประกาศ สคส. 2569", accent: "#00ABA9" },
@@ -313,6 +323,42 @@ export default function Reg24MetroConsole() {
   const [v2ActiveReport, setV2ActiveReport] = useState<ResearchStudioReport | null>(null);
   const [v2Loading, setV2Loading] = useState<boolean>(false);
 
+  // Screen O — REG24-WEB-001 Legal Research Web Mode (REG24 Web Research Studio) states
+  const [webActiveTab, setWebActiveTab] = useState<
+    "ai_research" | "legal_search" | "temporal_compare" | "workspace_exports"
+  >("ai_research");
+  const [webSelectedSessionId, setWebSelectedSessionId] = useState<string>("websess.th.solar_dd.001");
+  const [webQueryInput, setWebQueryInput] = useState<string>(
+    "บริษัทจดทะเบียนในตลาดหลักทรัพย์ฯ ประสงค์จะเข้าซื้อกิจการโรงไฟฟ้าพลังงานแสงอาทิตย์ที่ได้รับส่งเสริม BOI ในประเทศไทย ต้องปฏิบัติตามกฎหมายบริษัท ภาษีอากร (EBT / ควบรวม), เกณฑ์ ก.ล.ต./ตลท., แรงงาน และ PDPA อย่างไร?"
+  );
+  const [webMode, setWebMode] = useState<WebResearchMode>("Deep Research");
+  const [webResponseLang, setWebResponseLang] = useState<"th" | "en" | "bilingual">("th"); // Default Thai per WEB-01
+  const [webAsOfDate, setWebAsOfDate] = useState<string>("2026-10-19");
+  const [webSelectedDomains, setWebSelectedDomains] = useState<CoreLegalDomainCode[]>([
+    "LEG-CORP",
+    "LEG-BOI",
+    "LEG-TAX",
+    "LEG-LABOR",
+    "LEG-SEC",
+    "LEG-PDPA",
+  ]);
+  const [webShowAdvancedControls, setWebShowAdvancedControls] = useState<boolean>(false); // Hidden by default per Section 3
+  const [webShowGraphPanel, setWebShowGraphPanel] = useState<boolean>(false); // Optional graph panel per Section 3
+  const [webSelectedCitation, setWebSelectedCitation] = useState<WebResearchCitationLink | null>(null);
+  const [webSearchQuery, setWebSearchQuery] = useState<string>("");
+  const [webSearchCategory, setWebSearchCategory] = useState<WebSearchDocumentCategory | "ALL">("ALL");
+  const [webSearchDomain, setWebSearchDomain] = useState<CoreLegalDomainCode | "ALL">("ALL");
+  const [webSearchAuthority, setWebSearchAuthority] = useState<string>("");
+  const [webSearchEffectiveDate, setWebSearchEffectiveDate] = useState<string>("");
+  const [webSearchResults, setWebSearchResults] = useState<WebUnifiedSearchResultItem[] | null>(null);
+  const [webSelectedSearchDoc, setWebSelectedSearchDoc] = useState<WebUnifiedSearchResultItem | null>(null);
+  const [webTemporalHistDate, setWebTemporalHistDate] = useState<string>("2022-06-15");
+  const [webTemporalCurrDate, setWebTemporalCurrDate] = useState<string>("2026-10-19");
+  const [webExportPreview, setWebExportPreview] = useState<WebExportPackage | null>(null);
+  const [webNewSessionTitle, setWebNewSessionTitle] = useState<string>("");
+  const [webNewFolderName, setWebNewFolderName] = useState<string>("folder.org.ma_projects");
+  const [webLoading, setWebLoading] = useState<boolean>(false);
+
   // Screen E — Rule Studio states
   const [selectedRuleId, setSelectedRuleId] = useState<string>("rule.th.corporate.incorporation_check");
   const [ruleAsOfDate, setRuleAsOfDate] = useState<string>("2026-10-18");
@@ -355,6 +401,146 @@ export default function Reg24MetroConsole() {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 4200);
   }, []);
+
+  const handleRunWebLegalResearch = async (overrideMode?: WebResearchMode, overrideQuery?: string) => {
+    const modeToUse = overrideMode || webMode;
+    const queryToUse = overrideQuery !== undefined ? overrideQuery : webQueryInput;
+    if (overrideMode) setWebMode(overrideMode);
+    if (overrideQuery !== undefined) setWebQueryInput(overrideQuery);
+    setWebLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "run_web_legal_research",
+          payload: {
+            session_id: webSelectedSessionId,
+            tenant_id: activeTenant,
+            query: queryToUse,
+            mode: modeToUse,
+            response_language: webResponseLang,
+            as_of_date: webAsOfDate,
+            domains: webSelectedDomains,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.status === "forbidden") {
+        showToast(data.message || "Cross-tenant session access blocked (AC-WEB-08).");
+        return;
+      }
+      if (data.snapshot) setSnapshot(data.snapshot);
+      if (data.turn?.citations?.[0]) {
+        setWebSelectedCitation(data.turn.citations[0]);
+      }
+      showToast(
+        `REG24 Web Research (${modeToUse} | Lang: ${webResponseLang.toUpperCase()}) completed via REG24 Core API.`
+      );
+    } finally {
+      setWebLoading(false);
+    }
+  };
+
+  const handleCancelOrRetryDeepResearch = async (action: "cancel" | "retry") => {
+    setWebLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel_web_deep_research",
+          payload: {
+            session_id: webSelectedSessionId,
+            action,
+            tenant_id: activeTenant,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.snapshot) setSnapshot(data.snapshot);
+      showToast(data.message || `Deep Research ${action} executed.`);
+    } finally {
+      setWebLoading(false);
+    }
+  };
+
+  const handleWebUnifiedSearch = async () => {
+    setWebLoading(true);
+    try {
+      const res = await fetch("/api/v1/platform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "search_web_authorities",
+          payload: {
+            query: webSearchQuery,
+            document_category: webSearchCategory,
+            legal_domain: webSearchDomain,
+            authority: webSearchAuthority,
+            effective_date: webSearchEffectiveDate || undefined,
+          },
+        }),
+      });
+      const data = await res.json();
+      if (data.search_results?.items) {
+        setWebSearchResults(data.search_results.items);
+        if (data.search_results.items[0]) {
+          setWebSelectedSearchDoc(data.search_results.items[0]);
+        }
+      }
+      if (data.snapshot) setSnapshot(data.snapshot);
+      showToast(
+        `Legal Search returned ${data.search_results?.total_count ?? 0} verified authorities.`
+      );
+    } finally {
+      setWebLoading(false);
+    }
+  };
+
+  const handleManageWebSession = async (
+    action: "rename" | "move_folder" | "bookmark_source" | "add_note" | "handoff_law24",
+    extra?: Record<string, string>
+  ) => {
+    const res = await fetch("/api/v1/platform", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "manage_web_session",
+        payload: {
+          session_id: webSelectedSessionId,
+          tenant_id: activeTenant,
+          action,
+          ...extra,
+        },
+      }),
+    });
+    const data = await res.json();
+    if (data.snapshot) setSnapshot(data.snapshot);
+    showToast(`Session ${webSelectedSessionId} updated (${action}).`);
+  };
+
+  const handleExportWebSession = async (format: "PDF" | "DOCX") => {
+    const res = await fetch("/api/v1/platform", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "export_web_session",
+        payload: {
+          session_id: webSelectedSessionId,
+          format,
+          tenant_id: activeTenant,
+        },
+      }),
+    });
+    const data = await res.json();
+    if (data.export_package) {
+      setWebExportPreview(data.export_package);
+      showToast(
+        `Exported ${format} (${data.export_package.filename}) with ${data.export_package.preserved_citations_count} verified citations.`
+      );
+    }
+  };
 
   const handleRunRestructuringMission = async (
     customDate?: string,
@@ -1341,6 +1527,33 @@ export default function Reg24MetroConsole() {
                 </h2>
 
                 <div className="grid grid-cols-2 gap-2.5 auto-rows-[148px]">
+                  {/* Tile: REG24-WEB-001 Legal Research Web Mode — REG24 Web Research Studio (Screen O) */}
+                  <div
+                    onClick={() => setActiveScreen("SCREEN_O_WEB_STUDIO")}
+                    className="metro-tile col-span-2 bg-[#2563EB] p-4 flex flex-col justify-between cursor-pointer text-white"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Search className="w-6 h-6" />
+                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
+                          REG24-WEB-001 &bull; P0 WEB RESEARCH STUDIO &bull; FIRST-PARTY CORE CONSUMER
+                        </span>
+                      </div>
+                      <span className="text-xs font-bold uppercase bg-white text-[#1D4ED8] px-2 py-0.5">
+                        WEB-01..08 &bull; AC-WEB-01..10 PASS
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/95 mb-1">
+                        <strong>Legal Research Web Mode (Thai Default + EN):</strong> Conversational AI Research,
+                        7-Category Legal Search, Source Viewer (Original vs AI), 9-Step Deep Research, Temporal Side-by-Side Diff &amp; PDF/DOCX Export.
+                      </p>
+                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                        reg24 web research studio &bull; ai legal research &amp; source viewer
+                      </h3>
+                    </div>
+                  </div>
+
                   {/* Tile: PRD v2.0 Corporate & Commercial Legal Intelligence Infrastructure (Screen N) */}
                   <div
                     onClick={() => setActiveScreen("SCREEN_N_V2_WORKSPACE")}
@@ -6199,12 +6412,1054 @@ export default function Reg24MetroConsole() {
             )}
           </div>
         )}
+
+        {/* =====================================================================
+            SCREEN O: REG24-WEB-001 — LEGAL RESEARCH WEB MODE (WEB RESEARCH STUDIO)
+           ===================================================================== */}
+        {activeScreen === "SCREEN_O_WEB_STUDIO" && snapshot.webResearchStudio && (
+          <div className="space-y-6">
+            {/* TOP HEADER & FIRST-PARTY ARCHITECTURE / SECURITY METERING BAR (Sections 1, 4, 5) */}
+            <div className="bg-[#111116] border-l-4 border-[#2563EB] p-5 flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-widest text-[#60A5FA] font-bold">
+                  <span>REG24-WEB-001 &bull; PRIORITY P0</span>
+                  <span>&bull;</span>
+                  <span>MODULE: REG24 WEB RESEARCH STUDIO</span>
+                  <span>&bull;</span>
+                  <span className="bg-[#2563EB]/20 border border-[#2563EB] px-2 py-0.5 text-white">
+                    AC-WEB-01 FIRST-PARTY CORE API CONSUMER (GATEWAY ONLY: {snapshot.webResearchStudio.gateway_only_architecture ? "TRUE" : "FALSE"})
+                  </span>
+                </div>
+                <h1 className="text-3xl font-light tracking-tight text-white mt-1">
+                  ระบบค้นคว้าและวิจัยกฎหมายทางเว็บ (REG24 Legal Research Web Mode)
+                </h1>
+                <p className="text-xs text-zinc-400 mt-1">
+                  Source-grounded Thai &amp; English AI legal research, 7-category authority search, integrated source viewer
+                  (Original vs AI), 9-step Deep Research, temporal provision diff &amp; cryptographic PDF/DOCX exports.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <div className="bg-[#08080a] border border-[#262630] px-3 py-2">
+                  <div className="text-[10px] uppercase text-zinc-400">TENANT &amp; RBAC ISOLATION (SEC 5)</div>
+                  <div className="font-mono text-emerald-400 font-bold">
+                    {snapshot.webResearchStudio.authenticated_user.tenant_id} &bull; {snapshot.webResearchStudio.authenticated_user.role}
+                  </div>
+                </div>
+                <div className="bg-[#08080a] border border-[#262630] px-3 py-2">
+                  <div className="text-[10px] uppercase text-zinc-400">API USAGE METERING</div>
+                  <div className="font-mono text-white font-bold">
+                    {snapshot.webResearchStudio.authenticated_user.api_calls_metered_session} CALLS METERED
+                  </div>
+                </div>
+                <div className="bg-emerald-950/40 border border-emerald-700/60 px-3 py-2 text-emerald-300 font-mono text-[11px]">
+                  WORKSPACE: {snapshot.webResearchStudio.authenticated_user.workspace_type.toUpperCase()} ISOLATED
+                </div>
+              </div>
+            </div>
+
+            {/* SUB-NAVIGATION TABS FOR WEB-01..WEB-08 */}
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#262630] pb-3">
+              <div className="flex flex-wrap gap-2">
+                {[
+                  {
+                    id: "ai_research",
+                    label: "1. AI Legal Research & Source Viewer (WEB-01 / WEB-03 / WEB-04 / WEB-08)",
+                  },
+                  {
+                    id: "legal_search",
+                    label: "2. 7-Category Legal Search (WEB-02 / AC-WEB-03)",
+                  },
+                  {
+                    id: "temporal_compare",
+                    label: "3. Temporal Law Side-by-Side Diff (WEB-05)",
+                  },
+                  {
+                    id: "workspace_exports",
+                    label: "4. Workspace, PDF/DOCX Exports & AC-WEB-01..10 (WEB-07)",
+                  },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setWebActiveTab(tab.id as typeof webActiveTab)}
+                    className={`px-3.5 py-2 text-xs font-bold uppercase tracking-wider cursor-pointer transition-colors ${
+                      webActiveTab === tab.id
+                        ? "bg-[#2563EB] text-white"
+                        : "bg-[#14141b] text-zinc-300 hover:bg-[#1e1e29]"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setWebShowGraphPanel((prev) => !prev)}
+                  className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider border cursor-pointer ${
+                    webShowGraphPanel
+                      ? "bg-purple-700 border-purple-500 text-white"
+                      : "bg-[#14141b] border-[#2d2d3a] text-zinc-300"
+                  }`}
+                >
+                  {webShowGraphPanel ? "HIDE GRAPH EXPLORER (WEB-06)" : "OPEN GRAPH EXPLORER (WEB-06)"}
+                </button>
+              </div>
+            </div>
+
+            {/* ===============================================================
+                TAB 1: AI LEGAL RESEARCH, DEEP RESEARCH & INTEGRATED SOURCE VIEWER
+               =============================================================== */}
+            {webActiveTab === "ai_research" && (() => {
+              const currentSession =
+                snapshot.webResearchStudio.sessions.find((s) => s.session_id === webSelectedSessionId) ||
+                snapshot.webResearchStudio.sessions[0];
+              const latestTurn = currentSession?.turns[currentSession.turns.length - 1];
+              const activeCitation =
+                webSelectedCitation || latestTurn?.citations[0] || null;
+
+              return (
+                <div className="space-y-5">
+                  {/* SECTION 3: PROMINENT LEGAL RESEARCH INPUT BAR + MODE SELECTOR + HIDDEN-BY-DEFAULT ADVANCED CONTROLS */}
+                  <div className="bg-[#121218] border border-[#282836] p-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      {/* WEB-08: 3 Legal Research Modes */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 mr-1">
+                          RESEARCH MODE (WEB-08):
+                        </span>
+                        {(
+                          [
+                            {
+                              mode: "Quick Answer",
+                              label: "Quick Answer (คำตอบด่วน)",
+                            },
+                            {
+                              mode: "Deep Research",
+                              label: "Deep Research (วิเคราะห์เชิงลึก 9 ขั้นตอน)",
+                            },
+                            {
+                              mode: "Obligation Analysis",
+                              label: "Obligation Analysis (วิเคราะห์ภาระหน้าที่)",
+                            },
+                          ] as const
+                        ).map((m) => (
+                          <button
+                            key={m.mode}
+                            onClick={() => setWebMode(m.mode)}
+                            className={`px-3 py-1.5 text-xs font-bold uppercase tracking-wider cursor-pointer border ${
+                              webMode === m.mode
+                                ? "bg-[#2563EB] border-[#3B82F6] text-white"
+                                : "bg-[#09090c] border-[#262630] text-zinc-300 hover:border-zinc-500"
+                            }`}
+                          >
+                            {m.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {/* WEB-01 Response Language Selector (Default: Thai) + Legal Date Selector */}
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <label className="text-[11px] uppercase text-zinc-400">
+                          RESPONSE LANG (DEFAULT TH):
+                        </label>
+                        <select
+                          aria-label="Web Research Response Language"
+                          value={webResponseLang}
+                          onChange={(e) =>
+                            setWebResponseLang(e.target.value as "th" | "en" | "bilingual")
+                          }
+                          className="bg-[#09090c] border border-[#2d2d3a] px-2.5 py-1 text-xs text-white"
+                        >
+                          <option value="th">ภาษาไทย (Thai — Default WEB-01)</option>
+                          <option value="en">English (EN)</option>
+                          <option value="bilingual">Bilingual (ไทย + English)</option>
+                        </select>
+
+                        <label className="text-[11px] uppercase text-zinc-400 ml-2">
+                          AS-OF LEGAL DATE (WEB-05):
+                        </label>
+                        <input
+                          type="date"
+                          aria-label="Applicable Legal Date"
+                          value={webAsOfDate}
+                          onChange={(e) => setWebAsOfDate(e.target.value)}
+                          className="bg-[#09090c] border border-[#2d2d3a] px-2.5 py-1 text-xs font-mono text-emerald-400"
+                        />
+
+                        <button
+                          onClick={() => setWebShowAdvancedControls((prev) => !prev)}
+                          className="bg-[#181822] border border-[#2d2d3a] px-2.5 py-1 text-[11px] uppercase tracking-wider text-zinc-300 hover:text-white cursor-pointer"
+                        >
+                          {webShowAdvancedControls
+                            ? "HIDE ADVANCED CONTROLS"
+                            : "ADVANCED CONTROLS (DOMAINS & LIMITS)"}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Prominent Question Input Box */}
+                    <div className="flex flex-col md:flex-row gap-2.5">
+                      <input
+                        type="text"
+                        aria-label="Legal Research Question Input"
+                        value={webQueryInput}
+                        onChange={(e) => setWebQueryInput(e.target.value)}
+                        placeholder="พิมพ์คำถามข้อกฎหมายภาษาไทยหรือภาษาอังกฤษ (เช่น การควบรวมกิจการ ภาษีมาตรา 65 ตรี สิทธิ BOI หรือ PDPA)..."
+                        className="flex-1 bg-[#08080a] border border-[#2d2d3a] px-4 py-3 text-sm text-white focus:border-[#2563EB] focus:outline-none"
+                      />
+                      <button
+                        disabled={webLoading}
+                        onClick={() => handleRunWebLegalResearch()}
+                        className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white px-6 py-3 text-xs font-bold uppercase tracking-widest cursor-pointer shrink-0"
+                      >
+                        {webLoading ? "EXECUTING CORE API..." : `RUN ${webMode.toUpperCase()}`}
+                      </button>
+                    </div>
+
+                    {/* Collapsible Advanced Controls (Hidden by default per Section 3) */}
+                    {webShowAdvancedControls && (
+                      <div className="bg-[#09090c] border border-[#262630] p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold uppercase tracking-wider text-[#60A5FA]">
+                            MULTI-DOMAIN LEGAL SCOPE SELECTOR (WEB-01) &amp; EXECUTION LIMITS (WEB-04)
+                          </span>
+                          <span className="text-[10px] font-mono text-zinc-400">
+                            MAX STEPS: 9 &bull; MAX DURATION: 60s &bull; MODEL PROVIDER: INTERCHANGEABLE
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {(
+                            [
+                              "LEG-CORP",
+                              "LEG-CONTRACT",
+                              "LEG-LABOR",
+                              "LEG-TAX",
+                              "LEG-BOI",
+                              "LEG-SEC",
+                              "LEG-PDPA",
+                              "LEG-RESTRUCT",
+                              "LEG-CASE",
+                            ] as CoreLegalDomainCode[]
+                          ).map((dom) => {
+                            const selected = webSelectedDomains.includes(dom);
+                            return (
+                              <button
+                                key={dom}
+                                onClick={() =>
+                                  setWebSelectedDomains((prev) =>
+                                    prev.includes(dom)
+                                      ? prev.filter((d) => d !== dom)
+                                      : [...prev, dom]
+                                  )
+                                }
+                                className={`px-2.5 py-1 text-[11px] font-mono uppercase border cursor-pointer ${
+                                  selected
+                                    ? "bg-[#2563EB]/30 border-[#3B82F6] text-white"
+                                    : "bg-[#121218] border-[#262630] text-zinc-400"
+                                }`}
+                              >
+                                {dom}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 3-COLUMN STUDIO WORKSPACE */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    {/* LEFT SIDEBAR: RESEARCH SESSIONS, FOLDERS, SAVE/RENAME & LAW24 HANDOFF */}
+                    <div className="lg:col-span-3 bg-[#111116] border border-[#262630] p-4 space-y-4">
+                      <div className="flex items-center justify-between border-b border-[#262630] pb-2.5">
+                        <span className="text-xs font-bold uppercase tracking-wider text-white">
+                          RESEARCH SESSIONS (WEB-07)
+                        </span>
+                        <span className="text-[10px] font-mono bg-[#2563EB]/20 text-[#60A5FA] px-2 py-0.5">
+                          {snapshot.webResearchStudio.sessions.length} SAVED
+                        </span>
+                      </div>
+
+                      {/* Folder & Session List */}
+                      <div className="space-y-2">
+                        {snapshot.webResearchStudio.sessions.map((sess) => {
+                          const isSelected = sess.session_id === currentSession?.session_id;
+                          return (
+                            <div
+                              key={sess.session_id}
+                              onClick={() => {
+                                setWebSelectedSessionId(sess.session_id);
+                                const last = sess.turns[sess.turns.length - 1];
+                                if (last?.citations?.[0]) {
+                                  setWebSelectedCitation(last.citations[0]);
+                                }
+                              }}
+                              className={`p-3 border cursor-pointer transition-colors ${
+                                isSelected
+                                  ? "bg-[#172554]/40 border-[#3B82F6] text-white"
+                                  : "bg-[#09090c] border-[#22222c] text-zinc-300 hover:border-zinc-600"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400">
+                                <span>FOLDER: {sess.folder_id}</span>
+                                <span className="uppercase text-emerald-400">{sess.active_mode}</span>
+                              </div>
+                              <div className="text-xs font-semibold text-white mt-1 line-clamp-2">
+                                {sess.title}
+                              </div>
+                              <div className="flex items-center justify-between text-[10px] text-zinc-400 mt-1.5">
+                                <span>{sess.turns.length} Turns &bull; As of {sess.as_of_date}</span>
+                                <span>
+                                  {sess.law24_handoff_status?.handed_off ? "HANDED OFF" : "READY"}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Session Rename & Folder Organization Controls (WEB-01 / AC-WEB-07) */}
+                      <div className="border-t border-[#262630] pt-3 space-y-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                          ORGANIZE &amp; RENAME SESSION (AC-WEB-07)
+                        </div>
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={webNewSessionTitle}
+                            onChange={(e) => setWebNewSessionTitle(e.target.value)}
+                            placeholder="Rename active session..."
+                            className="flex-1 bg-[#08080a] border border-[#262630] px-2 py-1 text-xs text-white"
+                          />
+                          <button
+                            onClick={() => {
+                              if (webNewSessionTitle.trim()) {
+                                handleManageWebSession("rename", { new_title: webNewSessionTitle });
+                                setWebNewSessionTitle("");
+                              }
+                            }}
+                            className="bg-[#2563EB] px-2.5 py-1 text-[10px] font-bold uppercase text-white cursor-pointer"
+                          >
+                            RENAME
+                          </button>
+                        </div>
+
+                        <div className="flex gap-1.5">
+                          <input
+                            type="text"
+                            value={webNewFolderName}
+                            onChange={(e) => setWebNewFolderName(e.target.value)}
+                            placeholder="Folder ID..."
+                            className="flex-1 bg-[#08080a] border border-[#262630] px-2 py-1 text-xs text-white"
+                          />
+                          <button
+                            onClick={() =>
+                              handleManageWebSession("move_folder", { folder_id: webNewFolderName })
+                            }
+                            className="bg-[#1e293b] border border-[#334155] px-2.5 py-1 text-[10px] font-bold uppercase text-white cursor-pointer"
+                          >
+                            MOVE
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Export & LAW24 Handoff Quick Actions */}
+                      <div className="border-t border-[#262630] pt-3 space-y-2">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                          EXPORT &amp; VIBE24 / LAW24 HANDOFF
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            onClick={() => {
+                              handleExportWebSession("PDF");
+                              setWebActiveTab("workspace_exports");
+                            }}
+                            className="bg-emerald-700 hover:bg-emerald-600 text-white py-1.5 text-[11px] font-bold uppercase cursor-pointer"
+                          >
+                            EXPORT PDF
+                          </button>
+                          <button
+                            onClick={() => {
+                              handleExportWebSession("DOCX");
+                              setWebActiveTab("workspace_exports");
+                            }}
+                            className="bg-sky-700 hover:bg-sky-600 text-white py-1.5 text-[11px] font-bold uppercase cursor-pointer"
+                          >
+                            EXPORT DOCX
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => handleManageWebSession("handoff_law24")}
+                          className="w-full bg-[#181824] border border-[#3B82F6] text-[#60A5FA] hover:bg-[#2563EB] hover:text-white py-1.5 text-[11px] font-bold uppercase cursor-pointer"
+                        >
+                          HANDOFF RESEARCH TO LAW24 WORKFLOW
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* CENTER AREA: STRUCTURED LEGAL ANALYSIS, 9-STEP DEEP RESEARCH & CITATIONS */}
+                    <div className="lg:col-span-5 bg-[#111116] border border-[#262630] p-5 space-y-4">
+                      {latestTurn && (
+                        <>
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#262630] pb-3">
+                            <div>
+                              <span className="text-[10px] font-mono uppercase text-[#60A5FA]">
+                                TURN ID: {latestTurn.turn_id} &bull; TRACE: {latestTurn.provenance_metadata.trace_id}
+                              </span>
+                              <h2 className="text-base font-semibold text-white mt-0.5">
+                                {latestTurn.question}
+                              </h2>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10px] font-mono bg-emerald-950/70 border border-emerald-700 px-2 py-0.5 text-emerald-300">
+                                LATENCY: {latestTurn.provenance_metadata.latency_ms}ms
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Multi-Domain Badges & Legal Issues Identified */}
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap gap-1.5">
+                              {latestTurn.selected_domains.map((dom) => (
+                                <span
+                                  key={dom}
+                                  className="text-[10px] font-mono bg-[#1e293b] border border-[#334155] px-2 py-0.5 text-sky-300"
+                                >
+                                  {dom}
+                                </span>
+                              ))}
+                              <span className="text-[10px] font-mono bg-amber-950/60 border border-amber-700/60 px-2 py-0.5 text-amber-300">
+                                APPLICABLE DATE: {latestTurn.as_of_date}
+                              </span>
+                            </div>
+
+                            <div className="bg-[#09090c] border border-[#22222c] p-3">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                                LEGAL ISSUES IDENTIFIED (การระบุประเด็นข้อกฎหมาย — WEB-01):
+                              </div>
+                              <ul className="space-y-1 text-xs text-zinc-200 list-disc list-inside">
+                                {latestTurn.identified_legal_issues.map((iss) => (
+                                  <li key={iss.issue_id}>
+                                    [{iss.domain}]{" "}
+                                    {webResponseLang === "en" ? iss.issue_title_en : iss.issue_title_th}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+
+                          {/* WEB-04 / AC-WEB-05: 9-STEP LEGAL DEEP RESEARCH PROGRESS & CANCEL/RETRY CONTROLS */}
+                          {latestTurn.deep_research_workflow && (
+                            <div className="bg-[#09090c] border border-[#2563EB]/60 p-3.5 space-y-2.5">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <span className="text-xs font-bold uppercase tracking-wider text-[#60A5FA]">
+                                    WEB-04 DEEP RESEARCH 9-STEP WORKFLOW ({latestTurn.deep_research_workflow.state.toUpperCase()} &bull; {latestTurn.deep_research_workflow.progress_pct}%)
+                                  </span>
+                                  <span className="block text-[10px] font-mono text-zinc-400">
+                                    Max Steps: {latestTurn.deep_research_workflow.execution_limits.max_steps} &bull; Limit:{" "}
+                                    {latestTurn.deep_research_workflow.execution_limits.max_duration_seconds}s
+                                  </span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    onClick={() => handleCancelOrRetryDeepResearch("cancel")}
+                                    className="bg-rose-900/70 hover:bg-rose-800 border border-rose-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white cursor-pointer"
+                                  >
+                                    CANCEL JOB (AC-WEB-05)
+                                  </button>
+                                  <button
+                                    onClick={() => handleCancelOrRetryDeepResearch("retry")}
+                                    className="bg-emerald-900/70 hover:bg-emerald-800 border border-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white cursor-pointer"
+                                  >
+                                    RETRY / COMPLETE
+                                  </button>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                                {latestTurn.deep_research_workflow.steps.map((st) => (
+                                  <div
+                                    key={st.step_number}
+                                    className="bg-[#121218] border border-[#22222c] px-2.5 py-1.5 flex items-center justify-between text-xs"
+                                  >
+                                    <div>
+                                      <span className="font-mono text-[#60A5FA] font-bold mr-1.5">
+                                        #{st.step_number}
+                                      </span>
+                                      <span className="text-white font-medium">
+                                        {webResponseLang === "en" ? st.step_title_en : st.step_title_th}
+                                      </span>
+                                      <span className="block text-[11px] text-zinc-400">
+                                        {webResponseLang === "en" ? st.detail_en : st.detail_th}
+                                      </span>
+                                    </div>
+                                    <span
+                                      className={`text-[10px] font-mono uppercase px-1.5 py-0.5 shrink-0 ${
+                                        st.status === "completed"
+                                          ? "bg-emerald-950 text-emerald-400 border border-emerald-700"
+                                          : "bg-rose-950 text-rose-300 border border-rose-700"
+                                      }`}
+                                    >
+                                      {st.status}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* EXECUTIVE ANSWER & STRUCTURED ANALYSIS (Thai Default / English Option) */}
+                          <div className="bg-[#09090c] border-l-4 border-emerald-500 p-4 space-y-2">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                              EXECUTIVE SOURCE-GROUNDED CONCLUSION (
+                              {webResponseLang === "th"
+                                ? "ภาษาไทย — ค่าเริ่มต้น WEB-01"
+                                : webResponseLang === "en"
+                                ? "ENGLISH"
+                                : "BILINGUAL TH/EN"}
+                              )
+                            </div>
+                            {webResponseLang !== "en" && (
+                              <p className="text-xs text-white leading-relaxed whitespace-pre-line">
+                                {latestTurn.answer_th}
+                              </p>
+                            )}
+                            {webResponseLang !== "th" && (
+                              <p className="text-xs text-zinc-300 leading-relaxed whitespace-pre-line">
+                                {latestTurn.answer_en}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Structured Legal Analysis Sections */}
+                          <div className="bg-[#09090c] border border-[#22222c] p-3.5 space-y-2">
+                            <div className="text-xs font-bold text-white uppercase">
+                              GOVERNING RULES &amp; APPLICATION TO FACTS (WEB-01):
+                            </div>
+                            <ul className="text-xs text-zinc-300 list-disc list-inside space-y-1">
+                              {(webResponseLang === "en"
+                                ? latestTurn.structured_analysis.governing_rules_en
+                                : latestTurn.structured_analysis.governing_rules_th
+                              ).map((r, idx) => (
+                                <li key={idx}>{r}</li>
+                              ))}
+                            </ul>
+                          </div>
+
+                          {/* Clickable Citations Linked to Right Source Viewer (AC-WEB-02) */}
+                          <div className="space-y-2">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                              VERIFIED CITATIONS — CLICK TO OPEN IN SOURCE VIEWER (AC-WEB-02):
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {latestTurn.citations.map((cit, idx) => (
+                                <button
+                                  key={cit.citation_id}
+                                  onClick={() => setWebSelectedCitation(cit)}
+                                  className={`px-2.5 py-1.5 text-xs font-mono border cursor-pointer text-left ${
+                                    activeCitation?.citation_id === cit.citation_id
+                                      ? "bg-[#2563EB] border-white text-white"
+                                      : "bg-[#09090c] border-[#2d2d3a] text-sky-300 hover:border-sky-500"
+                                  }`}
+                                >
+                                  [{idx + 1}] {cit.section_or_locator}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Explicit Uncertainty & Missing-Fact Indicators (WEB-01) */}
+                          <div className="bg-amber-950/30 border border-amber-700/60 p-3 space-y-1.5">
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300">
+                              EXPLICIT UNCERTAINTY ({latestTurn.uncertainty_and_missing_facts.uncertainty_level.toUpperCase()}) &amp; MISSING-FACT INDICATORS (WEB-01):
+                            </div>
+                            <ul className="text-xs text-amber-200/90 list-disc list-inside space-y-0.5">
+                              {latestTurn.uncertainty_and_missing_facts.missing_facts.map((mf, idx) => (
+                                <li key={`mf-${idx}`}>Missing Fact: {mf}</li>
+                              ))}
+                              {latestTurn.uncertainty_and_missing_facts.scope_warnings.map((sw, idx) => (
+                                <li key={`sw-${idx}`}>Scope Warning: {sw}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    {/* RIGHT PANEL: INTEGRATED LEGAL SOURCE & CITATION VIEWER (WEB-03 & AC-WEB-02) */}
+                    <div className="lg:col-span-4 bg-[#111116] border border-[#262630] p-5 space-y-4">
+                      <div className="flex items-center justify-between border-b border-[#262630] pb-2.5">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
+                            WEB-03 INTEGRATED LEGAL SOURCE VIEWER
+                          </span>
+                          <h3 className="text-sm font-bold text-white">
+                            ต้นฉบับตัวบทกฎหมาย vs บทวิเคราะห์ AI
+                          </h3>
+                        </div>
+                        <span className="text-[10px] font-mono bg-emerald-950 border border-emerald-600 px-2 py-0.5 text-emerald-300">
+                          SHA-256 LOCKED
+                        </span>
+                      </div>
+
+                      {activeCitation ? (
+                        <div className="space-y-4">
+                          {/* Document Metadata */}
+                          <div className="bg-[#09090c] border border-[#22222c] p-3 space-y-1 text-xs">
+                            <div className="font-bold text-white">{activeCitation.title_th}</div>
+                            <div className="text-zinc-400">{activeCitation.title_en}</div>
+                            <div className="flex flex-wrap gap-2 pt-1 text-[11px] font-mono text-sky-300">
+                              <span>LOCATOR: {activeCitation.section_or_locator}</span>
+                              <span>&bull;</span>
+                              <span>EFFECTIVE: {activeCitation.effective_from}</span>
+                            </div>
+                            <div className="text-[10px] font-mono text-zinc-400 break-all">
+                              HASH: {activeCitation.sha256_hash}
+                            </div>
+                            <a
+                              href={activeCitation.official_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 text-[11px] text-[#60A5FA] hover:underline pt-1"
+                            >
+                              <span>Official Royal Gazette / Authority Source Link</span>
+                              <ArrowUpRight className="w-3 h-3" />
+                            </a>
+                          </div>
+
+                          {/* VISUAL DISTINCTION 1: ORIGINAL VERIFIED LEGAL TEXT (WEB-03) */}
+                          <div className="bg-emerald-950/30 border-2 border-emerald-600 p-3.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase tracking-widest bg-emerald-600 text-black px-2 py-0.5">
+                                ORIGINAL AUTHORITATIVE SOURCE TEXT (ตัวบทกฎหมายต้นฉบับ)
+                              </span>
+                              <span className="text-[10px] font-mono text-emerald-300">
+                                HIGHLIGHTED PASSAGE
+                              </span>
+                            </div>
+                            <p className="text-xs text-white font-serif leading-relaxed bg-emerald-900/40 p-2.5 border-l-2 border-emerald-400">
+                              {activeCitation.highlighted_source_passage_th}
+                            </p>
+                            <p className="text-xs text-emerald-100/90 font-serif leading-relaxed">
+                              {activeCitation.highlighted_source_passage_en}
+                            </p>
+                          </div>
+
+                          {/* VISUAL DISTINCTION 2: AI-GENERATED LEGAL INTERPRETATION (WEB-03) */}
+                          <div className="bg-indigo-950/30 border-2 border-indigo-500/80 p-3.5 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase tracking-widest bg-indigo-500 text-white px-2 py-0.5">
+                                AI-GENERATED LEGAL INTERPRETATION (คำอธิบายโดย AI)
+                              </span>
+                              <span className="text-[10px] font-mono text-indigo-300">
+                                NON-STATUTORY SYNTHESIS
+                              </span>
+                            </div>
+                            <p className="text-xs text-indigo-100 leading-relaxed">
+                              {activeCitation.ai_interpretation_summary_th}
+                            </p>
+                          </div>
+
+                          {/* Amendments & Related Provisions Navigation */}
+                          <div className="bg-[#09090c] border border-[#22222c] p-3 space-y-2">
+                            <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                              RELATED PROVISIONS &amp; AMENDMENT LINEAGE (WEB-03):
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {latestTurn?.citations.map((relCit) => (
+                                <button
+                                  key={relCit.citation_id}
+                                  onClick={() => setWebSelectedCitation(relCit)}
+                                  className="px-2 py-1 text-[10px] font-mono bg-[#14141d] border border-[#2d2d3a] text-zinc-300 hover:text-white cursor-pointer"
+                                >
+                                  JUMP &rarr; {relCit.source_record_id}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-zinc-400">
+                          Select any citation badge to inspect the verified source passage.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* OPTIONAL KNOWLEDGE GRAPH EXPLORER PANEL (WEB-06) */}
+                  {webShowGraphPanel && (
+                    <div className="bg-[#111116] border-2 border-purple-600/80 p-5 space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-purple-400">
+                            WEB-06 INTERACTIVE LEGAL KNOWLEDGE GRAPH EXPLORER
+                          </span>
+                          <h3 className="text-base font-bold text-white">
+                            กราฟความสัมพันธ์ทางกฎหมาย (Instruments, Provisions, Amendments, Court Decisions, Tax Rulings, Obligations, Authorities)
+                          </h3>
+                        </div>
+                        <span className="text-[10px] font-mono bg-purple-950 border border-purple-600 px-2.5 py-1 text-purple-200">
+                          UNSUPPORTED / UNVERIFIED EDGES STRICTLY QUARANTINED
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                        {snapshot.caseKnowledgeGraph.nodes.slice(0, 8).map((node) => (
+                          <div key={node.id} className="bg-[#09090c] border border-[#282836] p-3">
+                            <div className="text-[10px] font-mono uppercase text-purple-400">
+                              {node.node_type}
+                            </div>
+                            <div className="font-semibold text-white mt-0.5">{node.label_th}</div>
+                            <div className="text-[11px] text-zinc-400">{node.label_en}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
+            {/* ===============================================================
+                TAB 2: DEDICATED 7-CATEGORY LEGAL SEARCH (WEB-02 / AC-WEB-03)
+               =============================================================== */}
+            {webActiveTab === "legal_search" && (() => {
+              const catalogItems =
+                webSearchResults || snapshot.webResearchStudio.source_viewer_documents;
+              const selectedDoc =
+                webSelectedSearchDoc || catalogItems[0] || null;
+
+              return (
+                <div className="space-y-5">
+                  <div className="bg-[#121218] border border-[#282836] p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#60A5FA]">
+                          WEB-02 DEDICATED 7-CATEGORY LEGAL AUTHORITY SEARCH (AC-WEB-03)
+                        </span>
+                        <p className="text-xs text-zinc-400">
+                          Search across Statutes &amp; Codes, Subordinate Regulations, Court Judgments, Revenue Dept Tax Rulings, SEC/SET Regulations, BOI Announcements, and Regulatory Interpretations.
+                        </p>
+                      </div>
+                      <span className="text-xs font-mono text-emerald-400">
+                        {catalogItems.length} VERIFIED AUTHORITIES MATCHED
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-2.5 text-xs">
+                      <input
+                        type="text"
+                        value={webSearchQuery}
+                        onChange={(e) => setWebSearchQuery(e.target.value)}
+                        placeholder="Keyword, citation or semantic query..."
+                        className="md:col-span-2 bg-[#08080a] border border-[#2d2d3a] px-3 py-2 text-white"
+                      />
+                      <select
+                        aria-label="Legal Search Document Category"
+                        value={webSearchCategory}
+                        onChange={(e) =>
+                          setWebSearchCategory(e.target.value as WebSearchDocumentCategory | "ALL")
+                        }
+                        className="bg-[#08080a] border border-[#2d2d3a] px-2.5 py-2 text-white"
+                      >
+                        <option value="ALL">ALL 7 DOCUMENT CATEGORIES</option>
+                        <option value="Statutes and codes">1. Statutes and codes</option>
+                        <option value="Subordinate regulations">2. Subordinate regulations</option>
+                        <option value="Court judgments">3. Court judgments</option>
+                        <option value="Revenue Department tax rulings">4. Revenue Department tax rulings</option>
+                        <option value="SEC and SET regulations">5. SEC and SET regulations</option>
+                        <option value="BOI announcements">6. BOI announcements</option>
+                        <option value="Regulatory interpretations">7. Regulatory interpretations</option>
+                      </select>
+                      <select
+                        aria-label="Legal Search Domain Filter"
+                        value={webSearchDomain}
+                        onChange={(e) =>
+                          setWebSearchDomain(e.target.value as CoreLegalDomainCode | "ALL")
+                        }
+                        className="bg-[#08080a] border border-[#2d2d3a] px-2.5 py-2 text-white"
+                      >
+                        <option value="ALL">ALL LEGAL DOMAINS</option>
+                        <option value="LEG-CORP">LEG-CORP</option>
+                        <option value="LEG-TAX">LEG-TAX</option>
+                        <option value="LEG-SEC">LEG-SEC</option>
+                        <option value="LEG-BOI">LEG-BOI</option>
+                        <option value="LEG-PDPA">LEG-PDPA</option>
+                      </select>
+                      <button
+                        onClick={handleWebUnifiedSearch}
+                        className="bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-bold uppercase tracking-wider px-4 py-2 cursor-pointer"
+                      >
+                        SEARCH AUTHORITIES
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                    <div className="lg:col-span-7 space-y-2.5">
+                      {catalogItems.map((item) => (
+                        <div
+                          key={item.record_id}
+                          onClick={() => setWebSelectedSearchDoc(item)}
+                          className={`p-4 border cursor-pointer ${
+                            selectedDoc?.record_id === item.record_id
+                              ? "bg-[#172554]/40 border-[#3B82F6]"
+                              : "bg-[#111116] border-[#262630] hover:border-zinc-500"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono">
+                            <span className="bg-[#2563EB]/20 border border-[#3B82F6] px-2 py-0.5 text-sky-300">
+                              {item.document_category} &bull; {item.legal_domain}
+                            </span>
+                            <span className="text-emerald-400">
+                              STATUS: {item.verification_status.toUpperCase()}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-bold text-white mt-1.5">{item.title_th}</h4>
+                          <div className="text-xs text-zinc-400">{item.title_en}</div>
+                          <div className="flex flex-wrap gap-3 mt-2 text-[11px] font-mono text-zinc-300">
+                            <span>Authority: {item.source_authority}</span>
+                            <span>&bull;</span>
+                            <span>Published: {item.publication_date}</span>
+                            <span>&bull;</span>
+                            <span>Effective: {item.effective_from}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Integrated Source Viewer for Selected Search Result */}
+                    <div className="lg:col-span-5 bg-[#111116] border border-[#262630] p-5 space-y-4">
+                      {selectedDoc && (
+                        <>
+                          <div className="border-b border-[#262630] pb-3">
+                            <span className="text-[10px] font-mono uppercase text-emerald-400">
+                              SOURCE VIEWER (WEB-03) &bull; {selectedDoc.section_or_reference}
+                            </span>
+                            <h3 className="text-base font-bold text-white mt-0.5">
+                              {selectedDoc.title_th}
+                            </h3>
+                          </div>
+                          <div className="bg-emerald-950/30 border-2 border-emerald-600 p-3.5 space-y-1.5">
+                            <span className="text-[10px] font-bold uppercase bg-emerald-600 text-black px-2 py-0.5">
+                              ORIGINAL STATUTORY / JUDICIAL TEXT
+                            </span>
+                            <p className="text-xs text-white font-serif leading-relaxed mt-1">
+                              {selectedDoc.original_source_snippet_th}
+                            </p>
+                            <p className="text-xs text-emerald-200/90 font-serif leading-relaxed">
+                              {selectedDoc.original_source_snippet_en}
+                            </p>
+                          </div>
+                          <div className="bg-indigo-950/30 border-2 border-indigo-500 p-3.5 space-y-1.5">
+                            <span className="text-[10px] font-bold uppercase bg-indigo-500 text-white px-2 py-0.5">
+                              AI INTERPRETATION SUMMARY (SEPARATED FROM SOURCE)
+                            </span>
+                            <p className="text-xs text-indigo-100 leading-relaxed mt-1">
+                              {selectedDoc.ai_summary_interpretation_th}
+                            </p>
+                          </div>
+                          <div className="text-[11px] font-mono text-zinc-400 space-y-1">
+                            {selectedDoc.superseded_or_amended_info && (
+                              <div>Amendments: {selectedDoc.superseded_or_amended_info}</div>
+                            )}
+                            <div>SHA-256: {selectedDoc.sha256_hash}</div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ===============================================================
+                TAB 3: TEMPORAL LEGAL RESEARCH SIDE-BY-SIDE COMPARISON (WEB-05)
+               =============================================================== */}
+            {webActiveTab === "temporal_compare" && (() => {
+              const comp = snapshot.webResearchStudio.sample_temporal_comparison;
+              return (
+                <div className="bg-[#111116] border border-[#262630] p-6 space-y-5">
+                  <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#262630] pb-4">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-widest text-[#60A5FA]">
+                        WEB-05 TEMPORAL LEGAL RESEARCH &amp; SIDE-BY-SIDE PROVISION COMPARISON
+                      </span>
+                      <h2 className="text-xl font-bold text-white mt-1">
+                        {comp.instrument_title_th} มาตรา {comp.section_number} ({comp.instrument_title_en})
+                      </h2>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                      <span className="text-zinc-400">HISTORICAL DATE:</span>
+                      <input
+                        type="date"
+                        value={webTemporalHistDate}
+                        onChange={(e) => setWebTemporalHistDate(e.target.value)}
+                        className="bg-[#09090c] border border-[#2d2d3a] px-2.5 py-1 font-mono text-amber-300"
+                      />
+                      <span className="text-zinc-400">CURRENT DATE:</span>
+                      <input
+                        type="date"
+                        value={webTemporalCurrDate}
+                        onChange={(e) => setWebTemporalCurrDate(e.target.value)}
+                        className="bg-[#09090c] border border-[#2d2d3a] px-2.5 py-1 font-mono text-emerald-300"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Side-by-Side Historical vs Current Provision Viewer */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="bg-amber-950/20 border-2 border-amber-600/70 p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase bg-amber-500 text-black px-2 py-0.5">
+                          HISTORICAL VERSION (AS OF {comp.queried_as_of_date})
+                        </span>
+                        <span className="text-[11px] font-mono text-amber-300">
+                          {comp.historical_version.status_on_queried_date.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono text-zinc-400">
+                        Effective: {comp.historical_version.effective_from} &rarr;{" "}
+                        {comp.historical_version.effective_to}
+                      </div>
+                      <p className="text-sm text-white font-serif leading-relaxed pt-2">
+                        {comp.historical_version.original_text_th}
+                      </p>
+                      <p className="text-xs text-zinc-300 font-serif leading-relaxed">
+                        {comp.historical_version.original_text_en}
+                      </p>
+                    </div>
+
+                    <div className="bg-emerald-950/20 border-2 border-emerald-600/70 p-4 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase bg-emerald-500 text-black px-2 py-0.5">
+                          CURRENT IN-FORCE VERSION (AS OF {comp.comparison_target_date})
+                        </span>
+                        <span className="text-[11px] font-mono text-emerald-300">
+                          IN_FORCE
+                        </span>
+                      </div>
+                      <div className="text-xs font-mono text-zinc-400">
+                        Effective: {comp.current_version.effective_from} &rarr; Present (
+                        {comp.current_version.version_id})
+                      </div>
+                      <p className="text-sm text-white font-serif leading-relaxed pt-2">
+                        {comp.current_version.original_text_th}
+                      </p>
+                      <p className="text-xs text-zinc-300 font-serif leading-relaxed">
+                        {comp.current_version.original_text_en}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="bg-[#09090c] border border-[#22222c] p-4 space-y-2 text-xs">
+                    <div className="font-bold text-emerald-400 uppercase">
+                      SIDE-BY-SIDE AMENDMENT ANALYSIS &amp; TRANSITIONAL NOTES:
+                    </div>
+                    <p className="text-white">{comp.amendment_diff_summary_th}</p>
+                    <p className="text-zinc-300">{comp.amendment_diff_summary_en}</p>
+                    <p className="text-amber-300 font-mono text-[11px]">
+                      Transitional Status: {comp.transitional_provision_note}
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ===============================================================
+                TAB 4: WORKSPACE EXPORTS (PDF/DOCX) & ACCEPTANCE CRITERIA (AC-WEB-01..10)
+               =============================================================== */}
+            {webActiveTab === "workspace_exports" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                <div className="lg:col-span-6 bg-[#111116] border border-[#262630] p-5 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">
+                        WEB-07 RESEARCH EXPORT PACKAGE (AC-WEB-06 &amp; AC-WEB-07)
+                      </span>
+                      <h3 className="text-base font-bold text-white">
+                        Export PDF / DOCX with Preserved Citations &amp; Legal Dates
+                      </h3>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleExportWebSession("PDF")}
+                        className="bg-emerald-700 px-3 py-1.5 text-xs font-bold uppercase text-white cursor-pointer"
+                      >
+                        GENERATE PDF
+                      </button>
+                      <button
+                        onClick={() => handleExportWebSession("DOCX")}
+                        className="bg-sky-700 px-3 py-1.5 text-xs font-bold uppercase text-white cursor-pointer"
+                      >
+                        GENERATE DOCX
+                      </button>
+                    </div>
+                  </div>
+
+                  {webExportPreview ? (
+                    <div className="bg-[#09090c] border border-[#22222c] p-3.5 text-xs font-mono space-y-2">
+                      <div>FILENAME: {webExportPreview.download_filename}</div>
+                      <div>FORMAT: {webExportPreview.format}</div>
+                      <div>RESEARCH DATE: {webExportPreview.research_date}</div>
+                      <div>APPLICABLE LEGAL DATE: {webExportPreview.applicable_legal_date}</div>
+                      <div className="text-emerald-400">
+                        VERIFICATION: {webExportPreview.verification_status} ({webExportPreview.preserved_citations.length} Citations)
+                      </div>
+                      {webExportPreview.sections.map((sec, i) => (
+                        <div key={i} className="border-t border-[#22222c] pt-2">
+                          <div className="font-bold text-white">{sec.heading}</div>
+                          <p className="text-zinc-300 mt-1 whitespace-pre-wrap">{sec.body_th}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="bg-[#09090c] border border-[#22222c] p-4 text-xs text-zinc-300">
+                      Click <strong>GENERATE PDF</strong> or <strong>GENERATE DOCX</strong> above to generate a verified legal research export package preserving all citations, research dates, applicable legal dates, and visual separation between Original Source Text and AI Analysis.
+                    </div>
+                  )}
+                </div>
+
+                <div className="lg:col-span-6 bg-[#111116] border border-[#262630] p-5 space-y-4">
+                  <div className="border-b border-[#262630] pb-3">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#60A5FA]">
+                      SECTION 6 — MANDATORY ACCEPTANCE CRITERIA (AC-WEB-01 TO AC-WEB-10)
+                    </span>
+                    <h3 className="text-base font-bold text-white">
+                      10/10 Automated Verification &amp; Core API Parity Status
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    {snapshot.webResearchStudio.acceptance_criteria_status.map((ac) => (
+                      <div
+                        key={ac.ac_id}
+                        className="bg-[#09090c] border border-[#22222c] p-3 flex items-start justify-between gap-3 text-xs"
+                      >
+                        <div>
+                          <span className="font-mono font-bold text-[#60A5FA] mr-2">
+                            {ac.ac_id}
+                          </span>
+                          <span className="font-semibold text-white">{ac.criterion}</span>
+                          <p className="text-[11px] text-zinc-400 mt-0.5">
+                            {ac.measured_result}
+                          </p>
+                        </div>
+                        <span className="bg-emerald-950 border border-emerald-600 text-emerald-300 font-mono text-[10px] px-2 py-0.5 uppercase shrink-0">
+                          {ac.passed ? "PASSED" : "FAILED"}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* METRO FOOTER */}
       <footer className="border-t border-[#262630] bg-[#0c0c10] px-6 py-4 mt-12 text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-4">
         <div>
-          REG24 PRD v2.0 INFRASTRUCTURE &bull; 9 CORE DOMAINS (`LEG-*`) &bull; 9 INDUSTRY MODULES (`IND-*`) &bull; 16 THAI MODULES (`reg24.*.th`)
+          REG24 PRD v2.0 + REG24-WEB-001 STUDIO &bull; 9 CORE DOMAINS (`LEG-*`) &bull; 9 INDUSTRY MODULES (`IND-*`) &bull; 16 THAI MODULES (`reg24.*.th`)
         </div>
         <div className="uppercase tracking-wider text-zinc-400">
           CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GMT24 &bull; ESG24 &bull; COP24 &bull; TRADE24 &bull; HOTEL24 &bull; DRUG24 &bull; RISK24

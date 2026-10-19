@@ -834,5 +834,167 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     ).toBe(850);
     expect(snap.section24QualityDashboard.p0_release_checklist_all_passed).toBe(true);
   });
+
+  // =========================================================================
+  // REG-QA-014: REG24-WEB-001 — Legal Research Web Mode (REG24 Web Research Studio)
+  // Verifying WEB-01..WEB-08, AC-WEB-01..AC-WEB-10 & 10-Step Definition of Done
+  // =========================================================================
+  it("REG-QA-014: enforces REG24-WEB-001 Web Research Studio (WEB-01..08, AC-WEB-01..10, Core API parity, 7-category search, 9-step Deep Research cancellation, temporal comparison, PDF/DOCX exports, and cross-tenant isolation)", () => {
+    const webSnap = core.getWebResearchWorkspaceSnapshot("tenant.law24.prod");
+
+    // 1. AC-WEB-01: First-party consumer of REG24 Core APIs with zero independent KB/RAG/Reasoning
+    expect(webSnap.requirement_id).toBe("REG24-WEB-001");
+    expect(webSnap.module_name).toBe("REG24 Web Research Studio");
+    expect(webSnap.gateway_only_architecture).toBe(true);
+    expect(webSnap.default_response_language).toBe("th");
+
+    // 2. WEB-01, WEB-08 & AC-WEB-04: Conversational AI Legal Research (Default Thai response, Quick Answer, Follow-ups, Multi-domain)
+    const quickRes = core.executeWebLegalResearch({
+      session_id: "websess.th.solar_dd.001",
+      tenant_id: "tenant.law24.prod",
+      query: "การลดจำนวนผู้เริ่มก่อการจัดตั้งบริษัทจำกัดเหลือ 2 คนตามมาตรา 1097 มีผลใช้บังคับเมื่อใด?",
+      mode: "Quick Answer",
+    });
+    expect(quickRes.status).toBe("ok");
+    expect(quickRes.turn?.response_language).toBe("th"); // Default Thai per WEB-01
+    expect(quickRes.turn?.mode).toBe("Quick Answer");
+    expect(quickRes.turn?.selected_domains.length).toBeGreaterThanOrEqual(3);
+    expect(quickRes.turn?.citations.length).toBeGreaterThanOrEqual(4);
+    expect(quickRes.turn?.uncertainty_and_missing_facts.missing_facts.length).toBeGreaterThan(0);
+
+    // 3. AC-WEB-02 & WEB-03: Citations open original legal source with highlighted passage & visual separation from AI interpretation
+    const firstCit = quickRes.turn!.citations[0];
+    expect(firstCit.verification_status).toBe("human_verified");
+    expect(firstCit.highlighted_source_passage_th.length).toBeGreaterThan(10);
+    expect(firstCit.sha256_hash.length).toBeGreaterThanOrEqual(32);
+    expect(firstCit.official_url).toMatch(/^https:\/\//);
+
+    // 4. WEB-04 & AC-WEB-05: 9-Step Legal Deep Research Workflow + User Cancellation & Retry
+    const deepRes = core.executeWebLegalResearch({
+      session_id: "websess.th.solar_dd.001",
+      tenant_id: "tenant.law24.prod",
+      query: "วิเคราะห์ผลกระทบทางกฎหมายแบบครบวงจรสำหรับการเข้าซื้อกิจการโรงไฟฟ้าพลังงานแสงอาทิตย์",
+      mode: "Deep Research",
+      response_language: "th",
+    });
+    expect(deepRes.turn?.deep_research_workflow?.steps.length).toBe(9);
+    expect(deepRes.turn?.deep_research_workflow?.state).toBe("completed");
+
+    const cancelledJob = core.cancelWebDeepResearchJob({
+      session_id: "websess.th.solar_dd.001",
+      turn_id: deepRes.turn?.turn_id,
+      action: "cancel",
+      tenant_id: "tenant.law24.prod",
+    });
+    expect(cancelledJob.status).toBe("ok");
+    expect(cancelledJob.job_state).toBe("canceled");
+    expect(
+      cancelledJob.turn?.deep_research_workflow?.steps.some((s) => s.status === "canceled")
+    ).toBe(true);
+
+    const retriedJob = core.cancelWebDeepResearchJob({
+      session_id: "websess.th.solar_dd.001",
+      turn_id: deepRes.turn?.turn_id,
+      action: "retry",
+      tenant_id: "tenant.law24.prod",
+    });
+    expect(retriedJob.job_state).toBe("completed");
+
+    // 5. WEB-02 & AC-WEB-03: Dedicated 7-Category Legal Search with filters
+    const allSearch = core.searchWebLegalAuthorities({});
+    expect(allSearch.total_count).toBeGreaterThanOrEqual(7);
+    expect(allSearch.categories_present).toEqual(
+      expect.arrayContaining([
+        "Statutes and codes",
+        "Subordinate regulations",
+        "Court judgments",
+        "Revenue Department tax rulings",
+        "SEC and SET regulations",
+        "BOI announcements",
+        "Regulatory interpretations",
+      ])
+    );
+
+    const dikaSearch = core.searchWebLegalAuthorities({
+      document_category: "Court judgments",
+      query: "2845/2564",
+    });
+    expect(dikaSearch.total_count).toBe(1);
+    expect(dikaSearch.items[0].verification_status).toBe("human_verified");
+    expect(dikaSearch.items[0].ai_summary_interpretation_th).not.toBe(
+      dikaSearch.items[0].original_source_snippet_th
+    );
+
+    // 6. WEB-05 & AC-WEB-06: Temporal Legal Research Side-by-Side Comparison & Historical Coverage Warning
+    const temporalDiff = core.compareWebTemporalProvisions({
+      provision_id: "prov.th.ccc.1097",
+      queried_as_of_date: "2020-06-15",
+      comparison_target_date: "2026-10-19",
+    });
+    expect(temporalDiff.historical_version.original_text_th).toContain("สามคน");
+    expect(temporalDiff.current_version.original_text_th).toContain("สองคน");
+
+    const preArchiveDiff = core.compareWebTemporalProvisions({
+      provision_id: "prov.th.ccc.1097",
+      queried_as_of_date: "1985-01-01",
+    });
+    expect(preArchiveDiff.historical_coverage_incomplete_warning).toBeTruthy();
+
+    // 7. WEB-07 & AC-WEB-07: Save, Reopen, Rename, Folder Organization, LAW24 Handoff & PDF/DOCX Export
+    const renamed = core.manageWebResearchSession({
+      session_id: "websess.th.solar_dd.001",
+      tenant_id: "tenant.law24.prod",
+      action: "rename",
+      new_title: "Project Helios — Solar M&A Deep Research (Verified)",
+    });
+    expect(renamed.session?.title).toBe("Project Helios — Solar M&A Deep Research (Verified)");
+
+    const pdfExport = core.exportWebResearchSession({
+      session_id: "websess.th.solar_dd.001",
+      format: "PDF",
+      tenant_id: "tenant.law24.prod",
+    });
+    const docxExport = core.exportWebResearchSession({
+      session_id: "websess.th.solar_dd.001",
+      format: "DOCX",
+      tenant_id: "tenant.law24.prod",
+    });
+    expect(pdfExport.export_package?.format).toBe("PDF");
+    expect(pdfExport.export_package?.preserved_citations.length).toBeGreaterThanOrEqual(4);
+    expect(pdfExport.export_package?.applicable_legal_date).toBe("2026-10-19");
+    expect(docxExport.export_package?.format).toBe("DOCX");
+    expect(docxExport.export_package?.verification_status).toBe(
+      "100%_CITATIONS_RESOLVED_AND_VERIFIED"
+    );
+
+    // 8. AC-WEB-08: Cross-tenant session access is strictly rejected
+    const crossTenantAttempt = core.getWebResearchSession({
+      session_id: "websess.th.solar_dd.001",
+      requesting_tenant_id: "tenant.unauthorized.competitor",
+    });
+    expect(crossTenantAttempt.status).toBe("forbidden");
+    expect(crossTenantAttempt.error_code).toBe("CROSS_TENANT_ACCESS_DENIED");
+
+    const crossTenantWriteAttempt = core.executeWebLegalResearch({
+      session_id: "websess.th.solar_dd.001",
+      tenant_id: "tenant.unauthorized.competitor",
+      query: "Attempt unauthorized cross-tenant write",
+    });
+    expect(crossTenantWriteAttempt.status).toBe("forbidden");
+
+    // 9. AC-WEB-10: Web Research and Public API return consistent legal conclusions
+    const apiDirect = core.analyzeCorporateCommercialLegalQuestion({
+      query: "วิเคราะห์ผลกระทบทางกฎหมายแบบครบวงจรสำหรับการเข้าซื้อกิจการโรงไฟฟ้าพลังงานแสงอาทิตย์",
+      as_of_date: "2026-10-19",
+      industry_module: "IND-ENERGY",
+      research_mode: "legal_due_diligence",
+    });
+    expect(deepRes.turn?.answer_en).toBe(apiDirect.answer);
+    expect(deepRes.turn?.applicable_obligations.length).toBe(
+      apiDirect.obligations.length
+    );
+    expect(webSnap.acceptance_criteria_status.length).toBe(10);
+    expect(webSnap.acceptance_criteria_status.every((ac) => ac.passed === true)).toBe(true);
+  });
 });
 
