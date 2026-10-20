@@ -139,6 +139,10 @@ import {
   type LegalResourceMasterRecord,
   type ResourceMasterCollectionId,
 } from "@/core/data/legal-resource-master-loader";
+import {
+  chunkLegalDocumentRecord,
+  getOrBuildMasterChunkCorpus,
+} from "@/core/ingestion/legal-structural-chunker";
 
 interface SnapshotData {
   regulators: Regulator[];
@@ -323,8 +327,10 @@ export default function Reg24MetroConsole() {
     "ALL" | ResourceMasterCollectionId
   >("ALL");
   const [expandedResourceMasterId, setExpandedResourceMasterId] = useState<string | null>(
-    "GDRIVE-REG-ERC-001"
+    "LRM-DBD-0001"
   );
+  const [neo4jChunkSyncStatus, setNeo4jChunkSyncStatus] = useState<string | null>(null);
+  const [neo4jChunkSyncing, setNeo4jChunkSyncing] = useState<boolean>(false);
 
   // REG24 Advanced Legal Intelligence Infrastructure (PRD v1.0: REG-AI-01..12 & UAT A-G) states
   const [activeUatScenarioId, setActiveUatScenarioId] = useState<MandatoryUatScenarioId>(
@@ -4203,6 +4209,7 @@ export default function Reg24MetroConsole() {
                       collection: resourceMasterCollection,
                       limit: 80,
                     });
+                    const chunkStats = getOrBuildMasterChunkCorpus();
                     return (
                       <div className="space-y-5">
                         <div className={`p-5 sm:p-6 rounded-2xl space-y-5 ${surfaceCard}`}>
@@ -4213,7 +4220,7 @@ export default function Reg24MetroConsole() {
                                   ✓ Synced from Google Drive — Legal Database Resource Master (17 Authority Folders)
                                 </span>
                                 <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#0f2c59]/10 dark:bg-[#f5b700]/15 text-[#0f2c59] dark:text-[#f5b700]">
-                                  {rmSearch.total_corpus_count.toLocaleString()} Regulations &amp; Rulings Incorporated (Matched: {rmSearch.matched_count.toLocaleString()})
+                                  {rmSearch.total_corpus_count.toLocaleString()} Docs &rarr; {chunkStats.total_structural_chunks.toLocaleString()} Legal Structural Chunks (มาตรา / ข้อ / วรรค / ฎีกา)
                                 </span>
                                 <a
                                   href={MASTER_DRIVE_FOLDER_URL}
@@ -4223,7 +4230,42 @@ export default function Reg24MetroConsole() {
                                 >
                                   Open Master Google Drive Folder ↗
                                 </a>
+                                <button
+                                  disabled={neo4jChunkSyncing}
+                                  onClick={async () => {
+                                    setNeo4jChunkSyncing(true);
+                                    setNeo4jChunkSyncStatus("Syncing structural legal chunks to Neo4j AuraDB...");
+                                    try {
+                                      const res = await fetch("/api/v1/legal/resource-master", {
+                                        method: "POST",
+                                        headers: { "Content-Type": "application/json" },
+                                        body: JSON.stringify({ action: "sync_chunks_to_neo4j" }),
+                                      });
+                                      const data = await res.json();
+                                      const rpt = data?.neo4j_sync_report;
+                                      if (rpt) {
+                                        setNeo4jChunkSyncStatus(
+                                          `✓ ${rpt.status === "synced_to_neo4j" ? "Synced to Live Neo4j AuraDB" : "Verified Structural Graph"}: ${rpt.regulators_upserted} Regulators, ${rpt.instruments_upserted.toLocaleString()} Instruments, ${rpt.provision_chunks_upserted.toLocaleString()} Structural Provision Chunks (${rpt.live_node_count ? `${rpt.live_node_count.toLocaleString()} total live nodes` : "Ready"})`
+                                        );
+                                      }
+                                    } catch (e) {
+                                      setNeo4jChunkSyncStatus(`Sync error: ${e instanceof Error ? e.message : String(e)}`);
+                                    } finally {
+                                      setNeo4jChunkSyncing(false);
+                                    }
+                                  }}
+                                  className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30 hover:bg-purple-500/25 cursor-pointer"
+                                >
+                                  {neo4jChunkSyncing
+                                    ? "Syncing Chunks to Neo4j..."
+                                    : "⚡ Sync Structural Chunks to Neo4j Aura"}
+                                </button>
                               </div>
+                              {neo4jChunkSyncStatus && (
+                                <div className="text-[11px] font-mono text-emerald-600 dark:text-emerald-400 mb-1.5">
+                                  {neo4jChunkSyncStatus}
+                                </div>
+                              )}
                               <h2 className="text-[20px] sm:text-[24px] font-extrabold tracking-[-0.03em] leading-tight">
                                 {languageMode === "th"
                                   ? `Google Drive — Legal Database Resource Master (17 โฟลเดอร์หน่วยงานหลัก · ${rmSearch.total_corpus_count.toLocaleString()} ฉบับ)`
@@ -4501,27 +4543,61 @@ export default function Reg24MetroConsole() {
                                       {item.summary_th}
                                     </p>
 
-                                    {isExp && (
-                                      <div
-                                        className={`p-3 rounded-xl text-[11.5px] leading-relaxed space-y-2 mt-2 border ${subtleBox}`}
-                                      >
-                                        <div>
-                                          <strong className="text-slate-900 dark:text-white">
-                                            {languageMode === "th"
-                                              ? "ตัวบท/ข้อความสำคัญจากต้นฉบับ (Verbatim Source Excerpt): "
-                                              : "Verbatim Source Excerpt: "}
-                                          </strong>
-                                          <div className="mt-1 whitespace-pre-line font-mono text-[11px]">
-                                            {item.verbatim_excerpt}
+                                    {isExp && (() => {
+                                      const docChunks = chunkLegalDocumentRecord(item);
+                                      return (
+                                        <div
+                                          className={`p-3 rounded-xl text-[11.5px] leading-relaxed space-y-2.5 mt-2 border ${subtleBox}`}
+                                        >
+                                          <div className="space-y-1.5">
+                                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                              <strong className="text-slate-900 dark:text-white">
+                                                {languageMode === "th"
+                                                  ? `การแบ่งส่วนโครงสร้างทางกฎหมายสำหรับ Neo4j (Legal Structural Chunks · ${docChunks.length} Chunks):`
+                                                  : `Neo4j Legal Structural Chunks (${docChunks.length} Provision-Aware Chunks):`}
+                                              </strong>
+                                              <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-purple-500/15 text-purple-700 dark:text-purple-300">
+                                                Archetype: {docChunks[0]?.archetype}
+                                              </span>
+                                            </div>
+                                            <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                                              {docChunks.map((ch) => (
+                                                <div
+                                                  key={ch.chunk_id}
+                                                  className="p-2.5 rounded-lg border border-slate-300/60 dark:border-slate-700/70 bg-white/60 dark:bg-black/30 space-y-1"
+                                                >
+                                                  <div className="flex flex-wrap items-center justify-between gap-1 text-[10.5px] font-mono">
+                                                    <span className="font-bold text-[#0f2c59] dark:text-[#f5b700]">
+                                                      #{ch.chunk_index}/{ch.total_chunks_in_doc} &bull; {ch.section_or_clause_label}
+                                                    </span>
+                                                    <span className="px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                                      {ch.unit_type} &bull; {ch.authority_tier}
+                                                    </span>
+                                                  </div>
+                                                  <div className="text-[10px] font-mono opacity-75">
+                                                    Path: {ch.hierarchy_path}
+                                                  </div>
+                                                  <div className="whitespace-pre-line font-mono text-[10.5px] pt-1">
+                                                    {ch.raw_text.slice(0, 600)}
+                                                    {ch.raw_text.length > 600 ? "..." : ""}
+                                                  </div>
+                                                  {ch.extracted_citations.length > 0 && (
+                                                    <div className="text-[10px] font-mono text-blue-600 dark:text-blue-400">
+                                                      Citations: {ch.extracted_citations.join(", ")}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                          <div className="pt-1.5 border-t border-slate-300/50 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[10.5px] font-mono">
+                                            <span>📁 {item.folder_path}</span>
+                                            <span>📄 {item.file_name} (Drive ID: {item.drive_stable_id})</span>
+                                            <span>🔒 SHA-256: {item.sha256.slice(0, 20)}...</span>
                                           </div>
                                         </div>
-                                        <div className="pt-1.5 border-t border-slate-300/50 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[10.5px] font-mono">
-                                          <span>📁 {item.folder_path}</span>
-                                          <span>📄 {item.file_name} (Drive ID: {item.drive_stable_id})</span>
-                                          <span>🔒 SHA-256: {item.sha256.slice(0, 20)}...</span>
-                                        </div>
-                                      </div>
-                                    )}
+                                      );
+                                    })()}
                                   </div>
 
                                   <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
