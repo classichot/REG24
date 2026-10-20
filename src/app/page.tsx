@@ -114,6 +114,13 @@ import {
   UniversalMCPToolName,
   VerifiedEvidencePackage,
 } from "@/core/mcp/universal-mcp-gateway";
+import {
+  TEMPORAL_MILESTONE_PRESETS,
+  type PointInTimeGraphSnapshot,
+  type StaleRulingDetectionItem,
+  type TemporalDateComparisonResult,
+  type RulingTemporalReliabilityStatus,
+} from "@/core/graph/temporal-graph-engine";
 
 interface SnapshotData {
   regulators: Regulator[];
@@ -281,8 +288,19 @@ export default function Reg24MetroConsole() {
     deepseek: { enabled: true, allow_client_docs: false, api_key_masked: "sk-ds-...19xP (Public Law Only)" },
   });
   const [uxLibraryTab, setUxLibraryTab] = useState<
-    "all" | "authorities" | "industries" | "modules" | "statutes" | "cases_rulings"
+    "all" | "authorities" | "industries" | "modules" | "statutes" | "cases_rulings" | "temporal_graph"
   >("industries");
+
+  // REG24-TEMPORAL-GRAPH-001: Bi-Temporal Legal Graph Time-Machine & Stale-Ruling Detector states
+  const [temporalAsOfDate, setTemporalAsOfDate] = useState<string>("2026-10-20");
+  const [temporalKnownAtDate, setTemporalKnownAtDate] = useState<string>("2026-10-20");
+  const [temporalCompareDateA, setTemporalCompareDateA] = useState<string>("2021-06-15");
+  const [temporalQuery, setTemporalQuery] = useState<string>("ควบ");
+  const [temporalStatusFilter, setTemporalStatusFilter] = useState<"ALL" | RulingTemporalReliabilityStatus>("ALL");
+  const [temporalSnapshot, setTemporalSnapshot] = useState<PointInTimeGraphSnapshot | null>(null);
+  const [temporalComparison, setTemporalComparison] = useState<TemporalDateComparisonResult | null>(null);
+  const [temporalStaleAlerts, setTemporalStaleAlerts] = useState<StaleRulingDetectionItem[]>([]);
+  const [temporalLoading, setTemporalLoading] = useState<boolean>(false);
   const [uxHasSubmittedResearch, setUxHasSubmittedResearch] = useState<boolean>(false);
   const [uxDeepResearchExpanded, setUxDeepResearchExpanded] = useState<boolean>(false);
   const [uxEvidenceDrawerOpen, setUxEvidenceDrawerOpen] = useState<boolean>(false);
@@ -1735,6 +1753,55 @@ export default function Reg24MetroConsole() {
     [selectedUniversalMcpTool, selectedUniversalProvider, universalMcpQuery, activeTenant]
   );
 
+  const fetchTemporalGraph = useCallback(
+    async (opts?: {
+      asOfDate?: string;
+      knownAtDate?: string;
+      compareDateA?: string;
+      query?: string;
+      statusFilter?: "ALL" | RulingTemporalReliabilityStatus;
+    }) => {
+      const asOf = opts?.asOfDate ?? temporalAsOfDate;
+      const knownAt = opts?.knownAtDate ?? temporalKnownAtDate;
+      const cmpA = opts?.compareDateA ?? temporalCompareDateA;
+      const q = opts?.query !== undefined ? opts.query : temporalQuery;
+      const sf = opts?.statusFilter ?? temporalStatusFilter;
+      if (opts?.asOfDate) setTemporalAsOfDate(opts.asOfDate);
+      if (opts?.knownAtDate) setTemporalKnownAtDate(opts.knownAtDate);
+      if (opts?.compareDateA) setTemporalCompareDateA(opts.compareDateA);
+      if (opts?.query !== undefined) setTemporalQuery(opts.query);
+      if (opts?.statusFilter) setTemporalStatusFilter(opts.statusFilter);
+
+      setTemporalLoading(true);
+      try {
+        const res = await fetch(
+          `/api/v1/legal/graph/temporal?as_of_date=${encodeURIComponent(asOf)}&known_at_date=${encodeURIComponent(
+            knownAt
+          )}&compare_with_date=${encodeURIComponent(cmpA)}&query=${encodeURIComponent(q)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.point_in_time_snapshot) {
+            setTemporalSnapshot(data.point_in_time_snapshot);
+            const rawAlerts: StaleRulingDetectionItem[] =
+              data.point_in_time_snapshot.stale_ruling_alerts || [];
+            setTemporalStaleAlerts(
+              sf === "ALL" ? rawAlerts : rawAlerts.filter((a) => a.temporal_status === sf)
+            );
+          }
+          if (data.date_comparison) {
+            setTemporalComparison(data.date_comparison);
+          }
+        }
+      } catch {
+        // Ignore network error during initial load
+      } finally {
+        setTemporalLoading(false);
+      }
+    },
+    [temporalAsOfDate, temporalKnownAtDate, temporalCompareDateA, temporalQuery, temporalStatusFilter]
+  );
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
@@ -1762,6 +1829,7 @@ export default function Reg24MetroConsole() {
     fetchThaiTaxRulings("", "ALL");
     handleSimulateCostRouter();
     handleRunUniversalMcpTool();
+    fetchTemporalGraph();
 
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -2908,6 +2976,27 @@ export default function Reg24MetroConsole() {
                                     : "Connect ChatGPT · Claude · Gemini · Qwen · DeepSeek"}
                                 </span>
                               </button>
+
+                              {/* Contextual Control 5: Bi-Temporal Legal Graph Time-Machine */}
+                              <button
+                                onClick={() => {
+                                  setUxResearchDestination("library");
+                                  setUxLibraryTab("temporal_graph");
+                                  fetchTemporalGraph();
+                                }}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors ${
+                                  isLightMinimal
+                                    ? "bg-indigo-50 border-indigo-200 text-indigo-900 hover:bg-indigo-100"
+                                    : "bg-indigo-950/50 border-indigo-500/40 text-indigo-300 hover:border-[#f5b700]"
+                                }`}
+                              >
+                                <Clock className="w-3.5 h-3.5 text-[#0f2c59] dark:text-[#f5b700]" />
+                                <span>
+                                  {languageMode === "th"
+                                    ? "กราฟสองมิติเวลา (Temporal Graph 2544–2569)"
+                                    : "Bi-Temporal Graph Time-Machine (2001–2026)"}
+                                </span>
+                              </button>
                             </div>
 
                             {/* Primary Action Button */}
@@ -3859,8 +3948,8 @@ export default function Reg24MetroConsole() {
                     </div>
                   </div>
 
-                  {/* Clean Niche Category Selector Cards (5 Focused Views) */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {/* Clean Niche Category Selector Cards (6 Focused Views) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                     {[
                       {
                         id: "industries" as const,
@@ -3897,12 +3986,24 @@ export default function Reg24MetroConsole() {
                         labelTh: "5. ข้อหารือสรรพากรและฎีกา",
                         subEn: `3,643 RD Tax · ${snapshot.legalCases.length} Dika`,
                       },
+                      {
+                        id: "temporal_graph" as const,
+                        count: "2544–2569",
+                        labelEn: "6. Bi-Temporal Graph",
+                        labelTh: "6. กราฟสองมิติเวลา (Time-Machine)",
+                        subEn: "Point-in-Time · Stale Ruling Alert",
+                      },
                     ].map((stat) => {
                       const active = uxLibraryTab === stat.id;
                       return (
                         <button
                           key={stat.id}
-                          onClick={() => setUxLibraryTab(stat.id)}
+                          onClick={() => {
+                            setUxLibraryTab(stat.id);
+                            if (stat.id === "temporal_graph") {
+                              fetchTemporalGraph();
+                            }
+                          }}
                           className={`p-3.5 rounded-2xl text-left transition-all cursor-pointer border ${
                             active
                               ? isLightMinimal
@@ -3932,6 +4033,567 @@ export default function Reg24MetroConsole() {
                       );
                     })}
                   </div>
+
+                  {/* ===========================================================
+                      SECTION 6: BI-TEMPORAL LEGAL GRAPH TIME-MACHINE & STALE-RULING DETECTOR
+                      (REG24-TEMPORAL-GRAPH-001 / REG-DATA-002)
+                      =========================================================== */}
+                  {(uxLibraryTab === "all" || uxLibraryTab === "temporal_graph") && (
+                    <div className="space-y-6">
+                      {/* Header & Landmark Timeline Scrubber (B.E. 2544 -> B.E. 2569) */}
+                      <div className={`p-5 sm:p-6 rounded-2xl space-y-5 ${surfaceCard}`}>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div>
+                            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 mb-1.5">
+                              <Clock className="w-3.5 h-3.5" />
+                              <span>REG24-TEMPORAL-GRAPH-001 &bull; Bi-Temporal Legal Time-Machine</span>
+                            </div>
+                            <h2 className="text-[20px] sm:text-[24px] font-extrabold tracking-[-0.03em] leading-tight">
+                              {languageMode === "th"
+                                ? "กราฟความรู้กฎหมายสองมิติเวลา (Bi-Temporal Knowledge Graph พ.ศ. 2544–2569)"
+                                : "Bi-Temporal Legal Knowledge Graph & Stale-Ruling Detector (B.E. 2544–2569 / 2001–2026)"}
+                            </h2>
+                            <p className={`text-[12.5px] mt-1 ${mutedText}`}>
+                              {languageMode === "th"
+                                ? "จำลองสถานะตัวบทกฎหมาย (ProvisionVersion), กฎหมายลำดับรอง, คำพิพากษาฎีกา และข้อหารือกรมสรรพากร 3,643 ฉบับ ณ วันเกิดธุรกรรมจริง (as_of_date) เทียบกับวันประกาศใช้ (known_at_date) พร้อมตรวจจับข้อหารือเก่าที่กฎหมายแม่บทแก้ไขไปแล้ว"
+                                : "Reconstruct exact statutory versions, Royal Decrees, Supreme Court Dika precedents, and 3,643 Revenue Department Tax Rulings at any historical transaction date (`as_of_date`) vs. publication date (`known_at_date`), and automatically flag stale rulings."}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 shrink-0">
+                            <div className={`px-3 py-2 rounded-xl border text-xs ${subtleBox}`}>
+                              <div className={`text-[10px] uppercase font-semibold ${mutedText}`}>
+                                {languageMode === "th" ? "วันเกิดธุรกรรม (as_of_date)" : "Legal Effective Date (as_of_date)"}
+                              </div>
+                              <input
+                                type="date"
+                                value={temporalAsOfDate}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setTemporalAsOfDate(val);
+                                  setTemporalKnownAtDate(val);
+                                  fetchTemporalGraph({ asOfDate: val, knownAtDate: val });
+                                }}
+                                className="font-mono font-bold text-xs bg-transparent focus:outline-none mt-0.5"
+                              />
+                            </div>
+                            <div className={`px-3 py-2 rounded-xl border text-xs ${subtleBox}`}>
+                              <div className={`text-[10px] uppercase font-semibold ${mutedText}`}>
+                                {languageMode === "th" ? "วันรับรู้กฎหมาย (known_at_date)" : "System Knowledge Date (known_at_date)"}
+                              </div>
+                              <input
+                                type="date"
+                                value={temporalKnownAtDate}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setTemporalKnownAtDate(val);
+                                  fetchTemporalGraph({ knownAtDate: val });
+                                }}
+                                className="font-mono font-bold text-xs bg-transparent focus:outline-none mt-0.5"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 8 Landmark Thai Legal Era Presets (One-Click Timeline Scrubber) */}
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <span>
+                              {languageMode === "th"
+                                ? "คลิกเลือกจุดเปลี่ยนสำคัญของกฎหมายธุรกิจและภาษีไทย (พ.ศ. 2544 → 2569)"
+                                : "Click Any Landmark Thai Legal Inflection Point (B.E. 2544 → B.E. 2569 / 2001 → 2026)"}
+                            </span>
+                            <span className="font-mono text-[#0f2c59] dark:text-[#f5b700]">
+                              Active Snapshot: {temporalAsOfDate} (พ.ศ. {temporalSnapshot?.as_of_year_be || 2569})
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                            {TEMPORAL_MILESTONE_PRESETS.map((ms) => {
+                              const isSelected = temporalAsOfDate === ms.as_of_date;
+                              return (
+                                <button
+                                  key={ms.milestone_id}
+                                  onClick={() => {
+                                    fetchTemporalGraph({
+                                      asOfDate: ms.as_of_date,
+                                      knownAtDate: ms.known_at_date,
+                                    });
+                                    showToast(
+                                      languageMode === "th"
+                                        ? `ย้อนเวลาสู่วันที่ ${ms.as_of_date}: ${ms.title_th}`
+                                        : `Time-Machine set to ${ms.as_of_date}: ${ms.title_en}`
+                                    );
+                                  }}
+                                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                    isSelected
+                                      ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f] dark:border-[#f5b700] shadow-xs"
+                                      : `${subtleBox} hover:border-[#0f2c59]`
+                                  }`}
+                                >
+                                  <div className="font-mono text-[11px] font-extrabold">
+                                    {languageMode === "th" ? ms.badge_th : ms.badge_en}
+                                  </div>
+                                  <div className="text-[10.5px] font-medium mt-1 line-clamp-2 leading-snug opacity-90">
+                                    {languageMode === "th" ? ms.title_th : ms.title_en}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Active Milestone Banner & Summary KPIs */}
+                        {temporalSnapshot && (
+                          <div className="space-y-4">
+                            <div className="p-4 rounded-xl border border-indigo-500/30 bg-indigo-500/5 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                              <div className="space-y-1">
+                                <div className="text-xs font-extrabold text-[#0f2c59] dark:text-[#f5b700]">
+                                  {languageMode === "th"
+                                    ? temporalSnapshot.active_milestone.title_th
+                                    : temporalSnapshot.active_milestone.title_en}
+                                </div>
+                                <div className={`text-xs leading-relaxed ${mutedText}`}>
+                                  {languageMode === "th"
+                                    ? temporalSnapshot.active_milestone.key_legal_shift_th
+                                    : temporalSnapshot.active_milestone.key_legal_shift_en}
+                                </div>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5 shrink-0">
+                                {temporalSnapshot.active_milestone.affected_domains.map((dom) => (
+                                  <span
+                                    key={dom}
+                                    className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f]"
+                                  >
+                                    {dom}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                              <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5">
+                                <div className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-300">
+                                  {languageMode === "th" ? "มีผลบังคับใช้ ณ วันนี้" : "Active in Force"}
+                                </div>
+                                <div className="text-xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                  {temporalSnapshot.summary_metrics.active_in_force_count} Nodes
+                                </div>
+                                <div className={`text-[10px] ${mutedText}`}>
+                                  {temporalSnapshot.summary_metrics.active_temporal_edges_count} Active Edges
+                                </div>
+                              </div>
+
+                              <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5">
+                                <div className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-300">
+                                  {languageMode === "th" ? "ประกาศแล้วแต่ชะลอบังคับใช้" : "Enacted / Deferred"}
+                                </div>
+                                <div className="text-xl font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">
+                                  {temporalSnapshot.summary_metrics.enacted_pending_enforcement_count} Nodes
+                                </div>
+                                <div className={`text-[10px] ${mutedText}`}>
+                                  known_from &le; Date &lt; effective_from
+                                </div>
+                              </div>
+
+                              <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/5">
+                                <div className="text-[10px] uppercase font-bold text-rose-700 dark:text-rose-300">
+                                  {languageMode === "th" ? "ถูกยกเลิก / แก้ไขทับแล้ว" : "Superseded / Amended"}
+                                </div>
+                                <div className="text-xl font-extrabold text-rose-600 dark:text-rose-400 mt-0.5">
+                                  {temporalSnapshot.summary_metrics.superseded_or_repealed_count} Nodes
+                                </div>
+                                <div className={`text-[10px] ${mutedText}`}>
+                                  Historical versions archived
+                                </div>
+                              </div>
+
+                              <div className={`p-3 rounded-xl border ${subtleBox}`}>
+                                <div className={`text-[10px] uppercase font-bold ${mutedText}`}>
+                                  {languageMode === "th" ? "ยังไม่ตราขึ้นในเวลานั้น" : "Future (Not Yet Enacted)"}
+                                </div>
+                                <div className="text-xl font-extrabold mt-0.5">
+                                  {temporalSnapshot.summary_metrics.future_not_yet_enacted_count} Nodes
+                                </div>
+                                <div className={`text-[10px] ${mutedText}`}>
+                                  effective_from &gt; {temporalAsOfDate}
+                                </div>
+                              </div>
+
+                              <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 col-span-2 sm:col-span-1">
+                                <div className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-300">
+                                  {languageMode === "th" ? "ข้อหารือสรรพากร ณ เวลานั้น" : "RD Tax Rulings Known"}
+                                </div>
+                                <div className="text-xl font-extrabold text-blue-600 dark:text-blue-400 mt-0.5">
+                                  {temporalSnapshot.summary_metrics.rd_rulings_known_by_date.toLocaleString()}{" "}
+                                  <span className="text-xs font-normal opacity-75">
+                                    / {temporalSnapshot.summary_metrics.rd_rulings_total_corpus.toLocaleString()}
+                                  </span>
+                                </div>
+                                <div className={`text-[10px] ${mutedText}`}>
+                                  Up to B.E. {temporalSnapshot.as_of_year_be}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Point-in-Time Legal Graph Nodes & Temporal Lineage Edges */}
+                      {temporalSnapshot && (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+                          {/* Left 2 Columns: Point-in-Time ProvisionVersions, Decrees, Dika & Rulings */}
+                          <div className={`lg:col-span-2 p-5 rounded-2xl space-y-4 ${surfaceCard}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <h3 className="text-[16px] font-bold">
+                                  {languageMode === "th"
+                                    ? `สถานะโหนดความรู้กฎหมาย ณ วันที่ ${temporalSnapshot.as_of_date} (พ.ศ. ${temporalSnapshot.as_of_year_be})`
+                                    : `Point-in-Time Knowledge Graph Nodes as of ${temporalSnapshot.as_of_date} (B.E. ${temporalSnapshot.as_of_year_be})`}
+                                </h3>
+                                <p className={`text-[11.5px] ${mutedText}`}>
+                                  {languageMode === "th"
+                                    ? "แสดงรุ่นของมาตรากฎหมาย (ProvisionVersion) คำพิพากษาศาลฎีกา และข้อหารือที่มีผลบังคับใช้ในวันดังกล่าว"
+                                    : "Displays exact statutory versions, Royal Decrees, Supreme Court Dika cases, and RD rulings in force on the selected date."}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {temporalSnapshot.nodes.map((node) => {
+                                const badgeClass =
+                                  node.state_at_query_date === "ACTIVE_IN_FORCE"
+                                    ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                    : node.state_at_query_date === "ENACTED_PENDING_ENFORCEMENT"
+                                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                    : node.state_at_query_date === "SUPERSEDED_OR_REPEALED" ||
+                                      node.state_at_query_date === "CAUTION_AMENDED_BASIS"
+                                    ? "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30"
+                                    : "bg-slate-500/10 text-slate-500 border-slate-500/20 opacity-65";
+                                return (
+                                  <div
+                                    key={node.node_id}
+                                    className={`p-3.5 rounded-xl border space-y-2 transition-all ${
+                                      node.state_at_query_date === "ACTIVE_IN_FORCE"
+                                        ? "border-emerald-500/40 bg-emerald-500/5"
+                                        : node.state_at_query_date === "ENACTED_PENDING_ENFORCEMENT"
+                                        ? "border-amber-500/40 bg-amber-500/5"
+                                        : node.state_at_query_date === "FUTURE_NOT_YET_ENACTED"
+                                        ? `${subtleBox} opacity-60`
+                                        : subtleBox
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-mono text-[11px] font-bold text-[#0f2c59] dark:text-[#f5b700]">
+                                        {node.code_or_number}
+                                      </span>
+                                      <span
+                                        className={`px-2 py-0.5 rounded-md text-[9.5px] font-bold border ${badgeClass}`}
+                                      >
+                                        {node.state_at_query_date}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs font-bold leading-snug">
+                                      {languageMode === "th" ? node.title_th : node.title_en}
+                                    </div>
+                                    <div className={`text-[11px] leading-relaxed ${mutedText}`}>
+                                      {languageMode === "th" ? node.summary_th : node.summary_en}
+                                    </div>
+                                    <div className="pt-1.5 border-t border-slate-200/60 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[10px] font-mono opacity-80">
+                                      <span>
+                                        Effective: {node.effective_from} &rarr; {node.effective_to || "Present"}
+                                      </span>
+                                      <span>Known: {node.known_from}</span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          {/* Right Column: Temporal Edges + Neo4j Bi-Temporal Cypher */}
+                          <div className={`p-5 rounded-2xl space-y-4 ${surfaceCard}`}>
+                            <div>
+                              <h3 className="text-[16px] font-bold">
+                                {languageMode === "th"
+                                  ? "เส้นเชื่อมโยงการแก้ไขและบรรทัดฐาน (Temporal Edges)"
+                                  : "Temporal Supersession & Precedent Edges"}
+                              </h3>
+                              <p className={`text-[11.5px] ${mutedText}`}>
+                                {languageMode === "th"
+                                  ? "แสดงความสัมพันธ์ SUPERSEDES, IMPLEMENTS, CASE_APPLIES_VERSION และ INTERPRETATION_CHANGED_BY"
+                                  : "Tracks SUPERSEDES, IMPLEMENTS, CASE_APPLIES_VERSION, and INTERPRETATION_CHANGED_BY across time."}
+                              </p>
+                            </div>
+
+                            <div className="space-y-2.5">
+                              {temporalSnapshot.edges.map((edge) => (
+                                <div
+                                  key={edge.edge_id}
+                                  className={`p-3 rounded-xl border text-xs space-y-1 ${
+                                    edge.active_at_query_date
+                                      ? "border-emerald-500/30 bg-emerald-500/5"
+                                      : `${subtleBox} opacity-55`
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f]">
+                                      {edge.relationship_type}
+                                    </span>
+                                    <span className="font-mono text-[10px] opacity-75">
+                                      from {edge.valid_from}
+                                    </span>
+                                  </div>
+                                  <div className="font-mono text-[10.5px] font-semibold truncate">
+                                    {edge.source_node_id} &rarr; {edge.target_node_id}
+                                  </div>
+                                  <div className={`text-[11px] ${mutedText}`}>
+                                    {languageMode === "th" ? edge.explanation_th : edge.explanation_en}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Neo4j Bi-Temporal Cypher Query Box */}
+                            <div className="space-y-1.5 pt-2">
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                Neo4j AuraDB Bi-Temporal Cypher Query
+                              </div>
+                              <pre className="p-3 rounded-xl bg-slate-950 text-emerald-300 font-mono text-[10.5px] overflow-x-auto leading-relaxed border border-slate-800">
+                                {temporalSnapshot.bitemporal_cypher_query}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Stale Ruling & Overruled Precedent Temporal Detector (Across 3,643 RD Tax Rulings) */}
+                      <div className={`p-5 sm:p-6 rounded-2xl space-y-4 ${surfaceCard}`}>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div>
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10.5px] font-bold uppercase bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/30 mb-1">
+                              <AlertTriangle className="w-3.5 h-3.5" />
+                              <span>Stale-Ruling & Overruled-Precedent Detector (3,643 RD Tax Rulings)</span>
+                            </div>
+                            <h3 className="text-[18px] sm:text-[20px] font-extrabold">
+                              {languageMode === "th"
+                                ? "ระบบตรวจจับข้อหารือกรมสรรพากรที่กฎหมายแม่บทแก้ไขหรือมีคำพิพากษาฎีกาใหม่ทับแล้ว"
+                                : "Automatic Stale-Ruling & Statutory Amendment Detector Across 3,643 RD Tax Rulings"}
+                            </h3>
+                            <p className={`text-xs mt-0.5 ${mutedText}`}>
+                              {languageMode === "th"
+                                ? "ป้องกันความเสี่ยงในการอ้างอิงหนังสือตอบข้อหารือเก่า (เช่น ยุคก่อน ป.พ.พ. ฉบับที่ 23 เรื่องควบเข้ากัน A+B=A หรือก่อน พ.ร.ก. ภาษีส่วนเพิ่ม Pillar Two 15%)"
+                                : "Prevents citing historical Revenue Department rulings whose underlying statutory version was later amended (e.g., pre-2023 CCC Sec. 1238 mergers or pre-2025 Pillar Two BOI holidays)."}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input
+                              type="text"
+                              value={temporalQuery}
+                              onChange={(e) => setTemporalQuery(e.target.value)}
+                              placeholder={
+                                languageMode === "th"
+                                  ? "ค้นหา เช่น ควบ, โอนกิจการ, มาตรา 74, BOI..."
+                                  : "Search e.g. ควบ, โอนกิจการ, มาตรา 74, BOI..."
+                              }
+                              className={`px-3 py-1.5 rounded-xl border text-xs ${subtleBox}`}
+                            />
+                            <select
+                              value={temporalStatusFilter}
+                              onChange={(e) => {
+                                const sf = e.target.value as "ALL" | RulingTemporalReliabilityStatus;
+                                fetchTemporalGraph({ statusFilter: sf });
+                              }}
+                              className={`px-3 py-1.5 rounded-xl border text-xs font-semibold ${subtleBox}`}
+                            >
+                              <option value="ALL">All Reliability Tiers</option>
+                              <option value="SUPERSEDED_OR_NARROWED">Superseded / Narrowed by New Law</option>
+                              <option value="CAUTION_STATUTE_AMENDED">Caution: Statute Amended Later</option>
+                              <option value="CURRENT_ALIGNED">Current & Aligned</option>
+                            </select>
+                            <button
+                              onClick={() => fetchTemporalGraph({ query: temporalQuery })}
+                              className="px-4 py-1.5 rounded-xl text-xs font-bold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f] cursor-pointer"
+                            >
+                              {temporalLoading
+                                ? "Scanning..."
+                                : languageMode === "th"
+                                ? "สแกนข้อหารือ 3,643 ฉบับ"
+                                : "Scan 3,643 Rulings"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Quick Filter Preset Chips */}
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { q: "ควบ", labelTh: "ควบบริษัท / มาตรา 73-74 (ป.พ.พ. ฉบับที่ 23)", labelEn: "Corporate Merger / Sec. 73–74 (CCC No. 23 Shift)" },
+                            { q: "โอนกิจการ", labelTh: "โอนกิจการทั้งหมด EBT (ฎีกา 5412/2565)", labelEn: "Entire Business Transfer EBT (Dika 5412/2565)" },
+                            { q: "ส่งเสริมการลงทุน", labelTh: "บัตรส่งเสริม BOI (พ.ร.ก. ภาษีส่วนเพิ่ม 15%)", labelEn: "BOI Tax Holiday (Pillar Two 15% Top-Up Tax)" },
+                            { q: "มาตรา 70", labelTh: "ภาษีหัก ณ ที่จ่าย มาตรา 70 ต่างประเทศ", labelEn: "Cross-Border WHT Section 70" },
+                          ].map((chip) => (
+                            <button
+                              key={chip.q}
+                              onClick={() => fetchTemporalGraph({ query: chip.q })}
+                              className={`px-3 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer ${
+                                temporalQuery === chip.q
+                                  ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f]"
+                                  : subtleBox
+                              }`}
+                            >
+                              {languageMode === "th" ? chip.labelTh : chip.labelEn}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Stale Ruling Alert Cards */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                          {temporalStaleAlerts.map((alert) => {
+                            const isSuperseded = alert.temporal_status === "SUPERSEDED_OR_NARROWED";
+                            const isCaution = alert.temporal_status === "CAUTION_STATUTE_AMENDED";
+                            return (
+                              <div
+                                key={alert.ruling_no}
+                                className={`p-4 rounded-xl border space-y-2.5 ${
+                                  isSuperseded
+                                    ? "border-rose-500/40 bg-rose-500/5"
+                                    : isCaution
+                                    ? "border-amber-500/40 bg-amber-500/5"
+                                    : subtleBox
+                                }`}
+                              >
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="font-mono text-xs font-extrabold text-[#0f2c59] dark:text-[#f5b700]">
+                                      {alert.ruling_no}
+                                    </span>
+                                    <span className={`text-[11px] font-mono ${mutedText}`}>
+                                      ({alert.ruling_date_th} &bull; พ.ศ. {alert.ruling_year_be})
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-[10px] font-extrabold ${
+                                      isSuperseded
+                                        ? "bg-rose-500/20 text-rose-700 dark:text-rose-300"
+                                        : isCaution
+                                        ? "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                                        : "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                                    }`}
+                                  >
+                                    {alert.temporal_status}
+                                  </span>
+                                </div>
+
+                                <div className="text-xs font-bold leading-snug">
+                                  {alert.subject}
+                                </div>
+
+                                {alert.intervening_authority_title_th && (
+                                  <div className="p-2.5 rounded-lg bg-slate-900/5 dark:bg-slate-950/60 border border-slate-300/60 dark:border-slate-800 space-y-1">
+                                    <div className="text-[10.5px] font-bold text-rose-600 dark:text-amber-400">
+                                      ⚡{" "}
+                                      {languageMode === "th"
+                                        ? `กฎหมาย/บรรทัดฐานที่ออกตามมาภายหลัง (${alert.intervening_event_date}):`
+                                        : `Subsequent Intervening Authority (${alert.intervening_event_date}):`}
+                                    </div>
+                                    <div className="text-[11px] font-semibold">
+                                      {languageMode === "th"
+                                        ? alert.intervening_authority_title_th
+                                        : alert.intervening_authority_title_en}
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className={`text-[11.5px] leading-relaxed ${mutedText}`}>
+                                  {languageMode === "th"
+                                    ? alert.risk_explanation_th
+                                    : alert.risk_explanation_en}
+                                </div>
+
+                                <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 text-[11px] font-semibold text-[#0f2c59] dark:text-[#f5b700]">
+                                  ✓ {languageMode === "th" ? "คำแนะนำปี 2569: " : "2026 Action: "}
+                                  {languageMode === "th"
+                                    ? alert.recommended_2026_action_th
+                                    : alert.recommended_2026_action_en}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Date A vs. Date B Transaction Replay & Doctrinal Shift Matrix */}
+                      {temporalComparison && (
+                        <div className={`p-5 sm:p-6 rounded-2xl space-y-4 ${surfaceCard}`}>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <h3 className="text-[18px] font-extrabold">
+                                {languageMode === "th"
+                                  ? `เปรียบเทียบสถานะกฎหมายสองจุดเวลา: วันทำสัญญา (${temporalComparison.date_a}) vs. วันตรวจสอบ (${temporalComparison.date_b})`
+                                  : `Date-vs-Date Transaction Replay: Contract Date (${temporalComparison.date_a}) vs. Audit Date (${temporalComparison.date_b})`}
+                              </h3>
+                              <p className={`text-xs ${mutedText}`}>
+                                {languageMode === "th"
+                                  ? `ระหว่างสองวันดังกล่าว มีข้อหารือกรมสรรพากรออกใหม่เพิ่ม ${temporalComparison.rd_rulings_added_between_dates.toLocaleString()} ฉบับ และมีกฎหมายบังคับใช้ใหม่ ${temporalComparison.newly_enacted_nodes.length} รายการ`
+                                  : `Between these two dates, ${temporalComparison.rd_rulings_added_between_dates.toLocaleString()} new RD tax rulings were issued and ${temporalComparison.newly_enacted_nodes.length} new statutory/regulatory nodes entered into force.`}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs">
+                              <span className={mutedText}>Compare Date A:</span>
+                              <input
+                                type="date"
+                                value={temporalCompareDateA}
+                                onChange={(e) => {
+                                  const d = e.target.value;
+                                  setTemporalCompareDateA(d);
+                                  fetchTemporalGraph({ compareDateA: d });
+                                }}
+                                className={`px-2.5 py-1.5 rounded-lg border font-mono font-bold ${subtleBox}`}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                            {temporalComparison.key_doctrinal_shifts.map((shift, idx) => (
+                              <div
+                                key={idx}
+                                className={`p-4 rounded-xl border space-y-2.5 ${subtleBox}`}
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f]">
+                                    {shift.domain}
+                                  </span>
+                                  <span className="font-mono text-[11px] font-bold">
+                                    {shift.provision_code}
+                                  </span>
+                                </div>
+                                <div className="p-2.5 rounded-lg border border-rose-500/25 bg-rose-500/5 text-[11px] space-y-0.5">
+                                  <div className="font-mono text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                                    Date A ({temporalComparison.date_a} / พ.ศ. {temporalComparison.year_be_a}):
+                                  </div>
+                                  <div>
+                                    {languageMode === "th"
+                                      ? shift.state_at_date_a_th
+                                      : shift.state_at_date_a_en}
+                                  </div>
+                                </div>
+                                <div className="p-2.5 rounded-lg border border-emerald-500/30 bg-emerald-500/5 text-[11px] space-y-0.5">
+                                  <div className="font-mono text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                    Date B ({temporalComparison.date_b} / พ.ศ. {temporalComparison.year_be_b}):
+                                  </div>
+                                  <div>
+                                    {languageMode === "th"
+                                      ? shift.state_at_date_b_th
+                                      : shift.state_at_date_b_en}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* ===========================================================
                       SECTION 1: 19 COMPLETED INDUSTRY LEGAL DATABASES (IND-*)
