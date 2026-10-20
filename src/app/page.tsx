@@ -121,6 +121,15 @@ import {
   type TemporalDateComparisonResult,
   type RulingTemporalReliabilityStatus,
 } from "@/core/graph/temporal-graph-engine";
+import {
+  REG24_12_MANDATORY_TECHNOLOGIES,
+  APPROVED_RULES_AS_CODE_REGISTRY,
+  COUNTERFACTUAL_SCENARIO_PAIRS,
+  type MandatoryUatScenarioId,
+  type UniversalLegalAnalysisContract,
+  type CounterfactualScenarioComparison,
+  type RuleExecutionResult,
+} from "@/core/intelligence/advanced-legal-intelligence-engine";
 
 interface SnapshotData {
   regulators: Regulator[];
@@ -288,8 +297,34 @@ export default function Reg24MetroConsole() {
     deepseek: { enabled: true, allow_client_docs: false, api_key_masked: "sk-ds-...19xP (Public Law Only)" },
   });
   const [uxLibraryTab, setUxLibraryTab] = useState<
-    "all" | "authorities" | "industries" | "modules" | "statutes" | "cases_rulings" | "temporal_graph"
+    | "all"
+    | "authorities"
+    | "industries"
+    | "modules"
+    | "statutes"
+    | "cases_rulings"
+    | "temporal_graph"
+    | "reg_ai_12"
   >("industries");
+
+  // REG24 Advanced Legal Intelligence Infrastructure (PRD v1.0: REG-AI-01..12 & UAT A-G) states
+  const [activeUatScenarioId, setActiveUatScenarioId] = useState<MandatoryUatScenarioId>(
+    "TEST_A_HISTORICAL_ANALYSIS"
+  );
+  const [activeScenarioPairId, setActiveScenarioPairId] = useState<string>(
+    "SHARE_VS_ASSET_ACQUISITION"
+  );
+  const [activeRacRuleId, setActiveRacRuleId] = useState<string>(
+    "rac.th.corp.ccc1097.promoters.v2023"
+  );
+  const [universalAnalysisRes, setUniversalAnalysisRes] =
+    useState<UniversalLegalAnalysisContract | null>(null);
+  const [scenarioComparisonRes, setScenarioComparisonRes] =
+    useState<CounterfactualScenarioComparison | null>(
+      COUNTERFACTUAL_SCENARIO_PAIRS.SHARE_VS_ASSET_ACQUISITION
+    );
+  const [racExecutionRes, setRacExecutionRes] = useState<RuleExecutionResult | null>(null);
+  const [regAiLoading, setRegAiLoading] = useState<boolean>(false);
 
   // REG24-TEMPORAL-GRAPH-001: Bi-Temporal Legal Graph Time-Machine & Stale-Ruling Detector states
   const [temporalAsOfDate, setTemporalAsOfDate] = useState<string>("2026-10-20");
@@ -1802,6 +1837,72 @@ export default function Reg24MetroConsole() {
     [temporalAsOfDate, temporalKnownAtDate, temporalCompareDateA, temporalQuery, temporalStatusFilter]
   );
 
+  const fetchRegAiIntelligence = useCallback(
+    async (customUatId?: MandatoryUatScenarioId, customScenarioPairId?: string) => {
+      const uatToRun = customUatId || activeUatScenarioId;
+      const pairToRun = customScenarioPairId || activeScenarioPairId;
+      if (customUatId) setActiveUatScenarioId(customUatId);
+      if (customScenarioPairId) setActiveScenarioPairId(customScenarioPairId);
+      setRegAiLoading(true);
+      try {
+        const res = await fetch(
+          `/api/v1/legal/intelligence?uat_scenario_id=${encodeURIComponent(
+            uatToRun
+          )}&scenario_pair_id=${encodeURIComponent(pairToRun)}`
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data.universal_analysis_response) {
+            setUniversalAnalysisRes(data.universal_analysis_response);
+            if (data.universal_analysis_response.rule_results?.[0]) {
+              setRacExecutionRes(data.universal_analysis_response.rule_results[0]);
+            }
+          }
+          if (data.scenario_comparison) {
+            setScenarioComparisonRes(data.scenario_comparison);
+          }
+        }
+      } catch {
+        // Ignore network error during initial load
+      } finally {
+        setRegAiLoading(false);
+      }
+    },
+    [activeUatScenarioId, activeScenarioPairId]
+  );
+
+  const handleEvaluateRacRule = async (
+    ruleId: string,
+    verifiedFacts: Record<string, unknown>,
+    llmInferredFacts: Record<string, unknown> = {}
+  ) => {
+    setActiveRacRuleId(ruleId);
+    setRegAiLoading(true);
+    try {
+      const res = await fetch("/api/v1/legal/intelligence", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "evaluate_rule_as_code",
+          rule_id: ruleId,
+          verified_facts: verifiedFacts,
+          llm_inferred_facts: llmInferredFacts,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.rule_execution) {
+          setRacExecutionRes(data.rule_execution);
+          showToast(
+            `Rules-as-Code '${ruleId}' -> ${data.rule_execution.outcome} [3-Valued: ${data.rule_execution.three_valued_truth}]`
+          );
+        }
+      }
+    } finally {
+      setRegAiLoading(false);
+    }
+  };
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
@@ -1830,6 +1931,7 @@ export default function Reg24MetroConsole() {
     handleSimulateCostRouter();
     handleRunUniversalMcpTool();
     fetchTemporalGraph();
+    fetchRegAiIntelligence();
 
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -2997,6 +3099,27 @@ export default function Reg24MetroConsole() {
                                     : "Bi-Temporal Graph Time-Machine (2001–2026)"}
                                 </span>
                               </button>
+
+                              {/* Contextual Control 6: 12-Tech Advanced Legal Intelligence & Execution (REG-AI-01..12) */}
+                              <button
+                                onClick={() => {
+                                  setUxResearchDestination("library");
+                                  setUxLibraryTab("reg_ai_12");
+                                  fetchRegAiIntelligence();
+                                }}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors ${
+                                  isLightMinimal
+                                    ? "bg-emerald-50 border-emerald-300 text-emerald-900 hover:bg-emerald-100"
+                                    : "bg-emerald-950/50 border-emerald-500/40 text-emerald-300 hover:border-[#f5b700]"
+                                }`}
+                              >
+                                <Cpu className="w-3.5 h-3.5 text-[#0f2c59] dark:text-[#f5b700]" />
+                                <span>
+                                  {languageMode === "th"
+                                    ? "12 เทคโนโลยีกฎหมาย (REG-AI-01..12 + UAT A–G)"
+                                    : "12-Tech Legal AI (REG-AI-01..12 + UAT A–G)"}
+                                </span>
+                              </button>
                             </div>
 
                             {/* Primary Action Button */}
@@ -3948,8 +4071,8 @@ export default function Reg24MetroConsole() {
                     </div>
                   </div>
 
-                  {/* Clean Niche Category Selector Cards (6 Focused Views) */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {/* Clean Niche Category Selector Cards (7 Focused Views) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
                     {[
                       {
                         id: "industries" as const,
@@ -3993,6 +4116,13 @@ export default function Reg24MetroConsole() {
                         labelTh: "6. กราฟสองมิติเวลา (Time-Machine)",
                         subEn: "Point-in-Time · Stale Ruling Alert",
                       },
+                      {
+                        id: "reg_ai_12" as const,
+                        count: "12 Engines",
+                        labelEn: "7. 12-Tech Legal AI",
+                        labelTh: "7. 12 เทคโนโลยีกฎหมาย (REG-AI)",
+                        subEn: "REG-AI-01..12 · UAT A–G",
+                      },
                     ].map((stat) => {
                       const active = uxLibraryTab === stat.id;
                       return (
@@ -4003,8 +4133,11 @@ export default function Reg24MetroConsole() {
                             if (stat.id === "temporal_graph") {
                               fetchTemporalGraph();
                             }
+                            if (stat.id === "reg_ai_12") {
+                              fetchRegAiIntelligence();
+                            }
                           }}
-                          className={`p-3.5 rounded-2xl text-left transition-all cursor-pointer border ${
+                          className={`p-3 rounded-2xl text-left transition-all cursor-pointer border ${
                             active
                               ? isLightMinimal
                                 ? "bg-[#0f2c59] text-white border-[#0f2c59] shadow-sm"
@@ -4012,14 +4145,14 @@ export default function Reg24MetroConsole() {
                               : `${surfaceCard} hover:border-[#0f2c59]`
                           }`}
                         >
-                          <div className="text-[20px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                          <div className="text-[18px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                             {stat.count}
                           </div>
-                          <div className="text-[12px] font-semibold mt-1 leading-snug">
+                          <div className="text-[11.5px] font-semibold mt-1 leading-snug">
                             {languageMode === "th" ? stat.labelTh : stat.labelEn}
                           </div>
                           <div
-                            className={`text-[11px] mt-0.5 ${
+                            className={`text-[10.5px] mt-0.5 ${
                               active
                                 ? isLightMinimal
                                   ? "text-slate-200"
@@ -4033,6 +4166,542 @@ export default function Reg24MetroConsole() {
                       );
                     })}
                   </div>
+
+                  {/* ===========================================================
+                      SECTION 7: REG24 ADVANCED LEGAL INTELLIGENCE & EXECUTION INFRASTRUCTURE
+                      (PRD v1.0: REG-AI-01..12 + 3 Cohesive Pillars + UAT Scenarios Test A–G)
+                      =========================================================== */}
+                  {(uxLibraryTab === "all" || uxLibraryTab === "reg_ai_12") && (
+                    <div className="space-y-6">
+                      {/* Header & 3 Cohesive Infrastructure Pillars (Section 17) */}
+                      <div className={`p-5 sm:p-6 rounded-2xl space-y-5 ${surfaceCard}`}>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div>
+                            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full text-[11px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 mb-1.5">
+                              <Cpu className="w-3.5 h-3.5" />
+                              <span>PRD v1.0 &bull; REG-AI-01 through REG-AI-12 &bull; 325 Benchmark Cases</span>
+                            </div>
+                            <h2 className="text-[20px] sm:text-[24px] font-extrabold tracking-[-0.03em] leading-tight">
+                              {languageMode === "th"
+                                ? "REG24 — โครงสร้างพื้นฐานปัญญากฎหมายและการบังคับใช้สำหรับองค์กร (12 เทคโนโลยีหลัก)"
+                                : "REG24 — Legal Intelligence & Execution Infrastructure for Enterprise AI (12 Mandatory Technologies)"}
+                            </h2>
+                            <p className={`text-[12.5px] mt-1 ${mutedText}`}>
+                              {languageMode === "th"
+                                ? "หลักการสถาปัตยกรรมพื้นฐาน: แยกแยะอย่างเคร่งครัดระหว่าง (1) ข้อมูลตัวบทกฎหมาย (Legal Information), (2) การตีความทางกฎหมาย (Legal Interpretation), (3) กฎคำนวณที่ทนายอนุมัติแล้ว (Executable Legal Rules), และ (4) การดำเนินการที่ได้รับมอบอำนาจ (Authorized Legal Actions)"
+                                : "Fundamental Principle: Strictly separates (1) Legal Information, (2) Legal Interpretation, (3) Lawyer-Approved Executable Legal Rules, and (4) Human-Authorized Legal Actions."}
+                            </p>
+                          </div>
+                          <span className="px-3 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 shrink-0">
+                            ✓ All 12 Engines Active &bull; All Safety Gates Passed
+                          </span>
+                        </div>
+
+                        {/* Section 17: The 3 Cohesive Engines */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                          {[
+                            {
+                              pillar: "1. Legal Knowledge Engine",
+                              pillarTh: "1. เอนจินความรู้กฎหมาย (Legal Knowledge Engine)",
+                              descEn: "Find, connect, version, and cryptographically verify primary Thai statutes, 3,643 RD tax rulings, Dika precedents, and client documents.",
+                              descTh: "ค้นคืน เชื่อมโยง จัดการรุ่นสองมิติเวลา และพิสูจน์ความแท้จริงของตัวบทกฎหมาย ข้อหารือ 3,643 ฉบับ และเอกสารสัญญา",
+                              techs: ["REG-AI-01 Hybrid RAG", "REG-AI-03 Ontology/SHACL", "REG-AI-05 5-Gate Provenance", "REG-AI-08 Doc Intelligence"],
+                              accent: "border-blue-500/30 bg-blue-500/5",
+                            },
+                            {
+                              pillar: "2. Legal Decision Engine",
+                              pillarTh: "2. เอนจินวินิจฉัยและตัดสินใจ (Legal Decision Engine)",
+                              descEn: "Determine applicability, execute lawyer-approved Rules-as-Code, resolve competing authorities, run 3-valued Neuro-Symbolic logic, and compare scenarios.",
+                              descTh: "ประมวลผล Rules-as-Code 5 สถานะ จัดลำดับศักดิ์กฎหมาย ตรรกะนิวโร-ซิมโบลิก 3 ค่า และเปรียบเทียบทางเลือกธุรกรรม",
+                              techs: ["REG-AI-02 Agentic DRIFT", "REG-AI-04 Rules-as-Code", "REG-AI-06 Authority Hierarchy", "REG-AI-09 Neuro-Symbolic", "REG-AI-10 Counterfactuals"],
+                              accent: "border-amber-500/30 bg-amber-500/5",
+                            },
+                            {
+                              pillar: "3. Legal Execution Engine",
+                              pillarTh: "3. เอนจินปฏิบัติการและกำกับดูแล (Legal Execution Engine)",
+                              descEn: "Convert verified obligations into client-specific regulatory change alerts, 6-agent verification workflows, and 325-case CI/CD quality gates.",
+                              descTh: "แปลงหน้าที่ตามกฎหมายเป็นงานแจ้งเตือนผลกระทบ ตรวจสอบด้วยทีม 6 เอเจนต์อิสระ และควบคุมคุณภาพด้วยชุดทดสอบ 325 คดี",
+                              techs: ["REG-AI-07 Change Impact", "REG-AI-11 6-Agent Verifier", "REG-AI-12 Continuous QA (325 Cases)"],
+                              accent: "border-emerald-500/30 bg-emerald-500/5",
+                            },
+                          ].map((p, idx) => (
+                            <div key={idx} className={`p-4 rounded-xl border space-y-2.5 ${p.accent}`}>
+                              <div className="text-sm font-extrabold text-[#0f2c59] dark:text-[#f5b700]">
+                                {languageMode === "th" ? p.pillarTh : p.pillar}
+                              </div>
+                              <p className={`text-xs leading-relaxed ${mutedText}`}>
+                                {languageMode === "th" ? p.descTh : p.descEn}
+                              </p>
+                              <div className="flex flex-wrap gap-1.5 pt-1">
+                                {p.techs.map((t) => (
+                                  <span
+                                    key={t}
+                                    className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f]"
+                                  >
+                                    {t}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Complete 12-Technology Grid (REG-AI-01 through REG-AI-12) */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                          {REG24_12_MANDATORY_TECHNOLOGIES.map((tech) => (
+                            <div
+                              key={tech.id}
+                              className={`p-3.5 rounded-xl border flex flex-col justify-between space-y-2.5 ${subtleBox}`}
+                            >
+                              <div className="space-y-1.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="px-2 py-0.5 rounded font-mono text-[11px] font-extrabold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f]">
+                                    {tech.id} &bull; {tech.priority}
+                                  </span>
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                    ● ACTIVE
+                                  </span>
+                                </div>
+                                <div className="text-[13px] font-bold leading-snug">
+                                  {languageMode === "th" ? tech.name_th : tech.name_en}
+                                </div>
+                                <p className={`text-[11px] leading-relaxed ${mutedText}`}>
+                                  {languageMode === "th" ? tech.objective_th : tech.objective_en}
+                                </p>
+                              </div>
+                              <div className="pt-2 border-t border-slate-200/60 dark:border-slate-800 flex items-center justify-between text-[10.5px] font-mono">
+                                <span className={mutedText}>{tech.acceptance_metric_label}:</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                  {tech.acceptance_metric_value}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Section 14: Interactive Runner for all 7 Mandatory End-to-End UAT Scenarios (Test A – Test G) */}
+                      <div className={`p-5 sm:p-6 rounded-2xl space-y-5 ${surfaceCard}`}>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                              Section 6 Orchestrator &bull; Section 7.3 Universal Response Contract &bull; Section 14 Mandatory UATs
+                            </div>
+                            <h3 className="text-[18px] sm:text-[20px] font-extrabold mt-0.5">
+                              {languageMode === "th"
+                                ? "ทดสอบสถานการณ์บังคับครบวงจร 7 กรณี (End-to-End UAT Scenarios: Test A – Test G)"
+                                : "Interactive End-to-End UAT Runner (Mandatory Scenarios: Test A through Test G)"}
+                            </h3>
+                          </div>
+                          <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                            {regAiLoading ? "Executing Orchestrator..." : `Trace ID: ${universalAnalysisRes?.trace_id || "Ready"}`}
+                          </span>
+                        </div>
+
+                        {/* 7 UAT Buttons */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+                          {(
+                            [
+                              {
+                                id: "TEST_A_HISTORICAL_ANALYSIS" as const,
+                                badge: "Test A",
+                                labelTh: "วิเคราะห์กฎหมายย้อนเวลา (ปี 2564)",
+                                labelEn: "Historical Legal Analysis (2021)",
+                              },
+                              {
+                                id: "TEST_B_COMPLIANCE_CHECK" as const,
+                                badge: "Test B",
+                                labelTh: "ตรวจสอบหน้าที่ตามกฎหมาย (Rules-as-Code)",
+                                labelEn: "Corporate Compliance Check",
+                              },
+                              {
+                                id: "TEST_C_CONFLICTING_AUTHORITY" as const,
+                                badge: "Test C",
+                                labelTh: "วินิจฉัยความขัดแย้งของแหล่งอ้างอิง",
+                                labelEn: "Conflicting Legal Authority",
+                              },
+                              {
+                                id: "TEST_D_REGULATORY_AMENDMENT" as const,
+                                badge: "Test D",
+                                labelTh: "ผลกระทบการแก้ไขกฎหมายใหม่",
+                                labelEn: "Regulatory Amendment Impact",
+                              },
+                              {
+                                id: "TEST_E_CONTRACT_ANALYSIS" as const,
+                                badge: "Test E",
+                                labelTh: "วิเคราะห์เอกสารสัญญา (OCR Span)",
+                                labelEn: "Commercial Contract Analysis",
+                              },
+                              {
+                                id: "TEST_F_SCENARIO_COMPARISON" as const,
+                                badge: "Test F",
+                                labelTh: "เปรียบเทียบทางเลือกธุรกรรม (M&A)",
+                                labelEn: "Scenario Comparison (Share vs EBT)",
+                              },
+                              {
+                                id: "TEST_G_EXTERNAL_MCP_ACCESS" as const,
+                                badge: "Test G",
+                                labelTh: "เชื่อมต่อ AI ภายนอกผ่าน MCP",
+                                labelEn: "External AI Access via MCP",
+                              },
+                            ]
+                          ).map((uat) => {
+                            const selected = activeUatScenarioId === uat.id;
+                            return (
+                              <button
+                                key={uat.id}
+                                onClick={() => {
+                                  fetchRegAiIntelligence(uat.id);
+                                  showToast(
+                                    languageMode === "th"
+                                      ? `รันชุดทดสอบ ${uat.badge}: ${uat.labelTh}`
+                                      : `Executed ${uat.badge}: ${uat.labelEn}`
+                                  );
+                                }}
+                                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                                  selected
+                                    ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f] dark:border-[#f5b700] shadow-xs"
+                                    : `${subtleBox} hover:border-[#0f2c59]`
+                                }`}
+                              >
+                                <div className="font-mono text-xs font-extrabold">{uat.badge}</div>
+                                <div className="text-[11px] font-semibold mt-1 leading-snug">
+                                  {languageMode === "th" ? uat.labelTh : uat.labelEn}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Live Universal Analysis Contract Output */}
+                        {universalAnalysisRes && (
+                          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-2">
+                            {/* Left 2 Columns: Epistemic Separation, Findings, Authority & Rules-as-Code */}
+                            <div className="lg:col-span-2 space-y-4">
+                              <div className={`p-4 rounded-xl border space-y-3 ${subtleBox}`}>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2.5 py-0.5 rounded font-mono text-[11px] font-extrabold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f]">
+                                      {universalAnalysisRes.request_type}
+                                    </span>
+                                    <span className="font-mono text-xs font-bold">
+                                      legal_as_of: {universalAnalysisRes.legal_as_of}
+                                    </span>
+                                  </div>
+                                  <span
+                                    className={`px-2.5 py-0.5 rounded text-[11px] font-extrabold ${
+                                      universalAnalysisRes.status === "VERIFIED"
+                                        ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+                                        : universalAnalysisRes.status === "HUMAN_REVIEW_REQUIRED"
+                                        ? "bg-rose-500/20 text-rose-700 dark:text-rose-300"
+                                        : "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                                    }`}
+                                  >
+                                    Status: {universalAnalysisRes.status}
+                                  </span>
+                                </div>
+
+                                <div className="text-xs font-bold">
+                                  {universalAnalysisRes.query}
+                                </div>
+
+                                <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/25 text-xs leading-relaxed">
+                                  {languageMode === "th"
+                                    ? universalAnalysisRes.findings.summary_th
+                                    : universalAnalysisRes.findings.summary_en}
+                                </div>
+
+                                {/* Epistemic 4-Way Separation (Section 1 Fundamental Principle) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                                  <div className="p-2.5 rounded-lg border border-blue-500/25 bg-blue-500/5 text-[11px] space-y-1">
+                                    <div className="font-bold text-blue-700 dark:text-blue-300">
+                                      1. LEGAL INFORMATION (ตัวบทกฎหมายบังคับใช้)
+                                    </div>
+                                    {universalAnalysisRes.epistemic_separation.legal_information_items.map(
+                                      (it, i) => (
+                                        <div key={i} className="opacity-90">
+                                          &bull; {it}
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+
+                                  <div className="p-2.5 rounded-lg border border-amber-500/25 bg-amber-500/5 text-[11px] space-y-1">
+                                    <div className="font-bold text-amber-700 dark:text-amber-300">
+                                      2. LEGAL INTERPRETATION (การตีความ/ไม่ใช่กฎอัตโนมัติ)
+                                    </div>
+                                    {universalAnalysisRes.epistemic_separation.legal_interpretation_items.map(
+                                      (it, i) => (
+                                        <div key={i} className="opacity-90">
+                                          &bull; {it}
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+
+                                  <div className="p-2.5 rounded-lg border border-emerald-500/25 bg-emerald-500/5 text-[11px] space-y-1">
+                                    <div className="font-bold text-emerald-700 dark:text-emerald-300">
+                                      3. EXECUTABLE LEGAL RULES (Rules-as-Code ที่อนุมัติแล้ว)
+                                    </div>
+                                    {universalAnalysisRes.epistemic_separation.executable_rule_items
+                                      .length > 0 ? (
+                                      universalAnalysisRes.epistemic_separation.executable_rule_items.map(
+                                        (it, i) => (
+                                          <div key={i} className="font-mono text-[10.5px]">
+                                            &bull; {it}
+                                          </div>
+                                        )
+                                      )
+                                    ) : (
+                                      <div className="opacity-75">Scenario comparison mode</div>
+                                    )}
+                                  </div>
+
+                                  <div className="p-2.5 rounded-lg border border-purple-500/25 bg-purple-500/5 text-[11px] space-y-1">
+                                    <div className="font-bold text-purple-700 dark:text-purple-300">
+                                      4. AUTHORIZED LEGAL ACTIONS (ต้องได้รับอนุมัติจากมนุษย์)
+                                    </div>
+                                    {universalAnalysisRes.epistemic_separation.authorized_action_items.map(
+                                      (it, i) => (
+                                        <div key={i} className="opacity-90">
+                                          &bull; {it}
+                                        </div>
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* REG-AI-04 & REG-AI-09 Interactive Rules-as-Code & Three-Valued Neuro-Symbolic Runner */}
+                              <div className={`p-4 rounded-xl border space-y-3 ${subtleBox}`}>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <div className="text-xs font-extrabold">
+                                    {languageMode === "th"
+                                      ? "REG-AI-04 Rules-as-Code (5 สถานะ) & REG-AI-09 Neuro-Symbolic (ตรรกะ 3 ค่า: TRUE / FALSE / UNKNOWN)"
+                                      : "REG-AI-04 Rules-as-Code (5 Outcomes) & REG-AI-09 Neuro-Symbolic (3-Valued Logic)"}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    <button
+                                      onClick={() =>
+                                        handleEvaluateRacRule(
+                                          "rac.th.corp.ccc1097.promoters.v2023",
+                                          { promoter_count: 2, transaction_date: "2026-10-20" }
+                                        )
+                                      }
+                                      className="px-2.5 py-1 rounded text-[10.5px] font-bold bg-emerald-600 text-white cursor-pointer"
+                                    >
+                                      1. Test SATISFIED (2 Promoters in 2026)
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleEvaluateRacRule(
+                                          "rac.th.corp.ccc1097.promoters.v2023",
+                                          { promoter_count: 2, transaction_date: "2021-06-15" }
+                                        )
+                                      }
+                                      className="px-2.5 py-1 rounded text-[10.5px] font-bold bg-rose-600 text-white cursor-pointer"
+                                    >
+                                      2. Test VIOLATED (2 Promoters in 2021)
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleEvaluateRacRule(
+                                          "rac.th.tax.gmt.pillartwo15.v2025",
+                                          { mne_consolidated_revenue_eur: 120000000, effective_tax_rate_pct: 0 }
+                                        )
+                                      }
+                                      className="px-2.5 py-1 rounded text-[10.5px] font-bold bg-slate-600 text-white cursor-pointer"
+                                    >
+                                      3. Test NOT_APPLICABLE (&lt; EUR 750M)
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleEvaluateRacRule(
+                                          "rac.th.tax.gmt.pillartwo15.v2025",
+                                          {},
+                                          { mne_consolidated_revenue_eur: "LLM guessed EUR 900M (Unverified)" }
+                                        )
+                                      }
+                                      className="px-2.5 py-1 rounded text-[10.5px] font-bold bg-amber-600 text-white cursor-pointer"
+                                    >
+                                      4. Test INSUFFICIENT_INFORMATION (Quarantine LLM Guess)
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        handleEvaluateRacRule(
+                                          "rac.th.ai.unapproved.draft.demo",
+                                          { director_attended_meeting: true }
+                                        )
+                                      }
+                                      className="px-2.5 py-1 rounded text-[10.5px] font-bold bg-purple-600 text-white cursor-pointer"
+                                    >
+                                      5. Test REQUIRES_LEGAL_REVIEW (Block AI Draft Rule)
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {racExecutionRes && (
+                                  <div className="p-3 rounded-lg bg-slate-950 text-slate-100 font-mono text-[11px] space-y-1.5 border border-slate-800">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <span className="text-[#f5b700] font-bold">
+                                        Rule: {racExecutionRes.rule_id} (v{racExecutionRes.rule_version} &bull; {racExecutionRes.lifecycle_state})
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">
+                                        Outcome: {racExecutionRes.outcome} | 3-Valued: {racExecutionRes.three_valued_truth}
+                                      </span>
+                                    </div>
+                                    <div className="text-slate-300">
+                                      {languageMode === "th"
+                                        ? racExecutionRes.reasoning_trace_th
+                                        : racExecutionRes.reasoning_trace_en}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Right Column: REG-AI-11 6-Agent Legal Verification & Critic Disagreement Inspector */}
+                            <div className={`p-4 rounded-xl border space-y-3 ${subtleBox}`}>
+                              <div className="flex items-center justify-between">
+                                <div className="text-xs font-extrabold">
+                                  {languageMode === "th"
+                                    ? "REG-AI-11 ทีมเอเจนต์ตรวจสอบอิสระ 6 บทบาท"
+                                    : "REG-AI-11 6-Agent Verification Workflow"}
+                                </div>
+                                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f]">
+                                  No Majority-Vote Override
+                                </span>
+                              </div>
+
+                              <div className="space-y-2">
+                                {universalAnalysisRes.multi_agent_verification.agents_invoked.map(
+                                  (ag) => (
+                                    <div
+                                      key={ag.agent_role}
+                                      className={`p-2.5 rounded-lg border text-[11px] space-y-1 ${
+                                        ag.verdict === "VERIFIED_PASS"
+                                          ? "border-emerald-500/30 bg-emerald-500/5"
+                                          : "border-rose-500/40 bg-rose-500/10"
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between font-bold">
+                                        <span>{ag.agent_role}</span>
+                                        <span
+                                          className={`font-mono text-[10px] ${
+                                            ag.verdict === "VERIFIED_PASS"
+                                              ? "text-emerald-600 dark:text-emerald-400"
+                                              : "text-rose-600 dark:text-rose-400"
+                                          }`}
+                                        >
+                                          {ag.verdict} ({(ag.confidence_score * 100).toFixed(0)}%)
+                                        </span>
+                                      </div>
+                                      <div className={`text-[10.5px] ${mutedText}`}>
+                                        {languageMode === "th" ? ag.findings_th : ag.findings_en}
+                                      </div>
+                                    </div>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* REG-AI-10: Counterfactual & Causal Scenario Comparison Engine */}
+                      {scenarioComparisonRes && (
+                        <div className={`p-5 sm:p-6 rounded-2xl space-y-4 ${surfaceCard}`}>
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <div>
+                              <div className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                REG-AI-10 &bull; Causal & Counterfactual Legal Scenario Analysis Engine
+                              </div>
+                              <h3 className="text-[18px] font-extrabold mt-0.5">
+                                {languageMode === "th"
+                                  ? scenarioComparisonRes.title_th
+                                  : scenarioComparisonRes.title_en}
+                              </h3>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() =>
+                                  fetchRegAiIntelligence(undefined, "SHARE_VS_ASSET_ACQUISITION")
+                                }
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                                  activeScenarioPairId === "SHARE_VS_ASSET_ACQUISITION"
+                                    ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f]"
+                                    : subtleBox
+                                }`}
+                              >
+                                Share vs. EBT Acquisition
+                              </button>
+                              <button
+                                onClick={() => fetchRegAiIntelligence(undefined, "MERGER_VS_EBT")}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                                  activeScenarioPairId === "MERGER_VS_EBT"
+                                    ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f]"
+                                    : subtleBox
+                                }`}
+                              >
+                                Merger (A+B=A) vs. EBT
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {[scenarioComparisonRes.option_a, scenarioComparisonRes.option_b].map(
+                              (opt, i) => (
+                                <div
+                                  key={i}
+                                  className={`p-4 rounded-xl border space-y-2.5 ${subtleBox}`}
+                                >
+                                  <div className="text-sm font-extrabold text-[#0f2c59] dark:text-[#f5b700]">
+                                    {languageMode === "th" ? opt.name_th : opt.name_en}
+                                  </div>
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {opt.governing_provisions.map((gp) => (
+                                      <span
+                                        key={gp}
+                                        className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]"
+                                      >
+                                        {gp}
+                                      </span>
+                                    ))}
+                                  </div>
+                                  <div className="text-xs leading-relaxed">
+                                    <strong>
+                                      {languageMode === "th" ? "ผลทางภาษีอากร: " : "Tax Consequences: "}
+                                    </strong>
+                                    {languageMode === "th"
+                                      ? opt.tax_consequences_th
+                                      : opt.tax_consequences_en}
+                                  </div>
+                                  <div className="text-[11px] space-y-1">
+                                    <div className="font-bold">
+                                      {languageMode === "th"
+                                        ? "การขออนุมัติและกำหนดเวลาตามกฎหมาย:"
+                                        : "Approvals, Filings & Deadlines:"}
+                                    </div>
+                                    {opt.approvals_and_filings.map((af, idx) => (
+                                      <div key={idx} className={mutedText}>
+                                        &bull; {af}
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <div className="p-2.5 rounded-lg border border-rose-500/30 bg-rose-500/5 text-[11px]">
+                                    <strong className="text-rose-600 dark:text-rose-400">
+                                      {languageMode === "th" ? "ความเสี่ยงสำคัญ: " : "Key Legal Risk: "}
+                                    </strong>
+                                    {opt.key_risks.join("; ")}
+                                  </div>
+                                </div>
+                              )
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* ===========================================================
                       SECTION 6: BI-TEMPORAL LEGAL GRAPH TIME-MACHINE & STALE-RULING DETECTOR
