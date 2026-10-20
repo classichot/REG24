@@ -130,6 +130,13 @@ import {
   type CounterfactualScenarioComparison,
   type RuleExecutionResult,
 } from "@/core/intelligence/advanced-legal-intelligence-engine";
+import {
+  LEGAL_RESOURCE_MASTER_CORPUS,
+  RESOURCE_MASTER_COLLECTIONS,
+  searchLegalResourceMaster,
+  type LegalResourceMasterRecord,
+  type ResourceMasterCollectionId,
+} from "@/core/data/legal-resource-master-loader";
 
 interface SnapshotData {
   regulators: Regulator[];
@@ -305,7 +312,17 @@ export default function Reg24MetroConsole() {
     | "cases_rulings"
     | "temporal_graph"
     | "reg_ai_12"
-  >("industries");
+    | "gdrive_resource_master"
+  >("gdrive_resource_master");
+
+  // Google Drive & Synced Legal Database Resource Master (278 Regulations & Legal Resources)
+  const [resourceMasterQuery, setResourceMasterQuery] = useState<string>("");
+  const [resourceMasterCollection, setResourceMasterCollection] = useState<
+    "ALL" | ResourceMasterCollectionId
+  >("ALL");
+  const [expandedResourceMasterId, setExpandedResourceMasterId] = useState<string | null>(
+    "GDRIVE-REG-ERC-001"
+  );
 
   // REG24 Advanced Legal Intelligence Infrastructure (PRD v1.0: REG-AI-01..12 & UAT A-G) states
   const [activeUatScenarioId, setActiveUatScenarioId] = useState<MandatoryUatScenarioId>(
@@ -4071,56 +4088,63 @@ export default function Reg24MetroConsole() {
                     </div>
                   </div>
 
-                  {/* Clean Niche Category Selector Cards (7 Focused Views) */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
+                  {/* Clean Niche Category Selector Cards (8 Focused Views) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
                     {[
+                      {
+                        id: "gdrive_resource_master" as const,
+                        count: `${LEGAL_RESOURCE_MASTER_CORPUS.length} Regs`,
+                        labelEn: "1. Google Drive Resource Master",
+                        labelTh: "1. คลังระเบียบ Google Drive",
+                        subEn: "ERC · Pillar 2 · PPP · 278 Regs",
+                      },
                       {
                         id: "industries" as const,
                         count: `${snapshot.industryModules.length} Sectors`,
-                        labelEn: "1. Industry Databases",
-                        labelTh: "1. กฎหมายรายอุตสาหกรรม",
+                        labelEn: "2. Industry Databases",
+                        labelTh: "2. กฎหมายรายอุตสาหกรรม",
                         subEn: "100% P0 Complete (IND-*)",
                       },
                       {
                         id: "statutes" as const,
                         count: `${snapshot.instruments.length} Laws`,
-                        labelEn: "2. Statutes & Provisions",
-                        labelTh: "2. พ.ร.บ. และมาตรากฎหมาย",
+                        labelEn: "3. Statutes & Provisions",
+                        labelTh: "3. พ.ร.บ. และมาตรากฎหมาย",
                         subEn: `${snapshot.provisions.length} Canonical Provisions`,
                       },
                       {
                         id: "modules" as const,
                         count: `${snapshot.modules.length} Modules`,
-                        labelEn: "3. Core Legal Modules",
-                        labelTh: "3. โมดูลกฎหมายหลัก",
+                        labelEn: "4. Core Legal Modules",
+                        labelTh: "4. โมดูลกฎหมายหลัก",
                         subEn: "reg24.*.th (v2.0.0)",
                       },
                       {
                         id: "authorities" as const,
                         count: `${snapshot.regulators.length} Bodies`,
-                        labelEn: "4. Official Authorities",
-                        labelTh: "4. หน่วยงานกำกับดูแล",
+                        labelEn: "5. Official Authorities",
+                        labelTh: "5. หน่วยงานกำกับดูแล",
                         subEn: `+ ${snapshot.caseConnectors.length} Live Connectors`,
                       },
                       {
                         id: "cases_rulings" as const,
                         count: `${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()} Rulings`,
-                        labelEn: "5. Thai Tax Rulings & Cases",
-                        labelTh: "5. ข้อหารือสรรพากรและฎีกา",
+                        labelEn: "6. Thai Tax Rulings & Cases",
+                        labelTh: "6. ข้อหารือสรรพากรและฎีกา",
                         subEn: `3,643 RD Tax · ${snapshot.legalCases.length} Dika`,
                       },
                       {
                         id: "temporal_graph" as const,
                         count: "2544–2569",
-                        labelEn: "6. Bi-Temporal Graph",
-                        labelTh: "6. กราฟสองมิติเวลา (Time-Machine)",
+                        labelEn: "7. Bi-Temporal Graph",
+                        labelTh: "7. กราฟสองมิติเวลา (Time-Machine)",
                         subEn: "Point-in-Time · Stale Ruling Alert",
                       },
                       {
                         id: "reg_ai_12" as const,
                         count: "12 Engines",
-                        labelEn: "7. 12-Tech Legal AI",
-                        labelTh: "7. 12 เทคโนโลยีกฎหมาย (REG-AI)",
+                        labelEn: "8. 12-Tech Legal AI",
+                        labelTh: "8. 12 เทคโนโลยีกฎหมาย (REG-AI)",
                         subEn: "REG-AI-01..12 · UAT A–G",
                       },
                     ].map((stat) => {
@@ -4166,6 +4190,284 @@ export default function Reg24MetroConsole() {
                       );
                     })}
                   </div>
+
+                  {/* ===========================================================
+                      SECTION 0: GOOGLE DRIVE — LEGAL DATABASE RESOURCE MASTER
+                      (278 Incorporated Regulations, Statutes, CoP Checklists, Pillar Two, PPP, PDPA & ESG Sources)
+                      =========================================================== */}
+                  {(uxLibraryTab === "all" || uxLibraryTab === "gdrive_resource_master") && (() => {
+                    const rmSearch = searchLegalResourceMaster({
+                      query: resourceMasterQuery,
+                      collection: resourceMasterCollection,
+                      limit: 80,
+                    });
+                    return (
+                      <div className="space-y-5">
+                        <div className={`p-5 sm:p-6 rounded-2xl space-y-5 ${surfaceCard}`}>
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                                  ✓ Synced from Google Drive (DriveFS 105088240612977611801) &amp; Legal Resource Master Folders
+                                </span>
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-mono font-bold bg-[#0f2c59]/10 dark:bg-[#f5b700]/15 text-[#0f2c59] dark:text-[#f5b700]">
+                                  {rmSearch.total_corpus_count} Regulations &amp; Legal Resources Incorporated
+                                </span>
+                              </div>
+                              <h2 className="text-[20px] sm:text-[24px] font-extrabold tracking-[-0.03em] leading-tight">
+                                {languageMode === "th"
+                                  ? `Google Drive — คลังระเบียบและฐานข้อมูลกฎหมายหลัก (Legal Database Resource Master · ${rmSearch.total_corpus_count} ฉบับ)`
+                                  : `Google Drive — Legal Database Resource Master (${rmSearch.total_corpus_count} Incorporated Regulations & Legal Authorities)`}
+                              </h2>
+                              <p className={`text-[12.5px] mt-1 ${mutedText}`}>
+                                {languageMode === "th"
+                                  ? "รวบรวมและจัดทำดัชนีระเบียบ กฎหมายลำดับรอง และคัมภีร์กฎหมายทั้งหมดจาก Google Drive (โฟลเดอร์ Regulations, ERC Informations, IT Systems & SEC, SAT24, AI Law Lab, 7L Advisory Resources), พ.ร.ก. ภาษีส่วนเพิ่ม พ.ศ. 2567 และประกาศอธิบดีกรมสรรพากร ฉบับที่ 1–8 (Pillar2 Regs), คลัง Legal Docs Database 57 แฟ้ม (พ.ร.บ. ร่วมลงทุน PPP), อนุกรมวิธานสัญญา 500 ประเภท และทะเบียนกฎหมายสิ่งแวดล้อม ESG24"
+                                  : "Complete ingestion of all regulations and master legal folders from Google Drive (Regulations, ERC Informations, SEC ICO Portal IT Systems, SAT24 NBTC GSaaS, AI Law Lab, 7L Advisory Resources), Thailand OECD Pillar Two Emergency Decree B.E. 2567 & MOF/RD Notifications No. 1–8, Legal Docs Database (57 Compendiums & PPP Rulings), Thailand 500 Contract Taxonomy, and ESG24 Regulatory Register."}
+                              </p>
+                            </div>
+
+                            {/* Search Box */}
+                            <div className="flex items-center gap-2 w-full md:w-auto shrink-0">
+                              <input
+                                type="text"
+                                value={resourceMasterQuery}
+                                onChange={(e) => setResourceMasterQuery(e.target.value)}
+                                placeholder={
+                                  languageMode === "th"
+                                    ? "ค้นหาระเบียบ กกพ., ภาษีส่วนเพิ่ม Pillar 2, PPP, PDPA, ส.ป.ก., TGO..."
+                                    : "Search ERC Solar, Pillar 2 Top-Up Tax, PPP, PDPA, SEC ICO, TGO..."
+                                }
+                                className={`w-full md:w-[340px] px-3.5 py-2 rounded-xl text-[12px] border focus:outline-none ${
+                                  isLightMinimal
+                                    ? "bg-white border-slate-300 text-slate-900"
+                                    : "bg-[#0a101d] border-[#24324b] text-white"
+                                }`}
+                              />
+                              {resourceMasterQuery && (
+                                <button
+                                  onClick={() => setResourceMasterQuery("")}
+                                  className="px-3 py-2 rounded-xl text-[11px] font-semibold bg-slate-200 dark:bg-slate-800 cursor-pointer"
+                                >
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* 6 Master Folder Collection Filter Pills */}
+                          <div className="flex overflow-x-auto no-scrollbar sm:flex-wrap gap-1.5 pb-1">
+                            {[
+                              {
+                                id: "ALL" as const,
+                                labelTh: "ทั้งหมด (All Google Drive & Master Folders)",
+                                labelEn: "All Resource Master Folders",
+                                count: rmSearch.total_corpus_count,
+                              },
+                              {
+                                id: "Google_Drive_Regulations" as const,
+                                labelTh: "Google Drive: Regulations / ERC / SEC / NBTC / AI Law Lab",
+                                labelEn: "Google Drive: Regulations / ERC / SEC / NBTC / AI Law Lab",
+                                count: rmSearch.collection_breakdown.Google_Drive_Regulations ?? 8,
+                              },
+                              {
+                                id: "OECD_Pillar_Two_TopUpTax_Regs" as const,
+                                labelTh: "Pillar 2 Regs: พ.ร.ก. ภาษีส่วนเพิ่ม 2567 & ประกาศ ฉบับที่ 1–8",
+                                labelEn: "Pillar 2 Regs: Top-Up Tax Decree B.E. 2567 & DG Notices 1–8",
+                                count: rmSearch.collection_breakdown.OECD_Pillar_Two_TopUpTax_Regs ?? 11,
+                              },
+                              {
+                                id: "ERC_Energy_Regulations_Master" as const,
+                                labelTh: "ERC & CoP Master: ระเบียบ กกพ. และประมวลหลักการปฏิบัติ 30 ฉบับ",
+                                labelEn: "ERC & CoP Master: 30 Energy Licensing & CoP Regulations",
+                                count: rmSearch.collection_breakdown.ERC_Energy_Regulations_Master ?? 30,
+                              },
+                              {
+                                id: "Legal_Docs_Database_7L_Master" as const,
+                                labelTh: "Legal Docs DB & 7L Resources: พ.ร.บ. ร่วมลงทุน PPP, PDPA & 57 คัมภีร์",
+                                labelEn: "Legal Docs DB & 7L Resources: PPP Law, PDPA & 57 Compendiums",
+                                count: rmSearch.collection_breakdown.Legal_Docs_Database_7L_Master ?? 71,
+                              },
+                              {
+                                id: "Thailand_500_Contract_Legal_Sources" as const,
+                                labelTh: "Contract Taxonomy: กฎหมายสัญญา LS01–LS16 & 25 หมวดสัญญา (500 สัญญา)",
+                                labelEn: "Contract Taxonomy: LS01–LS16 & 25 Categories (500 Contracts)",
+                                count: rmSearch.collection_breakdown.Thailand_500_Contract_Legal_Sources ?? 41,
+                              },
+                              {
+                                id: "ESG24_Regulatory_Source_Register" as const,
+                                labelTh: "ESG24 Register: กฎหมายสิ่งแวดล้อม คาร์บอน TGO & โรงงาน (117 รายการ)",
+                                labelEn: "ESG24 Register: Climate, TGO Carbon, Factory & EIA (117 Sources)",
+                                count: rmSearch.collection_breakdown.ESG24_Regulatory_Source_Register ?? 117,
+                              },
+                            ].map((col) => {
+                              const isSelected = resourceMasterCollection === col.id;
+                              return (
+                                <button
+                                  key={col.id}
+                                  onClick={() => setResourceMasterCollection(col.id)}
+                                  className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all cursor-pointer border ${
+                                    isSelected
+                                      ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f] dark:border-[#f5b700]"
+                                      : `${subtleBox} border-transparent hover:border-slate-400`
+                                  }`}
+                                >
+                                  {languageMode === "th" ? col.labelTh : col.labelEn}{" "}
+                                  <span className="opacity-80 font-mono">({col.count})</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {/* Quick Preset Search Chips */}
+                          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                            <span className={`font-semibold ${mutedText}`}>
+                              {languageMode === "th" ? "ค้นหาด่วน:" : "Quick Filters:"}
+                            </span>
+                            {[
+                              { q: "ERC-SOLAR-COOP", label: "ระเบียบ กกพ. โซลาร์ฟาร์มสหกรณ์ (No.1 & No.2)" },
+                              { q: "P2-", label: "พ.ร.ก. ภาษีส่วนเพิ่ม 2567 & ประกาศอธิบดี ฉบับที่ 1–8" },
+                              { q: "PPP", label: "พ.ร.บ. ร่วมลงทุน PPP & คำวินิจฉัย EGAT/ขยะมูลฝอย" },
+                              { q: "SEC-DA-ICO", label: "ประกาศ ก.ล.ต. ระบบ IT & ICO Portal" },
+                              { q: "NBTC-GSAAS", label: "ประกาศ กสทช. สถานีดาวเทียม GSaaS" },
+                              { q: "PDPA", label: "PDPA พ.ศ. 2562 & GDPR Comparable" },
+                              { q: "ERC-COP-REG", label: "ระเบียบ กกพ. ประมวลหลักการปฏิบัติ (CoP 2565/2567)" },
+                            ].map((preset) => (
+                              <button
+                                key={preset.q}
+                                onClick={() => {
+                                  setResourceMasterCollection("ALL");
+                                  setResourceMasterQuery(preset.q);
+                                }}
+                                className={`px-2.5 py-1 rounded-lg border font-medium cursor-pointer ${
+                                  resourceMasterQuery === preset.q
+                                    ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f]"
+                                    : subtleBox
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+
+                          {/* Regulations & Resources Cards Grid */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:max-h-[820px] sm:overflow-y-auto pr-0 sm:pr-1">
+                            {rmSearch.results.map((item: LegalResourceMasterRecord) => {
+                              const isExp = expandedResourceMasterId === item.id;
+                              return (
+                                <div
+                                  key={item.id}
+                                  className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2.5 transition-all ${
+                                    isLightMinimal
+                                      ? "bg-slate-50/80 border-slate-200/90 hover:border-[#0f2c59]"
+                                      : "bg-[#0b1322] border-[#1f2d46] hover:border-[#f5b700]/60"
+                                  }`}
+                                >
+                                  <div
+                                    onClick={() => setExpandedResourceMasterId(isExp ? null : item.id)}
+                                    className="space-y-1.5 cursor-pointer"
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="px-2.5 py-0.5 rounded-full font-mono font-bold bg-[#0f2c59]/10 dark:bg-[#f5b700]/15 text-[#0f2c59] dark:text-[#f5b700]">
+                                          {item.code}
+                                        </span>
+                                        <span
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                            item.status === "IN_FORCE"
+                                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                              : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                                          }`}
+                                        >
+                                          {item.status}
+                                        </span>
+                                      </div>
+                                      <span className={`font-mono text-[10.5px] ${mutedText}`}>
+                                        พ.ศ. {item.year_be} &bull; {item.effective_date}
+                                      </span>
+                                    </div>
+
+                                    <h3 className="text-[14.5px] font-bold tracking-[-0.02em] leading-snug">
+                                      {languageMode === "th" ? item.title_th : item.title_en}
+                                    </h3>
+
+                                    <div className={`text-[11px] font-medium ${mutedText}`}>
+                                      <strong className="text-slate-700 dark:text-slate-200">
+                                        {languageMode === "th" ? "หน่วยงาน: " : "Authority: "}
+                                      </strong>
+                                      {item.regulator} &bull; {item.instrument_type}
+                                    </div>
+
+                                    <div className="text-[11px] font-semibold text-[#0f2c59] dark:text-[#f5b700]">
+                                      {languageMode === "th" ? "บทบัญญัติอ้างอิง: " : "Provisions: "}
+                                      {item.legal_provisions}
+                                    </div>
+
+                                    <p
+                                      className={`text-[12px] leading-relaxed ${
+                                        isExp ? "" : "line-clamp-2"
+                                      } ${mutedText}`}
+                                    >
+                                      {item.summary_th}
+                                    </p>
+
+                                    {isExp && (
+                                      <div
+                                        className={`p-3 rounded-xl text-[11.5px] leading-relaxed space-y-2 mt-2 border ${subtleBox}`}
+                                      >
+                                        <div>
+                                          <strong className="text-slate-900 dark:text-white">
+                                            {languageMode === "th"
+                                              ? "ตัวบท/ข้อความสำคัญจากต้นฉบับ (Verbatim Source Excerpt): "
+                                              : "Verbatim Source Excerpt: "}
+                                          </strong>
+                                          <div className="mt-1 whitespace-pre-line font-mono text-[11px]">
+                                            {item.verbatim_excerpt}
+                                          </div>
+                                        </div>
+                                        <div className="pt-1.5 border-t border-slate-300/50 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[10.5px] font-mono">
+                                          <span>📁 {item.folder_path}</span>
+                                          <span>📄 {item.file_name} (Drive ID: {item.drive_stable_id})</span>
+                                          <span>🔒 SHA-256: {item.sha256.slice(0, 20)}...</span>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2 text-[11px]">
+                                    <button
+                                      onClick={() => setExpandedResourceMasterId(isExp ? null : item.id)}
+                                      className="font-semibold text-blue-600 dark:text-[#f5b700] hover:underline cursor-pointer"
+                                    >
+                                      {isExp
+                                        ? languageMode === "th"
+                                          ? "ย่อรายละเอียด ▲"
+                                          : "Collapse ▲"
+                                        : languageMode === "th"
+                                        ? "ดูตัวบทและที่มา (Drive Provenance) ▼"
+                                        : "View Verbatim Text & Provenance ▼"}
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        const qPrompt =
+                                          languageMode === "th"
+                                            ? `วิเคราะห์หลักเกณฑ์และหน้าที่ตามกฎหมายของ ${item.title_th} (${item.code}) — ${item.legal_provisions}`
+                                            : `Analyze statutory requirements and legal compliance obligations under ${item.title_en} (${item.code}) — ${item.legal_provisions}`;
+                                        handleRunWebLegalResearch("Quick Answer", qPrompt);
+                                        setUxResearchDestination("research");
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f] cursor-pointer shrink-0"
+                                    >
+                                      {languageMode === "th" ? "วิเคราะห์ด้วย AI →" : "Analyze in AI →"}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* ===========================================================
                       SECTION 7: REG24 ADVANCED LEGAL INTELLIGENCE & EXECUTION INFRASTRUCTURE

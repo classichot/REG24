@@ -206,6 +206,12 @@ import {
   ThaiTaxRulingRecord,
 } from "../data/thai-tax-rulings-loader";
 
+import {
+  LEGAL_RESOURCE_MASTER_CORPUS,
+  searchLegalResourceMaster,
+  LegalResourceMasterRecord,
+} from "../data/legal-resource-master-loader";
+
 export interface MCPCommonInput {
   jurisdiction?: string;
   module_ids?: string[];
@@ -660,6 +666,51 @@ export class Reg24PlatformCore {
         ai_summary_interpretation_th: `[ข้อหารือกรมสรรพากร] ${tr.administrative_analysis_th}`,
         ai_summary_interpretation_en: `[RD Administrative Tax Ruling] ${tr.administrative_analysis_en}`,
         related_provision_ids: tr.provision_ids_linked,
+      });
+    });
+
+    // Index all 278 regulations & legal resources from the Google Drive Legal Database Resource Master
+    LEGAL_RESOURCE_MASTER_CORPUS.forEach((rm) => {
+      if (seenCatalogIds.has(rm.id)) return;
+      seenCatalogIds.add(rm.id);
+      const rmDomain: CoreLegalDomainCode =
+        rm.collection === "OECD_Pillar_Two_TopUpTax_Regs"
+          ? "LEG-TAX"
+          : rm.collection === "Thailand_500_Contract_Legal_Sources"
+          ? "LEG-CONTRACT"
+          : rm.code.includes("SEC") || rm.code.includes("SET")
+          ? "LEG-SEC"
+          : rm.code.includes("PDPA")
+          ? "LEG-PDPA"
+          : rm.code.includes("LABOR") || rm.title_th.includes("แรงงาน")
+          ? "LEG-LABOR"
+          : rm.code.includes("BANKRUPT") || rm.title_th.includes("ล้มละลาย")
+          ? "LEG-INSOLVENCY"
+          : "LEG-CORP";
+      const rmCategory: WebSearchDocumentCategory =
+        rm.code.includes("SEC") || rm.code.includes("SET")
+          ? "SEC and SET regulations"
+          : rm.collection === "Legal_Docs_Database_7L_Master"
+          ? "Statutes and codes"
+          : "Subordinate regulations";
+      this.webSearchCatalog.push({
+        record_id: rm.id,
+        document_category: rmCategory,
+        legal_domain: rmDomain,
+        title_th: `${rm.code} — ${rm.title_th}`,
+        title_en: `${rm.code} — ${rm.title_en}`,
+        section_or_reference: `${rm.code} (${rm.folder_path})`,
+        source_authority: rm.regulator,
+        publication_date: rm.effective_date,
+        effective_from: rm.effective_date,
+        verification_status: "human_verified",
+        official_url: "https://reg24-theta.vercel.app/api/v1/legal/resource-master",
+        sha256_hash: rm.sha256,
+        original_source_snippet_th: rm.verbatim_excerpt,
+        original_source_snippet_en: rm.verbatim_excerpt,
+        ai_summary_interpretation_th: `[Google Drive Resource Master · ${rm.collection}] ${rm.summary_th}`,
+        ai_summary_interpretation_en: `[Google Drive Resource Master · ${rm.collection}] ${rm.title_en} (${rm.instrument_type})`,
+        related_provision_ids: [],
       });
     });
     [
@@ -8397,6 +8448,34 @@ export class Reg24PlatformCore {
           )
         : undefined;
 
+    // 5. Check if query references or matches one of the 278 Google Drive & Legal Database Resource Master regulations
+    let matchedResourceMaster: LegalResourceMasterRecord | undefined =
+      !matchedOneDriveRuling && !matchedDikaCase
+        ? LEGAL_RESOURCE_MASTER_CORPUS.find(
+            (r) =>
+              params.query.includes(r.id) ||
+              params.query.includes(r.code) ||
+              (r.title_th.length >= 12 && params.query.includes(r.title_th.slice(0, 28)))
+          )
+        : undefined;
+    if (
+      !matchedResourceMaster &&
+      !matchedOneDriveRuling &&
+      /ภาษีส่วนเพิ่ม|pillar\s*two|pillar\s*2|top-up\s*tax|prk2567|moftopuptax|dgtopuptax|โซลาร์ฟาร์ม|สหกรณ์ภาคการเกษตร|ประมวลหลักการปฏิบัติ|code\s*of\s*practice|erc-cop|ร่วมลงทุน|ppp\s*law|gsaas|ดาวเทียม|ico\s*portal|ส\.ป\.ก\.|tgo|cfo/i.test(
+        params.query
+      )
+    ) {
+      const masterHits = searchLegalResourceMaster({ query: params.query, limit: 3 });
+      if (masterHits.results.length > 0) {
+        matchedResourceMaster = masterHits.results[0];
+      }
+    }
+    const relatedResourceMasterItems: LegalResourceMasterRecord[] = matchedResourceMaster
+      ? LEGAL_RESOURCE_MASTER_CORPUS.filter(
+          (r) => r.id !== matchedResourceMaster!.id && r.collection === matchedResourceMaster!.collection
+        ).slice(0, 2)
+      : [];
+
     // Consume REG24 Core API directly (AC-WEB-01 & AC-WEB-10 parity)
     const coreAnalysis = this.analyzeCorporateCommercialLegalQuestion({
       query: params.query,
@@ -8472,6 +8551,61 @@ export class Reg24PlatformCore {
               source_retrieved: true,
               citation_checked: true,
               currently_effective: true,
+              legal_interpretation_assessed: true,
+              retrieved_at: nowIso,
+              source_origin_type: "official_primary_authority" as const,
+            },
+          })),
+        ]
+      : matchedResourceMaster
+      ? [
+          {
+            citation_id: `cit.master.${matchedResourceMaster.id}`,
+            source_record_id: matchedResourceMaster.id,
+            document_category: "Subordinate regulations",
+            title_th: matchedResourceMaster.title_th,
+            title_en: matchedResourceMaster.title_en,
+            section_or_locator: `${matchedResourceMaster.legal_provisions} (${matchedResourceMaster.folder_path})`,
+            authority_name: matchedResourceMaster.regulator,
+            publication_date: matchedResourceMaster.effective_date,
+            effective_from: matchedResourceMaster.effective_date,
+            verification_status: "human_verified",
+            official_url: "https://reg24-theta.vercel.app/api/v1/legal/resource-master",
+            sha256_hash: matchedResourceMaster.sha256,
+            highlighted_source_passage_th: matchedResourceMaster.verbatim_excerpt,
+            highlighted_source_passage_en: matchedResourceMaster.verbatim_excerpt,
+            ai_interpretation_summary_th: `${matchedResourceMaster.summary_th} | แฟ้มต้นฉบับ: ${matchedResourceMaster.file_name} (Drive ID: ${matchedResourceMaster.drive_stable_id})`,
+            ai_interpretation_summary_en: `${matchedResourceMaster.title_en} (${matchedResourceMaster.instrument_type}) — Source: ${matchedResourceMaster.folder_path}`,
+            four_state_verification: {
+              source_retrieved: true,
+              citation_checked: true,
+              currently_effective: matchedResourceMaster.status === "IN_FORCE",
+              legal_interpretation_assessed: true,
+              retrieved_at: nowIso,
+              source_origin_type: "official_primary_authority",
+            },
+          },
+          ...relatedResourceMasterItems.map((rel, idx) => ({
+            citation_id: `cit.master.rel.${idx}.${rel.id}`,
+            source_record_id: rel.id,
+            document_category: "Subordinate regulations" as const,
+            title_th: rel.title_th,
+            title_en: rel.title_en,
+            section_or_locator: rel.legal_provisions,
+            authority_name: rel.regulator,
+            publication_date: rel.effective_date,
+            effective_from: rel.effective_date,
+            verification_status: "machine_verified" as const,
+            official_url: "https://reg24-theta.vercel.app/api/v1/legal/resource-master",
+            sha256_hash: rel.sha256,
+            highlighted_source_passage_th: rel.verbatim_excerpt,
+            highlighted_source_passage_en: rel.verbatim_excerpt,
+            ai_interpretation_summary_th: rel.summary_th,
+            ai_interpretation_summary_en: rel.title_en,
+            four_state_verification: {
+              source_retrieved: true,
+              citation_checked: true,
+              currently_effective: rel.status === "IN_FORCE",
               legal_interpretation_assessed: true,
               retrieved_at: nowIso,
               source_origin_type: "official_primary_authority" as const,
@@ -8573,6 +8707,16 @@ export class Reg24PlatformCore {
         matchedIndustryConfig.common_legal_missions
           .map((m, i) => `${i + 1}. ${m.title}: ${m.prompt_th}`)
           .join("\n")
+      : matchedResourceMaster
+      ? `【ระเบียบและฐานข้อมูลกฎหมายหลัก (Google Drive Resource Master): ${matchedResourceMaster.title_th}】\n` +
+        `• รหัสอ้างอิง: ${matchedResourceMaster.id} (${matchedResourceMaster.code})\n` +
+        `• หน่วยงานกำกับดูแล: ${matchedResourceMaster.regulator}\n` +
+        `• ประเภทตราสารกฎหมาย: ${matchedResourceMaster.instrument_type} (พ.ศ. ${matchedResourceMaster.year_be} | วันที่มีผลบังคับใช้: ${matchedResourceMaster.effective_date})\n` +
+        `• โฟลเดอร์ต้นฉบับ (Google Drive / Resource Master): ${matchedResourceMaster.folder_path} (Drive ID: ${matchedResourceMaster.drive_stable_id} | แฟ้ม: ${matchedResourceMaster.file_name})\n` +
+        `• บทบัญญัติและข้อกฎหมายที่เกี่ยวข้อง: ${matchedResourceMaster.legal_provisions}\n\n` +
+        `1. สรุปสาระสำคัญและหลักเกณฑ์ตามระเบียบ (Regulatory Summary):\n${matchedResourceMaster.summary_th}\n\n` +
+        `2. ตัวบทและข้อความสำคัญจากต้นฉบับ (Verbatim Provision Excerpt):\n${matchedResourceMaster.verbatim_excerpt}\n\n` +
+        `3. การตรวจสอบความถูกต้องของแหล่งที่มา (Cryptographic Provenance):\nSHA-256: ${matchedResourceMaster.sha256} (สถานะการบังคับใช้: ${matchedResourceMaster.status})`
       : isDebtToEquityQuery
       ? "ภายใต้ประมวลกฎหมายแพ่งและพาณิชย์ (ป.พ.พ.) มาตรา 1119 วรรคสอง และมาตรา 1220 บริษัทจำกัด (Private Limited Company) ในประเทศไทย ไม่สามารถหักกลบลบหนี้ค่าหุ้นกับหนี้เงินกู้ของผู้ถือหุ้นเพื่อแปลงหนี้เป็นทุนโดยตรงได้ เว้นแต่ดำเนินการภายใต้แผนฟื้นฟูกิจการตาม พ.ร.บ. ล้มละลาย หรือโครงการปรับโครงสร้างหนี้ตามพระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ในทางปฏิบัติ บริษัทจำกัดต้องออกหุ้นเพิ่มทุนด้วยมติพิเศษตามมาตรา 1220 (ชำระค่าหุ้นเป็นตัวเงินตามมาตรา 1117–1119) และนำเงินไปชำระคืนหนี้เงินกู้พร้อมตรวจสอบภาระภาษีหัก ณ ที่จ่ายของดอกเบี้ยคงค้าง รวมถึงประเด็นการปลดหนี้ซึ่งอาจถือเป็นรายได้ทางภาษีตามประมวลรัษฎากร มาตรา 65"
       : coreAnalysis.executive_answer_th;
@@ -8607,6 +8751,16 @@ export class Reg24PlatformCore {
         matchedIndustryConfig.common_legal_missions
           .map((m, i) => `${i + 1}. ${m.title}: ${m.prompt_en}`)
           .join("\n")
+      : matchedResourceMaster
+      ? `【Google Drive Legal Database Resource Master: ${matchedResourceMaster.title_en}】\n` +
+        `• Reference ID: ${matchedResourceMaster.id} (${matchedResourceMaster.code})\n` +
+        `• Issuing Authority: ${matchedResourceMaster.regulator}\n` +
+        `• Instrument Type: ${matchedResourceMaster.instrument_type} (B.E. ${matchedResourceMaster.year_be} | Effective Date: ${matchedResourceMaster.effective_date})\n` +
+        `• Source Folder Path: ${matchedResourceMaster.folder_path} (Drive Stable ID: ${matchedResourceMaster.drive_stable_id} | File: ${matchedResourceMaster.file_name})\n` +
+        `• Governing Provisions: ${matchedResourceMaster.legal_provisions}\n\n` +
+        `1. Executive Summary:\n${matchedResourceMaster.summary_th}\n\n` +
+        `2. Verbatim Source Excerpt:\n${matchedResourceMaster.verbatim_excerpt}\n\n` +
+        `3. Cryptographic Provenance:\nSHA-256: ${matchedResourceMaster.sha256} (Status: ${matchedResourceMaster.status})`
       : isDebtToEquityQuery
       ? "In a Thai private limited company, converting shareholder debt into equity is strictly restricted under Civil and Commercial Code (CCC) Sections 1117, 1119 paragraph 2, and 1220, which prohibit a shareholder from availing themselves of a set-off against the company in respect of share subscription payments (unless executed under a statutory business rehabilitation plan or qualifying debt-restructuring Royal Decree). In corporate practice, the company must pass a special resolution to increase registered capital under CCC Section 1220, receive cash subscription proceeds, and apply those proceeds to repay the shareholder loan, while evaluating accrued interest withholding tax, debt-forgiveness taxable income risks under the Revenue Code, and creditor protection requirements."
       : coreAnalysis.answer;

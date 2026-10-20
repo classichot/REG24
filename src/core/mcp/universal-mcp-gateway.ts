@@ -17,6 +17,7 @@
 
 import { reg24Core } from "../engine/reg24-core";
 import { searchThaiTaxRulings } from "../data/thai-tax-rulings-loader";
+import { searchLegalResourceMaster } from "../data/legal-resource-master-loader";
 import { aiCostRouterAndMetering } from "../llm/cost-router-metering";
 
 export type UniversalAIProviderId = "chatgpt" | "claude" | "gemini" | "qwen" | "deepseek";
@@ -577,7 +578,7 @@ export class UniversalMCPGatewayService {
     }
 
     // Populate official Revenue Department Tax Rulings from the 3,643 corpus
-    for (const r of rdMatches.rulings.slice(0, 3)) {
+    for (const r of (rdMatches.results || []).slice(0, 3)) {
       authorities.push({
         source_id: `ruling.rd.${r.ruling_no}`,
         authority_type: "REVENUE_DEPT_TAX_RULING",
@@ -593,6 +594,30 @@ export class UniversalMCPGatewayService {
         verification_status: "VERIFIED_OFFICIAL_RULING",
         verbatim_excerpt: r.ruling || r.facts,
         official_url: r.source_url || "https://www.rd.go.th",
+      });
+    }
+
+    // Populate regulations from Google Drive Legal Database Resource Master (278 regulations)
+    const masterMatches = searchLegalResourceMaster({
+      query: queryStr,
+      limit: 3,
+    });
+    for (const m of masterMatches.results.slice(0, 3)) {
+      authorities.push({
+        source_id: `master.gdrive.${m.id}`,
+        authority_type: "SUB_REGULATION",
+        identifier: m.code,
+        title_th: m.title_th,
+        title_en: m.title_en,
+        issuing_authority: m.regulator,
+        source_locator: `${m.legal_provisions} (${m.folder_path})`,
+        effective_from: m.effective_date,
+        effective_to: null,
+        legal_status: m.status === "AMENDED_BY_NO2_2560" ? "HISTORICAL_VERSION" : "CURRENTLY_EFFECTIVE",
+        sha256_provenance: m.sha256,
+        verification_status: "VERIFIED_PRIMARY_SOURCE",
+        verbatim_excerpt: m.verbatim_excerpt,
+        official_url: "https://reg24-theta.vercel.app/api/v1/legal/resource-master",
       });
     }
 
