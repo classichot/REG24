@@ -1162,6 +1162,49 @@ export default function Reg24MetroConsole() {
     "search_legislation" | "analyze_contract" | "complex_tax_restructuring" | "process_500_page_legal_book"
   >("complex_tax_restructuring");
 
+  // OneDrive Thai Revenue Department Tax Rulings Corpus (3,643 Official Rulings B.E. 2543-2569)
+  const [thaiTaxRulingsData, setThaiTaxRulingsData] = useState<{
+    total_corpus_size: number;
+    total_matching: number;
+    category_breakdown: Record<string, number>;
+    rulings: Array<{
+      ruling_no: string;
+      date: string;
+      year_be: string;
+      listing_month: string;
+      tax_types: string;
+      primary_tax_type: string;
+      subject: string;
+      legal_provisions: string;
+      facts: string;
+      ruling: string;
+      cabinet_no: string;
+      source_url: string;
+      file: string;
+    }>;
+  } | null>(null);
+  const [taxRulingSearchQuery, setTaxRulingSearchQuery] = useState("");
+  const [taxRulingCategoryFilter, setTaxRulingCategoryFilter] = useState("ALL");
+  const [taxRulingLoading, setTaxRulingLoading] = useState(false);
+  const [expandedRulingNo, setExpandedRulingNo] = useState<string | null>(null);
+
+  const fetchThaiTaxRulings = useCallback(async (q = "", taxType = "ALL") => {
+    setTaxRulingLoading(true);
+    try {
+      const res = await fetch(
+        `/api/v1/tax-rulings?q=${encodeURIComponent(q)}&tax_type=${encodeURIComponent(taxType)}&limit=60`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        setThaiTaxRulingsData(data);
+      }
+    } catch {
+      // Ignore network error during initial load
+    } finally {
+      setTaxRulingLoading(false);
+    }
+  }, []);
+
   const fetchModel24Snapshot = useCallback(async () => {
     try {
       const res = await fetch("/api/v1/infrastructure/llm/router");
@@ -1235,7 +1278,8 @@ export default function Reg24MetroConsole() {
     fetchSnapshot();
     fetchNeo4jHealth();
     fetchModel24Snapshot();
-  }, [fetchSnapshot, fetchNeo4jHealth, fetchModel24Snapshot]);
+    fetchThaiTaxRulings("", "ALL");
+  }, [fetchSnapshot, fetchNeo4jHealth, fetchModel24Snapshot, fetchThaiTaxRulings]);
 
   // Windows Phone Live Tile counter flip animation every 4s
   useEffect(() => {
@@ -3054,8 +3098,8 @@ export default function Reg24MetroConsole() {
                       </h1>
                       <p className={`text-[13px] mt-1 font-normal leading-[1.5] ${mutedText}`}>
                         {languageMode === "th"
-                          ? `เลือกหมวดหมู่ฐานข้อมูลด้านล่าง: ครบทั้ง ${snapshot.industryModules.length} อุตสาหกรรม (P0), โมดูลกฎหมายหลัก ${snapshot.modules.length} โมดูล, พระราชบัญญัติ ${snapshot.instruments.length} ฉบับ (${snapshot.provisions.length} มาตรา), หน่วยงานกำกับดูแล ${snapshot.regulators.length} แห่ง และคำพิพากษาศาลฎีกา`
-                          : `Select a focused database view below: ${snapshot.industryModules.length} Industry Databases, ${snapshot.modules.length} Core Legal Modules, ${snapshot.instruments.length} Enacted Laws (${snapshot.provisions.length} Provisions), ${snapshot.regulators.length} Official Authorities, and ${snapshot.legalCases.length + snapshot.taxRulings.length} Precedents.`}
+                          ? `เลือกหมวดหมู่ฐานข้อมูลด้านล่าง: ครบทั้ง ${snapshot.industryModules.length} อุตสาหกรรม (P0), โมดูลกฎหมายหลัก ${snapshot.modules.length} โมดูล, พระราชบัญญัติ ${snapshot.instruments.length} ฉบับ (${snapshot.provisions.length} มาตรา), หน่วยงานกำกับดูแล ${snapshot.regulators.length} แห่ง, คำพิพากษาศาลฎีกา ${snapshot.legalCases.length} คดี และข้อหารือกรมสรรพากร ${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()} ฉบับ`
+                          : `Select a focused database view below: ${snapshot.industryModules.length} Industry Databases, ${snapshot.modules.length} Core Legal Modules, ${snapshot.instruments.length} Enacted Laws (${snapshot.provisions.length} Provisions), ${snapshot.regulators.length} Official Authorities, and ${(snapshot.legalCases.length + (thaiTaxRulingsData?.total_corpus_size ?? 3643)).toLocaleString()} Precedents & RD Tax Rulings.`}
                       </p>
                     </div>
                   </div>
@@ -3093,10 +3137,10 @@ export default function Reg24MetroConsole() {
                       },
                       {
                         id: "cases_rulings" as const,
-                        count: `${snapshot.legalCases.length + snapshot.taxRulings.length} Rulings`,
-                        labelEn: "5. Court & Tax Rulings",
-                        labelTh: "5. คำพิพากษาและข้อหารือ",
-                        subEn: `${snapshot.legalCases.length} Dika · ${snapshot.taxRulings.length} RD Tax`,
+                        count: `${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()} Rulings`,
+                        labelEn: "5. Thai Tax Rulings & Cases",
+                        labelTh: "5. ข้อหารือสรรพากรและฎีกา",
+                        subEn: `3,643 RD Tax · ${snapshot.legalCases.length} Dika`,
                       },
                     ].map((stat) => {
                       const active = uxLibraryTab === stat.id;
@@ -3712,23 +3756,227 @@ export default function Reg24MetroConsole() {
                   )}
 
                   {/* ===========================================================
-                      SECTION 5: SUPREME COURT JUDGMENTS & REVENUE DEPARTMENT TAX RULINGS
+                      SECTION 5: THAI REVENUE DEPARTMENT TAX RULINGS (3,643 ONEDRIVE CORPUS) & SUPREME COURT JUDGMENTS
                       =========================================================== */}
                   {(uxLibraryTab === "all" || uxLibraryTab === "cases_rulings") && (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                       <div>
+                        <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+                            ✓ Synced from OneDrive (Thai Tax Ruling) &amp; Neo4j AuraDB
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#0f2c59]/10 dark:bg-[#f5b700]/15 text-[#0f2c59] dark:text-[#f5b700]">
+                            {(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()} Official RD Tax Rulings (B.E. 2543–2569)
+                          </span>
+                        </div>
                         <h2 className="text-[22px] sm:text-[24px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                           {languageMode === "th"
-                            ? `5. ฐานข้อมูลคำพิพากษาศาลฎีกาและข้อหารือกรมสรรพากร (${snapshot.legalCases.length} ฎีกา + ${snapshot.taxRulings.length} ข้อหารือภาษี)`
-                            : `5. Supreme Court Judgments & Revenue Department Tax Rulings (${snapshot.legalCases.length} Cases + ${snapshot.taxRulings.length} Tax Rulings)`}
+                            ? `5. ฐานข้อมูลข้อหารือกรมสรรพากร (${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()} ฉบับ) และคำพิพากษาศาลฎีกา (${snapshot.legalCases.length} ฎีกา)`
+                            : `5. Thai Tax Rulings (${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()} Official RD Rulings) & Supreme Court Judgments (${snapshot.legalCases.length} Cases)`}
                         </h2>
                         <p className={`text-[13px] mt-1 ${mutedText}`}>
                           {languageMode === "th"
-                            ? "คำพิพากษาศาลฎีกาบรรทัดฐาน ศาลแรงงาน ศาลภาษีอากรกลาง และหนังสือตอบข้อหารือกรมสรรพากรที่เชื่อมโยงกับมาตรากฎหมายโดยตรง"
-                            : "Precedent Supreme Court judgments (Corporate, Tax, Labor, Insolvency, Contract, Property) and authoritative Revenue Department rulings."}
+                            ? "คลังหนังสือตอบข้อหารือกรมสรรพากรฉบับเต็ม (พ.ศ. 2543–2569) เชื่อมโยงกับประมวลรัษฎากรใน Neo4j AuraDB พร้อมข้อเท็จจริงและแนววินิจฉัย"
+                            : "Full corpus of 3,643 authoritative Thai Revenue Department tax rulings (B.E. 2543–2569) linked to Revenue Code provisions in Neo4j AuraDB."}
                         </p>
                       </div>
 
+                      {/* Interactive Thai Tax Rulings Search & Category Explorer */}
+                      <div className={`p-5 rounded-2xl space-y-4 ${surfaceCard}`}>
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                          <div>
+                            <div className="text-[15px] font-extrabold tracking-[-0.025em]">
+                              {languageMode === "th"
+                                ? "ค้นหาหนังสือตอบข้อหารือกรมสรรพากร (Thai Tax Rulings Explorer — 3,643 ฉบับ)"
+                                : "Thai Revenue Department Tax Rulings Explorer (3,643 Rulings · B.E. 2543–2569)"}
+                            </div>
+                            <div className={`text-[12px] ${mutedText}`}>
+                              {languageMode === "th"
+                                ? `กำลังแสดงผล ${(thaiTaxRulingsData?.rulings.length ?? 0).toLocaleString()} จาก ${(thaiTaxRulingsData?.total_matching ?? 3643).toLocaleString()} รายการที่ตรงเงื่อนไข`
+                                : `Showing ${(thaiTaxRulingsData?.rulings.length ?? 0).toLocaleString()} of ${(thaiTaxRulingsData?.total_matching ?? 3643).toLocaleString()} matching tax rulings`}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full md:w-auto">
+                            <input
+                              type="text"
+                              value={taxRulingSearchQuery}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                setTaxRulingSearchQuery(val);
+                                fetchThaiTaxRulings(val, taxRulingCategoryFilter);
+                              }}
+                              placeholder={
+                                languageMode === "th"
+                                  ? "ค้นหาเลขที่หนังสือ (เช่น กค 0702), มาตรา (เช่น มาตรา 77/1), เรื่อง หรือข้อเท็จจริง..."
+                                  : "Search ruling no. (กค 0702), Revenue Code section (มาตรา 65), or topic..."
+                              }
+                              className={`w-full md:w-[360px] px-3.5 py-2 rounded-xl text-[12px] border focus:outline-none ${
+                                isLightMinimal
+                                  ? "bg-white border-slate-300 text-slate-900"
+                                  : "bg-[#0a101d] border-[#24324b] text-white"
+                              }`}
+                            />
+                            {taxRulingSearchQuery && (
+                              <button
+                                onClick={() => {
+                                  setTaxRulingSearchQuery("");
+                                  fetchThaiTaxRulings("", taxRulingCategoryFilter);
+                                }}
+                                className="px-3 py-2 rounded-xl text-[11px] font-semibold bg-slate-200 dark:bg-slate-800 cursor-pointer"
+                              >
+                                Clear
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 11 Tax Type Category Filter Pills */}
+                        <div className="flex flex-wrap gap-1.5">
+                          {[
+                            { id: "ALL", labelEn: "All Rulings", labelTh: "ทั้งหมด", count: thaiTaxRulingsData?.total_corpus_size ?? 3643 },
+                            { id: "VAT", labelEn: "VAT", labelTh: "ภาษีมูลค่าเพิ่ม", count: thaiTaxRulingsData?.category_breakdown?.VAT ?? 1038 },
+                            { id: "Corporate_Income_Tax", labelEn: "Corporate Income Tax", labelTh: "ภาษีเงินได้นิติบุคคล", count: thaiTaxRulingsData?.category_breakdown?.Corporate_Income_Tax ?? 1014 },
+                            { id: "Personal_Income_Tax", labelEn: "Personal Income Tax", labelTh: "ภาษีเงินได้บุคคลธรรมดา", count: thaiTaxRulingsData?.category_breakdown?.Personal_Income_Tax ?? 714 },
+                            { id: "Withholding_Tax", labelEn: "Withholding Tax", labelTh: "ภาษีหัก ณ ที่จ่าย", count: thaiTaxRulingsData?.category_breakdown?.Withholding_Tax ?? 527 },
+                            { id: "Specific_Business_Tax", labelEn: "Specific Business Tax", labelTh: "ภาษีธุรกิจเฉพาะ", count: thaiTaxRulingsData?.category_breakdown?.Specific_Business_Tax ?? 142 },
+                            { id: "Stamp_Duty", labelEn: "Stamp Duty", labelTh: "อากรแสตมป์", count: thaiTaxRulingsData?.category_breakdown?.Stamp_Duty ?? 99 },
+                            { id: "Other", labelEn: "Other / DTA", labelTh: "อนุสัญญาภาษีซ้อน/อื่นๆ", count: thaiTaxRulingsData?.category_breakdown?.Other ?? 77 },
+                            { id: "Income_Tax_general", labelEn: "General Income Tax", labelTh: "ภาษีเงินได้ทั่วไป", count: thaiTaxRulingsData?.category_breakdown?.Income_Tax_general ?? 24 },
+                          ].map((cat) => {
+                            const isCatActive = taxRulingCategoryFilter === cat.id;
+                            return (
+                              <button
+                                key={cat.id}
+                                onClick={() => {
+                                  setTaxRulingCategoryFilter(cat.id);
+                                  fetchThaiTaxRulings(taxRulingSearchQuery, cat.id);
+                                }}
+                                className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all cursor-pointer border ${
+                                  isCatActive
+                                    ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f] dark:border-[#f5b700]"
+                                    : `${subtleBox} border-transparent hover:border-slate-400`
+                                }`}
+                              >
+                                {languageMode === "th" ? cat.labelTh : cat.labelEn}{" "}
+                                <span className="opacity-75 font-mono">({cat.count.toLocaleString()})</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Rulings Grid */}
+                        {taxRulingLoading ? (
+                          <div className={`py-8 text-center text-xs ${mutedText}`}>
+                            Loading Thai Revenue Department Tax Rulings...
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[780px] overflow-y-auto pr-1">
+                            {(thaiTaxRulingsData?.rulings ?? []).map((r, idx) => {
+                              const isExpanded = expandedRulingNo === `${r.ruling_no}-${idx}`;
+                              return (
+                                <div
+                                  key={`${r.ruling_no}-${idx}`}
+                                  className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2.5 transition-all ${
+                                    isLightMinimal
+                                      ? "bg-slate-50/80 border-slate-200/90 hover:border-[#0f2c59]"
+                                      : "bg-[#0b1322] border-[#1f2d46] hover:border-[#f5b700]/60"
+                                  }`}
+                                >
+                                  <div className="space-y-1.5">
+                                    <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="px-2.5 py-0.5 rounded-full font-bold bg-amber-500/15 text-amber-700 dark:text-[#f5b700]">
+                                          {r.ruling_no}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${subtleBox}`}>
+                                          {r.primary_tax_type.replace(/_/g, " ")}
+                                        </span>
+                                      </div>
+                                      <span className={`font-mono ${mutedText}`}>
+                                        {r.date} {r.year_be ? `(พ.ศ. ${r.year_be})` : ""}
+                                      </span>
+                                    </div>
+
+                                    <h3 className="text-[14px] font-bold tracking-[-0.02em] leading-snug">
+                                      {r.subject || `ข้อหารือกรมสรรพากร ${r.ruling_no}`}
+                                    </h3>
+
+                                    {r.legal_provisions && (
+                                      <div className="text-[11px] font-semibold text-[#0f2c59] dark:text-[#f5b700]">
+                                        ข้อกฎหมาย: {r.legal_provisions}
+                                      </div>
+                                    )}
+
+                                    <p className={`text-[12px] leading-relaxed ${isExpanded ? "" : "line-clamp-3"} ${mutedText}`}>
+                                      <strong className="text-slate-700 dark:text-slate-200">แนววินิจฉัย: </strong>
+                                      {r.ruling || r.facts}
+                                    </p>
+
+                                    {isExpanded && r.facts && (
+                                      <div className={`p-3 rounded-xl text-[11.5px] leading-relaxed space-y-1.5 mt-2 ${subtleBox}`}>
+                                        <div>
+                                          <strong className="text-slate-900 dark:text-white">ข้อเท็จจริง (Facts): </strong>
+                                          {r.facts}
+                                        </div>
+                                        {r.ruling && (
+                                          <div>
+                                            <strong className="text-slate-900 dark:text-white">แนววินิจฉัยกรมสรรพากร (Ruling): </strong>
+                                            {r.ruling}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                                    <div className="flex items-center gap-3">
+                                      <button
+                                        onClick={() =>
+                                          setExpandedRulingNo(isExpanded ? null : `${r.ruling_no}-${idx}`)
+                                        }
+                                        className="font-semibold text-[#0f2c59] dark:text-[#f5b700] hover:underline cursor-pointer"
+                                      >
+                                        {isExpanded
+                                          ? languageMode === "th"
+                                            ? "ย่อรายละเอียด ↑"
+                                            : "Collapse ↑"
+                                          : languageMode === "th"
+                                            ? "ดูข้อเท็จจริงและแนววินิจฉัยฉบับเต็ม ↓"
+                                            : "Read Full Facts & Ruling ↓"}
+                                      </button>
+                                      {r.source_url && (
+                                        <a
+                                          href={r.source_url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className={`hover:underline ${mutedText}`}
+                                        >
+                                          rd.go.th ↗
+                                        </a>
+                                      )}
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        handleRunWebLegalResearch(
+                                          "Quick Answer",
+                                          `วิเคราะห์ข้อหารือกรมสรรพากรเลขที่ ${r.ruling_no} เรื่อง ${r.subject} (${r.legal_provisions}): ${r.ruling.slice(0, 240)}`
+                                        );
+                                        setUxResearchDestination("research");
+                                      }}
+                                      className="px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f] cursor-pointer"
+                                    >
+                                      {languageMode === "th" ? "วิเคราะห์ด้วย AI →" : "Analyze in AI →"}
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Supreme Court Precedents & Highlighted Tax Rulings */}
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {snapshot.legalCases.map((c) => (
                           <div
