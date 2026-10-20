@@ -1536,7 +1536,7 @@ export default function Reg24MetroConsole() {
             <span className="w-7 h-7 rounded-lg bg-[#0f2c59] border border-[#f5b700] text-[#f5b700] font-bold text-xs flex items-center justify-center tracking-tight">
               24
             </span>
-            <div className="flex items-baseline gap-2">
+            <div className="flex items-center gap-2">
               <span
                 className={`text-[18px] font-extrabold tracking-[-0.035em] leading-[1.15] transition-colors ${
                   isLightMinimal ? "text-[#0f172a]" : "text-white"
@@ -1545,7 +1545,18 @@ export default function Reg24MetroConsole() {
                 REG24
               </span>
               <span
-                className={`hidden sm:inline text-[12px] font-medium ${
+                title="Google Gemini & Model24 Multi-LLM Engine Connected"
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border ${
+                  isLightMinimal
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span>AI Ready</span>
+              </span>
+              <span
+                className={`hidden md:inline text-[12px] font-medium ${
                   isLightMinimal ? "text-slate-500" : "text-slate-400"
                 }`}
               >
@@ -1966,9 +1977,21 @@ export default function Reg24MetroConsole() {
                   {!uxHasSubmittedResearch ? (
                     <div className="min-h-[72vh] flex flex-col justify-between py-10">
                       <div className="my-auto max-w-[700px] w-full mx-auto text-center space-y-6">
-                        {/* Minimal Brand Pill */}
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wider uppercase bg-[#0f2c59] text-[#f5b700]">
-                          <span>REG24</span>
+                        {/* Minimal Brand Pill + AI Ready Badge */}
+                        <div className="inline-flex items-center gap-2">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wider uppercase bg-[#0f2c59] text-[#f5b700]">
+                            <span>REG24</span>
+                          </div>
+                          <div
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold tracking-wider uppercase border ${
+                              isLightMinimal
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                                : "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                            }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            <span>AI Ready</span>
+                          </div>
                         </div>
 
                         {/* Headline & Subtitle (Section 2 — Page heading 32-40px, ExtraBold 800, -0.035em, 1.15) */}
