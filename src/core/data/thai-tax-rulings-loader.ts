@@ -92,9 +92,13 @@ export function searchThaiTaxRulings(options: {
   offset?: number;
 }): {
   total_corpus_count: number;
+  total_corpus_size: number;
   matched_count: number;
+  total_matching: number;
   categories: typeof TAX_TYPE_LABELS;
+  category_breakdown: Record<string, number>;
   results: ThaiTaxRulingRecord[];
+  rulings: ThaiTaxRulingRecord[];
 } {
   const q = (options.query || "").trim().toLowerCase();
   const taxFilter = (options.primary_tax_type || "").trim();
@@ -119,10 +123,19 @@ export function searchThaiTaxRulings(options: {
     );
   });
 
+  const sliced = filtered.slice(offset, offset + limit);
+  const categoryBreakdown: Record<string, number> = Object.fromEntries(
+    Object.entries(TAX_TYPE_LABELS).map(([k, v]) => [k, v.count])
+  );
+
   return {
     total_corpus_count: THAI_TAX_RULINGS_CORPUS.length,
+    total_corpus_size: THAI_TAX_RULINGS_CORPUS.length,
     matched_count: filtered.length,
+    total_matching: filtered.length,
     categories: TAX_TYPE_LABELS,
-    results: filtered.slice(offset, offset + limit),
+    category_breakdown: categoryBreakdown,
+    results: sliced,
+    rulings: sliced,
   };
 }
