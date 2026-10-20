@@ -1077,6 +1077,114 @@ export default function Reg24MetroConsole() {
     }
   };
 
+  // REG-LLM-01..07 — Model24 Intelligent LLM Integration & Routing Engine states
+  const [model24Snapshot, setModel24Snapshot] = useState<{
+    engine_name: string;
+    control_policy: {
+      policy_version: string;
+      selection_mode: "auto" | "manual";
+      manual_override_model_id: string | null;
+      optimization_priority:
+        | "best_verified_legal_quality"
+        | "balanced_quality_and_cost"
+        | "lowest_cost_meeting_threshold";
+      verify_legal_citations_mandatory: boolean;
+      independent_review_for_high_risk: boolean;
+      enforce_pdpa_pii_redaction?: boolean;
+      provider_allowlist?: string[];
+      weights: {
+        legal_quality_benchmark: number;
+        capability_match: number;
+        thai_language_performance: number;
+        cost_efficiency: number;
+        latency_and_reliability: number;
+      };
+    };
+    model_registry: {
+      model_id: string;
+      display_name: string;
+      provider: string;
+      tier: string;
+      context_window_tokens: number;
+      pricing_usd_per_1m_tokens: { input: number; output: number };
+      benchmark_scores: {
+        overall_thai_legal_quality: number;
+        thai_language_fidelity: number;
+        avg_latency_ms: number;
+      };
+    }[];
+    benchmark_1000_suite: {
+      total_target_cases: number;
+      domain_allocations: {
+        domain_code: string;
+        domain_name: string;
+        allocated_cases: number;
+        baseline_pass_rate_pct: number;
+      }[];
+    };
+    simulator_presets: Record<
+      string,
+      {
+        preset: string;
+        label: string;
+        mapped_task_type?: string;
+        routing_tier: string;
+        proposed_execution_path: string;
+        task_characteristics: string;
+        required_verification: string;
+        selected_primary_model: {
+          model_id: string;
+          display_name: string;
+          provider: string;
+          tier: string;
+        };
+        selected_reviewer_model: {
+          model_id: string;
+          display_name: string;
+          provider: string;
+        } | null;
+      }
+    >;
+    cost_attribution: {
+      total_traces: number;
+      total_cost_usd: number;
+    };
+  } | null>(null);
+  const [model24ActivePreset, setModel24ActivePreset] = useState<
+    "search_legislation" | "analyze_contract" | "complex_tax_restructuring" | "process_500_page_legal_book"
+  >("complex_tax_restructuring");
+
+  const fetchModel24Snapshot = useCallback(async () => {
+    try {
+      const res = await fetch("/api/v1/infrastructure/llm/router");
+      if (res.ok) {
+        const data = await res.json();
+        setModel24Snapshot(data);
+      }
+    } catch {
+      // Ignore network error during initial load
+    }
+  }, []);
+
+  const handleUpdateModel24Policy = async (patch: Record<string, unknown>) => {
+    const res = await fetch("/api/v1/infrastructure/llm/router", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-reg24-role": "Platform Administrator",
+      },
+      body: JSON.stringify({
+        action: "update_policy",
+        policy_patch: patch,
+      }),
+    });
+    const data = await res.json();
+    if (data.snapshot) {
+      setModel24Snapshot(data.snapshot);
+      showToast("Updated Model24 Intelligent Routing Policy at runtime (zero code redeploy).");
+    }
+  };
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
@@ -1096,7 +1204,8 @@ export default function Reg24MetroConsole() {
   useEffect(() => {
     fetchSnapshot();
     fetchNeo4jHealth();
-  }, [fetchSnapshot, fetchNeo4jHealth]);
+    fetchModel24Snapshot();
+  }, [fetchSnapshot, fetchNeo4jHealth, fetchModel24Snapshot]);
 
   // Windows Phone Live Tile counter flip animation every 4s
   useEffect(() => {
@@ -2153,6 +2262,26 @@ export default function Reg24MetroConsole() {
                             {languageMode === "th"
                               ? `ฐานข้อมูลกฎหมายทั้งหมด (${snapshot.industryModules.length} อุตสาหกรรม & ${snapshot.instruments.length} กฎหมายหลัก)`
                               : `Legal Database List (${snapshot.industryModules.length} Industries & ${snapshot.instruments.length} Laws)`}
+                          </button>
+
+                          {/* Simple Model24 Auto-Routing Badge for Lawyers (Section 12 UX Principle) */}
+                          <button
+                            onClick={() => {
+                              setUxExperience("infrastructure");
+                            }}
+                            title="REG24 Model24 Intelligent LLM Router — Click to view routing simulator & benchmark control center"
+                            className={`px-3.5 py-2 rounded-xl text-[11px] font-medium border cursor-pointer transition-all flex items-center gap-1.5 ${
+                              isLightMinimal
+                                ? "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
+                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
+                            }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                            <span>
+                              {languageMode === "th"
+                                ? "Model: Auto — REG24 เลือกโมเดลกฎหมายที่แม่นยำที่สุดอัตโนมัติ"
+                                : "Model: Auto — REG24 selects best approved model"}
+                            </span>
                           </button>
                         </div>
                       </div>
@@ -3747,6 +3876,266 @@ export default function Reg24MetroConsole() {
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* =================================================================
+                MODEL24 — INTELLIGENT LLM INTEGRATION & MODEL ROUTING ENGINE
+                (REG24-INFRA-LLM-001: REG-LLM-01 to REG-LLM-07)
+                ================================================================= */}
+            <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-6 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#24324b] pb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-[#f5b700]">
+                      Model24 &bull; Intelligent LLM Router &amp; Multi-Model Legal Engine (REG-LLM-01..07)
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      {model24Snapshot?.control_policy?.selection_mode !== "manual"
+                        ? "AUTO ROUTING ACTIVE"
+                        : "MANUAL OVERRIDE"}
+                    </span>
+                  </div>
+                  <h3 className="text-base font-bold text-white mt-1">
+                    Multi-LLM Legal Intelligence Infrastructure, 6-Point Citation Gate &amp; 1,000-Case Thai Legal Benchmark
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Routes across OpenAI (GPT-6 Luna/Sol/Astra), Anthropic (Claude 5.5 Haiku/Sonnet/Opus), Google (Gemini Flash-Lite/3.8 Flash/4 Argon), and Private Typhoon Legal TH 70B with deterministic source verification.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={
+                      model24Snapshot?.control_policy?.optimization_priority ||
+                      "best_verified_legal_quality"
+                    }
+                    onChange={(e) =>
+                      handleUpdateModel24Policy({ optimization_priority: e.target.value })
+                    }
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#0b1322] border border-[#24324b] text-slate-200"
+                  >
+                    <option value="best_verified_legal_quality">
+                      Priority: Best Verified Legal Quality (Default)
+                    </option>
+                    <option value="balanced_quality_and_cost">
+                      Priority: Balanced Quality &amp; Cost
+                    </option>
+                    <option value="lowest_cost_meeting_threshold">
+                      Priority: Lowest Cost Meeting Threshold
+                    </option>
+                  </select>
+                  <button
+                    onClick={() =>
+                      handleUpdateModel24Policy({
+                        enforce_pdpa_pii_redaction:
+                          !model24Snapshot?.control_policy?.enforce_pdpa_pii_redaction,
+                      })
+                    }
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-all ${
+                      model24Snapshot?.control_policy?.enforce_pdpa_pii_redaction !== false
+                        ? "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                        : "bg-[#1a2438] border-[#2e3e5c] text-slate-300 hover:text-white"
+                    }`}
+                  >
+                    {model24Snapshot?.control_policy?.enforce_pdpa_pii_redaction !== false
+                      ? "PDPA Pre-Dispatch PII Redaction: ON"
+                      : "PDPA Pre-Dispatch PII Redaction: OFF"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Interactive 4-Scenario Routing Simulator (Section 4 of Spec) */}
+              {(() => {
+                const presetKeys: Array<
+                  | "search_legislation"
+                  | "analyze_contract"
+                  | "complex_tax_restructuring"
+                  | "process_500_page_legal_book"
+                > = [
+                  "search_legislation",
+                  "analyze_contract",
+                  "complex_tax_restructuring",
+                  "process_500_page_legal_book",
+                ];
+                const activeSim =
+                  model24Snapshot?.simulator_presets?.[model24ActivePreset] ||
+                  model24Snapshot?.simulator_presets?.complex_tax_restructuring;
+
+                return (
+                  <div className="space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-300">
+                        Interactive Legal Task Routing Simulator (5-Factor Scoring + Hard Eligibility Gates)
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {presetKeys.map((pKey) => {
+                          const simItem = model24Snapshot?.simulator_presets?.[pKey];
+                          return (
+                            <button
+                              key={pKey}
+                              onClick={() => setModel24ActivePreset(pKey)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-all ${
+                                model24ActivePreset === pKey
+                                  ? "bg-[#f5b700] text-[#0a192f] border-[#f5b700]"
+                                  : "bg-[#0b1322] text-slate-300 border-[#24324b] hover:border-slate-500"
+                              }`}
+                            >
+                              {simItem?.label || pKey}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {activeSim && (
+                      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 bg-[#0b1322] border border-[#1e293b] rounded-xl p-4">
+                        <div className="lg:col-span-2 space-y-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <span className="text-[10px] font-mono uppercase tracking-wider text-[#f5b700]">
+                                TASK: {activeSim.mapped_task_type} &bull; TIER: {activeSim.routing_tier}
+                              </span>
+                              <h4 className="text-sm font-bold text-white mt-0.5">
+                                Primary Winner: {activeSim.selected_primary_model.display_name} ({activeSim.selected_primary_model.provider})
+                              </h4>
+                            </div>
+                            <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                              6-Point Citation Lock: Mandatory
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-slate-300 leading-relaxed">
+                            <strong className="text-white">Task Characteristics:</strong>{" "}
+                            {activeSim.task_characteristics}
+                          </p>
+
+                          <div className="p-2.5 rounded-lg bg-[#101829] border border-[#24324b] text-xs font-mono text-emerald-300">
+                            {activeSim.proposed_execution_path}
+                          </div>
+
+                          <p className="text-[11px] text-slate-400">
+                            <strong className="text-slate-200">Required Verification:</strong>{" "}
+                            {activeSim.required_verification}
+                          </p>
+                        </div>
+
+                        <div className="space-y-2.5 border-t lg:border-t-0 lg:border-l border-[#1e293b] pt-3 lg:pt-0 lg:pl-4">
+                          <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                            Multi-Model &amp; Guardrail Status
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-[#101829] border border-[#24324b] text-xs space-y-1.5">
+                            <div className="flex justify-between gap-2">
+                              <span className="text-slate-400">Primary Model:</span>
+                              <span className="text-slate-200 font-semibold text-right">
+                                {activeSim.selected_primary_model.display_name}
+                              </span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-slate-400">Cross-Provider Reviewer:</span>
+                              <span className="text-[#f5b700] font-semibold text-right">
+                                {activeSim.selected_reviewer_model
+                                  ? `${activeSim.selected_reviewer_model.display_name} (${activeSim.selected_reviewer_model.provider})`
+                                  : "Not Required (Low/Med Risk)"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-slate-400">Embedding + Reranker:</span>
+                              <span className="text-emerald-400 font-mono text-[11px]">
+                                TE3-Legal + BGE-M3
+                              </span>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <span className="text-slate-400">Logged Traces / Cost:</span>
+                              <span className="text-slate-200 font-mono">
+                                {model24Snapshot?.cost_attribution?.total_traces ?? 2} tasks ($
+                                {model24Snapshot?.cost_attribution?.total_cost_usd ?? 0.041})
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* 1,000-Case Thai Legal Benchmark Summary & Provider Allowlist / Failover Drill */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-2">
+                <div className="p-4 rounded-xl bg-[#0b1322] border border-[#1e293b] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">
+                      REG-LLM-04 &bull; 1,000-Case Thai Legal Benchmark Allocation
+                    </span>
+                    <span className="text-[11px] font-mono text-[#f5b700]">
+                      {model24Snapshot?.benchmark_1000_suite?.total_target_cases || 1000} Verified Cases
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(model24Snapshot?.benchmark_1000_suite?.domain_allocations || []).map(
+                      (dom) => (
+                        <div
+                          key={dom.domain_code}
+                          className="p-2 rounded-lg bg-[#101829] border border-[#24324b] text-[11px]"
+                        >
+                          <div className="text-slate-400 truncate" title={dom.domain_name}>
+                            {dom.domain_code}
+                          </div>
+                          <div className="text-white font-bold font-mono mt-0.5">
+                            {dom.allocated_cases} cases ({dom.baseline_pass_rate_pct}%)
+                          </div>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-[#0b1322] border border-[#1e293b] space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">
+                      REG-LLM-01 &bull; Provider Allowlist &amp; Automatic Failover Drill
+                    </span>
+                    <span className="text-[11px] font-mono text-emerald-400">
+                      Zero Single-Vendor Lock-In
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Toggle provider availability to verify Model24 automatically fails over to an approved alternative provider while respecting Thai PDPA confidentiality gates:
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {(["openai", "anthropic", "google", "private_self_hosted"] as const).map(
+                      (prov) => {
+                        const allowlist = model24Snapshot?.control_policy?.provider_allowlist || [
+                          "openai",
+                          "anthropic",
+                          "google",
+                          "private_self_hosted",
+                        ];
+                        const isEnabled = allowlist.includes(prov);
+                        return (
+                          <button
+                            key={prov}
+                            onClick={() => {
+                              const next = isEnabled
+                                ? allowlist.filter((p) => p !== prov)
+                                : [...allowlist, prov];
+                              if (next.length > 0) {
+                                handleUpdateModel24Policy({ provider_allowlist: next });
+                              }
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-xs font-mono font-semibold border cursor-pointer transition-all ${
+                              !isEnabled
+                                ? "bg-red-500/20 border-red-500/40 text-red-300"
+                                : "bg-emerald-500/10 border-emerald-500/30 text-emerald-300 hover:bg-emerald-500/20"
+                            }`}
+                          >
+                            {prov}: {isEnabled ? "ENABLED" : "OUTAGE / DISABLED"}
+                          </button>
+                        );
+                      }
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
