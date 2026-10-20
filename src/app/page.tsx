@@ -2269,7 +2269,7 @@ export default function Reg24MetroConsole() {
                             onClick={() => {
                               setUxExperience("infrastructure");
                             }}
-                            title="REG24 Model24 Intelligent LLM Router — Click to view routing simulator & benchmark control center"
+                            title="REG24 Model24 Intelligent LLM Router (Google Gemini Primary) — Click to view routing simulator & benchmark control center"
                             className={`px-3.5 py-2 rounded-xl text-[11px] font-medium border cursor-pointer transition-all flex items-center gap-1.5 ${
                               isLightMinimal
                                 ? "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
@@ -2279,8 +2279,8 @@ export default function Reg24MetroConsole() {
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             <span>
                               {languageMode === "th"
-                                ? "Model: Auto — REG24 เลือกโมเดลกฎหมายที่แม่นยำที่สุดอัตโนมัติ"
-                                : "Model: Auto — REG24 selects best approved model"}
+                                ? "Model: Auto (Google Gemini Primary — Flash-Lite / 3.8 Flash / 4 Argon)"
+                                : "Model: Auto (Google Gemini Primary — Flash-Lite / 3.8 Flash / 4 Argon)"}
                             </span>
                           </button>
                         </div>
@@ -3885,21 +3885,27 @@ export default function Reg24MetroConsole() {
             <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-6 space-y-5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#24324b] pb-4">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="text-[11px] font-semibold uppercase tracking-widest text-[#f5b700]">
                       Model24 &bull; Intelligent LLM Router &amp; Multi-Model Legal Engine (REG-LLM-01..07)
                     </span>
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                      {model24Snapshot?.control_policy?.selection_mode !== "manual"
-                        ? "AUTO ROUTING ACTIVE"
-                        : "MANUAL OVERRIDE"}
+                      GOOGLE GEMINI PRIMARY ACTIVE
                     </span>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-[#f5b700]/15 text-[#f5b700] border border-[#f5b700]/40 hover:bg-[#f5b700] hover:text-[#0a192f] transition-all"
+                    >
+                      Get Gemini API Key (Google AI Studio) &rarr;
+                    </a>
                   </div>
                   <h3 className="text-base font-bold text-white mt-1">
-                    Multi-LLM Legal Intelligence Infrastructure, 6-Point Citation Gate &amp; 1,000-Case Thai Legal Benchmark
+                    Google Gemini Primary Legal Intelligence (Flash-Lite / 3.8 Flash / 4 Argon) + Multi-Provider Failover
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Routes across OpenAI (GPT-6 Luna/Sol/Astra), Anthropic (Claude 5.5 Haiku/Sonnet/Opus), Google (Gemini Flash-Lite/3.8 Flash/4 Argon), and Private Typhoon Legal TH 70B with deterministic source verification.
+                    Primary routing via Google Gemini (1M–2M token context window) with automatic cross-provider verification and failover across OpenAI, Anthropic, and Private Typhoon Legal TH 70B.
                   </p>
                 </div>
 
