@@ -14,6 +14,7 @@
 
 import { reg24Core } from "../engine/reg24-core";
 import { unifiedGraphRepository } from "../graph/graph-repository";
+import { aiCostRouterAndMetering } from "./cost-router-metering";
 
 export type LLMProviderId =
   | "openai"
@@ -1987,6 +1988,7 @@ export class Model24OrchestrationEngine {
       },
       recent_traces: this.getExecutionTraces(),
       cost_attribution: this.getCostAttributionSummary(),
+      cost_router_metering: aiCostRouterAndMetering.getAnalyticsSummary(),
     };
   }
 }

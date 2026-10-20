@@ -3,9 +3,10 @@ import {
   model24Engine,
   SimulatorJobPreset,
 } from "@/core/llm/model24-engine";
+import { aiCostRouterAndMetering } from "@/core/llm/cost-router-metering";
 
 /**
- * REG24 — Model24 Intelligent LLM Integration & Model Routing API
+ * REG24 — Model24 Intelligent LLM Integration, Cost Router & Token Metering API
  * GET & POST /api/v1/infrastructure/llm/router
  */
 export async function GET() {
@@ -26,6 +27,36 @@ export async function POST(req: NextRequest) {
         status: "ok",
         action,
         simulation,
+        snapshot: model24Engine.getDashboardSnapshot(),
+      });
+    }
+
+    if (action === "simulate_cost_router") {
+      const pipeline = aiCostRouterAndMetering.executeAndMeterPipeline({
+        query:
+          body.query ||
+          "วิเคราะห์สัญญาอนุญาตให้ใช้สิทธิซอฟต์แวร์ ข้อ 8.2 ใน NotebookLM ร่วมกับภาษีหัก ณ ที่จ่าย มาตรา 70",
+        tenant_id: body.tenant_id || "tenant.law24.prod",
+        legal_module_id: body.legal_module_id || "reg24.tax.th",
+        simulate_escalation_trigger: body.simulate_escalation_trigger || "NONE",
+      });
+      return NextResponse.json({
+        status: "ok",
+        action,
+        pipeline,
+        snapshot: model24Engine.getDashboardSnapshot(),
+      });
+    }
+
+    if (action === "update_tenant_budget") {
+      const updatedBudget = aiCostRouterAndMetering.updateTenantBudget(
+        body.tenant_id || "tenant.law24.prod",
+        body.budget_patch || {}
+      );
+      return NextResponse.json({
+        status: "ok",
+        action,
+        tenant_budget: updatedBudget,
         snapshot: model24Engine.getDashboardSnapshot(),
       });
     }

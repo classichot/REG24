@@ -680,6 +680,7 @@ export default function Reg24MetroConsole() {
       if (modeToUse === "Deep Research") {
         setUxDeepResearchExpanded(true);
       }
+      handleSimulateCostRouter(queryToUse, "NONE");
       showToast(
         `Research completed • Automatically routed across ${
           data.turn?.auto_routed_modules?.length || data.turn?.selected_domains?.length || 3
@@ -1365,12 +1366,166 @@ export default function Reg24MetroConsole() {
       masked_key?: string | null;
       api_key_portal_url: string;
     };
+    cost_router_metering?: {
+      prd_module: string;
+      fundamental_principle: string;
+      kpis: {
+        total_metered_requests: number;
+        avg_cost_per_question_usd: number;
+        total_reconciled_cost_usd: number;
+        unoptimized_frontier_baseline_usd: number;
+        total_cost_saved_usd: number;
+        overall_cost_savings_pct: number;
+        avg_verified_legal_quality_pct: number;
+        citation_verification_pass_rate_pct: number;
+        zero_cost_deterministic_classifications_pct: number;
+      };
+      tier_policies: Array<{
+        tier_id: string;
+        tier_label: string;
+        typical_tasks: string[];
+        typical_task_description: string;
+        preferred_execution_strategy: string;
+        default_model_id: string;
+        fallback_escalation_model_id: string;
+        target_cost_min_usd: number;
+        target_cost_max_usd: number;
+        hard_ceiling_cost_usd: number;
+        min_required_legal_quality_score: number;
+      }>;
+      tenant_budgets: Array<{
+        tenant_id: string;
+        organization_name: string;
+        tier_plan: string;
+        monthly_budget_limit_usd: number;
+        current_month_spend_usd: number;
+        per_request_ceiling_usd: number;
+        per_agent_mission_ceiling_usd: number;
+        warning_threshold_pct: number;
+        hard_limit_behavior: string;
+        status: string;
+      }>;
+      recent_metering_records: Array<{
+        metering_id: string;
+        timestamp: string;
+        tenant_id: string;
+        legal_module_id: string;
+        task_class: string;
+        execution_tier: string;
+        provider: string;
+        model_id: string;
+        tokens: {
+          input_uncached_tokens: number;
+          input_cached_tokens: number;
+          output_tokens: number;
+          reasoning_tokens: number;
+          embedding_tokens: number;
+          reranker_tokens: number;
+          total_tokens: number;
+        };
+        component_costs_usd: {
+          reconciled_actual_cost_usd: number;
+          unoptimized_frontier_baseline_cost_usd: number;
+          cost_saved_usd: number;
+          cost_savings_pct: number;
+        };
+        escalation: {
+          escalated: boolean;
+          initial_model_id: string;
+          final_model_id: string;
+          escalation_triggers: string[];
+          escalation_explanation: string;
+        };
+        quality_evaluation: {
+          legal_accuracy_score: number;
+          citation_validation_passed: boolean;
+          verified_citations_count: number;
+        };
+      }>;
+      optimization_recommendations: Array<{
+        id: string;
+        title: string;
+        impact_pct: string;
+        description: string;
+      }>;
+    };
   } | null>(null);
   const [geminiKeyInput, setGeminiKeyInput] = useState("");
   const [showGeminiKeyModal, setShowGeminiKeyModal] = useState(false);
   const [model24ActivePreset, setModel24ActivePreset] = useState<
     "search_legislation" | "analyze_contract" | "complex_tax_restructuring" | "process_500_page_legal_book"
   >("complex_tax_restructuring");
+  const [showAnswerCostMeterDrawer, setShowAnswerCostMeterDrawer] = useState(false);
+  const [costRouterQueryInput, setCostRouterQueryInput] = useState(
+    "วิเคราะห์สัญญาอนุญาตให้ใช้สิทธิซอฟต์แวร์ ข้อ 8.2 ใน NotebookLM ร่วมกับภาษีหัก ณ ที่จ่าย มาตรา 70"
+  );
+  const [costRouterEscalationSim, setCostRouterEscalationSim] = useState<
+    "NONE" | "EVIDENCE_MATERIAL_CONFLICT" | "CITATION_VALIDATION_FAILURE" | "UNRESOLVED_GRAPH_RELATIONSHIP"
+  >("NONE");
+  const [costRouterPipelineSim, setCostRouterPipelineSim] = useState<{
+    query: string;
+    classification: {
+      task_class: string;
+      task_label_en: string;
+      task_label_th: string;
+      execution_tier: string;
+      preferred_execution: string;
+      subject_matter_domains: string[];
+      estimated_complexity: string;
+      classifier_cost_usd: number;
+    };
+    selected_model: {
+      model_id: string;
+      provider: string;
+      tier: string;
+      selection_reason: string;
+    };
+    metering_record: {
+      execution_tier: string;
+      model_id: string;
+      tokens: {
+        input_uncached_tokens: number;
+        input_cached_tokens: number;
+        output_tokens: number;
+        reasoning_tokens: number;
+        embedding_tokens: number;
+        reranker_tokens: number;
+        total_tokens: number;
+      };
+      component_costs_usd: {
+        llm_input_cost_usd: number;
+        llm_cached_input_cost_usd: number;
+        llm_output_cost_usd: number;
+        llm_reasoning_cost_usd: number;
+        embedding_cost_usd: number;
+        reranker_cost_usd: number;
+        neo4j_graphrag_traversal_cost_usd: number;
+        escalation_review_cost_usd: number;
+        reconciled_actual_cost_usd: number;
+        unoptimized_frontier_baseline_cost_usd: number;
+        cost_saved_usd: number;
+        cost_savings_pct: number;
+      };
+      escalation: {
+        escalated: boolean;
+        initial_model_id: string;
+        final_model_id: string;
+        escalation_explanation: string;
+      };
+      quality_evaluation: {
+        legal_accuracy_score: number;
+        verified_citations_count: number;
+      };
+    };
+    ten_stage_pipeline: Array<{
+      stage_number: number;
+      stage_name: string;
+      status: string;
+      latency_ms: number;
+      cost_usd: number;
+      detail: string;
+    }>;
+  } | null>(null);
 
   // OneDrive Thai Revenue Department Tax Rulings Corpus (3,643 Official Rulings B.E. 2543-2569)
   const [thaiTaxRulingsData, setThaiTaxRulingsData] = useState<{
@@ -1468,6 +1623,40 @@ export default function Reg24MetroConsole() {
     }
   };
 
+  const handleSimulateCostRouter = useCallback(
+    async (
+      customQuery?: string,
+      customEscalation?:
+        | "NONE"
+        | "EVIDENCE_MATERIAL_CONFLICT"
+        | "CITATION_VALIDATION_FAILURE"
+        | "UNRESOLVED_GRAPH_RELATIONSHIP"
+    ) => {
+      const qToUse = customQuery !== undefined ? customQuery : costRouterQueryInput;
+      const escToUse = customEscalation !== undefined ? customEscalation : costRouterEscalationSim;
+      try {
+        const res = await fetch("/api/v1/infrastructure/llm/router", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "simulate_cost_router",
+            query: qToUse,
+            tenant_id: activeTenant,
+            simulate_escalation_trigger: escToUse,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.pipeline) setCostRouterPipelineSim(data.pipeline);
+          if (data.snapshot) setModel24Snapshot(data.snapshot);
+        }
+      } catch {
+        // Ignore network error
+      }
+    },
+    [costRouterQueryInput, costRouterEscalationSim, activeTenant]
+  );
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
@@ -1493,6 +1682,7 @@ export default function Reg24MetroConsole() {
     fetchNeo4jHealth();
     fetchModel24Snapshot();
     fetchThaiTaxRulings("", "ALL");
+    handleSimulateCostRouter();
 
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -2895,7 +3085,98 @@ export default function Reg24MetroConsole() {
                                       ? "Web Research Only (UX-11)"
                                       : "Official Legal Sources"}
                                   </span>
+                                  {costRouterPipelineSim && (
+                                    <>
+                                      <span className={mutedText}>&middot;</span>
+                                      <button
+                                        onClick={() => setShowAnswerCostMeterDrawer((prev) => !prev)}
+                                        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-semibold border cursor-pointer transition-all ${
+                                          isLightMinimal
+                                            ? "bg-slate-100 border-slate-300 text-[#0f2c59] hover:bg-slate-200"
+                                            : "bg-[#0f2c59]/60 border-[#f5b700]/40 text-[#f5b700]"
+                                        }`}
+                                        title="View AI Cost Router & Token Metering Breakdown"
+                                      >
+                                        <Cpu className="w-3 h-3" />
+                                        <span>
+                                          {costRouterPipelineSim.metering_record.execution_tier.replace("TIER_", "T")} &bull;{" "}
+                                          {costRouterPipelineSim.selected_model.model_id.split("/")[1] ||
+                                            costRouterPipelineSim.selected_model.model_id}{" "}
+                                          &bull;{" "}
+                                          {costRouterPipelineSim.metering_record.tokens.total_tokens.toLocaleString()} tok &bull; $
+                                          {costRouterPipelineSim.metering_record.component_costs_usd.reconciled_actual_cost_usd.toFixed(
+                                            4
+                                          )}{" "}
+                                          (-
+                                          {
+                                            costRouterPipelineSim.metering_record.component_costs_usd
+                                              .cost_savings_pct
+                                          }
+                                          %)
+                                        </span>
+                                      </button>
+                                    </>
+                                  )}
                                 </div>
+
+                                {/* Expandable AI Cost Router & Token Metering Inspector inside Answer Card */}
+                                {showAnswerCostMeterDrawer && costRouterPipelineSim && (
+                                  <div className={`mt-3 p-4 rounded-xl text-xs space-y-2.5 ${subtleBox}`}>
+                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-2 border-slate-200/80 dark:border-slate-800">
+                                      <div className="font-bold text-[#0f2c59] dark:text-[#f5b700]">
+                                        AI Cost Router &amp; Token Metering Trace (FR-001 / FR-002 / FR-003)
+                                      </div>
+                                      <button
+                                        onClick={() => {
+                                          setUxExperience("infrastructure");
+                                          window.scrollTo({ top: 0, behavior: "smooth" });
+                                        }}
+                                        className="text-[11px] font-semibold underline text-[#0f2c59] dark:text-[#f5b700] cursor-pointer"
+                                      >
+                                        {languageMode === "th"
+                                          ? "เปิดแดชบอร์ดควบคุมต้นทุน AI เต็มรูปแบบ →"
+                                          : "Open Full Cost Router Dashboard →"}
+                                      </button>
+                                    </div>
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                                      <div>
+                                        <span className={mutedText}>Task Class (FR-001):</span>
+                                        <div className="font-bold">
+                                          {costRouterPipelineSim.classification.task_class}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <span className={mutedText}>Selected Model (FR-002):</span>
+                                        <div className="font-mono font-bold">
+                                          {costRouterPipelineSim.selected_model.model_id}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <span className={mutedText}>Metered Tokens:</span>
+                                        <div className="font-mono font-bold">
+                                          {costRouterPipelineSim.metering_record.tokens.total_tokens.toLocaleString()}{" "}
+                                          ({costRouterPipelineSim.metering_record.tokens.input_cached_tokens.toLocaleString()}{" "}
+                                          cached -75%)
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <span className={mutedText}>Reconciled Cost vs Frontier:</span>
+                                        <div className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                          $
+                                          {costRouterPipelineSim.metering_record.component_costs_usd.reconciled_actual_cost_usd.toFixed(
+                                            5
+                                          )}{" "}
+                                          (Saved{" "}
+                                          {
+                                            costRouterPipelineSim.metering_record.component_costs_usd
+                                              .cost_savings_pct
+                                          }
+                                          %)
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
                               </div>
 
                               {/* 1. Legal Analysis (Answer First — UX-04) */}
@@ -5793,6 +6074,437 @@ export default function Reg24MetroConsole() {
                           </button>
                         );
                       }
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* =================================================================
+                REG24 — AI COST ROUTER & TOKEN METERING ENGINE (P0 PRD)
+                Section 1–4: 6-Component Centralized Architecture, FR-001 Task
+                Classification, FR-002 Dynamic Selection, FR-003 Quality-Aware
+                Escalation, Tier 0–Tier 4 Operating Policies & Budget Guardrails
+                ================================================================= */}
+            <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-6 space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#24324b] pb-4">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-[#f5b700]">
+                      AI Infrastructure / Cost Optimization &bull; P0 Core Engine
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                      FR-001..FR-003 QUALITY-FIRST ROUTING ACTIVE
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-extrabold text-white mt-1">
+                    AI Cost Router &amp; Token Metering Engine
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {model24Snapshot?.cost_router_metering?.fundamental_principle ||
+                      "Fundamental Principle: REG24 optimizes cost subject to legal quality requirements, rather than optimizing cost alone."}
+                  </p>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-[#0b1322] border border-[#24324b] text-xs font-mono text-emerald-400 shrink-0">
+                  Saved {model24Snapshot?.cost_router_metering?.kpis?.overall_cost_savings_pct ?? 84.6}% vs Frontier Baseline
+                </div>
+              </div>
+
+              {/* 6-Component Architecture + Real-Time Cost & Quality KPIs */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+                <div className="p-3.5 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[10px] uppercase">Avg Cost / Question</div>
+                  <div className="text-base font-extrabold font-mono text-emerald-400 mt-0.5">
+                    ${model24Snapshot?.cost_router_metering?.kpis?.avg_cost_per_question_usd ?? 0.00412}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">Target &lt; $0.015 avg</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[10px] uppercase">Total Reconciled</div>
+                  <div className="text-base font-extrabold font-mono text-white mt-0.5">
+                    ${model24Snapshot?.cost_router_metering?.kpis?.total_reconciled_cost_usd ?? 0.0289}
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">
+                    {model24Snapshot?.cost_router_metering?.kpis?.total_metered_requests ?? 7} metered calls
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[10px] uppercase">Frontier Baseline</div>
+                  <div className="text-base font-extrabold font-mono text-slate-400 line-through mt-0.5">
+                    ${model24Snapshot?.cost_router_metering?.kpis?.unoptimized_frontier_baseline_usd ?? 0.194}
+                  </div>
+                  <div className="text-[10px] text-emerald-400 mt-0.5">
+                    Saved ${model24Snapshot?.cost_router_metering?.kpis?.total_cost_saved_usd ?? 0.1651}
+                  </div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[10px] uppercase">Classifier Cost (FR-001)</div>
+                  <div className="text-base font-extrabold font-mono text-[#f5b700] mt-0.5">$0.0000</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">100% deterministic triage</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[10px] uppercase">Prompt Cache Hit</div>
+                  <div className="text-base font-extrabold font-mono text-emerald-400 mt-0.5">-75% Rate</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">65% statutory prefix cached</div>
+                </div>
+                <div className="p-3.5 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[10px] uppercase">Verified Legal Quality</div>
+                  <div className="text-base font-extrabold font-mono text-emerald-400 mt-0.5">
+                    {model24Snapshot?.cost_router_metering?.kpis?.avg_verified_legal_quality_pct ?? 96.8}%
+                  </div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">100% Citation Verified</div>
+                </div>
+              </div>
+
+              {/* Interactive Cost Router & Token Metering Simulator (FR-001, FR-002, FR-003) */}
+              <div className="p-4 sm:p-5 rounded-xl bg-[#0b1322] border border-[#1e293b] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <div className="text-xs font-bold uppercase tracking-wider text-[#f5b700]">
+                      Interactive Cost Router, Token Metering &amp; FR-003 Escalation Simulator
+                    </div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Test any legal question across Tier 0–Tier 4 or trigger a material evidence conflict to verify FR-003 quality-aware escalation:
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      {
+                        label: "Tier 0: Legal Lookup",
+                        q: "ค้นหามาตรา 65 ตรี แห่งประมวลรัษฎากร และข้อหารือ กค 0702/636",
+                        esc: "NONE" as const,
+                      },
+                      {
+                        label: "Tier 1: Legal Explanation",
+                        q: "อธิบายหลักเกณฑ์รายจ่ายต้องห้ามตามมาตรา 65 ตรี และการคำนวณภาษีเงินได้นิติบุคคล",
+                        esc: "NONE" as const,
+                      },
+                      {
+                        label: "Tier 2: Contract / NotebookLM",
+                        q: "วิเคราะห์สัญญาอนุญาตให้ใช้สิทธิซอฟต์แวร์ ข้อ 8.2 ใน NotebookLM ร่วมกับภาษีหัก ณ ที่จ่าย มาตรา 70",
+                        esc: "NONE" as const,
+                      },
+                      {
+                        label: "Tier 2 -> FR-003 Escalation",
+                        q: "วิเคราะห์สัญญาโอนกิจการที่มีข้อขัดแย้ง (conflict) ระหว่างเงื่อนไข Cash Boot 5% กับการยกเว้นภาษี",
+                        esc: "EVIDENCE_MATERIAL_CONFLICT" as const,
+                      },
+                      {
+                        label: "Tier 4: Agent Mission",
+                        q: "Comprehensive legal due diligence agent mission for acquiring a Thai solar IPP",
+                        esc: "NONE" as const,
+                      },
+                    ].map((preset) => (
+                      <button
+                        key={preset.label}
+                        onClick={() => {
+                          setCostRouterQueryInput(preset.q);
+                          setCostRouterEscalationSim(preset.esc);
+                          handleSimulateCostRouter(preset.q, preset.esc);
+                        }}
+                        className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#101829] hover:bg-[#192844] text-slate-200 border border-[#24324b] cursor-pointer"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={costRouterQueryInput}
+                    onChange={(e) => setCostRouterQueryInput(e.target.value)}
+                    placeholder="Enter any Thai or English legal question to meter tokens and routing cost..."
+                    className="flex-1 px-3.5 py-2 rounded-xl text-xs bg-[#101829] border border-[#24324b] text-white outline-none"
+                  />
+                  <select
+                    value={costRouterEscalationSim}
+                    onChange={(e) =>
+                      setCostRouterEscalationSim(
+                        e.target.value as
+                          | "NONE"
+                          | "EVIDENCE_MATERIAL_CONFLICT"
+                          | "CITATION_VALIDATION_FAILURE"
+                          | "UNRESOLVED_GRAPH_RELATIONSHIP"
+                      )
+                    }
+                    className="px-3 py-2 rounded-xl text-xs bg-[#101829] border border-[#24324b] text-slate-200"
+                  >
+                    <option value="NONE">FR-003 Trigger: Normal (No Conflict)</option>
+                    <option value="EVIDENCE_MATERIAL_CONFLICT">
+                      FR-003 Trigger: Material Evidence Conflict
+                    </option>
+                    <option value="CITATION_VALIDATION_FAILURE">
+                      FR-003 Trigger: Citation Validation Failure
+                    </option>
+                    <option value="UNRESOLVED_GRAPH_RELATIONSHIP">
+                      FR-003 Trigger: Unresolved Graph Relationship
+                    </option>
+                  </select>
+                  <button
+                    onClick={() => handleSimulateCostRouter()}
+                    className="px-4 py-2 rounded-xl text-xs font-bold bg-[#f5b700] text-[#0a192f] cursor-pointer shrink-0"
+                  >
+                    Route &amp; Meter
+                  </button>
+                </div>
+
+                {costRouterPipelineSim && (
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 pt-2">
+                    {/* Left 7 cols: 8-Stage Pipeline Trace */}
+                    <div className="lg:col-span-7 space-y-2">
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-300">
+                        8-Stage Centralized Routing &amp; Metering Pipeline Trace
+                      </div>
+                      <div className="space-y-1.5">
+                        {costRouterPipelineSim.ten_stage_pipeline.map((st) => (
+                          <div
+                            key={st.stage_number}
+                            className="p-2.5 rounded-lg bg-[#101829] border border-[#24324b] flex items-start justify-between gap-2 text-xs"
+                          >
+                            <div>
+                              <div className="font-bold text-white flex items-center gap-2">
+                                <span>{st.stage_name}</span>
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-mono ${
+                                    st.status === "ESCALATED"
+                                      ? "bg-amber-500/20 text-[#f5b700]"
+                                      : "bg-emerald-500/15 text-emerald-400"
+                                  }`}
+                                >
+                                  {st.status}
+                                </span>
+                              </div>
+                              <div className="text-[11px] text-slate-400 mt-0.5">{st.detail}</div>
+                            </div>
+                            <div className="text-right font-mono text-[11px] shrink-0">
+                              <div className="text-emerald-400">${st.cost_usd.toFixed(5)}</div>
+                              <div className="text-slate-500">{st.latency_ms}ms</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Right 5 cols: Granular Token Accounting & Cost Reconciliation */}
+                    <div className="lg:col-span-5 space-y-3">
+                      <div className="p-3.5 rounded-xl bg-[#101829] border border-[#24324b] space-y-2.5 text-xs">
+                        <div className="flex items-center justify-between border-b border-[#24324b] pb-2">
+                          <span className="font-bold text-[#f5b700] uppercase text-[11px]">
+                            Token Metering Engine Breakdown
+                          </span>
+                          <span className="font-mono font-bold text-white">
+                            {costRouterPipelineSim.metering_record.tokens.total_tokens.toLocaleString()} Tokens
+                          </span>
+                        </div>
+                        <div className="space-y-1 text-[11px]">
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Uncached Input Tokens:</span>
+                            <span className="font-mono text-white">
+                              {costRouterPipelineSim.metering_record.tokens.input_uncached_tokens.toLocaleString()} ($
+                              {costRouterPipelineSim.metering_record.component_costs_usd.llm_input_cost_usd.toFixed(6)})
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Cached Statutory/Ruling Tokens (-75%):</span>
+                            <span className="font-mono text-emerald-400">
+                              {costRouterPipelineSim.metering_record.tokens.input_cached_tokens.toLocaleString()} ($
+                              {costRouterPipelineSim.metering_record.component_costs_usd.llm_cached_input_cost_usd.toFixed(6)})
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Output Completion Tokens:</span>
+                            <span className="font-mono text-white">
+                              {costRouterPipelineSim.metering_record.tokens.output_tokens.toLocaleString()} ($
+                              {costRouterPipelineSim.metering_record.component_costs_usd.llm_output_cost_usd.toFixed(6)})
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Reasoning / Thinking Tokens:</span>
+                            <span className="font-mono text-white">
+                              {costRouterPipelineSim.metering_record.tokens.reasoning_tokens.toLocaleString()} ($
+                              {costRouterPipelineSim.metering_record.component_costs_usd.llm_reasoning_cost_usd.toFixed(6)})
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-slate-400">Embeddings + Reranker + GraphRAG:</span>
+                            <span className="font-mono text-slate-300">
+                              {(
+                                costRouterPipelineSim.metering_record.tokens.embedding_tokens +
+                                costRouterPipelineSim.metering_record.tokens.reranker_tokens
+                              ).toLocaleString()}{" "}
+                              tok ($
+                              {(
+                                costRouterPipelineSim.metering_record.component_costs_usd.embedding_cost_usd +
+                                costRouterPipelineSim.metering_record.component_costs_usd.reranker_cost_usd +
+                                costRouterPipelineSim.metering_record.component_costs_usd
+                                  .neo4j_graphrag_traversal_cost_usd
+                              ).toFixed(6)}
+                              )
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-[#24324b] pt-2 space-y-1">
+                          <div className="flex justify-between font-bold text-sm">
+                            <span className="text-white">Reconciled Actual Cost:</span>
+                            <span className="font-mono text-emerald-400">
+                              $
+                              {costRouterPipelineSim.metering_record.component_costs_usd.reconciled_actual_cost_usd.toFixed(
+                                5
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[11px]">
+                            <span className="text-slate-400">Unoptimized Frontier Baseline:</span>
+                            <span className="font-mono text-slate-400 line-through">
+                              $
+                              {costRouterPipelineSim.metering_record.component_costs_usd.unoptimized_frontier_baseline_cost_usd.toFixed(
+                                5
+                              )}
+                            </span>
+                          </div>
+                          <div className="flex justify-between text-[11px] font-semibold text-[#f5b700]">
+                            <span>Net Cost Savings:</span>
+                            <span className="font-mono">
+                              {costRouterPipelineSim.metering_record.component_costs_usd.cost_savings_pct}% ($
+                              {costRouterPipelineSim.metering_record.component_costs_usd.cost_saved_usd.toFixed(5)} saved)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 rounded-xl bg-[#101829] border border-[#24324b] text-[11px] space-y-1.5">
+                        <div className="font-bold text-white">
+                          FR-003 Quality-Aware Escalation Status
+                        </div>
+                        <p className="text-slate-300 leading-relaxed">
+                          {costRouterPipelineSim.metering_record.escalation.escalation_explanation}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 4: Task-Aware Cost Routing Operating Policies (Tier 0 – Tier 4) */}
+              <div className="space-y-2.5">
+                <div className="text-xs font-bold uppercase tracking-wider text-white">
+                  Section 4 &bull; Task-Aware Cost Routing Operating Policies (Tier 0 – Tier 4)
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b border-[#24324b] text-[10px] uppercase text-slate-400">
+                        <th className="py-2 pr-3">Execution Tier</th>
+                        <th className="py-2 pr-3">Typical Legal Tasks</th>
+                        <th className="py-2 pr-3">Default Model &rarr; Escalation</th>
+                        <th className="py-2 pr-3">Target Cost / Question</th>
+                        <th className="py-2">Min Quality Gate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#1e293b]">
+                      {(model24Snapshot?.cost_router_metering?.tier_policies || []).map((tp) => (
+                        <tr key={tp.tier_id} className="hover:bg-[#0b1322]/60">
+                          <td className="py-2.5 pr-3 font-bold text-[#f5b700]">{tp.tier_label}</td>
+                          <td className="py-2.5 pr-3 text-slate-300">{tp.typical_task_description}</td>
+                          <td className="py-2.5 pr-3 font-mono text-[11px] text-white">
+                            {tp.default_model_id} &rarr; {tp.fallback_escalation_model_id}
+                          </td>
+                          <td className="py-2.5 pr-3 font-mono text-emerald-400 font-bold">
+                            ${tp.target_cost_min_usd.toFixed(4)} – ${tp.target_cost_max_usd.toFixed(4)}
+                          </td>
+                          <td className="py-2.5 font-mono text-white">
+                            &ge;{tp.min_required_legal_quality_score}% Verified
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Budget & Policy Engine + Cost Optimization Recommendations */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-[#0b1322] border border-[#1e293b] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-white">
+                      Budget &amp; Policy Engine (Per-Organization Allowances)
+                    </span>
+                    <span className="text-[10px] font-mono text-emerald-400">
+                      FR-003: Never Downgrades Quality
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {(model24Snapshot?.cost_router_metering?.tenant_budgets || []).map((tb) => {
+                      const pct = Math.min(
+                        100,
+                        Math.round((tb.current_month_spend_usd / tb.monthly_budget_limit_usd) * 100)
+                      );
+                      return (
+                        <div
+                          key={tb.tenant_id}
+                          className="p-3 rounded-lg bg-[#101829] border border-[#24324b] space-y-1.5 text-xs"
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="font-bold text-white">{tb.organization_name}</span>
+                            <span
+                              className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
+                                tb.status === "WARNING_80_PCT"
+                                  ? "bg-amber-500/20 text-[#f5b700]"
+                                  : "bg-emerald-500/15 text-emerald-400"
+                              }`}
+                            >
+                              {tb.status} ({pct}%)
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 rounded-full bg-slate-800 overflow-hidden">
+                            <div
+                              className={`h-full ${
+                                tb.status === "WARNING_80_PCT" ? "bg-[#f5b700]" : "bg-emerald-500"
+                              }`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[11px] text-slate-400 font-mono">
+                            <span>
+                              Spend: ${tb.current_month_spend_usd.toFixed(2)} / $
+                              {tb.monthly_budget_limit_usd.toFixed(2)}
+                            </span>
+                            <span>
+                              Req Ceiling: ${tb.per_request_ceiling_usd.toFixed(2)} &bull; Agent Ceiling: $
+                              {tb.per_agent_mission_ceiling_usd.toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-[#0b1322] border border-[#1e293b] space-y-3">
+                  <div className="text-xs font-bold text-white">
+                    Automated Cost Optimization Recommendations
+                  </div>
+                  <div className="space-y-2.5">
+                    {(model24Snapshot?.cost_router_metering?.optimization_recommendations || []).map(
+                      (rec) => (
+                        <div
+                          key={rec.id}
+                          className="p-3 rounded-lg bg-[#101829] border border-[#24324b] space-y-1 text-xs"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-bold text-[#f5b700]">{rec.title}</span>
+                            <span className="text-[10px] font-mono text-emerald-400 shrink-0">
+                              {rec.impact_pct}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-400 leading-relaxed">
+                            {rec.description}
+                          </p>
+                        </div>
+                      )
                     )}
                   </div>
                 </div>
