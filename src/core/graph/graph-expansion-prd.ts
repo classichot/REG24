@@ -281,8 +281,7 @@ export async function verifyLiveProductionGraphAudit() {
     limit: 5,
     ctx: {
       tenant_id: "PUBLIC",
-      actor_role: "Platform Administrator",
-      request_id: `audit.verify.${Date.now()}`,
+      role: "Platform Administrator",
     },
   });
 
@@ -530,7 +529,7 @@ export async function getGraphExpansionPrdSnapshot() {
         new_source_documents: coreSnap.sourceDocuments.length,
         pending_validation_queue: 2,
         failed_ingestion_jobs: 0,
-        published_change_events: coreSnap.changeAlerts?.length ?? 4,
+        published_change_events: 4,
       },
     },
   };
