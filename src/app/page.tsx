@@ -40,6 +40,8 @@ import {
 } from "lucide-react";
 
 import type {
+  Regulator,
+  LegalInstrument,
   ModuleManifest,
   SourceDocument,
   Provision,
@@ -105,6 +107,8 @@ import type {
 } from "@/core/types/legal-schema";
 
 interface SnapshotData {
+  regulators: Regulator[];
+  instruments: LegalInstrument[];
   modules: ModuleManifest[];
   sourceDocuments: SourceDocument[];
   provisions: Provision[];
@@ -246,6 +250,9 @@ export default function Reg24MetroConsole() {
   // UX/UI v2.0 Super Minimal Redesign States (Sections 1-11, UX-01..UX-15)
   const [uxExperience, setUxExperience] = useState<"research" | "infrastructure" | "control">("research");
   const [uxResearchDestination, setUxResearchDestination] = useState<"research" | "workspace" | "library">("research");
+  const [uxLibraryTab, setUxLibraryTab] = useState<
+    "all" | "authorities" | "industries" | "modules" | "statutes" | "cases_rulings"
+  >("all");
   const [uxHasSubmittedResearch, setUxHasSubmittedResearch] = useState<boolean>(false);
   const [uxDeepResearchExpanded, setUxDeepResearchExpanded] = useState<boolean>(false);
   const [uxEvidenceDrawerOpen, setUxEvidenceDrawerOpen] = useState<boolean>(false);
@@ -1373,8 +1380,8 @@ export default function Reg24MetroConsole() {
                   },
                   {
                     id: "library" as const,
-                    labelEn: "Library",
-                    labelTh: "คลังกฎหมาย (Library)",
+                    labelEn: "Legal Databases",
+                    labelTh: "คลังฐานข้อมูลกฎหมาย (Legal Databases)",
                   },
                 ]
               ).map((dest) => {
@@ -2074,6 +2081,22 @@ export default function Reg24MetroConsole() {
                           >
                             {languageMode === "th" ? "วิจัยประเด็นข้อกฎหมายเชิงลึก (Research a legal issue)" : "Research a legal issue"}
                           </button>
+
+                          <button
+                            onClick={() => {
+                              setUxLibraryTab("all");
+                              setUxResearchDestination("library");
+                            }}
+                            className={`px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
+                              isLightMinimal
+                                ? "bg-[#0f2c59]/5 border-[#0f2c59]/30 text-[#0f2c59] hover:bg-[#0f2c59] hover:text-white"
+                                : "bg-[#f5b700]/10 border-[#f5b700]/40 text-[#f5b700] hover:bg-[#f5b700] hover:text-[#0a192f]"
+                            }`}
+                          >
+                            {languageMode === "th"
+                              ? "ฐานข้อมูลกฎหมายทั้งหมด (Legal Database List)"
+                              : "Legal Database List (9 Industries & 28 Laws)"}
+                          </button>
                         </div>
                       </div>
 
@@ -2746,135 +2769,743 @@ export default function Reg24MetroConsole() {
               )}
 
               {/* ===============================================================
-                  DESTINATION 3: LIBRARY (Browse legal sources across 7 categories & Temporal Diff — Section 5, UX-12)
+                  DESTINATION 3: LEGAL DATABASE LIST MENU (Complete Directory of
+                  22 Authorities, 9 Completed Industry Databases, 16 Core Legal Modules,
+                  28 Statutes/Regulations, 50 Provisions, 11 Cases & 3 Tax Rulings)
                   =============================================================== */}
               {uxResearchDestination === "library" && (
-                <div className="py-6 space-y-6">
-                  <div>
-                    <h1 className="text-[32px] sm:text-[36px] font-extrabold tracking-[-0.035em] leading-[1.15]">
-                      {languageMode === "th"
-                        ? "คลังแหล่งข้อมูลกฎหมายไทย (Legal Source Library)"
-                        : "Library — Authoritative Thai Legal Sources"}
-                    </h1>
-                    <p className={`text-[14px] mt-1.5 font-normal leading-[1.5] ${mutedText}`}>
-                      {languageMode === "th"
-                        ? "ค้นหาและเปิดอ่านตัวบทกฎหมาย กฎหมายลำดับรอง คำพิพากษาศาลฎีกา ข้อหารือกรมสรรพากร ก.ล.ต./ตลท. และ BOI"
-                        : "Browse and filter statutes, subordinate regulations, Supreme Court judgments, Revenue Department tax rulings, SEC/SET rules, and BOI announcements."}
-                    </p>
-                  </div>
-
-                  {/* Search & Contextual Module Filters (UX-12) */}
-                  <div className={`p-4 rounded-2xl space-y-3 ${surfaceCard}`}>
-                    <div className="flex flex-col sm:flex-row gap-2.5">
-                      <input
-                        type="text"
-                        value={webSearchQuery}
-                        onChange={(e) => setWebSearchQuery(e.target.value)}
-                        placeholder={
-                          languageMode === "th"
-                            ? "ค้นหาด้วยชื่อกฎหมาย เลขมาตรา เลขฎีกา หรือคำสำคัญ..."
-                            : "Search by statute title, section number, Dika judgment, or keyword..."
-                        }
-                        className={`flex-1 px-3.5 py-2 rounded-xl border text-xs ${subtleBox}`}
-                      />
-                      <select
-                        value={webSearchCategory}
-                        onChange={(e) =>
-                          setWebSearchCategory(e.target.value as WebSearchDocumentCategory | "ALL")
-                        }
-                        className={`px-3 py-2 rounded-xl border text-xs ${subtleBox}`}
-                      >
-                        <option value="ALL">All 7 Legal Categories</option>
-                        <option value="Statutes and codes">1. Statutes and codes</option>
-                        <option value="Subordinate regulations">2. Subordinate regulations</option>
-                        <option value="Court judgments">3. Court judgments</option>
-                        <option value="Revenue Department tax rulings">4. Revenue Department tax rulings</option>
-                        <option value="SEC and SET regulations">5. SEC and SET regulations</option>
-                        <option value="BOI announcements">6. BOI announcements</option>
-                        <option value="Regulatory interpretations">7. Regulatory interpretations</option>
-                      </select>
-                      <button
-                        onClick={() => handleWebUnifiedSearch()}
-                        className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] text-white cursor-pointer"
-                      >
-                        Search Library
-                      </button>
+                <div className="py-6 space-y-8">
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                    <div>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-[#0f2c59]/10 dark:bg-[#f5b700]/15 text-[#0f2c59] dark:text-[#f5b700] mb-2">
+                        REG24 Master Legal Corpus &bull; SHA-256 Verified
+                      </span>
+                      <h1 className="text-[32px] sm:text-[36px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                        {languageMode === "th"
+                          ? "ทำเนียบฐานข้อมูลกฎหมายไทย (REG24 Legal Database Directory)"
+                          : "REG24 Legal Database List — Complete Thai Legal & Industry Corpus"}
+                      </h1>
+                      <p className={`text-[14px] mt-1.5 font-normal leading-[1.5] ${mutedText}`}>
+                        {languageMode === "th"
+                          ? "รวบรวมฐานข้อมูลหน่วยงานรัฐ 22 แห่ง, ฐานข้อมูลกฎหมายรายอุตสาหกรรมครบทั้ง 9 กลุ่ม (P0), โมดูลกฎหมายหลัก 16 โมดูล, พระราชบัญญัติและกฎหมายลำดับรอง 28 ฉบับ, คำพิพากษาศาลฎีกา และข้อหารือกรมสรรพากร"
+                          : "Complete inventory of 22 official Thai regulatory authorities, all 9 completed P0 Industry Legal Databases, 16 core legal modules, 28 enacted statutes & subordinate regulations, 50 canonical provisions, 11 Supreme Court judgments, and 3 Revenue Department tax rulings."}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Source Items Grid */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(webSearchResults || snapshot.webResearchStudio.source_viewer_documents).map(
-                      (doc) => (
-                        <div
-                          key={doc.record_id}
-                          className={`p-5 rounded-2xl flex flex-col justify-between space-y-4 ${surfaceCard}`}
+                  {/* Top Corpus Summary KPI Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    {[
+                      {
+                        id: "authorities" as const,
+                        count: `${snapshot.regulators.length} + ${snapshot.caseConnectors.length}`,
+                        labelEn: "Official Authorities & Portals",
+                        labelTh: "หน่วยงานรัฐและช่องทางเชื่อมต่อ",
+                        subEn: "22 Regulators · 7 Connectors",
+                      },
+                      {
+                        id: "industries" as const,
+                        count: `${snapshot.industryModules.length} / 9`,
+                        labelEn: "Industry Legal Databases",
+                        labelTh: "ฐานข้อมูลกฎหมาย 9 อุตสาหกรรม",
+                        subEn: "100% P0 Sector Complete",
+                      },
+                      {
+                        id: "modules" as const,
+                        count: `${snapshot.modules.length}`,
+                        labelEn: "Core Legal Modules",
+                        labelTh: "โมดูลกฎหมายหลัก (reg24.*.th)",
+                        subEn: "Published P0 v2.0.0",
+                      },
+                      {
+                        id: "statutes" as const,
+                        count: `${snapshot.instruments.length + snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length}`,
+                        labelEn: "Statutes & Sub-Regulations",
+                        labelTh: "พ.ร.บ. ประมวลฯ และกฎหมายลำดับรอง",
+                        subEn: `${snapshot.instruments.length} Acts · ${snapshot.provisions.length} Provisions`,
+                      },
+                      {
+                        id: "cases_rulings" as const,
+                        count: `${snapshot.legalCases.length + snapshot.taxRulings.length}`,
+                        labelEn: "Supreme Court & Tax Rulings",
+                        labelTh: "คำพิพากษาศาลฎีกาและข้อหารือภาษี",
+                        subEn: `${snapshot.legalCases.length} Cases · ${snapshot.taxRulings.length} RD Rulings`,
+                      },
+                      {
+                        id: "all" as const,
+                        count: `${snapshot.sourceDocuments.length}`,
+                        labelEn: "SHA-256 Verified Sources",
+                        labelTh: "เอกสารต้นฉบับยืนยันแฮช SHA-256",
+                        subEn: `${snapshot.provisionVersions.length} Point-in-Time Versions`,
+                      },
+                    ].map((stat) => {
+                      const active = uxLibraryTab === stat.id;
+                      return (
+                        <button
+                          key={stat.id}
+                          onClick={() => setUxLibraryTab(stat.id)}
+                          className={`p-3.5 rounded-2xl text-left transition-all cursor-pointer border ${
+                            active
+                              ? isLightMinimal
+                                ? "bg-[#0f2c59] text-white border-[#0f2c59] shadow-sm"
+                                : "bg-[#f5b700] text-[#0a192f] border-[#f5b700]"
+                              : `${surfaceCard} hover:border-[#0f2c59]`
+                          }`}
                         >
-                          <div className="space-y-2">
-                            <div className="flex items-center justify-between gap-2 text-[11px]">
-                              <span className="px-2.5 py-0.5 rounded-full font-medium bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]">
-                                {doc.document_category} &bull; {doc.legal_domain}
-                              </span>
-                              <span className="text-emerald-600 font-medium">
-                                ✓ {doc.verification_status === "human_verified" ? "Verified" : "Checked"}
-                              </span>
-                            </div>
-                            <h3 className="text-[20px] font-bold tracking-[-0.035em] leading-[1.15]">
-                              {languageMode === "th" ? doc.title_th : doc.title_en}
-                            </h3>
-                            <div className={`text-[12px] font-medium ${mutedText}`}>
-                              {doc.source_authority} &bull; Effective: {doc.effective_from}
-                            </div>
-                            <p className="text-[14px] font-normal leading-[1.5] pt-1 opacity-90">
-                              {languageMode === "th"
-                                ? doc.original_source_snippet_th
-                                : doc.original_source_snippet_en}
-                            </p>
+                          <div className="text-[22px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                            {stat.count}
                           </div>
-                          <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-xs">
-                            <span className="font-mono text-[11px] opacity-70">{doc.section_or_reference}</span>
-                            <button
-                              onClick={() => {
-                                setWebSelectedCitation({
-                                  citation_id: `cit.lib.${doc.record_id}`,
-                                  source_record_id: doc.record_id,
-                                  document_category: doc.document_category,
-                                  title_th: doc.title_th,
-                                  title_en: doc.title_en,
-                                  section_or_locator: doc.section_or_reference,
-                                  authority_name: doc.source_authority,
-                                  publication_date: doc.publication_date,
-                                  effective_from: doc.effective_from,
-                                  effective_to: doc.effective_to,
-                                  verification_status: doc.verification_status,
-                                  official_url: doc.official_url,
-                                  sha256_hash: doc.sha256_hash,
-                                  highlighted_source_passage_th: doc.original_source_snippet_th,
-                                  highlighted_source_passage_en: doc.original_source_snippet_en,
-                                  ai_interpretation_summary_th: doc.ai_summary_interpretation_th,
-                                  ai_interpretation_summary_en: doc.ai_summary_interpretation_en,
-                                  four_state_verification: {
-                                    source_retrieved: true,
-                                    citation_checked: true,
-                                    currently_effective: true,
-                                    legal_interpretation_assessed: true,
-                                    retrieved_at: new Date().toISOString(),
-                                    source_origin_type: "official_primary_authority",
-                                  },
-                                });
-                                setUxResearchDestination("research");
-                                setUxHasSubmittedResearch(true);
-                                setUxEvidenceDrawerOpen(true);
-                              }}
-                              className="text-blue-600 dark:text-[#f5b700] font-semibold hover:underline cursor-pointer"
-                            >
-                              Inspect in Evidence Drawer &rarr;
-                            </button>
+                          <div className="text-[12px] font-semibold mt-1 leading-snug">
+                            {languageMode === "th" ? stat.labelTh : stat.labelEn}
                           </div>
-                        </div>
-                      )
-                    )}
+                          <div
+                            className={`text-[11px] mt-0.5 ${
+                              active
+                                ? isLightMinimal
+                                  ? "text-slate-200"
+                                  : "text-[#0a192f]/80"
+                                : mutedText
+                            }`}
+                          >
+                            {stat.subEn}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
+
+                  {/* Category Filter Tabs */}
+                  <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
+                    {(
+                      [
+                        {
+                          id: "all" as const,
+                          labelEn: "All Legal Databases (Complete List)",
+                          labelTh: "แสดงฐานข้อมูลทั้งหมด (All Databases)",
+                        },
+                        {
+                          id: "industries" as const,
+                          labelEn: `1. Industry Legal Databases (${snapshot.industryModules.length} Sectors)`,
+                          labelTh: `1. ฐานข้อมูลกฎหมายรายอุตสาหกรรม (${snapshot.industryModules.length})`,
+                        },
+                        {
+                          id: "authorities" as const,
+                          labelEn: `2. Official Authorities & Portals (${snapshot.regulators.length})`,
+                          labelTh: `2. หน่วยงานกำกับดูแลและแหล่งข้อมูล (${snapshot.regulators.length})`,
+                        },
+                        {
+                          id: "modules" as const,
+                          labelEn: `3. Core Legal Modules (${snapshot.modules.length})`,
+                          labelTh: `3. โมดูลกฎหมายหลัก (${snapshot.modules.length})`,
+                        },
+                        {
+                          id: "statutes" as const,
+                          labelEn: `4. Statutes, Codes & Sub-Regulations (${snapshot.instruments.length + snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length})`,
+                          labelTh: `4. พระราชบัญญัติ ประมวลกฎหมาย และประกาศ (${snapshot.instruments.length + snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length})`,
+                        },
+                        {
+                          id: "cases_rulings" as const,
+                          labelEn: `5. Supreme Court & Tax Rulings (${snapshot.legalCases.length + snapshot.taxRulings.length})`,
+                          labelTh: `5. คำพิพากษาศาลฎีกาและข้อหารือภาษี (${snapshot.legalCases.length + snapshot.taxRulings.length})`,
+                        },
+                      ]
+                    ).map((tab) => {
+                      const active = uxLibraryTab === tab.id;
+                      return (
+                        <button
+                          key={tab.id}
+                          onClick={() => setUxLibraryTab(tab.id)}
+                          className={`px-3.5 py-1.5 rounded-xl text-[12px] font-semibold transition-all cursor-pointer ${
+                            active
+                              ? isLightMinimal
+                                ? "bg-[#0f2c59] text-white"
+                                : "bg-[#f5b700] text-[#0a192f]"
+                              : `${subtleBox} hover:border-[#0f2c59]`
+                          }`}
+                        >
+                          {languageMode === "th" ? tab.labelTh : tab.labelEn}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* ===========================================================
+                      SECTION 1: 9 COMPLETED INDUSTRY LEGAL DATABASES (IND-*)
+                      =========================================================== */}
+                  {(uxLibraryTab === "all" || uxLibraryTab === "industries") && (
+                    <div className="space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div>
+                          <h2 className="text-[22px] sm:text-[24px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                            {languageMode === "th"
+                              ? "1. ฐานข้อมูลกฎหมายรายอุตสาหกรรมครบทั้ง 9 กลุ่ม (9 Completed Industry Legal Databases)"
+                              : "1. Industry Legal Databases — All 9 Sectors Completed (P0 v2.0.0)"}
+                          </h2>
+                          <p className={`text-[13px] mt-1 ${mutedText}`}>
+                            {languageMode === "th"
+                              ? "แต่ละอุตสาหกรรมเชื่อมโยงกับหน่วยงานกำกับดูแล พระราชบัญญัติ มาตรากฎหมาย คำพิพากษาศาลฎีกา และหน้าที่ตามกฎหมาย (Structured Obligations) พร้อมใช้งานทันที"
+                              : "Every industry database is wired to dedicated Thai regulators, SHA-256 primary statutes, canonical provisions, Supreme Court precedents, and structured compliance obligations."}
+                          </p>
+                        </div>
+                        <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 self-start sm:self-auto">
+                          ✓ 9 / 9 Industries Active (P0)
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {snapshot.industryModules.map((ind, idx) => (
+                          <div
+                            key={ind.module_id}
+                            className={`p-5 rounded-2xl flex flex-col justify-between space-y-4 ${surfaceCard}`}
+                          >
+                            <div className="space-y-2.5">
+                              <div className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="px-2.5 py-0.5 rounded-full font-semibold bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]">
+                                  6.{idx + 1} &bull; {ind.module_id}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                  ✓ {ind.priority} &bull; v{ind.version}
+                                </span>
+                              </div>
+
+                              <h3 className="text-[19px] font-bold tracking-[-0.035em] leading-[1.2]">
+                                {languageMode === "th" ? ind.module_name_th : ind.module_name}
+                              </h3>
+                              <div className={`text-[12px] font-medium ${mutedText}`}>
+                                {languageMode === "th" ? ind.module_name : ind.module_name_th}
+                              </div>
+
+                              {/* Connected Regulators */}
+                              <div className="pt-1">
+                                <div className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${mutedText}`}>
+                                  {languageMode === "th" ? "หน่วยงานกำกับดูแลหลัก:" : "Regulatory Authorities:"}
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {ind.regulators.map((reg) => (
+                                    <span
+                                      key={reg}
+                                      className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${subtleBox}`}
+                                    >
+                                      {reg}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Key Regulatory Scope */}
+                              <div>
+                                <div className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${mutedText}`}>
+                                  {languageMode === "th" ? "ขอบเขตและกิจกรรมทางธุรกิจ:" : "Key Business & Regulatory Scope:"}
+                                </div>
+                                <ul className="space-y-1 text-[12px] leading-snug">
+                                  {ind.business_activities.slice(0, 4).map((scope, sIdx) => (
+                                    <li key={sIdx} className="flex items-start gap-1.5">
+                                      <span className="text-[#0f2c59] dark:text-[#f5b700] font-bold">&bull;</span>
+                                      <span>{scope}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              {/* Linked Provisions & Obligations */}
+                              <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                                <div className={`p-2 rounded-xl ${subtleBox}`}>
+                                  <div className="text-[14px] font-bold">
+                                    {ind.knowledge_graph.linked_provision_ids.length}
+                                  </div>
+                                  <div className={`text-[10px] ${mutedText}`}>Provisions</div>
+                                </div>
+                                <div className={`p-2 rounded-xl ${subtleBox}`}>
+                                  <div className="text-[14px] font-bold">
+                                    {ind.knowledge_graph.linked_case_ids.length}
+                                  </div>
+                                  <div className={`text-[10px] ${mutedText}`}>Court Cases</div>
+                                </div>
+                                <div className={`p-2 rounded-xl ${subtleBox}`}>
+                                  <div className="text-[14px] font-bold">
+                                    {ind.knowledge_graph.linked_obligation_ids.length}
+                                  </div>
+                                  <div className={`text-[10px] ${mutedText}`}>Obligations</div>
+                                </div>
+                              </div>
+
+                              <div className="text-[11px] font-mono opacity-75 truncate">
+                                IDs: {ind.knowledge_graph.linked_provision_ids.join(", ")}
+                              </div>
+                            </div>
+
+                            <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2">
+                              <span className={`text-[11px] font-medium ${mutedText}`}>
+                                {ind.common_legal_missions.length} Legal Missions
+                              </span>
+                              <button
+                                onClick={() => {
+                                  const firstMission = ind.common_legal_missions[0];
+                                  const missionPrompt = firstMission
+                                    ? languageMode === "th"
+                                      ? firstMission.prompt_th
+                                      : firstMission.prompt_en
+                                    : `Analyze legal compliance requirements for ${ind.module_name}`;
+                                  handleRunWebLegalResearch("Quick Answer", missionPrompt);
+                                  setUxResearchDestination("research");
+                                }}
+                                className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f] cursor-pointer"
+                              >
+                                {languageMode === "th"
+                                  ? "วิเคราะห์กฎหมายอุตสาหกรรมนี้ →"
+                                  : "Research Industry Laws →"}
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ===========================================================
+                      SECTION 2: OFFICIAL THAI REGULATORY AUTHORITIES & PORTALS (22 + 7)
+                      =========================================================== */}
+                  {(uxLibraryTab === "all" || uxLibraryTab === "authorities") && (
+                    <div className="space-y-4">
+                      <div>
+                        <h2 className="text-[22px] sm:text-[24px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                          {languageMode === "th"
+                            ? `2. ฐานข้อมูลหน่วยงานกำกับดูแลและผู้ทรงอำนาจตามกฎหมายไทย (${snapshot.regulators.length} หน่วยงาน)`
+                            : `2. Official Thai Legal Authorities & Regulatory Databases (${snapshot.regulators.length} Authorities)`}
+                        </h2>
+                        <p className={`text-[13px] mt-1 ${mutedText}`}>
+                          {languageMode === "th"
+                            ? "หน่วยงานผู้ทรงอำนาจออกกฎหมาย กฎหมายลำดับรอง ประกาศ คำสั่ง และคำวินิจฉัยในคลังข้อมูล REG24"
+                            : "Authoritative Thai legislative bodies, courts, ministries, and industry regulators indexed in REG24."}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                        {snapshot.regulators.map((reg) => (
+                          <div
+                            key={reg.id}
+                            className={`p-4 rounded-2xl flex flex-col justify-between space-y-2.5 ${surfaceCard}`}
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]">
+                                  {reg.code}
+                                </span>
+                                <span className={`text-[11px] font-mono ${mutedText}`}>
+                                  {reg.id}
+                                </span>
+                              </div>
+                              <h3 className="text-[16px] font-bold tracking-[-0.025em] leading-snug">
+                                {languageMode === "th" ? reg.name_th : reg.name_en}
+                              </h3>
+                              <div className={`text-[12px] ${mutedText}`}>
+                                {languageMode === "th" ? reg.name_en : reg.name_th}
+                              </div>
+                            </div>
+                            <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                              <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                ✓ Primary Authority ({reg.jurisdiction_id.toUpperCase()})
+                              </span>
+                              <a
+                                href={reg.official_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-blue-600 dark:text-[#f5b700] font-semibold hover:underline truncate max-w-[180px]"
+                              >
+                                {reg.official_url} &nearr;
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 7 Live Ingestion Connectors */}
+                      <div className="pt-2">
+                        <h3 className="text-[18px] font-bold tracking-[-0.025em] mb-3">
+                          {languageMode === "th"
+                            ? `ตัวเชื่อมต่อฐานข้อมูลกฎหมายและคำพิพากษาอัตโนมัติ (${snapshot.caseConnectors.length} Live Source Connectors)`
+                            : `Live Official Legal & Judicial Source Connectors (${snapshot.caseConnectors.length} Active Pipelines)`}
+                        </h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {snapshot.caseConnectors.map((conn) => (
+                            <div
+                              key={conn.connector_id}
+                              className={`p-4 rounded-2xl flex items-center justify-between gap-4 ${surfaceCard}`}
+                            >
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                    ● {conn.operational_status.status.toUpperCase()}
+                                  </span>
+                                  <span className="text-[11px] font-mono opacity-75">
+                                    {conn.connector_id}
+                                  </span>
+                                </div>
+                                <div className="text-[14px] font-bold">
+                                  {languageMode === "th" ? conn.source_name_th : conn.source_name}
+                                </div>
+                                <div className={`text-[12px] ${mutedText}`}>
+                                  {conn.priority_tier} &bull; {conn.supported_formats.join(", ")}
+                                </div>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <div className="text-[16px] font-extrabold">
+                                  {conn.operational_status.documents_ingested.toLocaleString()}
+                                </div>
+                                <div className={`text-[11px] ${mutedText}`}>Indexed Records</div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ===========================================================
+                      SECTION 3: 16 CORE LEGAL INTELLIGENCE MODULES (reg24.*.th)
+                      =========================================================== */}
+                  {(uxLibraryTab === "all" || uxLibraryTab === "modules") && (
+                    <div className="space-y-4">
+                      <div>
+                        <h2 className="text-[22px] sm:text-[24px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                          {languageMode === "th"
+                            ? `3. โมดูลกฎหมายหลักในระบบ REG24 (${snapshot.modules.length} Core Legal Modules)`
+                            : `3. Core Legal Intelligence Modules (${snapshot.modules.length} Published P0 Modules)`}
+                        </h2>
+                        <p className={`text-[13px] mt-1 ${mutedText}`}>
+                          {languageMode === "th"
+                            ? "โมดูลประมวลผลกฎหมายเฉพาะด้านพร้อมกราฟความรู้ตามช่วงเวลา (Temporal Graph RAG) และตัวตรวจสอบความถูกต้อง 4 สถานะ"
+                            : "Domain-specialized Thai legal modules powering automated routing, Temporal Graph RAG, and 4-state citation verification."}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                        {snapshot.modules.map((mod) => (
+                          <div
+                            key={mod.module_id}
+                            className={`p-4 rounded-2xl flex flex-col justify-between space-y-3 ${surfaceCard}`}
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="font-mono font-bold text-[#0f2c59] dark:text-[#f5b700]">
+                                  {mod.module_id}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                  v{mod.version}
+                                </span>
+                              </div>
+                              <h3 className="text-[16px] font-bold tracking-[-0.025em] leading-snug">
+                                {languageMode === "th" ? mod.display_name_th : mod.display_name}
+                              </h3>
+                              <p className={`text-[12px] line-clamp-2 ${mutedText}`}>
+                                {mod.legal_domains.join(", ")} &bull; {mod.supported_capabilities.slice(0, 2).join(", ")}
+                              </p>
+                            </div>
+                            <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                              <span className={mutedText}>
+                                {mod.source_coverage.provisions_indexed} Provisions &bull; {mod.source_coverage.executable_rules_approved} Rules
+                              </span>
+                              <button
+                                onClick={() => {
+                                  handleRunWebLegalResearch(
+                                    "Quick Answer",
+                                    languageMode === "th"
+                                      ? `สรุปหลักเกณฑ์และข้อกฎหมายสำคัญในหมวด ${mod.display_name_th} (${mod.module_id})`
+                                      : `Summarize key statutory requirements and compliance rules under ${mod.display_name} (${mod.module_id})`
+                                  );
+                                  setUxResearchDestination("research");
+                                }}
+                                className="font-semibold text-blue-600 dark:text-[#f5b700] hover:underline cursor-pointer"
+                              >
+                                Query &rarr;
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ===========================================================
+                      SECTION 4: STATUTES, CODES & SUBORDINATE REGULATIONS (28 + 9 + Search Viewer)
+                      =========================================================== */}
+                  {(uxLibraryTab === "all" || uxLibraryTab === "statutes") && (
+                    <div className="space-y-5">
+                      <div>
+                        <h2 className="text-[22px] sm:text-[24px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                          {languageMode === "th"
+                            ? `4. พระราชบัญญัติ ประมวลกฎหมาย และกฎหมายลำดับรอง (${snapshot.instruments.length} ฉบับหลัก + ${snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length} ประกาศเฉพาะด้าน)`
+                            : `4. Enacted Statutes, Codes & Subordinate Regulations (${snapshot.instruments.length} Primary Instruments + ${snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length} Sub-Regulations)`}
+                        </h2>
+                        <p className={`text-[13px] mt-1 ${mutedText}`}>
+                          {languageMode === "th"
+                            ? "ตัวบทกฎหมายหลักพร้อมเลขมาตรา วันที่บังคับใช้ สถานะการแก้ไขเพิ่มเติม และลิงก์เปิดอ่านในแผงตรวจสอบหลักฐาน (Evidence Drawer)"
+                            : "Full inventory of enacted Thai codes, acts, royal decrees, ministerial regulations, and notifications indexed in REG24."}
+                        </p>
+                      </div>
+
+                      {/* Complete Table of 28 Legal Instruments */}
+                      <div className={`rounded-2xl overflow-hidden border ${surfaceCard}`}>
+                        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                          <span className="text-[13px] font-bold">
+                            {languageMode === "th"
+                              ? `รายชื่อตัวบทกฎหมายหลักทั้งหมด (${snapshot.instruments.length} ฉบับ)`
+                              : `Master Statutory & Regulatory Instrument Registry (${snapshot.instruments.length} Enacted Laws)`}
+                          </span>
+                          <span className={`text-[11px] ${mutedText}`}>
+                            {snapshot.provisions.length} Provisions &bull; {snapshot.provisionVersions.length} Temporal Versions
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-[12px]">
+                            <thead>
+                              <tr className={`border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase ${mutedText}`}>
+                                <th className="py-2.5 px-4 font-semibold">ID / Code</th>
+                                <th className="py-2.5 px-4 font-semibold">Title (TH / EN)</th>
+                                <th className="py-2.5 px-4 font-semibold">Type & Domain</th>
+                                <th className="py-2.5 px-4 font-semibold">Effective Date</th>
+                                <th className="py-2.5 px-4 font-semibold">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/70">
+                              {snapshot.instruments.map((inst) => (
+                                <tr key={inst.id} className="hover:bg-slate-500/5">
+                                  <td className="py-2.5 px-4 font-mono text-[11px] font-semibold whitespace-nowrap">
+                                    {inst.short_code}
+                                    <div className={`text-[10px] font-normal ${mutedText}`}>
+                                      {inst.id}
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    <div className="font-bold text-[13px]">{inst.title_th}</div>
+                                    <div className={`text-[11px] ${mutedText}`}>{inst.title_en}</div>
+                                  </td>
+                                  <td className="py-2.5 px-4 whitespace-nowrap">
+                                    <span className={`px-2 py-0.5 rounded text-[10px] font-semibold uppercase ${subtleBox}`}>
+                                      {inst.type}
+                                    </span>
+                                    <div className={`text-[10px] mt-0.5 font-mono ${mutedText}`}>
+                                      {inst.canonical_owner_module}
+                                    </div>
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px] whitespace-nowrap">
+                                    {inst.effective_date}
+                                  </td>
+                                  <td className="py-2.5 px-4 whitespace-nowrap">
+                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                      ✓ {inst.repealed_date ? "Superseded" : "In Force"}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Search & Contextual Filter for Source Viewer Cards */}
+                      <div className={`p-4 rounded-2xl space-y-3 ${surfaceCard}`}>
+                        <div className="text-[13px] font-bold">
+                          {languageMode === "th"
+                            ? "ค้นหาและเปิดดูตัวบทกฎหมายพร้อมคำอธิบาย AI (Interactive Legal Source Viewer)"
+                            : "Interactive Legal Source Viewer — Search & Open Highlighted Passages"}
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2.5">
+                          <input
+                            type="text"
+                            value={webSearchQuery}
+                            onChange={(e) => setWebSearchQuery(e.target.value)}
+                            placeholder={
+                              languageMode === "th"
+                                ? "ค้นหาด้วยชื่อกฎหมาย เลขมาตรา เลขฎีกา หรือคำสำคัญ..."
+                                : "Search by statute title, section number, Dika judgment, or keyword..."
+                            }
+                            className={`flex-1 px-3.5 py-2 rounded-xl border text-xs ${subtleBox}`}
+                          />
+                          <select
+                            value={webSearchCategory}
+                            onChange={(e) =>
+                              setWebSearchCategory(e.target.value as WebSearchDocumentCategory | "ALL")
+                            }
+                            className={`px-3 py-2 rounded-xl border text-xs ${subtleBox}`}
+                          >
+                            <option value="ALL">All 7 Legal Categories</option>
+                            <option value="Statutes and codes">1. Statutes and codes</option>
+                            <option value="Subordinate regulations">2. Subordinate regulations</option>
+                            <option value="Court judgments">3. Court judgments</option>
+                            <option value="Revenue Department tax rulings">4. Revenue Department tax rulings</option>
+                            <option value="SEC and SET regulations">5. SEC and SET regulations</option>
+                            <option value="BOI announcements">6. BOI announcements</option>
+                            <option value="Regulatory interpretations">7. Regulatory interpretations</option>
+                          </select>
+                          <button
+                            onClick={() => handleWebUnifiedSearch()}
+                            className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#0f2c59] text-white cursor-pointer"
+                          >
+                            Search Library
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Source Items Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {(webSearchResults || snapshot.webResearchStudio.source_viewer_documents).map(
+                          (doc) => (
+                            <div
+                              key={doc.record_id}
+                              className={`p-5 rounded-2xl flex flex-col justify-between space-y-4 ${surfaceCard}`}
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-2 text-[11px]">
+                                  <span className="px-2.5 py-0.5 rounded-full font-medium bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]">
+                                    {doc.document_category} &bull; {doc.legal_domain}
+                                  </span>
+                                  <span className="text-emerald-600 font-medium">
+                                    ✓ {doc.verification_status === "human_verified" ? "Verified" : "Checked"}
+                                  </span>
+                                </div>
+                                <h3 className="text-[20px] font-bold tracking-[-0.035em] leading-[1.15]">
+                                  {languageMode === "th" ? doc.title_th : doc.title_en}
+                                </h3>
+                                <div className={`text-[12px] font-medium ${mutedText}`}>
+                                  {doc.source_authority} &bull; Effective: {doc.effective_from}
+                                </div>
+                                <p className="text-[14px] font-normal leading-[1.5] pt-1 opacity-90">
+                                  {languageMode === "th"
+                                    ? doc.original_source_snippet_th
+                                    : doc.original_source_snippet_en}
+                                </p>
+                              </div>
+                              <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-xs">
+                                <span className="font-mono text-[11px] opacity-70">{doc.section_or_reference}</span>
+                                <button
+                                  onClick={() => {
+                                    setWebSelectedCitation({
+                                      citation_id: `cit.lib.${doc.record_id}`,
+                                      source_record_id: doc.record_id,
+                                      document_category: doc.document_category,
+                                      title_th: doc.title_th,
+                                      title_en: doc.title_en,
+                                      section_or_locator: doc.section_or_reference,
+                                      authority_name: doc.source_authority,
+                                      publication_date: doc.publication_date,
+                                      effective_from: doc.effective_from,
+                                      effective_to: doc.effective_to,
+                                      verification_status: doc.verification_status,
+                                      official_url: doc.official_url,
+                                      sha256_hash: doc.sha256_hash,
+                                      highlighted_source_passage_th: doc.original_source_snippet_th,
+                                      highlighted_source_passage_en: doc.original_source_snippet_en,
+                                      ai_interpretation_summary_th: doc.ai_summary_interpretation_th,
+                                      ai_interpretation_summary_en: doc.ai_summary_interpretation_en,
+                                      four_state_verification: {
+                                        source_retrieved: true,
+                                        citation_checked: true,
+                                        currently_effective: true,
+                                        legal_interpretation_assessed: true,
+                                        retrieved_at: new Date().toISOString(),
+                                        source_origin_type: "official_primary_authority",
+                                      },
+                                    });
+                                    setUxResearchDestination("research");
+                                    setUxHasSubmittedResearch(true);
+                                    setUxEvidenceDrawerOpen(true);
+                                  }}
+                                  className="text-blue-600 dark:text-[#f5b700] font-semibold hover:underline cursor-pointer"
+                                >
+                                  Inspect in Evidence Drawer &rarr;
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ===========================================================
+                      SECTION 5: SUPREME COURT JUDGMENTS & REVENUE DEPARTMENT TAX RULINGS
+                      =========================================================== */}
+                  {(uxLibraryTab === "all" || uxLibraryTab === "cases_rulings") && (
+                    <div className="space-y-4">
+                      <div>
+                        <h2 className="text-[22px] sm:text-[24px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                          {languageMode === "th"
+                            ? `5. ฐานข้อมูลคำพิพากษาศาลฎีกาและข้อหารือกรมสรรพากร (${snapshot.legalCases.length} ฎีกา + ${snapshot.taxRulings.length} ข้อหารือภาษี)`
+                            : `5. Supreme Court Judgments & Revenue Department Tax Rulings (${snapshot.legalCases.length} Cases + ${snapshot.taxRulings.length} Tax Rulings)`}
+                        </h2>
+                        <p className={`text-[13px] mt-1 ${mutedText}`}>
+                          {languageMode === "th"
+                            ? "คำพิพากษาศาลฎีกาบรรทัดฐาน ศาลแรงงาน ศาลภาษีอากรกลาง และหนังสือตอบข้อหารือกรมสรรพากรที่เชื่อมโยงกับมาตรากฎหมายโดยตรง"
+                            : "Precedent Supreme Court judgments (Corporate, Tax, Labor, Insolvency, Contract, Property) and authoritative Revenue Department rulings."}
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {snapshot.legalCases.map((c) => (
+                          <div
+                            key={c.id}
+                            className={`p-4 rounded-2xl flex flex-col justify-between space-y-2.5 ${surfaceCard}`}
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]">
+                                  {c.case_number}
+                                </span>
+                                <span className={`font-mono ${mutedText}`}>
+                                  {c.court_name} &bull; {c.judgment_date}
+                                </span>
+                              </div>
+                              <h3 className="text-[16px] font-bold tracking-[-0.025em] leading-snug">
+                                {c.legal_issues[0] || c.case_number}
+                              </h3>
+                              <p className={`text-[12px] leading-relaxed ${mutedText}`}>
+                                {c.case_summary || c.outcome}
+                              </p>
+                            </div>
+                            <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                              <span className="font-mono opacity-75">
+                                Linked: {c.cited_statutes.map((s) => s.provision_id).join(", ")}
+                              </span>
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                ✓ {c.verification_status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+
+                        {snapshot.taxRulings.map((tr) => (
+                          <div
+                            key={tr.id}
+                            className={`p-4 rounded-2xl flex flex-col justify-between space-y-2.5 ${surfaceCard}`}
+                          >
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between gap-2 text-[11px]">
+                                <span className="px-2.5 py-0.5 rounded-full font-bold bg-amber-500/15 text-amber-700 dark:text-[#f5b700]">
+                                  RD Ruling: {tr.ruling_reference_number}
+                                </span>
+                                <span className={`font-mono ${mutedText}`}>{tr.issue_date}</span>
+                              </div>
+                              <h3 className="text-[16px] font-bold tracking-[-0.025em] leading-snug">
+                                {languageMode === "th" ? tr.subject_th : tr.subject_en}
+                              </h3>
+                              <p className={`text-[12px] leading-relaxed ${mutedText}`}>
+                                {(languageMode === "th" ? tr.conclusions_th[0] : tr.conclusions_en[0]) || tr.subject_en}
+                              </p>
+                            </div>
+                            <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-[11px]">
+                              <span className="font-mono opacity-75">
+                                Revenue Code: {tr.revenue_code_sections_cited.join(", ")}
+                              </span>
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                ✓ Official RD Ruling
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
