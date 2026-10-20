@@ -252,7 +252,7 @@ export default function Reg24MetroConsole() {
   const [uxResearchDestination, setUxResearchDestination] = useState<"research" | "workspace" | "library">("research");
   const [uxLibraryTab, setUxLibraryTab] = useState<
     "all" | "authorities" | "industries" | "modules" | "statutes" | "cases_rulings"
-  >("all");
+  >("industries");
   const [uxHasSubmittedResearch, setUxHasSubmittedResearch] = useState<boolean>(false);
   const [uxDeepResearchExpanded, setUxDeepResearchExpanded] = useState<boolean>(false);
   const [uxEvidenceDrawerOpen, setUxEvidenceDrawerOpen] = useState<boolean>(false);
@@ -1621,11 +1621,11 @@ export default function Reg24MetroConsole() {
         </div>
       )}
 
-      {/* PROFESSIONAL INFRASTRUCTURE PIVOT RIBBON (Only shown when explicitly in 16-screen matrix mode) */}
+      {/* CLEAN INFRASTRUCTURE SUB-NAVIGATION BAR (Only shown when in Infrastructure / Admin Matrix screens) */}
       {(vibeMode === "professional" || activeScreen !== "PANORAMA") && (
-        <div className="px-6 pt-4 pb-2 border-b border-[#1e293b] bg-[#0c121e]">
-          <div className="max-w-[1480px] mx-auto">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
+        <div className="px-6 py-3 border-b border-[#1e293b] bg-[#0b111e]">
+          <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => {
@@ -1634,80 +1634,72 @@ export default function Reg24MetroConsole() {
                     setVibeMode("minimal");
                     setActiveScreen("PANORAMA");
                   }}
-                  className="bg-[#0f2c59] hover:bg-[#163e7a] border border-[#f5b700]/70 text-[#f5b700] px-3 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  className="bg-[#0f2c59] hover:bg-[#163e7a] border border-[#f5b700]/60 text-[#f5b700] px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
                 >
-                  <span>&larr; Minimal Legal Research Home</span>
+                  <span>&larr; Research Home</span>
                 </button>
-                <div>
-                  <span className="text-[10px] uppercase tracking-[0.22em] text-[#f5b700] font-bold block">
-                    MODULAR CORPORATE &amp; COMMERCIAL LEGAL INFRASTRUCTURE &bull; THAILAND P0
-                  </span>
-                </div>
+                <span className="text-xs font-semibold text-slate-300">
+                  REG24 Architecture &amp; Module Console
+                </span>
               </div>
+
               <div className="flex flex-wrap items-center gap-2 text-xs">
                 <select
                   aria-label="Active Consumer Client / Tenant"
                   value={activeTenant}
                   onChange={(e) => setActiveTenant(e.target.value)}
-                  className="bg-[#121a2b] border border-[#24324b] px-2.5 py-1 text-[11px] uppercase tracking-wider text-slate-200"
+                  className="bg-[#111a2c] border border-[#24324b] rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
                 >
-                  <option value="tenant.law24.prod">CLIENT: LAW24 (EXTERNAL)</option>
-                  <option value="tenant.trace24.audit">CLIENT: TRACE24</option>
-                  <option value="tenant.vibe24.app">CLIENT: VIBE24</option>
-                  <option value="tenant.agent.external">CLIENT: 3RD-PARTY AI AGENT</option>
+                  <option value="tenant.law24.prod">Tenant: LAW24 Enterprise</option>
+                  <option value="tenant.trace24.audit">Tenant: TRACE24 Audit</option>
+                  <option value="tenant.vibe24.app">Tenant: VIBE24 Ecosystem</option>
+                  <option value="tenant.agent.external">Tenant: External AI Agent</option>
                 </select>
 
                 <select
                   aria-label="RBAC Role (REG-SEC-001)"
                   value={activeRole}
                   onChange={(e) => setActiveRole(e.target.value as UserRole)}
-                  className="bg-[#121a2b] border border-[#24324b] px-2.5 py-1 text-[11px] uppercase tracking-wider text-slate-200"
+                  className="bg-[#111a2c] border border-[#24324b] rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
                 >
-                  <option value="Platform Administrator">ROLE: PLATFORM ADMIN</option>
-                  <option value="Legal Reviewer">ROLE: LEGAL REVIEWER</option>
-                  <option value="Module Maintainer">ROLE: MODULE MAINTAINER</option>
-                  <option value="Source Operator">ROLE: SOURCE OPERATOR</option>
-                  <option value="API Developer">ROLE: API DEVELOPER</option>
-                  <option value="Read-only Auditor">ROLE: READ-ONLY AUDITOR</option>
+                  <option value="Platform Administrator">Role: Platform Admin</option>
+                  <option value="Legal Reviewer">Role: Legal Reviewer</option>
+                  <option value="Module Maintainer">Role: Module Maintainer</option>
+                  <option value="Source Operator">Role: Source Operator</option>
+                  <option value="API Developer">Role: API Developer</option>
+                  <option value="Read-only Auditor">Role: Read-Only Auditor</option>
                 </select>
 
                 <button
                   onClick={() => setExpertView((v) => !v)}
-                  className={`px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 border cursor-pointer ${
+                  className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 border cursor-pointer transition-colors ${
                     expertView
                       ? "bg-[#f5b700] border-[#f5b700] text-[#0a192f]"
-                      : "bg-[#121a2b] border-[#24324b] text-slate-300"
+                      : "bg-[#111a2c] border-[#24324b] text-slate-300"
                   }`}
                 >
                   <SlidersHorizontal className="w-3.5 h-3.5" />
-                  <span>{expertView ? "EXPERT: ON" : "SIMPLE VIEW"}</span>
+                  <span>{expertView ? "Expert Mode" : "Standard View"}</span>
                 </button>
               </div>
             </div>
 
-            {/* NAVIGATION RIBBON */}
-            <nav className="flex items-center gap-1 overflow-x-auto pb-1">
+            {/* CLEAN WRAPPED PILL NAVIGATION (No horizontal scrollbar clutter) */}
+            <nav className="flex flex-wrap items-center gap-1.5">
               {SCREEN_CONFIG.map((item) => {
                 const active = activeScreen === item.id;
                 return (
                   <button
                     key={item.id}
                     onClick={() => setActiveScreen(item.id)}
-                    style={{
-                      borderBottomColor: active ? "#f5b700" : "transparent",
-                    }}
-                    className={`px-3 py-1.5 text-left transition-colors border-b-2 shrink-0 cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                       active
-                        ? "bg-[#13223b] text-[#f5b700]"
-                        : "text-slate-400 hover:text-white hover:bg-[#111928]"
+                        ? "bg-[#f5b700] text-[#0a192f] shadow-xs"
+                        : "bg-[#111a2c] border border-[#1e293b] text-slate-300 hover:border-[#f5b700]/50 hover:text-white"
                     }`}
                   >
-                    <div className="text-[9px] font-bold uppercase tracking-[0.2em] opacity-80">
-                      {item.code}
-                    </div>
-                    <div className="text-sm font-medium lowercase tracking-tight text-white">
-                      {item.label}
-                    </div>
+                    <span className="text-[10px] font-mono opacity-75">{item.code}</span>
+                    <span className="capitalize">{item.label}</span>
                   </button>
                 );
               })}
@@ -2084,7 +2076,7 @@ export default function Reg24MetroConsole() {
 
                           <button
                             onClick={() => {
-                              setUxLibraryTab("all");
+                              setUxLibraryTab("industries");
                               setUxResearchDestination("library");
                             }}
                             className={`px-4 py-2 rounded-xl text-xs font-semibold border cursor-pointer transition-all ${
@@ -2778,65 +2770,58 @@ export default function Reg24MetroConsole() {
                   <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-[#0f2c59]/10 dark:bg-[#f5b700]/15 text-[#0f2c59] dark:text-[#f5b700] mb-2">
-                        REG24 Master Legal Corpus &bull; SHA-256 Verified
+                        REG24 Master Legal Directory &bull; SHA-256 Verified
                       </span>
-                      <h1 className="text-[32px] sm:text-[36px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                      <h1 className="text-[28px] sm:text-[32px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                         {languageMode === "th"
-                          ? "ทำเนียบฐานข้อมูลกฎหมายไทย (REG24 Legal Database Directory)"
-                          : "REG24 Legal Database List — Complete Thai Legal & Industry Corpus"}
+                          ? "ทำเนียบฐานข้อมูลกฎหมายไทย (REG24 Legal Databases)"
+                          : "REG24 Legal Databases — Structured Thai Legal Corpus"}
                       </h1>
-                      <p className={`text-[14px] mt-1.5 font-normal leading-[1.5] ${mutedText}`}>
+                      <p className={`text-[13px] mt-1 font-normal leading-[1.5] ${mutedText}`}>
                         {languageMode === "th"
-                          ? `รวบรวมฐานข้อมูลหน่วยงานรัฐ ${snapshot.regulators.length} แห่ง, ฐานข้อมูลกฎหมายรายอุตสาหกรรมครบทั้ง ${snapshot.industryModules.length} กลุ่ม (P0), โมดูลกฎหมายหลัก ${snapshot.modules.length} โมดูล, พระราชบัญญัติและกฎหมายลำดับรอง ${snapshot.instruments.length} ฉบับ, คำพิพากษาศาลฎีกา และข้อหารือกรมสรรพากร`
-                          : `Complete inventory of ${snapshot.regulators.length} official Thai regulatory authorities, all ${snapshot.industryModules.length} completed P0 Industry Legal Databases, ${snapshot.modules.length} core legal modules, ${snapshot.instruments.length} enacted statutes & subordinate regulations, ${snapshot.provisions.length} canonical provisions, ${snapshot.legalCases.length} Supreme Court judgments, and ${snapshot.taxRulings.length} Revenue Department tax rulings.`}
+                          ? `เลือกหมวดหมู่ฐานข้อมูลด้านล่าง: ครบทั้ง ${snapshot.industryModules.length} อุตสาหกรรม (P0), โมดูลกฎหมายหลัก ${snapshot.modules.length} โมดูล, พระราชบัญญัติ ${snapshot.instruments.length} ฉบับ (${snapshot.provisions.length} มาตรา), หน่วยงานกำกับดูแล ${snapshot.regulators.length} แห่ง และคำพิพากษาศาลฎีกา`
+                          : `Select a focused database view below: ${snapshot.industryModules.length} Industry Databases, ${snapshot.modules.length} Core Legal Modules, ${snapshot.instruments.length} Enacted Laws (${snapshot.provisions.length} Provisions), ${snapshot.regulators.length} Official Authorities, and ${snapshot.legalCases.length + snapshot.taxRulings.length} Precedents.`}
                       </p>
                     </div>
                   </div>
 
-                  {/* Top Corpus Summary KPI Cards */}
-                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {/* Clean Niche Category Selector Cards (5 Focused Views) */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                     {[
                       {
-                        id: "authorities" as const,
-                        count: `${snapshot.regulators.length} + ${snapshot.caseConnectors.length}`,
-                        labelEn: "Official Authorities & Portals",
-                        labelTh: "หน่วยงานรัฐและช่องทางเชื่อมต่อ",
-                        subEn: `${snapshot.regulators.length} Regulators · ${snapshot.caseConnectors.length} Connectors`,
-                      },
-                      {
                         id: "industries" as const,
-                        count: `${snapshot.industryModules.length} / ${snapshot.industryModules.length}`,
-                        labelEn: "Industry Legal Databases",
-                        labelTh: `ฐานข้อมูลกฎหมาย ${snapshot.industryModules.length} อุตสาหกรรม`,
-                        subEn: "100% P0 Sector Complete",
-                      },
-                      {
-                        id: "modules" as const,
-                        count: `${snapshot.modules.length}`,
-                        labelEn: "Core Legal Modules",
-                        labelTh: "โมดูลกฎหมายหลัก (reg24.*.th)",
-                        subEn: "Published P0 v2.0.0",
+                        count: `${snapshot.industryModules.length} Sectors`,
+                        labelEn: "1. Industry Databases",
+                        labelTh: "1. กฎหมายรายอุตสาหกรรม",
+                        subEn: "100% P0 Complete (IND-*)",
                       },
                       {
                         id: "statutes" as const,
-                        count: `${snapshot.instruments.length + snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length}`,
-                        labelEn: "Statutes & Sub-Regulations",
-                        labelTh: "พ.ร.บ. ประมวลฯ และกฎหมายลำดับรอง",
-                        subEn: `${snapshot.instruments.length} Acts · ${snapshot.provisions.length} Provisions`,
+                        count: `${snapshot.instruments.length} Laws`,
+                        labelEn: "2. Statutes & Provisions",
+                        labelTh: "2. พ.ร.บ. และมาตรากฎหมาย",
+                        subEn: `${snapshot.provisions.length} Canonical Provisions`,
+                      },
+                      {
+                        id: "modules" as const,
+                        count: `${snapshot.modules.length} Modules`,
+                        labelEn: "3. Core Legal Modules",
+                        labelTh: "3. โมดูลกฎหมายหลัก",
+                        subEn: "reg24.*.th (v2.0.0)",
+                      },
+                      {
+                        id: "authorities" as const,
+                        count: `${snapshot.regulators.length} Bodies`,
+                        labelEn: "4. Official Authorities",
+                        labelTh: "4. หน่วยงานกำกับดูแล",
+                        subEn: `+ ${snapshot.caseConnectors.length} Live Connectors`,
                       },
                       {
                         id: "cases_rulings" as const,
-                        count: `${snapshot.legalCases.length + snapshot.taxRulings.length}`,
-                        labelEn: "Supreme Court & Tax Rulings",
-                        labelTh: "คำพิพากษาศาลฎีกาและข้อหารือภาษี",
-                        subEn: `${snapshot.legalCases.length} Cases · ${snapshot.taxRulings.length} RD Rulings`,
-                      },
-                      {
-                        id: "all" as const,
-                        count: `${snapshot.sourceDocuments.length}`,
-                        labelEn: "SHA-256 Verified Sources",
-                        labelTh: "เอกสารต้นฉบับยืนยันแฮช SHA-256",
-                        subEn: `${snapshot.provisionVersions.length} Point-in-Time Versions`,
+                        count: `${snapshot.legalCases.length + snapshot.taxRulings.length} Rulings`,
+                        labelEn: "5. Court & Tax Rulings",
+                        labelTh: "5. คำพิพากษาและข้อหารือ",
+                        subEn: `${snapshot.legalCases.length} Dika · ${snapshot.taxRulings.length} RD Tax`,
                       },
                     ].map((stat) => {
                       const active = uxLibraryTab === stat.id;
@@ -2852,7 +2837,7 @@ export default function Reg24MetroConsole() {
                               : `${surfaceCard} hover:border-[#0f2c59]`
                           }`}
                         >
-                          <div className="text-[22px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                          <div className="text-[20px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                             {stat.count}
                           </div>
                           <div className="text-[12px] font-semibold mt-1 leading-snug">
@@ -2874,61 +2859,6 @@ export default function Reg24MetroConsole() {
                     })}
                   </div>
 
-                  {/* Category Filter Tabs */}
-                  <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
-                    {(
-                      [
-                        {
-                          id: "all" as const,
-                          labelEn: "All Legal Databases (Complete List)",
-                          labelTh: "แสดงฐานข้อมูลทั้งหมด (All Databases)",
-                        },
-                        {
-                          id: "industries" as const,
-                          labelEn: `1. Industry Legal Databases (${snapshot.industryModules.length} Sectors)`,
-                          labelTh: `1. ฐานข้อมูลกฎหมายรายอุตสาหกรรม (${snapshot.industryModules.length})`,
-                        },
-                        {
-                          id: "authorities" as const,
-                          labelEn: `2. Official Authorities & Portals (${snapshot.regulators.length})`,
-                          labelTh: `2. หน่วยงานกำกับดูแลและแหล่งข้อมูล (${snapshot.regulators.length})`,
-                        },
-                        {
-                          id: "modules" as const,
-                          labelEn: `3. Core Legal Modules (${snapshot.modules.length})`,
-                          labelTh: `3. โมดูลกฎหมายหลัก (${snapshot.modules.length})`,
-                        },
-                        {
-                          id: "statutes" as const,
-                          labelEn: `4. Statutes, Codes & Sub-Regulations (${snapshot.instruments.length + snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length})`,
-                          labelTh: `4. พระราชบัญญัติ ประมวลกฎหมาย และประกาศ (${snapshot.instruments.length + snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length})`,
-                        },
-                        {
-                          id: "cases_rulings" as const,
-                          labelEn: `5. Supreme Court & Tax Rulings (${snapshot.legalCases.length + snapshot.taxRulings.length})`,
-                          labelTh: `5. คำพิพากษาศาลฎีกาและข้อหารือภาษี (${snapshot.legalCases.length + snapshot.taxRulings.length})`,
-                        },
-                      ]
-                    ).map((tab) => {
-                      const active = uxLibraryTab === tab.id;
-                      return (
-                        <button
-                          key={tab.id}
-                          onClick={() => setUxLibraryTab(tab.id)}
-                          className={`px-3.5 py-1.5 rounded-xl text-[12px] font-semibold transition-all cursor-pointer ${
-                            active
-                              ? isLightMinimal
-                                ? "bg-[#0f2c59] text-white"
-                                : "bg-[#f5b700] text-[#0a192f]"
-                              : `${subtleBox} hover:border-[#0f2c59]`
-                          }`}
-                        >
-                          {languageMode === "th" ? tab.labelTh : tab.labelEn}
-                        </button>
-                      );
-                    })}
-                  </div>
-
                   {/* ===========================================================
                       SECTION 1: 19 COMPLETED INDUSTRY LEGAL DATABASES (IND-*)
                       =========================================================== */}
@@ -2936,108 +2866,75 @@ export default function Reg24MetroConsole() {
                     <div className="space-y-4">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
-                          <h2 className="text-[22px] sm:text-[24px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                          <h2 className="text-[20px] sm:text-[22px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                             {languageMode === "th"
-                              ? `1. ฐานข้อมูลกฎหมายรายอุตสาหกรรมครบทั้ง ${snapshot.industryModules.length} กลุ่ม (${snapshot.industryModules.length} Completed Industry Legal Databases)`
-                              : `1. Industry Legal Databases — All ${snapshot.industryModules.length} Sectors Completed (P0 v2.0.0)`}
+                              ? `ฐานข้อมูลกฎหมายรายอุตสาหกรรม (${snapshot.industryModules.length} กลุ่มอุตสาหกรรม P0)`
+                              : `Industry Legal Databases (${snapshot.industryModules.length} P0 Sectors)`}
                           </h2>
-                          <p className={`text-[13px] mt-1 ${mutedText}`}>
+                          <p className={`text-[12px] mt-0.5 ${mutedText}`}>
                             {languageMode === "th"
-                              ? "แต่ละอุตสาหกรรมเชื่อมโยงกับหน่วยงานกำกับดูแล พระราชบัญญัติ มาตรากฎหมาย คำพิพากษาศาลฎีกา และหน้าที่ตามกฎหมาย (Structured Obligations) พร้อมใช้งานทันที"
-                              : "Every industry database is wired to dedicated Thai regulators, SHA-256 primary statutes, canonical provisions, Supreme Court precedents, and structured compliance obligations."}
+                              ? "เชื่อมโยงหน่วยงานกำกับดูแล พระราชบัญญัติ มาตรากฎหมาย คำพิพากษาศาลฎีกา และหน้าที่ตามกฎหมายครบทุกกลุ่ม"
+                              : "Each sector database links official regulators, primary statutes, canonical provisions, and compliance obligations."}
                           </p>
                         </div>
                         <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 self-start sm:self-auto">
-                          ✓ {snapshot.industryModules.length} / {snapshot.industryModules.length} Industries Active (P0)
+                          ✓ {snapshot.industryModules.length} / {snapshot.industryModules.length} P0 Verified
                         </span>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                         {snapshot.industryModules.map((ind, idx) => (
                           <div
                             key={ind.module_id}
-                            className={`p-5 rounded-2xl flex flex-col justify-between space-y-4 ${surfaceCard}`}
+                            className={`p-4 rounded-2xl flex flex-col justify-between space-y-3 ${surfaceCard}`}
                           >
-                            <div className="space-y-2.5">
+                            <div className="space-y-2">
                               <div className="flex items-center justify-between gap-2 text-[11px]">
-                                <span className="px-2.5 py-0.5 rounded-full font-semibold bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]">
+                                <span className="px-2.5 py-0.5 rounded-md font-semibold bg-[#0f2c59]/10 dark:bg-[#0f2c59] text-[#0f2c59] dark:text-[#f5b700]">
                                   6.{idx + 1} &bull; {ind.module_id}
                                 </span>
-                                <span className="px-2 py-0.5 rounded-full font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                                  ✓ {ind.priority} &bull; v{ind.version}
+                                <span className="px-2 py-0.5 rounded-md font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                  {ind.priority} &bull; v{ind.version}
                                 </span>
                               </div>
 
-                              <h3 className="text-[19px] font-bold tracking-[-0.035em] leading-[1.2]">
-                                {languageMode === "th" ? ind.module_name_th : ind.module_name}
-                              </h3>
-                              <div className={`text-[12px] font-medium ${mutedText}`}>
-                                {languageMode === "th" ? ind.module_name : ind.module_name_th}
+                              <div>
+                                <h3 className="text-[16px] font-bold tracking-[-0.025em] leading-snug">
+                                  {languageMode === "th" ? ind.module_name_th : ind.module_name}
+                                </h3>
+                                <div className={`text-[11px] font-medium mt-0.5 ${mutedText}`}>
+                                  {languageMode === "th" ? ind.module_name : ind.module_name_th}
+                                </div>
                               </div>
 
                               {/* Connected Regulators */}
-                              <div className="pt-1">
-                                <div className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${mutedText}`}>
-                                  {languageMode === "th" ? "หน่วยงานกำกับดูแลหลัก:" : "Regulatory Authorities:"}
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {ind.regulators.map((reg) => (
-                                    <span
-                                      key={reg}
-                                      className={`px-2 py-0.5 rounded-md text-[11px] font-medium ${subtleBox}`}
-                                    >
-                                      {reg}
-                                    </span>
-                                  ))}
-                                </div>
+                              <div className="flex flex-wrap gap-1 pt-0.5">
+                                {ind.regulators.map((reg) => (
+                                  <span
+                                    key={reg}
+                                    className={`px-2 py-0.5 rounded text-[10px] font-semibold ${subtleBox}`}
+                                  >
+                                    {reg}
+                                  </span>
+                                ))}
                               </div>
 
-                              {/* Key Regulatory Scope */}
-                              <div>
-                                <div className={`text-[11px] font-semibold uppercase tracking-wider mb-1 ${mutedText}`}>
-                                  {languageMode === "th" ? "ขอบเขตและกิจกรรมทางธุรกิจ:" : "Key Business & Regulatory Scope:"}
-                                </div>
-                                <ul className="space-y-1 text-[12px] leading-snug">
-                                  {ind.business_activities.slice(0, 4).map((scope, sIdx) => (
-                                    <li key={sIdx} className="flex items-start gap-1.5">
-                                      <span className="text-[#0f2c59] dark:text-[#f5b700] font-bold">&bull;</span>
-                                      <span>{scope}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              </div>
-
-                              {/* Linked Provisions & Obligations */}
-                              <div className="grid grid-cols-3 gap-2 pt-1 text-center">
-                                <div className={`p-2 rounded-xl ${subtleBox}`}>
-                                  <div className="text-[14px] font-bold">
-                                    {ind.knowledge_graph.linked_provision_ids.length}
-                                  </div>
-                                  <div className={`text-[10px] ${mutedText}`}>Provisions</div>
-                                </div>
-                                <div className={`p-2 rounded-xl ${subtleBox}`}>
-                                  <div className="text-[14px] font-bold">
-                                    {ind.knowledge_graph.linked_case_ids.length}
-                                  </div>
-                                  <div className={`text-[10px] ${mutedText}`}>Court Cases</div>
-                                </div>
-                                <div className={`p-2 rounded-xl ${subtleBox}`}>
-                                  <div className="text-[14px] font-bold">
-                                    {ind.knowledge_graph.linked_obligation_ids.length}
-                                  </div>
-                                  <div className={`text-[10px] ${mutedText}`}>Obligations</div>
-                                </div>
-                              </div>
-
-                              <div className="text-[11px] font-mono opacity-75 truncate">
-                                IDs: {ind.knowledge_graph.linked_provision_ids.join(", ")}
-                              </div>
+                              {/* Key Regulatory Scope (Compact 3 bullets) */}
+                              <ul className="space-y-1 text-[11.5px] leading-snug pt-0.5">
+                                {ind.business_activities.slice(0, 3).map((scope, sIdx) => (
+                                  <li key={sIdx} className="flex items-start gap-1.5">
+                                    <span className="text-[#0f2c59] dark:text-[#f5b700] font-bold">&bull;</span>
+                                    <span className="line-clamp-1">{scope}</span>
+                                  </li>
+                                ))}
+                              </ul>
                             </div>
 
-                            <div className="pt-3 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2">
-                              <span className={`text-[11px] font-medium ${mutedText}`}>
-                                {ind.common_legal_missions.length} Legal Missions
-                              </span>
+                            <div className="pt-2.5 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between gap-2">
+                              <div className={`text-[11px] font-medium ${mutedText}`}>
+                                <strong className="text-slate-900 dark:text-white">{ind.knowledge_graph.linked_provision_ids.length}</strong> Provisions &bull;{" "}
+                                <strong className="text-slate-900 dark:text-white">{ind.knowledge_graph.linked_obligation_ids.length}</strong> Obligations
+                              </div>
                               <button
                                 onClick={() => {
                                   const firstMission = ind.common_legal_missions[0];
@@ -3049,11 +2946,9 @@ export default function Reg24MetroConsole() {
                                   handleRunWebLegalResearch("Quick Answer", missionPrompt);
                                   setUxResearchDestination("research");
                                 }}
-                                className="px-3 py-1.5 rounded-xl text-[11px] font-semibold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f] cursor-pointer"
+                                className="px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f] cursor-pointer shrink-0"
                               >
-                                {languageMode === "th"
-                                  ? "วิเคราะห์กฎหมายอุตสาหกรรมนี้ →"
-                                  : "Research Industry Laws →"}
+                                {languageMode === "th" ? "ค้นคว้า →" : "Explore →"}
                               </button>
                             </div>
                           </div>
@@ -4039,585 +3934,280 @@ export default function Reg24MetroConsole() {
         )}
 
         {/* =====================================================================
-            PROFESSIONAL MODE START HUB (16-MODULE LIVE TILE MATRIX)
+            PROFESSIONAL MODE START HUB (CLEAN EXECUTIVE MODULE & DATABASE MATRIX)
             ===================================================================== */}
         {activeScreen === "PANORAMA" && vibeMode === "professional" && (
           <div className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* LEFT COLUMN: 6 MANDATORY P0 LEGAL MODULE LIVE TILES (7 cols) */}
-              <div className="lg:col-span-7 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-                    P0 SUBSTANTIVE THAI LEGAL MODULES &bull; LIVE TILES
+            {/* SECTION 1: 16 CORE LEGAL MODULES (CLEAN UNIFORM BENTO GRID) */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#1e293b] pb-3">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#f5b700]">
+                    1. Core Substantive Legal Modules &bull; {snapshot.modules.length} Published Modules
+                  </span>
+                  <h2 className="text-[22px] font-extrabold tracking-[-0.03em] text-white mt-0.5">
+                    {languageMode === "th"
+                      ? `โมดูลกฎหมายหลัก (${snapshot.modules.length} โมดูล P0)`
+                      : `Substantive Thai Legal Modules (${snapshot.modules.length} P0 Modules)`}
                   </h2>
-                  <button
-                    onClick={() => setActiveScreen("SCREEN_A_REGISTRY")}
-                    className="text-[11px] uppercase tracking-wider text-[#f5b700] hover:underline flex items-center gap-1 cursor-pointer"
-                  >
-                    <span>OPEN MODULE REGISTRY (SCREEN A)</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
                 </div>
+                <button
+                  onClick={() => setActiveScreen("SCREEN_A_REGISTRY")}
+                  className="px-3.5 py-1.5 rounded-xl text-[12px] font-semibold bg-[#0f2c59] hover:bg-[#19478a] text-white border border-[#2a3f63] flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>Module Registry &amp; Lifecycle</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-[#f5b700]" />
+                </button>
+              </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 auto-rows-[148px]">
-                  {snapshot.modules.map((mod, idx) => {
-                    const colSpan =
-                      mod.metro_tile.tile_size === "2x2"
-                        ? "col-span-2 row-span-2"
-                        : mod.metro_tile.tile_size === "2x1"
-                          ? "col-span-2 row-span-1"
-                          : "col-span-1 row-span-1";
-
-                    const consumerCount = snapshot.moduleReferences.filter(
-                      (r) =>
-                        r.module_id !== mod.module_id &&
-                        snapshot.provisions.find((p) => p.id === r.provision_id)
-                          ?.canonical_owner_module === mod.module_id
-                    ).length;
-
-                    const isPrimaryTile = mod.metro_tile.tile_size === "2x2" || idx % 3 === 0;
-
-                    return (
-                      <div
-                        key={mod.module_id}
-                        onClick={() => {
-                          setMcpSelectedModules([mod.module_id]);
-                          setActiveScreen("SCREEN_A_REGISTRY");
-                        }}
-                        style={{
-                          backgroundColor:
-                            mod.review_status === "published"
-                              ? isPrimaryTile
-                                ? "#0f2c59"
-                                : "#152238"
-                              : "#1e293b",
-                        }}
-                        className={`metro-tile p-4 flex flex-col justify-between cursor-pointer text-white border ${
-                          isPrimaryTile ? "border-[#f5b700]/70" : "border-[#26354f]"
-                        } ${colSpan}`}
-                      >
-                        <div className="flex items-start justify-between">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                {snapshot.modules.map((mod) => {
+                  const isFoundation = mod.module_id === "reg24.civil.th";
+                  return (
+                    <div
+                      key={mod.module_id}
+                      onClick={() => {
+                        setMcpSelectedModules([mod.module_id]);
+                        setActiveScreen("SCREEN_A_REGISTRY");
+                      }}
+                      className={`p-4 rounded-2xl flex flex-col justify-between gap-3 cursor-pointer transition-all border ${
+                        isFoundation
+                          ? "bg-[#0f2c59] border-[#f5b700]/70 hover:border-[#f5b700]"
+                          : "bg-[#101829] border-[#24324b] hover:border-[#0f2c59] hover:bg-[#131e33]"
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
                             <span className="text-[#f5b700]">
-                              {getModuleIcon(mod.metro_tile.icon_name, "w-6 h-6")}
+                              {getModuleIcon(mod.metro_tile.icon_name, "w-5 h-5")}
                             </span>
-                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/30 text-[#f5b700] px-1.5 py-0.5">
-                              {mod.metro_tile.short_code} &bull; v{mod.version}
+                            <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-black/30 text-[#f5b700]">
+                              {mod.metro_tile.short_code}
                             </span>
                           </div>
-                          <span className="text-[10px] font-bold uppercase tracking-widest bg-black/30 px-1.5 py-0.5">
-                            {mod.review_status}
+                          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400">
+                            v{mod.version}
                           </span>
                         </div>
 
-                        {/* Live Tile Dynamic Middle Content */}
-                        {mod.metro_tile.tile_size === "2x2" && (
-                          <div className="my-auto py-2 border-y border-[#f5b700]/30 space-y-1.5">
-                            <div className="text-[11px] uppercase tracking-widest text-[#f5b700] font-semibold">
-                              CANONICAL FOUNDATION MODULE (BOOKS I–VI)
-                            </div>
-                            <p className="text-xs text-white/95 leading-snug">
-                              Single authoritative store for Thailand&apos;s Civil &amp; Commercial Code.
-                              Consumed without duplication by Corporate Law, Contract Law, and Labor Law
-                              ({consumerCount} active cross-module links).
-                            </p>
-                            <div className="flex flex-wrap gap-1.5 pt-1">
-                              <span className="text-[10px] bg-black/30 text-[#f5b700] px-2 py-0.5 uppercase">
-                                Sec. 1097 (2 Promoters)
-                              </span>
-                              <span className="text-[10px] bg-black/30 text-[#f5b700] px-2 py-0.5 uppercase">
-                                Sec. 383 (Penalty)
-                              </span>
-                              <span className="text-[10px] bg-black/30 text-[#f5b700] px-2 py-0.5 uppercase">
-                                Sec. 1201 (Dividend)
-                              </span>
-                            </div>
-                          </div>
-                        )}
-
                         <div>
-                          <div className="text-[11px] text-slate-300 font-medium truncate">
-                            {languageMode !== "en" ? mod.display_name_th : mod.module_id}
-                          </div>
-                          <div className="flex items-baseline justify-between gap-2 mt-0.5">
-                            <h3 className="text-lg font-semibold tracking-tight leading-tight">
-                              {mod.display_name}
-                            </h3>
-                            <div className="text-right shrink-0">
-                              <span className="text-xl font-bold leading-none text-[#f5b700]">
-                                {liveTileTick === 0
-                                  ? mod.source_coverage.provisions_indexed
-                                  : liveTileTick === 1
-                                    ? `${mod.source_coverage.provision_boundary_accuracy_pct}%`
-                                    : `${mod.source_coverage.executable_rules_approved}R`}
-                              </span>
-                              <span className="block text-[9px] uppercase tracking-wider text-white/75">
-                                {liveTileTick === 0
-                                  ? "provisions"
-                                  : liveTileTick === 1
-                                    ? "accuracy"
-                                    : "exec rules"}
-                              </span>
-                            </div>
+                          <h3 className="text-[15px] font-bold tracking-[-0.02em] text-white leading-snug">
+                            {languageMode === "th" ? mod.display_name_th : mod.display_name}
+                          </h3>
+                          <div className="text-[11px] font-mono text-slate-400 mt-0.5 truncate">
+                            {mod.module_id}
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
 
-              {/* RIGHT COLUMN: CORE SYSTEM & CONSOLE SCREEN TILES (5 cols) */}
-              <div className="lg:col-span-5 space-y-3">
-                <h2 className="text-xs font-bold uppercase tracking-[0.22em] text-slate-400">
-                  REG24 CORE INFRASTRUCTURE &amp; ADMIN CONSOLE TILES
-                </h2>
-
-                <div className="grid grid-cols-2 gap-2.5 auto-rows-[148px]">
-                  {/* Tile: REG24-WEB-001 Legal Research Web Mode — REG24 Web Research Studio (Screen O) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_O_WEB_STUDIO")}
-                    className="metro-tile col-span-2 bg-gradient-to-br from-[#19478a] via-[#0f2c59] to-[#091a36] border border-[#f5b700] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Search className="w-6 h-6 text-[#f5b700]" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/30 text-[#f5b700] px-2 py-0.5">
-                          REG24-WEB-001 &bull; P0 WEB RESEARCH STUDIO &bull; FIRST-PARTY CORE CONSUMER
-                        </span>
+                      <div className="pt-2.5 border-t border-white/10 flex items-center justify-between text-[11px]">
+                        <div className="text-slate-300">
+                          <strong className="text-[#f5b700] font-bold">
+                            {mod.source_coverage.provisions_indexed}
+                          </strong>{" "}
+                          provisions
+                        </div>
+                        <div className="text-slate-300">
+                          <strong className="text-white font-bold">
+                            {mod.source_coverage.executable_rules_approved}
+                          </strong>{" "}
+                          exec rules
+                        </div>
+                        <div className="text-emerald-400 font-semibold">
+                          {mod.source_coverage.provision_boundary_accuracy_pct}%
+                        </div>
                       </div>
-                      <span className="text-xs font-bold uppercase bg-[#f5b700] text-[#0a192f] px-2 py-0.5">
-                        WEB-01..08 &bull; AC-WEB-01..10 PASS
-                      </span>
                     </div>
-                    <div>
-                      <p className="text-xs text-white/95 mb-1">
-                        <strong>Legal Research Web Mode (Thai Default + EN):</strong> Conversational AI Research,
-                        7-Category Legal Search, Source Viewer (Original vs AI), 9-Step Deep Research, Temporal Side-by-Side Diff &amp; PDF/DOCX Export.
-                      </p>
-                      <h3 className="text-2xl font-normal lowercase tracking-tight text-[#f5b700]">
-                        reg24 web research studio &bull; ai legal research &amp; source viewer
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: PRD v2.0 Corporate & Commercial Legal Intelligence Infrastructure (Screen N) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_N_V2_WORKSPACE")}
-                    className="metro-tile col-span-2 bg-[#14233c] border border-[#2a3f63] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Building2 className="w-6 h-6 text-[#f5b700]" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 text-[#f5b700] px-2 py-0.5">
-                          PRD v2.0 &bull; 7 LAYERS &bull; 9 LEG-* DOMAINS &bull; 9 IND-* INDUSTRIES
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold uppercase bg-[#f5b700] text-[#0a192f] px-2 py-0.5">
-                        850-Q EVAL PASS &bull; 11 VIBE24 APPS
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white/95 mb-1">
-                        <strong>Corporate &amp; Commercial Legal Intelligence Infrastructure:</strong> 5 Research
-                        Modes, 9 Industry Modules (`IND-*` + SDK), Agentic Missions (`Single`/`Team`/`Swarm`),
-                        Report Studio, Enterprise Compliance &amp; Section 24 Data Quality Dashboard.
-                      </p>
-                      <h3 className="text-2xl font-normal lowercase tracking-tight">
-                        v2.0 corporate, industry &amp; report studio workspace
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: Unified MCP Gateway (Screen G) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_G_MCP")}
-                    className="metro-tile col-span-2 bg-[#0f2c59] border border-[#2a3f63] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Terminal className="w-6 h-6 text-[#f5b700]" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 text-[#f5b700] px-2 py-0.5">
-                          SCREEN G &bull; REG-MCP-001 TO 005 &bull; PRD v2.0 SEC 12
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold uppercase bg-[#f5b700] text-[#0a192f] px-2 py-0.5">
-                        61 MCP TOOLS LIVE
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white/85 mb-1">
-                        Single Streamable HTTP Gateway (July 28, 2026 MCP Spec) + OpenAPI v3 REST for
-                        LAW24, CFO24, ACC24, TP24, GMT24, ESG24, COP24, TRADE24, HOTEL24, DRUG24 &amp; RISK24.
-                      </p>
-                      <h3 className="text-2xl font-normal lowercase tracking-tight">
-                        unified mcp &amp; api playground
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: Rule Studio (Screen E) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_E_RULES")}
-                    className="metro-tile bg-[#6A00FF] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <Cpu className="w-6 h-6" />
-                      <span className="text-[10px] font-bold uppercase bg-black/25 px-1.5 py-0.5">
-                        SCREEN E
-                      </span>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold leading-none">{approvedRulesCount}</div>
-                      <div className="text-[10px] uppercase tracking-wider text-white/80">
-                        DETERMINISTIC RULES
-                      </div>
-                      <h3 className="text-base font-normal lowercase mt-1">rule studio</h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: Knowledge Graph Explorer (Screen D) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
-                    className="metro-tile bg-[#1BA1E2] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <GitBranch className="w-6 h-6" />
-                      <span className="text-[10px] font-bold uppercase bg-black/25 px-1.5 py-0.5">
-                        SCREEN D
-                      </span>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold leading-none">
-                        {snapshot.graphEdges.length + snapshot.moduleReferences.length}
-                      </div>
-                      <div className="text-[10px] uppercase tracking-wider text-white/80">
-                        CROSS-MODULE EDGES
-                      </div>
-                      <h3 className="text-base font-normal lowercase mt-1">legal graph</h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: Module Factory (Screen B) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_B_FACTORY")}
-                    className="metro-tile bg-[#00ABA9] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <Plus className="w-6 h-6" />
-                      <span className="text-[10px] font-bold uppercase bg-black/25 px-1.5 py-0.5">
-                        SCREEN B
-                      </span>
-                    </div>
-                    <div>
-                      <div className="text-xs font-bold uppercase tracking-wider text-white/90">
-                        ZERO-CODE HOT PLUG
-                      </div>
-                      <h3 className="text-base font-normal lowercase mt-1">module factory</h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: Change Intelligence (Screen F) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_F_CHANGES")}
-                    className="metro-tile bg-[#D80073] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <BellRing className="w-6 h-6" />
-                      <span className="text-[10px] font-bold uppercase bg-black/25 px-1.5 py-0.5">
-                        SCREEN F
-                      </span>
-                    </div>
-                    <div>
-                      <div className="text-2xl font-bold leading-none">
-                        {snapshot.regulatoryChanges.length}
-                      </div>
-                      <div className="text-[10px] uppercase tracking-wider text-white/80">
-                        AMENDMENT ALERTS
-                      </div>
-                      <h3 className="text-base font-normal lowercase mt-1">change radar</h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: A2A Protocol v1.0 Legal Task Agent (Screen I) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_I_A2A")}
-                    className="metro-tile col-span-2 bg-[#E51400] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-6 h-6" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
-                          SCREEN I &bull; REG-A2A-001 TO 009 &bull; A2A v1.0
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold uppercase bg-white text-[#E51400] px-2 py-0.5">
-                        {snapshot.a2aTasks?.length || 1} DELEGATED TASKS
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white/90 mb-1">
-                        Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 15 domain
-                        modules. Serves LAW24, CFO24, ACC24, TP24, GMT24 &amp; External AI Agents via A2A v1.0.
-                      </p>
-                      <h3 className="text-2xl font-normal lowercase tracking-tight">
-                        agent-to-agent (a2a) legal task hub
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: PDPA B.E. 2562 & 2026 Access-Request Notification Expansion (Screen L) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_L_PDPA")}
-                    className="metro-tile col-span-2 bg-[#00ABA9] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <ShieldCheck className="w-6 h-6" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
-                          SCREEN L &bull; EXPANSION v1.2 &bull; MODULE REG24-PDPA (reg24.pdpa.th)
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold uppercase bg-white text-[#00ABA9] px-2 py-0.5">
-                        2026 ACCESS-REQUEST NOTIFICATION &bull; 72H BREACH
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white/95 mb-1">
-                        <strong>PDPA B.E. 2562 &amp; Subordinate PDPC Regulations:</strong> 2026 Access-Request
-                        Notification (30d DSAR &amp; ID Minimization), 72-Hour Breach Clock, DPO Sec. 41,
-                        Cross-Border BCRs/SCCs, PDPC 7M THB Order &amp; Privacy-by-Design PII Redaction.
-                      </p>
-                      <h3 className="text-2xl font-normal lowercase tracking-tight">
-                        pdpa regulatory intelligence &amp; 2026 dsar engine
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: Tax Rulings & Revenue Code Sub-Regulations Expansion (Screen K) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_K_TAX_PRECEDENT")}
-                    className="metro-tile col-span-2 bg-[#008A00] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <FileCheck2 className="w-6 h-6" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
-                          SCREEN K &bull; EXPANSION v1.1 &bull; SUB / RULING / CASE / CHANGE
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold uppercase bg-white text-[#008A00] px-2 py-0.5">
-                        RD RULING กค 0702(กม.)/462 (22 APR 2026)
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white/95 mb-1">
-                        <strong>Article-to-Regulation-to-Ruling GraphRAG:</strong> Links CCC Sec. 1238/1243 &amp;
-                        Revenue Code Sec. 73/74/77/1(8) to Royal Decree No. 10, MR No. 126, RD Ruling 462/2569,
-                        RD Opinion 453/2568, TRC 40/2560, Supreme Court 5412/2565 &amp; Top-up Tax B.E. 2567.
-                      </p>
-                      <h3 className="text-2xl font-normal lowercase tracking-tight">
-                        tax rulings, sub-regulations &amp; merger graphrag
-                      </h3>
-                    </div>
-                  </div>
-
-                  {/* Tile: Listed-Company Restructuring & Capital Markets Mission (Screen J) */}
-                  <div
-                    onClick={() => setActiveScreen("SCREEN_J_RESTRUCT_MISSION")}
-                    className="metro-tile col-span-2 bg-[#FA6800] p-4 flex flex-col justify-between cursor-pointer text-white"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <GitBranch className="w-6 h-6" />
-                        <span className="text-[10px] font-bold uppercase tracking-[0.2em] bg-black/25 px-2 py-0.5">
-                          SCREEN J &bull; SCOPE EXTENSION v1.0 &bull; SEC / SET / RESTRUCT / INSOLV
-                        </span>
-                      </div>
-                      <span className="text-xs font-bold uppercase bg-white text-[#FA6800] px-2 py-0.5">
-                        6-MODULE MISSION &bull; 1 JUL 2026 SET RULES
-                      </span>
-                    </div>
-                    <div>
-                      <p className="text-xs text-white/95 mb-1">
-                        <strong>Cross-Module Listed-Company Restructuring Mission:</strong> Negative equity, bank
-                        debt default, debt-to-equity conversion, strategic investor (24.5% vs 25% MTO /
-                        Whitewash), 1 July 2026 SET MT/RPT rules &amp; Central Bankruptcy Court rehab.
-                      </p>
-                      <h3 className="text-2xl font-normal lowercase tracking-tight">
-                        capital markets, restructuring &amp; insolvency mission
-                      </h3>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })}
               </div>
             </div>
 
-            {/* THREE COMPLEMENTARY INFRASTRUCTURE PRODUCTS (SECTION 5 COMMERCIAL STRATEGY) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              <div
-                onClick={() => setActiveScreen("SCREEN_C_SOURCES")}
-                className="metro-tile bg-[#121216] border-t-4 border-[#A20025] p-4 border-x border-b border-[#262630] cursor-pointer"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A20025]">
-                    PRODUCT TIER 01 &bull; P0 MANDATORY
+            {/* SECTION 2: 19 INDUSTRY LEGAL DATABASES (CLEAN COMPACT SECTOR MATRIX) */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#1e293b] pb-3">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#f5b700]">
+                    2. Sector-Specific Legal Databases &bull; {snapshot.industryModules.length} P0 Industries
                   </span>
-                  <Database className="w-4 h-4 text-[#A20025]" />
-                </div>
-                <h3 className="text-lg font-normal lowercase text-white mb-1">
-                  reg24 data infrastructure
-                </h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Canonical regulatory knowledge (`reg24.civil.th` shared foundation), historical versions,
-                  cross-module knowledge graph, and machine-readable obligations with SHA-256 provenance.
-                </p>
-              </div>
-
-              <div
-                onClick={() => setActiveScreen("SCREEN_G_MCP")}
-                className="metro-tile bg-[#121216] border-t-4 border-[#0050EF] p-4 border-x border-b border-[#262630] cursor-pointer"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#1BA1E2]">
-                    PRODUCT TIER 02 &bull; AGENT-TO-TOOL (MCP)
-                  </span>
-                  <Terminal className="w-4 h-4 text-[#1BA1E2]" />
-                </div>
-                <h3 className="text-lg font-normal lowercase text-white mb-1">
-                  reg24 mcp infrastructure
-                </h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Any supported AI agent can retrieve statutory provisions, verify citations, and execute
-                  human-approved deterministic rules through the 12 `reg24.*` MCP tools.
-                </p>
-              </div>
-
-              <div
-                onClick={() => setActiveScreen("SCREEN_I_A2A")}
-                className="metro-tile bg-[#121216] border-t-4 border-[#E51400] p-4 border-x border-b border-[#262630] cursor-pointer"
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#E51400]">
-                    PRODUCT TIER 03 &bull; AGENT-TO-AGENT (A2A)
-                  </span>
-                  <Layers className="w-4 h-4 text-[#E51400]" />
-                </div>
-                <h3 className="text-lg font-normal lowercase text-white mb-1">
-                  reg24 a2a infrastructure
-                </h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  LAW24, CFO24, VIBE24, and third-party AI systems delegate multi-domain regulatory tasks to
-                  the <strong>REG24 Legal Task Agent</strong> and receive consolidated, traceable evidence
-                  envelopes.
-                </p>
-              </div>
-            </div>
-
-            {/* ARCHITECTURAL PILLARS BAR (3 NON-NEGOTIABLE DECISIONS) */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="bg-[#121216] border-l-4 border-[#A20025] p-4 border-y border-r border-[#262630]">
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#A20025] mb-1">
-                  DECISION 01 &bull; REG-CORE-003
-                </div>
-                <h3 className="text-base font-semibold text-white mb-1">
-                  Civil Code as Shared Canonical Foundation
-                </h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  Thailand&apos;s Civil and Commercial Code (`reg24.civil.th`) stores statutory text and
-                  historical versions once. `reg24.corporate.th`, `reg24.contract.th`, and
-                  `reg24.labor.th` reference canonical provisions via `ModuleReference` without duplicating
-                  records.
-                </p>
-              </div>
-
-              <div className="bg-[#121216] border-l-4 border-[#D80073] p-4 border-y border-r border-[#262630]">
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#D80073] mb-1">
-                  DECISION 02 &bull; BOI CRITICAL CONTROL
-                </div>
-                <h3 className="text-base font-semibold text-white mb-1">
-                  4-State BOI Promotion Separation
-                </h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  `reg24.boi.th` strictly distinguishes (1) Potential Activity Eligibility, (2) Project
-                  Approval, (3) Promotion Certificate Issuance, and (4) Actual Tax/FBA Benefit Entitlement.
-                  Eligibility never claims a company is BOI-approved.
-                </p>
-              </div>
-
-              <div className="bg-[#121216] border-l-4 border-[#0050EF] p-4 border-y border-r border-[#262630]">
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#1BA1E2] mb-1">
-                  DECISION 03 &bull; KNOWLEDGE VS. EXECUTION
-                </div>
-                <h3 className="text-base font-semibold text-white mb-1">
-                  Searchable Corpus vs. Human-Approved Rules
-                </h3>
-                <p className="text-xs text-zinc-400 leading-relaxed">
-                  All 6 modules (including CCC Family &amp; Succession) are 100% indexed and searchable with
-                  verifiable citations, while only human-reviewed deterministic rules (`executable_approved`)
-                  can execute in production.
-                </p>
-              </div>
-            </div>
-
-            {/* REG24-P0-GRAPH-001: 3R ARCHITECTURE STRIP (R1 RETRIEVAL -> R2 REASONING -> R3 REVIEW) */}
-            <div className="bg-[#121216] border border-[#262630] p-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-400">
-                  REG24 3R ARCHITECTURE &bull; REG24-P0-GRAPH-001 MANDATORY HYBRID LEGAL GRAPHRAG ENGINE
+                  <h2 className="text-[22px] font-extrabold tracking-[-0.03em] text-white mt-0.5">
+                    {languageMode === "th"
+                      ? `ฐานข้อมูลกฎหมายรายอุตสาหกรรม (${snapshot.industryModules.length} กลุ่มธุรกิจ)`
+                      : `Industry Legal Databases (${snapshot.industryModules.length} Completed Sectors)`}
+                  </h2>
                 </div>
                 <button
-                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
-                  className="text-[10px] font-bold uppercase tracking-wider bg-[#A20025] hover:bg-[#82001d] text-white px-3 py-1 cursor-pointer"
+                  onClick={() => setActiveScreen("SCREEN_N_V2_WORKSPACE")}
+                  className="px-3.5 py-1.5 rounded-xl text-[12px] font-semibold bg-[#0f2c59] hover:bg-[#19478a] text-white border border-[#2a3f63] flex items-center gap-1.5 cursor-pointer"
                 >
-                  LAUNCH 3R HYBRID GRAPHRAG EXPLORER (SCR-D) &rarr;
+                  <span>Open v2.0 Industry Workspace</span>
+                  <ArrowUpRight className="w-3.5 h-3.5 text-[#f5b700]" />
                 </button>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                <div
-                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
-                  className="bg-[#0c0c10] border-l-4 border-[#1BA1E2] p-3 border-y border-r border-[#262630] cursor-pointer hover:border-[#1BA1E2]"
-                >
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-[#1BA1E2]">
-                    R1 &bull; RETRIEVAL — HYBRID GRAPHRAG
-                  </div>
-                  <div className="text-sm font-semibold text-white mt-0.5">
-                    RAG24 + Legal Knowledge Graph
-                  </div>
-                  <div className="text-[11px] text-zinc-400 mt-1">
-                    Vector search &bull; Keyword search &bull; Multi-hop graph traversal (`CONTAINS`, `AMENDS`, `EXCEPTION_TO`, `INTERPRETS`) &bull; Version filtering
-                  </div>
-                </div>
 
-                <div
-                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
-                  className="bg-[#0c0c10] border-l-4 border-[#6A00FF] p-3 border-y border-r border-[#262630] cursor-pointer hover:border-[#6A00FF]"
-                >
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-purple-400">
-                    R2 &bull; REASONING — LEGAL AI AGENTS
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {snapshot.industryModules.map((ind, idx) => (
+                  <div
+                    key={ind.module_id}
+                    onClick={() => {
+                      setV2IndustryCode(ind.module_id);
+                      setV2WorkspaceTab("industry_modules");
+                      setActiveScreen("SCREEN_N_V2_WORKSPACE");
+                    }}
+                    className="p-3.5 rounded-2xl bg-[#101829] border border-[#24324b] hover:border-[#0f2c59] hover:bg-[#131e33] flex flex-col justify-between gap-2.5 cursor-pointer transition-all"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between text-[10px] mb-1.5">
+                        <span className="px-2 py-0.5 rounded bg-[#0f2c59] text-[#f5b700] font-bold">
+                          6.{idx + 1} &bull; {ind.module_id}
+                        </span>
+                        <span className="text-emerald-400 font-semibold">P0</span>
+                      </div>
+                      <h3 className="text-[14px] font-bold text-white leading-snug">
+                        {languageMode === "th" ? ind.module_name_th : ind.module_name}
+                      </h3>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {ind.regulators.slice(0, 4).map((reg) => (
+                          <span
+                            key={reg}
+                            className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-[#182338] text-slate-300 border border-[#273652]"
+                          >
+                            {reg}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] text-slate-400">
+                      <span>
+                        <strong className="text-white">{ind.knowledge_graph.linked_provision_ids.length}</strong> Provisions
+                      </span>
+                      <span>
+                        <strong className="text-white">{ind.knowledge_graph.linked_obligation_ids.length}</strong> Obligations
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-sm font-semibold text-white mt-0.5">
-                    Statutory &amp; Cross-Law Analysis
-                  </div>
-                  <div className="text-[11px] text-zinc-400 mt-1">
-                    Statutory interpretation &bull; Cross-law analysis &bull; Fact-to-rule matching &bull; Deterministic Law-as-Code execution
-                  </div>
-                </div>
+                ))}
+              </div>
+            </div>
 
-                <div
-                  onClick={() => setActiveScreen("SCREEN_D_GRAPH")}
-                  className="bg-[#0c0c10] border-l-4 border-[#008A00] p-3 border-y border-r border-[#262630] cursor-pointer hover:border-[#008A00]"
-                >
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-400">
-                    R3 &bull; REVIEW — LEGAL VERIFICATION ENGINE
+            {/* SECTION 3: CORE INFRASTRUCTURE & SPECIALIZED CONSOLE ENGINES */}
+            <div className="space-y-4">
+              <div className="border-b border-[#1e293b] pb-3">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-[#f5b700]">
+                  3. Core Infrastructure &amp; Specialized Legal Engines
+                </span>
+                <h2 className="text-[22px] font-extrabold tracking-[-0.03em] text-white mt-0.5">
+                  {languageMode === "th"
+                    ? "ระบบโครงสร้างพื้นฐาน AI กฎหมายและเครื่องมือเฉพาะทาง"
+                    : "Infrastructure Consoles, Gateways & Specialized Missions"}
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {[
+                  {
+                    screen: "SCREEN_O_WEB_STUDIO" as const,
+                    badge: "WEB STUDIO • P0",
+                    stat: "7 Categories",
+                    title: "Web Research Studio & Source Viewer",
+                    desc: "Conversational Thai/EN legal research, side-by-side statutory temporal diff, and verified SHA-256 source viewer.",
+                    highlight: true,
+                  },
+                  {
+                    screen: "SCREEN_G_MCP" as const,
+                    badge: "MCP & REST GATEWAY",
+                    stat: "61 MCP Tools",
+                    title: "Unified MCP & OpenAPI v3 Playground",
+                    desc: "Streamable HTTP MCP gateway serving LAW24, CFO24, ACC24, TP24, GMT24, ESG24, COP24, TRADE24, HOTEL24 & DRUG24.",
+                    highlight: false,
+                  },
+                  {
+                    screen: "SCREEN_E_RULES" as const,
+                    badge: "LAW-AS-CODE",
+                    stat: `${approvedRulesCount} Approved Rules`,
+                    title: "Deterministic Rule Studio",
+                    desc: "Human-approved deterministic statutory rules for promoter thresholds, penalties, tax rates, and BOI checks.",
+                    highlight: false,
+                  },
+                  {
+                    screen: "SCREEN_D_GRAPH" as const,
+                    badge: "3R GRAPHRAG",
+                    stat: `${snapshot.graphEdges.length + snapshot.moduleReferences.length} Graph Edges`,
+                    title: "3R Legal Knowledge Graph Explorer",
+                    desc: "R1 Retrieval, R2 Reasoning, and R3 Verification across statutes, Supreme Court cases, and tax rulings.",
+                    highlight: false,
+                  },
+                  {
+                    screen: "SCREEN_K_TAX_PRECEDENT" as const,
+                    badge: "TAX GRAPHRAG",
+                    stat: "RD 462/2569",
+                    title: "Tax Rulings & Merger GraphRAG",
+                    desc: "Links CCC Sec. 1238/1243 & Revenue Code Sec. 73/74 to Royal Decree No. 10, RD Rulings, and Pillar Two Top-up Tax.",
+                    highlight: false,
+                  },
+                  {
+                    screen: "SCREEN_L_PDPA" as const,
+                    badge: "PDPA 2026 ENGINE",
+                    stat: "72h Breach / 30d DSAR",
+                    title: "PDPA B.E. 2562 & 2026 DSAR Engine",
+                    desc: "2026 Access-Request Notification, 72-hour breach clock, DPO Sec. 41, cross-border transfers, and PII redaction.",
+                    highlight: false,
+                  },
+                  {
+                    screen: "SCREEN_J_RESTRUCT_MISSION" as const,
+                    badge: "CAPITAL MARKETS",
+                    stat: "6-Module Mission",
+                    title: "Listed-Company Restructuring Mission",
+                    desc: "Debt-to-equity conversion, 25% MTO & Whitewash waivers, 1 July 2026 SET MT/RPT rules, and Bankruptcy rehab.",
+                    highlight: false,
+                  },
+                  {
+                    screen: "SCREEN_I_A2A" as const,
+                    badge: "A2A PROTOCOL v1.0",
+                    stat: `${snapshot.a2aTasks?.length || 1} Active Tasks`,
+                    title: "Agent-to-Agent (A2A) Legal Task Hub",
+                    desc: "Coordinating REG24 Legal Task Agent serving multi-domain evidence envelopes to internal and external AI agents.",
+                    highlight: false,
+                  },
+                  {
+                    screen: "SCREEN_F_CHANGES" as const,
+                    badge: "CHANGE RADAR",
+                    stat: `${snapshot.regulatoryChanges.length} Alerts`,
+                    title: "Regulatory Amendment & Change Radar",
+                    desc: "Monitors Royal Gazette promulgations, subordinate notifications, and downstream impact on active rules.",
+                    highlight: false,
+                  },
+                ].map((item) => (
+                  <div
+                    key={item.screen}
+                    onClick={() => setActiveScreen(item.screen)}
+                    className={`p-4 rounded-2xl flex flex-col justify-between gap-3 cursor-pointer transition-all border ${
+                      item.highlight
+                        ? "bg-[#0f2c59] border-[#f5b700]/70 hover:border-[#f5b700]"
+                        : "bg-[#101829] border-[#24324b] hover:border-[#0f2c59] hover:bg-[#131e33]"
+                    }`}
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between gap-2 text-[11px]">
+                        <span className="px-2 py-0.5 rounded-md font-bold bg-black/30 text-[#f5b700]">
+                          {item.badge}
+                        </span>
+                        <span className="font-semibold text-slate-300">{item.stat}</span>
+                      </div>
+                      <h3 className="text-[16px] font-bold text-white leading-snug">
+                        {item.title}
+                      </h3>
+                      <p className="text-[12px] text-slate-300 leading-relaxed">
+                        {item.desc}
+                      </p>
+                    </div>
+                    <div className="pt-2 border-t border-white/10 flex items-center justify-between text-[11px] font-semibold text-[#f5b700]">
+                      <span>Launch Workspace</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </div>
                   </div>
-                  <div className="text-sm font-semibold text-white mt-0.5">
-                    Verified Legal Response &amp; Quarantine
-                  </div>
-                  <div className="text-[11px] text-zinc-400 mt-1">
-                    Citation verification &bull; Amendment &amp; effective-date checks &bull; Contradiction detection &bull; AI-inferred edge quarantine
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
