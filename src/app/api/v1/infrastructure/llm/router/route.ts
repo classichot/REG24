@@ -43,6 +43,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (action === "configure_gemini_key") {
+      const status = model24Engine.setRuntimeGeminiApiKey(String(body.api_key || ""));
+      return NextResponse.json({
+        status: "ok",
+        action,
+        gemini_connection: status,
+        snapshot: model24Engine.getDashboardSnapshot(),
+      });
+    }
+
     if (action === "execute_task") {
       const result = model24Engine.executeLegalLLMTaskSync({
         query: body.query || "Analyze tax neutrality for a company merger under CCC Sec. 1238 and Revenue Code Sec. 74.",

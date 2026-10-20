@@ -1149,7 +1149,15 @@ export default function Reg24MetroConsole() {
       total_traces: number;
       total_cost_usd: number;
     };
+    gemini_connection?: {
+      primary_provider: string;
+      api_key_configured: boolean;
+      masked_key?: string | null;
+      api_key_portal_url: string;
+    };
   } | null>(null);
+  const [geminiKeyInput, setGeminiKeyInput] = useState("");
+  const [showGeminiKeyModal, setShowGeminiKeyModal] = useState(false);
   const [model24ActivePreset, setModel24ActivePreset] = useState<
     "search_legislation" | "analyze_contract" | "complex_tax_restructuring" | "process_500_page_legal_book"
   >("complex_tax_restructuring");
@@ -1182,6 +1190,28 @@ export default function Reg24MetroConsole() {
     if (data.snapshot) {
       setModel24Snapshot(data.snapshot);
       showToast("Updated Model24 Intelligent Routing Policy at runtime (zero code redeploy).");
+    }
+  };
+
+  const handleSaveGeminiKey = async () => {
+    if (!geminiKeyInput.trim()) return;
+    const res = await fetch("/api/v1/infrastructure/llm/router", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-reg24-role": "Platform Administrator",
+      },
+      body: JSON.stringify({
+        action: "configure_gemini_key",
+        api_key: geminiKeyInput.trim(),
+      }),
+    });
+    const data = await res.json();
+    if (data.snapshot) {
+      setModel24Snapshot(data.snapshot);
+      setGeminiKeyInput("");
+      setShowGeminiKeyModal(false);
+      showToast("Connected Google Gemini API Key to REG24 Model24 Engine!");
     }
   };
 
@@ -2267,9 +2297,9 @@ export default function Reg24MetroConsole() {
                           {/* Simple Model24 Auto-Routing Badge for Lawyers (Section 12 UX Principle) */}
                           <button
                             onClick={() => {
-                              setUxExperience("infrastructure");
+                              setShowGeminiKeyModal((prev) => !prev);
                             }}
-                            title="REG24 Model24 Intelligent LLM Router (Google Gemini Primary) — Click to view routing simulator & benchmark control center"
+                            title="Click to paste or inspect your Google Gemini API Key"
                             className={`px-3.5 py-2 rounded-xl text-[11px] font-medium border cursor-pointer transition-all flex items-center gap-1.5 ${
                               isLightMinimal
                                 ? "bg-emerald-50 border-emerald-200 text-emerald-800 hover:bg-emerald-100"
@@ -2278,12 +2308,40 @@ export default function Reg24MetroConsole() {
                           >
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                             <span>
-                              {languageMode === "th"
-                                ? "Model: Auto (Google Gemini Primary — Flash-Lite / 3.8 Flash / 4 Argon)"
-                                : "Model: Auto (Google Gemini Primary — Flash-Lite / 3.8 Flash / 4 Argon)"}
+                              {model24Snapshot?.gemini_connection?.api_key_configured
+                                ? `Gemini Connected (${model24Snapshot.gemini_connection.masked_key})`
+                                : "Model: Auto (Google Gemini) — Click to Paste Gemini Key"}
                             </span>
                           </button>
                         </div>
+
+                        {showGeminiKeyModal && (
+                          <div
+                            className={`mt-3 p-3.5 rounded-xl border flex flex-col sm:flex-row items-center gap-2 max-w-xl mx-auto ${
+                              isLightMinimal
+                                ? "bg-slate-50 border-slate-200"
+                                : "bg-[#101829] border-[#24324b]"
+                            }`}
+                          >
+                            <input
+                              type="password"
+                              value={geminiKeyInput}
+                              onChange={(e) => setGeminiKeyInput(e.target.value)}
+                              placeholder="Paste your Google Gemini API Key (AIzaSy...)"
+                              className={`flex-1 px-3 py-2 rounded-lg text-xs font-mono border outline-none ${
+                                isLightMinimal
+                                  ? "bg-white border-slate-300 text-slate-900"
+                                  : "bg-[#0b1322] border-[#24324b] text-white"
+                              }`}
+                            />
+                            <button
+                              onClick={handleSaveGeminiKey}
+                              className="px-4 py-2 rounded-lg text-xs font-bold bg-[#f5b700] text-[#0a192f] hover:brightness-110 cursor-pointer shrink-0"
+                            >
+                              Connect Gemini Key
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {/* Minimal Bottom Footer Bar (Exact Section 2 Wireframe: REG24 · Legal Intelligence Infrastructure   TH / EN) */}
@@ -3946,6 +4004,44 @@ export default function Reg24MetroConsole() {
                     {model24Snapshot?.control_policy?.enforce_pdpa_pii_redaction !== false
                       ? "PDPA Pre-Dispatch PII Redaction: ON"
                       : "PDPA Pre-Dispatch PII Redaction: OFF"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Direct Gemini API Key Connection Bar in Infrastructure Control Center */}
+              <div className="p-3.5 rounded-xl bg-[#0b1322] border border-[#24324b] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <div className="text-xs font-bold text-white flex items-center gap-2">
+                    <span>Google Gemini API Key Connection</span>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono ${
+                        model24Snapshot?.gemini_connection?.api_key_configured
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                      }`}
+                    >
+                      {model24Snapshot?.gemini_connection?.api_key_configured
+                        ? `CONNECTED (${model24Snapshot.gemini_connection.masked_key})`
+                        : "READY FOR KEY"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400">
+                    Paste your Google AI Studio key (`AIzaSy...`) below to activate live Gemini Flash-Lite, 3.8 Flash, and 4 Argon routing:
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <input
+                    type="password"
+                    value={geminiKeyInput}
+                    onChange={(e) => setGeminiKeyInput(e.target.value)}
+                    placeholder="Paste GEMINI_API_KEY (AIzaSy...)"
+                    className="flex-1 sm:w-64 px-3 py-1.5 rounded-lg text-xs font-mono bg-[#101829] border border-[#24324b] text-white outline-none"
+                  />
+                  <button
+                    onClick={handleSaveGeminiKey}
+                    className="px-3.5 py-1.5 rounded-lg text-xs font-bold bg-[#f5b700] text-[#0a192f] hover:brightness-110 cursor-pointer shrink-0"
+                  >
+                    Save &amp; Connect
                   </button>
                 </div>
               </div>

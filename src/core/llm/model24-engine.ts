@@ -505,6 +505,7 @@ export class Model24OrchestrationEngine {
   private registry: Map<string, ModelRegistryEntry> = new Map();
   private controlPolicy: Model24ControlPolicy;
   private executionTraces: Model24ExecutionTrace[] = [];
+  private runtimeGeminiApiKey: string = "";
 
   constructor() {
     this.controlPolicy = {
@@ -1870,15 +1871,26 @@ export class Model24OrchestrationEngine {
     };
   }
 
+  public setRuntimeGeminiApiKey(apiKey: string) {
+    this.runtimeGeminiApiKey = (apiKey || "").trim();
+    return this.getGeminiConnectionStatus();
+  }
+
   public getGeminiConnectionStatus() {
     const apiKey =
+      this.runtimeGeminiApiKey ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
       process.env.GOOGLE_API_KEY ||
       "";
+    const configured = Boolean(apiKey && apiKey.trim().length > 5);
+    const maskedKey = configured
+      ? `${apiKey.slice(0, 6)}...${apiKey.slice(-4)}`
+      : null;
     return {
       primary_provider: "google" as const,
-      api_key_configured: Boolean(apiKey && apiKey.trim().length > 5),
+      api_key_configured: configured,
+      masked_key: maskedKey,
       api_key_portal_url: "https://aistudio.google.com/app/apikey",
       tier_mapping: {
         economy: process.env.GEMINI_ECONOMY_MODEL || "gemini-2.5-flash-lite",
@@ -1898,6 +1910,7 @@ export class Model24OrchestrationEngine {
   }> {
     const status = this.getGeminiConnectionStatus();
     const apiKey =
+      this.runtimeGeminiApiKey ||
       process.env.GEMINI_API_KEY ||
       process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
       process.env.GOOGLE_API_KEY ||
