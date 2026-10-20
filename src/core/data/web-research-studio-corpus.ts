@@ -178,6 +178,213 @@ export const WEB_UNIFIED_SEARCH_CATALOG: WebUnifiedSearchResultItem[] = [
       "[AI Source-Grounded Interpretation] Mandates 30-day DSAR fulfillment and strict ID verification minimization effective 1 February 2026; non-compliance combined with late 72h breach notification exposes controllers to multi-million-baht PDPC administrative fines.",
     related_provision_ids: ["prov.th.pdpa.30_36", "prov.th.pdpa.37_41"],
   },
+  {
+    record_id: "prov.th.tca.51",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-CORP",
+    title_th: "พระราชบัญญัติการแข่งขันทางการค้า พ.ศ. 2560 มาตรา 51 — การขออนุญาตก่อนรวมธุรกิจและการแจ้งหลังรวมธุรกิจ (IND-CORP)",
+    title_en: "Trade Competition Act B.E. 2560 Section 51 — TCCT Pre-Merger Approval & 7-Day Post-Merger Notification (IND-CORP)",
+    section_or_reference: "พ.ร.บ. การแข่งขันทางการค้า พ.ศ. 2560 มาตรา 51",
+    source_authority: "สำนักงานคณะกรรมการการแข่งขันทางการค้า (TCCT)",
+    publication_date: "2017-07-07",
+    effective_from: "2018-12-29",
+    verification_status: "human_verified",
+    official_url: "https://www.tcct.or.th",
+    sha256_hash: "1101a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e71",
+    original_source_snippet_th:
+      "“มาตรา 51 ห้ามมิให้ผู้ประกอบธุรกิจกระทำการรวมธุรกิจอันอาจก่อให้เกิดการผูกขาดหรือการเป็นผู้ประกอบธุรกิจซึ่งมีอำนาจเหนือตลาด เว้นแต่จะได้รับอนุญาตจากคณะกรรมการ และกรณีอาจลดการแข่งขันอย่างมีนัยสำคัญต้องแจ้งภายใน 7 วันนับแต่วันรวมธุรกิจ”",
+    original_source_snippet_en:
+      "“Section 51. No business operator shall conduct a business merger that may result in a monopoly or market dominance without prior permission from the Trade Competition Commission; mergers that may substantially lessen competition must be notified within 7 days after completion.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-CORP] การควบรวมหรือเข้าซื้อกิจการที่ทำให้มีส่วนแบ่งตลาดตั้งแต่ร้อยละ 50 และมียอดขายตั้งแต่ 1,000 ล้านบาทขึ้นไป ต้องได้รับอนุญาตจาก กขค. ก่อนปิดดีล (Pre-Merger Filing)",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-CORP] M&A transactions resulting in market dominance (>= 50% market share and >= 1,000M THB turnover) require mandatory pre-closing TCCT approval.",
+    related_provision_ids: ["prov.th.ccc.1238_1243"],
+  },
+  {
+    record_id: "prov.th.psa_da.16_26",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-SEC",
+    title_th: "พ.ร.บ. ระบบการชำระเงิน พ.ศ. 2560 มาตรา 16–17 และ พ.ร.ก. สินทรัพย์ดิจิทัล พ.ศ. 2561 มาตรา 26 (IND-FIN)",
+    title_en: "Payment Systems Act B.E. 2560 Sec. 16–17 (BOT e-Money) & Digital Asset Emergency Decree B.E. 2561 Sec. 26 (IND-FIN)",
+    section_or_reference: "พ.ร.บ. ระบบการชำระเงิน มาตรา 16–17 และ พ.ร.ก. สินทรัพย์ดิจิทัล มาตรา 26",
+    source_authority: "ธนาคารแห่งประเทศไทย (BOT) และสำนักงาน ก.ล.ต. (SEC)",
+    publication_date: "2018-05-13",
+    effective_from: "2018-05-14",
+    verification_status: "human_verified",
+    official_url: "https://www.bot.or.th/th/laws-and-regulations.html",
+    sha256_hash: "2202a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e72",
+    original_source_snippet_th:
+      "“ผู้ประสงค์จะประกอบธุรกิจบริการการชำระเงินภายใต้การกำกับ (e-Money / Payment Acquiring) ต้องได้รับใบอนุญาตหรือขึ้นทะเบียนต่อ ธปท. และผู้ประกอบธุรกิจศูนย์ซื้อขาย นายหน้า หรือผู้ค้าสินทรัพย์ดิจิทัลต้องได้รับใบอนุญาตและแยกเก็บรักษาทรัพย์สินของลูกค้า”",
+    original_source_snippet_en:
+      "“Operators of regulated payment services (e-Money, acquiring, clearing) require BOT/MOF licensing or registration; digital asset exchanges, brokers, and dealers require SEC/MOF licensing and strict client asset segregation.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-FIN] ครอบคลุมใบอนุญาต FinTech, e-Money, Payment Gateway ของ ธปท. และธุรกิจสินทรัพย์ดิจิทัลภายใต้ ก.ล.ต.",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-FIN] Governs BOT payment systems/e-Money licensing, float segregation, and SEC digital asset business licensing.",
+    related_provision_ids: ["prov.th.sec.246_247", "prov.th.set.mt_rpt"],
+  },
+  {
+    record_id: "prov.th.eia.47_48",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-BOI",
+    title_th: "พระราชบัญญัติการประกอบกิจการพลังงาน พ.ศ. 2550 มาตรา 47–48 — ใบอนุญาตผลิตไฟฟ้า กกพ. (IND-ENERGY)",
+    title_en: "Energy Industry Act B.E. 2550 Sections 47–48 — ERC Power Generation Licensing & Solar Permits (IND-ENERGY)",
+    section_or_reference: "พ.ร.บ. การประกอบกิจการพลังงาน พ.ศ. 2550 มาตรา 47–48",
+    source_authority: "สำนักงานคณะกรรมการกำกับกิจการพลังงาน (ERC / กกพ.)",
+    publication_date: "2007-12-11",
+    effective_from: "2007-12-12",
+    verification_status: "human_verified",
+    official_url: "https://www.erc.or.th",
+    sha256_hash: "3303a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e73",
+    original_source_snippet_th:
+      "“มาตรา 47 การประกอบกิจการพลังงานที่มีขนาดกำลังการผลิตติดตั้งตั้งแต่ 1,000 kVA ขึ้นไป ต้องได้รับใบอนุญาตจาก กกพ. หากต่ำกว่า 1,000 kVA ได้รับยกเว้นแต่ต้องแจ้งต่อสำนักงาน กกพ. และมาตรา 48 การโอนใบอนุญาตต้องได้รับอนุญาตจาก กกพ. ล่วงหน้า”",
+    original_source_snippet_en:
+      "“Sections 47–48. Power generation facilities with installed capacity >= 1,000 kVA require an ERC Energy Industry License (< 1,000 kVA requires prior exemption notification); license transfers require prior ERC approval.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-ENERGY] ใช้ตรวจสอบการเข้าซื้อโรงไฟฟ้าพลังงานแสงอาทิตย์ (Solar M&A) ร่วมกับบัตรส่งเสริม BOI และสัญญาซื้อขายไฟฟ้า (PPA)",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-ENERGY] Essential for Solar/Renewable M&A due diligence alongside BOI Section 27 land privileges and PPA change-of-control consents.",
+    related_provision_ids: ["prov.th.boi.24_27_31"],
+  },
+  {
+    record_id: "prov.th.land_condo.86_19bis",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-CIVIL",
+    title_th: "ประมวลกฎหมายที่ดิน มาตรา 86, พ.ร.บ. อาคารชุด มาตรา 19 ทวิ (โควตา 49%) และ พ.ร.บ. ควบคุมอาคาร มาตรา 21, 32 (IND-PROPERTY)",
+    title_en: "Land Code Sec. 86, Condominium Act Sec. 19 bis (49% Foreign Quota) & Building Control Act Sec. 21, 32 (IND-PROPERTY)",
+    section_or_reference: "ประมวลกฎหมายที่ดิน มาตรา 86 / พ.ร.บ. อาคารชุด มาตรา 19 ทวิ / พ.ร.บ. ควบคุมอาคาร มาตรา 21, 32",
+    source_authority: "กรมที่ดิน กระทรวงมหาดไทย (Department of Lands — DOL)",
+    publication_date: "2008-03-06",
+    effective_from: "2008-07-04",
+    verification_status: "human_verified",
+    official_url: "https://www.dol.go.th",
+    sha256_hash: "4404a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e74",
+    original_source_snippet_th:
+      "“คนต่างด้าวไม่อาจถือกรรมสิทธิ์ที่ดินได้เว้นแต่ได้รับส่งเสริม BOI มาตรา 27 หรือ กนอ. ห้องชุดมีคนต่างด้าวถือกรรมสิทธิ์รวมกันได้ไม่เกินร้อยละ 49 ของเนื้อที่ห้องชุดทั้งหมด และการก่อสร้างอาคารต้องได้รับใบอนุญาต อ.1 และใบรับรอง อ.6”",
+    original_source_snippet_en:
+      "“Foreigners may not own freehold land unless exempted under BOI Sec. 27 or IEAT/EEC; foreign condominium freehold ownership is capped at 49% of total unit area; construction and occupancy require Or.1 and Or.6 permits.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-PROPERTY] ครอบคลุมกฎหมายที่ดิน อาคารชุด การเช่าระยะยาว 30 ปี (ป.พ.พ. มาตรา 540) และใบอนุญาตก่อสร้างอาคาร",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-PROPERTY] Covers freehold land restrictions, 49% foreign condo quota, 30-year registered leases (CCC Sec. 540), and Or.1/Or.6 building permits.",
+    related_provision_ids: ["prov.th.boi.24_27_31"],
+  },
+  {
+    record_id: "prov.th.factory_eec.7_12_37",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-BOI",
+    title_th: "พระราชบัญญัติโรงงาน พ.ศ. 2535 (แก้ไขเพิ่มเติม พ.ศ. 2562 มาตรา 7–12 ใบอนุญาต ร.ง.4) และ พ.ร.บ. เขตพัฒนาพิเศษ EEC พ.ศ. 2561 (IND-MFG)",
+    title_en: "Factory Act B.E. 2535 (Amended B.E. 2562 Sec. 7–12 Ror.Ngor.4 License) & EEC Act B.E. 2561 Sec. 37–49 (IND-MFG)",
+    section_or_reference: "พ.ร.บ. โรงงาน มาตรา 7–12 และ พ.ร.บ. เขตพัฒนาพิเศษภาคตะวันออก มาตรา 37–49",
+    source_authority: "กรมโรงงานอุตสาหกรรม (DIW) และสำนักงาน กพอ. (EECO)",
+    publication_date: "2019-04-30",
+    effective_from: "2019-10-27",
+    verification_status: "human_verified",
+    official_url: "https://www.diw.go.th",
+    sha256_hash: "5505a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e75",
+    original_source_snippet_th:
+      "“โรงงานจำพวกที่ 3 (ใช้เครื่องจักรตั้งแต่ 50 แรงม้า หรือคนงานตั้งแต่ 50 คนขึ้นไป) ต้องได้รับใบอนุญาต ร.ง.4 ก่อนตั้งโรงงาน และผู้ประกอบกิจการในเขตส่งเสริมเศรษฐกิจพิเศษ EEC ได้รับสิทธิอนุมัติแบบเบ็ดเสร็จ (One-Stop Service) และเช่าที่ดินสูงสุด 50+49 ปี”",
+    original_source_snippet_en:
+      "“Category 3 factories (>= 50 HP machinery or >= 50 workers) require a Ror.Ngor.4 license prior to establishment; EEC promoted zone operators receive One-Stop Service licensing and up to 50+49 year land lease rights.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-MFG] ใช้ตรวจสอบใบอนุญาตโรงงาน ร.ง.4 สิทธิประโยชน์ EEC กฎหมายแรงงานกะการทำงาน และการหักค่าบริการวิศวกรรมในเครือ",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-MFG] Governs industrial factory licensing (Ror.Ngor.4), EEC zone privileges, shift labor compliance, and intercompany technical fee substantiation.",
+    related_provision_ids: ["prov.th.boi.24_27_31"],
+  },
+  {
+    record_id: "prov.th.hotel_imm.4_15_38",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-CORP",
+    title_th: "พระราชบัญญัติโรงแรม พ.ศ. 2547 มาตรา 4, 15 (ใบอนุญาต ร.ร.2 และกฎกระทรวง พ.ศ. 2566) และ พ.ร.บ. คนเข้าเมือง มาตรา 38 (ตม.30) (IND-HOTEL)",
+    title_en: "Hotel Act B.E. 2547 Sec. 4, 15 (Ror.Ror.2 License & B.E. 2566 Exemption) & Immigration Act Sec. 38 (24h TM.30) (IND-HOTEL)",
+    section_or_reference: "พ.ร.บ. โรงแรม มาตรา 4, 15, 59 / กฎกระทรวง พ.ศ. 2566 / พ.ร.บ. คนเข้าเมือง มาตรา 38",
+    source_authority: "กรมการปกครอง (DOPA) และสำนักงานตรวจคนเข้าเมือง (Immigration Bureau)",
+    publication_date: "2023-08-30",
+    effective_from: "2023-08-30",
+    verification_status: "human_verified",
+    official_url: "https://www.dopa.go.th",
+    sha256_hash: "6606a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e76",
+    original_source_snippet_th:
+      "“การให้เช่าที่พักชั่วคราวรายวันหรือต่ำกว่า 30 วันต้องได้รับใบอนุญาตโรงแรม (ร.ร.2) ยกเว้นสถานที่พักไม่เกิน 8 ห้องและรับผู้เข้าพักไม่เกิน 30 คนที่ได้แจ้งต่อนายทะเบียนตามกฎกระทรวง พ.ศ. 2566 และต้องแจ้งคนต่างด้าวเข้าพักภายใน 24 ชม. ตามมาตรา 38 (ตม.30)”",
+    original_source_snippet_en:
+      "“Paid accommodation for periods < 30 days requires a Ror.Ror.2 Hotel License unless registered under the B.E. 2566 small-premises exemption (<= 8 rooms and <= 30 guests); foreign guests must be reported via TM.30 within 24 hours.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-HOTEL] ครอบคลุมใบอนุญาตโรงแรม ร.ร.2 ข้อยกเว้นที่พักขนาดเล็กปี 2566 การแจ้ง ตม.30 และการโอนข้อมูลพาสปอร์ตผู้เข้าพักข้ามประเทศตาม PDPA",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-HOTEL] Covers Ror.Ror.2 hotel licensing, the 2023 small accommodation exemption, 24-hour TM.30 reporting, and cross-border guest data PDPA rules.",
+    related_provision_ids: ["prov.th.pdpa.28_29"],
+  },
+  {
+    record_id: "prov.th.health_fda.16_24_12",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-PDPA",
+    title_th: "พระราชบัญญัติสถานพยาบาล พ.ศ. 2541 มาตรา 16, 24 (ส.พ.7/ส.พ.19), พ.ร.บ. ยา พ.ศ. 2510 และ พ.ร.บ. เครื่องมือแพทย์ พ.ศ. 2551 (IND-HEALTH)",
+    title_en: "Medical Facilities Act B.E. 2541 Sec. 16, 24 (Sor.Por.7/19), Drug Act B.E. 2510 & Medical Device Act B.E. 2551 (IND-HEALTH)",
+    section_or_reference: "พ.ร.บ. สถานพยาบาล มาตรา 16, 24 / พ.ร.บ. ยา มาตรา 12 / พ.ร.บ. เครื่องมือแพทย์ มาตรา 15, 41",
+    source_authority: "สำนักงานคณะกรรมการอาหารและยา (อย.) และกรมสนับสนุนบริการสุขภาพ กระทรวงสาธารณสุข",
+    publication_date: "2019-04-30",
+    effective_from: "2019-10-27",
+    verification_status: "human_verified",
+    official_url: "https://www.fda.moph.go.th",
+    sha256_hash: "7707a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e77",
+    original_source_snippet_th:
+      "“การประกอบกิจการคลินิกหรือโรงพยาบาลต้องมีใบอนุญาต ส.พ.7 และผู้ดำเนินการ ส.พ.19 การผลิตหรือนำเข้ายาและเครื่องมือแพทย์ต้องขึ้นทะเบียนตำรับ/จดแจ้งต่อ อย. และการโฆษณาสถานพยาบาล ยา หรือเครื่องมือแพทย์ต้องได้รับอนุมัติล่วงหน้า”",
+    original_source_snippet_en:
+      "“Operating a private hospital or clinic requires Sor.Por.7 and Sor.Por.19 licenses; drugs and medical devices require Thai FDA registration/notification and mandatory prior approval for consumer advertising.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-HEALTH] เชื่อมโยงกฎหมายสถานพยาบาลและ อย. เข้ากับข้อมูลสุขภาพอ่อนไหวตามมาตรา 26 PDPA การตั้ง DPO และสิทธิขอสำเนาเวชระเบียนภายใน 30 วัน",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-HEALTH] Connects MOPH hospital licensing and Thai FDA product/ad regulation with PDPA Section 26 sensitive health data, mandatory DPOs, and 30-day DSARs.",
+    related_provision_ids: ["prov.th.pdpa.24_26", "prov.th.pdpa.30_36"],
+  },
+  {
+    record_id: "prov.th.etda_dps.8_16_18",
+    document_category: "Subordinate regulations",
+    legal_domain: "LEG-CONTRACT",
+    title_th: "พ.ร.ฎ. การประกอบธุรกิจบริการแพลตฟอร์มดิจิทัลที่ต้องแจ้งให้ทราบ พ.ศ. 2565 มาตรา 8, 16, 18 และ พ.ร.บ. ธุรกรรมทางอิเล็กทรอนิกส์ มาตรา 7–9 (IND-DIGITAL)",
+    title_en: "Royal Decree on Digital Platform Services B.E. 2565 Sec. 8, 16, 18 (ETDA DPS Law) & Electronic Transactions Act Sec. 7–9 (IND-DIGITAL)",
+    section_or_reference: "พ.ร.ฎ. บริการแพลตฟอร์มดิจิทัลฯ พ.ศ. 2565 มาตรา 8, 16, 18, 20 และ พ.ร.บ. ธุรกรรมทางอิเล็กทรอนิกส์ มาตรา 7–9",
+    source_authority: "สำนักงานพัฒนาธุรกรรมทางอิเล็กทรอนิกส์ (ETDA / สพธอ.)",
+    publication_date: "2022-12-23",
+    effective_from: "2023-08-21",
+    verification_status: "human_verified",
+    official_url: "https://www.etda.or.th",
+    sha256_hash: "8808a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e78",
+    original_source_snippet_th:
+      "“ผู้ประกอบธุรกิจบริการแพลตฟอร์มดิจิทัลที่มีรายได้ในไทยเกิน 50 ล้านบาทต่อปี หรือมีผู้ใช้เฉลี่ยเกิน 5,000 รายต่อเดือน ต้องแจ้งให้ ETDA ทราบก่อนประกอบธุรกิจ ยื่นรายงานประจำปี และตั้งผู้ประสานงานในไทยหากอยู่นอกราชอาณาจักร”",
+    original_source_snippet_en:
+      "“Digital platform operators with Thai gross revenue > 50M THB/year or > 5,000 monthly Thai users must notify ETDA, submit annual updates, give 30-day notice of T&C changes, and appoint a local representative if offshore.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-DIGITAL] ครอบคลุมกฎหมายแพลตฟอร์มดิจิทัล ETDA ลายมือชื่ออิเล็กทรอนิกส์ การโอนข้อมูลคลาวด์ข้ามแดน (PDPA มาตรา 28–29) และ BOI ประเภท 8",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-DIGITAL] Governs ETDA digital platform notifications, e-signatures, PDPA cross-border cloud transfers, and BOI Category 8 digital promotion.",
+    related_provision_ids: ["prov.th.pdpa.28_29", "prov.th.boi.24_27_31"],
+  },
+  {
+    record_id: "prov.th.customs_mto.152_202_243",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-TAX",
+    title_th: "พระราชบัญญัติศุลกากร พ.ศ. 2560 มาตรา 152, 202, 243 (เขตปลอดอากรและเก็บเอกสาร 5 ปี) และ พ.ร.บ. ขนส่งต่อเนื่องหลายรูปแบบ พ.ศ. 2548 (IND-LOGISTICS)",
+    title_en: "Customs Act B.E. 2560 Sec. 152, 202, 243 (Free Zones & 5-Year PCA Retention) & Multimodal Transport Act B.E. 2548 (IND-LOGISTICS)",
+    section_or_reference: "พ.ร.บ. ศุลกากร พ.ศ. 2560 มาตรา 152, 202, 243 และ พ.ร.บ. ขนส่งต่อเนื่องหลายรูปแบบ พ.ศ. 2548 มาตรา 27–39",
+    source_authority: "กรมศุลกากร (Thai Customs Department) และกรมเจ้าท่า (Marine Department)",
+    publication_date: "2017-05-17",
+    effective_from: "2017-11-13",
+    verification_status: "human_verified",
+    official_url: "https://www.customs.go.th",
+    sha256_hash: "9909a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e79",
+    original_source_snippet_th:
+      "“มาตรา 152 ของที่นำเข้าไปในเขตปลอดอากรเพื่อการอุตสาหกรรมหรือพาณิชยกรรมได้รับยกเว้นอากรขาเข้าและภาษีมูลค่าเพิ่ม มาตรา 243 ผู้นำของเข้าและผู้ส่งของออกต้องเก็บเอกสารไม่น้อยกว่า 5 ปีเพื่อการตรวจสอบหลังการตรวจปล่อย และผู้ประกอบการ MTO ต้องจดทะเบียนต่อกรมเจ้าท่า”",
+    original_source_snippet_en:
+      "“Section 152 exempts goods imported into Customs Free Zones from import duty and VAT; Section 243 mandates 5-year record retention for Post-Clearance Audits; Multimodal Transport Operators (MTO) must register with the Marine Department and maintain SDR liability coverage.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-LOGISTICS] ครอบคลุมสิทธิประโยชน์เขตปลอดอากร ศุลกากร การตรวจสอบย้อนหลัง 5 ปี ทะเบียนขนส่งต่อเนื่องหลายรูปแบบ (MTO) และราคาโอนค่าระวางในเครือ (มาตรา 71 ทวิ)",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-LOGISTICS] Covers Customs Free Zone exemptions, 5-year post-clearance audit recordkeeping, MTO registration & SDR liability limits, and cross-border freight Transfer Pricing.",
+    related_provision_ids: ["prov.th.rc.71_bis"],
+  },
 ];
 
 export const SAMPLE_WEB_TEMPORAL_COMPARISON: WebTemporalResearchComparison = {

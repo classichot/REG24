@@ -177,6 +177,11 @@ import {
 } from "../data/case-intelligence-corpus";
 
 import {
+  INDUSTRY_SECTOR_REGULATORS,
+  INDUSTRY_SECTOR_SOURCES,
+  INDUSTRY_SECTOR_INSTRUMENTS,
+  INDUSTRY_SECTOR_PROVISIONS,
+  INDUSTRY_SECTOR_PROVISION_VERSIONS,
   CORE_LEGAL_DOMAIN_MAPPINGS,
   INDUSTRY_MODULES_CATALOG,
   STRUCTURED_OBLIGATIONS_V2,
@@ -353,6 +358,7 @@ export class Reg24PlatformCore {
       ...TAX_EXPANSION_REGULATORS,
       ...PDPA_EXPANSION_REGULATORS,
       ...CASE_REGULATORS,
+      ...INDUSTRY_SECTOR_REGULATORS,
     ].forEach((r) => this.regulators.set(r.id, { ...r }));
     [
       ...SEED_SOURCE_DOCUMENTS,
@@ -360,12 +366,14 @@ export class Reg24PlatformCore {
       ...TAX_EXPANSION_SOURCES,
       ...PDPA_EXPANSION_SOURCES,
       ...CASE_SOURCE_DOCUMENTS,
+      ...INDUSTRY_SECTOR_SOURCES,
     ].forEach((s) => this.sourceDocuments.set(s.id, { ...s }));
     [
       ...SEED_INSTRUMENTS,
       ...EXPANSION_INSTRUMENTS,
       ...TAX_EXPANSION_INSTRUMENTS,
       ...PDPA_EXPANSION_INSTRUMENTS,
+      ...INDUSTRY_SECTOR_INSTRUMENTS,
     ].forEach((i) => this.instruments.set(i.id, { ...i }));
     [
       ...SEED_PROVISIONS,
@@ -373,6 +381,7 @@ export class Reg24PlatformCore {
       ...TAX_EXPANSION_PROVISIONS,
       ...PDPA_EXPANSION_PROVISIONS,
       ...CASE_STATUTE_PROVISIONS,
+      ...INDUSTRY_SECTOR_PROVISIONS,
     ].forEach((p) =>
       this.provisions.set(p.id, {
         ...p,
@@ -387,6 +396,7 @@ export class Reg24PlatformCore {
       ...TAX_EXPANSION_PROVISION_VERSIONS,
       ...PDPA_EXPANSION_PROVISION_VERSIONS,
       ...CASE_STATUTE_VERSIONS,
+      ...INDUSTRY_SECTOR_PROVISION_VERSIONS,
     ].forEach((v) =>
       this.provisionVersions.set(v.id, {
         ...v,

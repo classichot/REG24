@@ -733,6 +733,13 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     // 2. Layer 3: 9 Pluggable Industry Modules (IND-01 to IND-10) + Dynamic Module Registration SDK
     const indModules = core.listIndustryModules();
     expect(indModules.length).toBeGreaterThanOrEqual(9);
+    for (const im of indModules) {
+      expect(im.priority).toBe("P0");
+      expect(im.knowledge_graph.linked_provision_ids.length).toBeGreaterThanOrEqual(3);
+      expect(im.knowledge_graph.linked_case_ids.length).toBeGreaterThanOrEqual(1);
+      expect(im.knowledge_graph.linked_obligation_ids.length).toBeGreaterThanOrEqual(1);
+      expect(im.common_legal_missions.length).toBeGreaterThanOrEqual(1);
+    }
     expect(indModules.some((m) => m.module_id === "IND-ENERGY")).toBe(true);
     expect(indModules.some((m) => m.module_id === "IND-FIN")).toBe(true);
     expect(indModules.some((m) => m.module_id === "IND-DIGITAL")).toBe(true);
