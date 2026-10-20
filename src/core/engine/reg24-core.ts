@@ -8386,7 +8386,7 @@ export class Reg24PlatformCore {
       !matchedOneDriveRuling && !matchedDikaCase && !matchedCoreModule
         ? Array.from(this.industryModules.values()).find(
             (ind) =>
-              params.query.includes(ind.industry_code) ||
+              params.query.includes(ind.module_id) ||
               params.query.includes(ind.module_name_th) ||
               params.query.toLowerCase().includes(ind.module_name.toLowerCase()) ||
               ind.common_legal_missions.some(
@@ -8556,23 +8556,22 @@ export class Reg24PlatformCore {
         `• วันที่อ่านคำพิพากษา: ${matchedDikaCase.judgment_date}\n` +
         `• ประเด็นข้อกฎหมายหลัก: ${matchedDikaCase.legal_issues.join(" / ")}\n` +
         `• มาตรากฎหมายที่อ้างอิง: ${matchedDikaCase.cited_statutes.map((s) => `${s.provision_id} (${s.section_number})`).join(", ")}\n\n` +
-        `1. ข้อเท็จจริงโดยสรุป (Material Facts):\n${matchedDikaCase.facts_summary}\n\n` +
-        `2. วินิจฉัยและเหตุผลแห่งคำพิพากษา (Judicial Reasoning & Holding):\n${matchedDikaCase.reasoning_summary}\n\n` +
-        `3. ผลคำพิพากษา (Outcome & Precedent Status):\n${matchedDikaCase.outcome} (สถานะ: ${matchedDikaCase.precedent_status})`
+        `1. สรุปข้อเท็จจริงและข้อวินิจฉัย (Case Summary):\n${matchedDikaCase.case_summary}\n\n` +
+        `2. ผลคำพิพากษา (Outcome & Verification Status):\n${matchedDikaCase.outcome} (สถานะ: ${matchedDikaCase.verification_status})`
       : matchedCoreModule
       ? `【สรุปโมดูลกฎหมายหลัก: ${matchedCoreModule.display_name_th} (${matchedCoreModule.module_id} v${matchedCoreModule.version})】\n` +
         `• ขอบเขตโดเมนกฎหมาย: ${matchedCoreModule.legal_domains.join(", ")}\n` +
-        `• ความครอบคลุมตัวบทกฎหมาย: ${matchedCoreModule.source_coverage.instruments_indexed} ฉบับ / ${matchedCoreModule.source_coverage.provisions_indexed} มาตรา / กฎเกณฑ์ประมวลผลอัตโนมัติ ${matchedCoreModule.source_coverage.executable_rules_approved} กฎ\n` +
+        `• ความครอบคลุมตัวบทกฎหมาย: ${matchedCoreModule.source_coverage.ingested_instruments_count} ฉบับ / ${matchedCoreModule.source_coverage.provisions_indexed} มาตรา / กฎเกณฑ์ประมวลผลอัตโนมัติ ${matchedCoreModule.source_coverage.executable_rules_approved} กฎ\n` +
         `• ขีดความสามารถหลัก (Capabilities): ${matchedCoreModule.supported_capabilities.join(", ")}\n\n` +
         `โมดูล ${matchedCoreModule.display_name_th} เชื่อมโยงกับกราฟความรู้ตามช่วงเวลา (Temporal Knowledge Graph) ของ REG24 เพื่อตรวจสอบความมีผลบังคับใช้ของกฎหมาย ตรวจสอบการอ้างอิง 4 สถานะ และประเมินภาระหน้าที่ตามกฎหมายสำหรับองค์กรธุรกิจในประเทศไทย`
       : matchedIndustryConfig
-      ? `【การวิเคราะห์กฎหมายรายอุตสาหกรรม: ${matchedIndustryConfig.module_name_th} (${matchedIndustryConfig.industry_code})】\n` +
+      ? `【การวิเคราะห์กฎหมายรายอุตสาหกรรม: ${matchedIndustryConfig.module_name_th} (${matchedIndustryConfig.module_id})】\n` +
         `• หน่วยงานกำกับดูแลหลัก: ${matchedIndustryConfig.regulators.join(", ")}\n` +
         `• กิจกรรมทางธุรกิจที่อยู่ภายใต้บังคับ: ${matchedIndustryConfig.business_activities.join(" • ")}\n` +
         `• โมดูลกฎหมายที่เชื่อมโยง: ${matchedIndustryConfig.underlying_module_ids.join(", ")}\n\n` +
         `ภาระหน้าที่และการปฏิบัติตามกฎหมายสำคัญ (${matchedIndustryConfig.knowledge_graph.linked_provision_ids.length} มาตรา / ${matchedIndustryConfig.knowledge_graph.linked_obligation_ids.length} หน้าที่ตามกฎหมาย):\n` +
         matchedIndustryConfig.common_legal_missions
-          .map((m, i) => `${i + 1}. ${m.title_th}: ${m.prompt_th}`)
+          .map((m, i) => `${i + 1}. ${m.title}: ${m.prompt_th}`)
           .join("\n")
       : isDebtToEquityQuery
       ? "ภายใต้ประมวลกฎหมายแพ่งและพาณิชย์ (ป.พ.พ.) มาตรา 1119 วรรคสอง และมาตรา 1220 บริษัทจำกัด (Private Limited Company) ในประเทศไทย ไม่สามารถหักกลบลบหนี้ค่าหุ้นกับหนี้เงินกู้ของผู้ถือหุ้นเพื่อแปลงหนี้เป็นทุนโดยตรงได้ เว้นแต่ดำเนินการภายใต้แผนฟื้นฟูกิจการตาม พ.ร.บ. ล้มละลาย หรือโครงการปรับโครงสร้างหนี้ตามพระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ในทางปฏิบัติ บริษัทจำกัดต้องออกหุ้นเพิ่มทุนด้วยมติพิเศษตามมาตรา 1220 (ชำระค่าหุ้นเป็นตัวเงินตามมาตรา 1117–1119) และนำเงินไปชำระคืนหนี้เงินกู้พร้อมตรวจสอบภาระภาษีหัก ณ ที่จ่ายของดอกเบี้ยคงค้าง รวมถึงประเด็นการปลดหนี้ซึ่งอาจถือเป็นรายได้ทางภาษีตามประมวลรัษฎากร มาตรา 65"
@@ -8592,22 +8591,21 @@ export class Reg24PlatformCore {
         `• Judgment Date: ${matchedDikaCase.judgment_date}\n` +
         `• Key Legal Issues: ${matchedDikaCase.legal_issues.join(" / ")}\n` +
         `• Cited Statutes: ${matchedDikaCase.cited_statutes.map((s) => `${s.provision_id} (${s.section_number})`).join(", ")}\n\n` +
-        `1. Summary of Facts:\n${matchedDikaCase.facts_summary}\n\n` +
-        `2. Judicial Reasoning & Holding:\n${matchedDikaCase.reasoning_summary}\n\n` +
-        `3. Outcome:\n${matchedDikaCase.outcome}`
+        `1. Case Summary & Holding:\n${matchedDikaCase.case_summary}\n\n` +
+        `2. Outcome:\n${matchedDikaCase.outcome}`
       : matchedCoreModule
       ? `【Core Legal Module Summary: ${matchedCoreModule.display_name} (${matchedCoreModule.module_id} v${matchedCoreModule.version})】\n` +
         `• Legal Domains: ${matchedCoreModule.legal_domains.join(", ")}\n` +
-        `• Indexed Coverage: ${matchedCoreModule.source_coverage.instruments_indexed} Instruments / ${matchedCoreModule.source_coverage.provisions_indexed} Provisions / ${matchedCoreModule.source_coverage.executable_rules_approved} Approved Rules\n` +
+        `• Indexed Coverage: ${matchedCoreModule.source_coverage.ingested_instruments_count} Instruments / ${matchedCoreModule.source_coverage.provisions_indexed} Provisions / ${matchedCoreModule.source_coverage.executable_rules_approved} Approved Rules\n` +
         `• Supported Capabilities: ${matchedCoreModule.supported_capabilities.join(", ")}`
       : matchedIndustryConfig
-      ? `【Industry Regulatory Intelligence: ${matchedIndustryConfig.module_name} (${matchedIndustryConfig.industry_code})】\n` +
+      ? `【Industry Regulatory Intelligence: ${matchedIndustryConfig.module_name} (${matchedIndustryConfig.module_id})】\n` +
         `• Primary Regulators: ${matchedIndustryConfig.regulators.join(", ")}\n` +
         `• Regulated Business Activities: ${matchedIndustryConfig.business_activities.join(" • ")}\n` +
         `• Connected Legal Modules: ${matchedIndustryConfig.underlying_module_ids.join(", ")}\n\n` +
         `Key Industry Legal Missions:\n` +
         matchedIndustryConfig.common_legal_missions
-          .map((m, i) => `${i + 1}. ${m.title_en}: ${m.prompt_en}`)
+          .map((m, i) => `${i + 1}. ${m.title}: ${m.prompt_en}`)
           .join("\n")
       : isDebtToEquityQuery
       ? "In a Thai private limited company, converting shareholder debt into equity is strictly restricted under Civil and Commercial Code (CCC) Sections 1117, 1119 paragraph 2, and 1220, which prohibit a shareholder from availing themselves of a set-off against the company in respect of share subscription payments (unless executed under a statutory business rehabilitation plan or qualifying debt-restructuring Royal Decree). In corporate practice, the company must pass a special resolution to increase registered capital under CCC Section 1220, receive cash subscription proceeds, and apply those proceeds to repay the shareholder loan, while evaluating accrued interest withholding tax, debt-forgiveness taxable income risks under the Revenue Code, and creditor protection requirements."
@@ -8664,8 +8662,8 @@ export class Reg24PlatformCore {
         ? matchedIndustryConfig.common_legal_missions.map((cm) => ({
             issue_id: cm.mission_id,
             domain: (matchedIndustryConfig.legal_domains[0] as CoreLegalDomainCode) || "LEG-CORP",
-            issue_title_th: `${cm.title_th} (${matchedIndustryConfig.module_name_th})`,
-            issue_title_en: `${cm.title_en} (${matchedIndustryConfig.module_name})`,
+            issue_title_th: `${cm.title} (${matchedIndustryConfig.module_name_th})`,
+            issue_title_en: `${cm.title} (${matchedIndustryConfig.module_name})`,
           }))
         : isDebtToEquityQuery
         ? [
@@ -8710,13 +8708,7 @@ export class Reg24PlatformCore {
               `Ruling: ${matchedOneDriveRuling.ruling}`,
             ],
             exceptions_and_conflicts: [
-              {
-                conflict_or_exception_th:
-                  "หนังสือตอบข้อหารือกรมสรรพากรเป็นแนวทางปฏิบัติสำหรับข้อเท็จจริงเฉพาะรายของผู้ยื่นหารือ หากข้อเท็จจริงในสัญญาแตกต่างไป อาจมีผลทางภาษีเปลี่ยนแปลงได้",
-                conflict_or_exception_en:
-                  "Revenue Department tax rulings are fact-specific administrative interpretations; material variations in contractual facts may alter the tax outcome.",
-                resolution_authority_id: matchedOneDriveRuling.id,
-              },
+              "หนังสือตอบข้อหารือกรมสรรพากรเป็นแนวทางปฏิบัติสำหรับข้อเท็จจริงเฉพาะรายของผู้ยื่นหารือ หากข้อเท็จจริงในสัญญาแตกต่างไป อาจมีผลทางภาษีเปลี่ยนแปลงได้",
             ],
           }
         : {

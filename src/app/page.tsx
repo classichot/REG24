@@ -99,6 +99,7 @@ import type {
   WebResearchMode,
   WebSearchDocumentCategory,
   WebResearchWorkspaceSnapshot,
+  WebResearchTurn,
   WebResearchCitationLink,
   WebUnifiedSearchResultItem,
   WebExportPackage,
