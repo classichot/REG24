@@ -6,6 +6,12 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { reg24Core, MCPCommonInput } from "@/core/engine/reg24-core";
+import {
+  universalMcpGateway,
+  UNIVERSAL_MCP_10_TOOLS_CATALOG,
+  UniversalMCPToolName,
+  UniversalAIProviderId,
+} from "@/core/mcp/universal-mcp-gateway";
 
 export const MCP_TOOLS_CATALOG = [
   {
@@ -408,18 +414,56 @@ export const MCP_TOOLS_CATALOG = [
     description: "PRD v2.0 Section 10.5 & 12.1: Generate a verified Research Report Studio legal memorandum or due diligence report with 100% resolved citations",
     inputSchema: { type: "object", properties: { query: { type: "string" }, language: { type: "string" }, facts: { type: "object" } } },
   },
+  // REG24-UNIVERSAL-MCP-001 (Section 2B): 10 Canonical Universal Legal MCP Tools for ChatGPT, Claude, Gemini, Qwen & DeepSeek
+  ...UNIVERSAL_MCP_10_TOOLS_CATALOG.filter((ut) => ut.name !== "reg24_search_cases").map((ut) => ({
+    name: ut.name,
+    description: `[Universal MCP ${ut.priority}] ${ut.purpose_en} — ${ut.purpose_th}`,
+    inputSchema: ut.inputSchema,
+  })),
 ];
 
-export async function GET() {
+const UNIVERSAL_10_TOOL_NAMES = new Set<string>(
+  UNIVERSAL_MCP_10_TOOLS_CATALOG.map((t) => t.name)
+);
+
+export async function GET(req: NextRequest) {
+  const format = req.nextUrl.searchParams.get("format");
+
+  if (format === "deepseek_tools" || format === "openai_functions") {
+    return NextResponse.json({
+      prd_id: "REG24-UNIVERSAL-MCP-001",
+      adapter: "DeepSeek / OpenAI Function-Calling Tool Schema Bridge",
+      execution_endpoint: "POST https://reg24-theta.vercel.app/api/mcp",
+      tools: universalMcpGateway.getOpenAIFunctionsSchema(),
+    });
+  }
+
+  if (format === "gemini_declarations") {
+    return NextResponse.json({
+      prd_id: "REG24-UNIVERSAL-MCP-001",
+      adapter: "Google Gemini Function Declarations Fallback Adapter",
+      execution_endpoint: "POST https://reg24-theta.vercel.app/api/mcp",
+      ...universalMcpGateway.getGeminiFunctionDeclarations(),
+    });
+  }
+
   return NextResponse.json({
     protocol: "Model Context Protocol (MCP)",
+    prd_id: "REG24-UNIVERSAL-MCP-001",
+    positioning: "REG24 — The Legal Intelligence Layer for Every AI",
     specification_version: "2026-07-28",
-    transport: "Streamable HTTP (JSON-RPC 2.0)",
+    transport: "Streamable HTTP (JSON-RPC 2.0) + SSE Compatibility (/api/mcp/sse)",
     server_info: {
-      name: "reg24-unified-mcp-gateway",
-      version: "2.3.0",
+      name: "reg24-universal-mcp-gateway",
+      version: "3.0.0",
       jurisdiction: "TH",
+      supported_ai_providers: ["OpenAI ChatGPT", "Anthropic Claude", "Google Gemini", "Alibaba Qwen", "DeepSeek"],
       connected_consumers: [
+        "ChatGPT",
+        "Claude",
+        "Gemini",
+        "Qwen",
+        "DeepSeek",
         "LAW24",
         "CFO24",
         "ACC24",
@@ -431,9 +475,9 @@ export async function GET() {
         "HOTEL24",
         "DRUG24",
         "RISK24",
-        "External AI Agents",
       ],
     },
+    universal_mcp_gateway: universalMcpGateway.getGatewaySnapshot(),
     tools: MCP_TOOLS_CATALOG,
   });
 }
@@ -441,6 +485,14 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    const provider = (body.provider ||
+      req.headers.get("x-reg24-ai-provider") ||
+      "claude") as UniversalAIProviderId;
+    const tenantId =
+      body.tenant_id ||
+      body.params?.arguments?.tenant_context?.tenant_id ||
+      req.headers.get("x-reg24-tenant") ||
+      "tenant.law24.prod";
 
     // Support both JSON-RPC 2.0 (initialize, tools/list, tools/call) and direct tool invocation
     if (body.jsonrpc === "2.0") {
@@ -456,8 +508,8 @@ export async function POST(req: NextRequest) {
               tools: { listChanged: true },
             },
             serverInfo: {
-              name: "reg24-unified-mcp-gateway",
-              version: "1.0.0",
+              name: "reg24-universal-mcp-gateway",
+              version: "3.0.0",
             },
           },
         });
@@ -474,8 +526,32 @@ export async function POST(req: NextRequest) {
       }
 
       if (method === "tools/call") {
-        const toolName = params?.name || "";
+        const toolName = String(params?.name || "");
         const toolArgs: MCPCommonInput = params?.arguments || {};
+
+        if (UNIVERSAL_10_TOOL_NAMES.has(toolName)) {
+          const evPkg = universalMcpGateway.executeUniversalTool(
+            toolName as UniversalMCPToolName,
+            toolArgs as Record<string, unknown>,
+            provider,
+            tenantId
+          );
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(evPkg, null, 2),
+                },
+              ],
+              structuredContent: evPkg,
+              isError: false,
+            },
+          });
+        }
+
         const output = reg24Core.executeMCPTool(toolName, toolArgs);
         return NextResponse.json({
           jsonrpc: "2.0",
@@ -495,8 +571,22 @@ export async function POST(req: NextRequest) {
     }
 
     // Direct REST-style MCP tool call
-    const toolName = body.tool || body.name || "reg24.list_modules";
+    const toolName = String(body.tool || body.name || "reg24.list_modules");
     const input: MCPCommonInput = body.input || body.arguments || body;
+
+    if (UNIVERSAL_10_TOOL_NAMES.has(toolName)) {
+      const evPkg = universalMcpGateway.executeUniversalTool(
+        toolName as UniversalMCPToolName,
+        input as Record<string, unknown>,
+        provider,
+        tenantId
+      );
+      return NextResponse.json({
+        status: "ok",
+        verified_evidence_package: evPkg,
+      });
+    }
+
     const output = reg24Core.executeMCPTool(toolName, input);
 
     return NextResponse.json(output);

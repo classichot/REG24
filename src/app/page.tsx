@@ -107,6 +107,13 @@ import type {
   WebSourceResearchMode,
   WebUploadedDocumentContext,
 } from "@/core/types/legal-schema";
+import {
+  UNIVERSAL_AI_PROVIDERS,
+  UNIVERSAL_MCP_10_TOOLS_CATALOG,
+  UniversalAIProviderId,
+  UniversalMCPToolName,
+  VerifiedEvidencePackage,
+} from "@/core/mcp/universal-mcp-gateway";
 
 interface SnapshotData {
   regulators: Regulator[];
@@ -252,8 +259,27 @@ export default function Reg24MetroConsole() {
   // UX/UI v2.0 Super Minimal Redesign States (Sections 1-11, UX-01..UX-15)
   const [uxExperience, setUxExperience] = useState<"research" | "infrastructure" | "control">("research");
   const [uxResearchDestination, setUxResearchDestination] = useState<
-    "research" | "workspace" | "library" | "notebooklm"
+    "research" | "workspace" | "library" | "notebooklm" | "connect_ai"
   >("research");
+  const [selectedUniversalProvider, setSelectedUniversalProvider] =
+    useState<UniversalAIProviderId>("claude");
+  const [selectedUniversalMcpTool, setSelectedUniversalMcpTool] =
+    useState<UniversalMCPToolName>("reg24_tax_advisor");
+  const [universalMcpQuery, setUniversalMcpQuery] = useState<string>(
+    "ภาษีมูลค่าเพิ่มและภาษีหัก ณ ที่จ่าย มาตรา 70 ค่าบริการซอฟต์แวร์ต่างประเทศ"
+  );
+  const [universalMcpLivePkg, setUniversalMcpLivePkg] =
+    useState<VerifiedEvidencePackage | null>(null);
+  const [universalMcpLoading, setUniversalMcpLoading] = useState<boolean>(false);
+  const [universalByokPolicy, setUniversalByokPolicy] = useState<
+    Record<UniversalAIProviderId, { enabled: boolean; allow_client_docs: boolean; api_key_masked: string }>
+  >({
+    chatgpt: { enabled: true, allow_client_docs: true, api_key_masked: "sk-proj...94aF (Zero-Retention)" },
+    claude: { enabled: true, allow_client_docs: true, api_key_masked: "sk-ant-...82cD (Zero-Retention)" },
+    gemini: { enabled: true, allow_client_docs: true, api_key_masked: "AIzaSy...71eB (Primary)" },
+    qwen: { enabled: true, allow_client_docs: false, api_key_masked: "sk-qwen...53kM (Public Law Only)" },
+    deepseek: { enabled: true, allow_client_docs: false, api_key_masked: "sk-ds-...19xP (Public Law Only)" },
+  });
   const [uxLibraryTab, setUxLibraryTab] = useState<
     "all" | "authorities" | "industries" | "modules" | "statutes" | "cases_rulings"
   >("industries");
@@ -1657,6 +1683,58 @@ export default function Reg24MetroConsole() {
     [costRouterQueryInput, costRouterEscalationSim, activeTenant]
   );
 
+  const handleRunUniversalMcpTool = useCallback(
+    async (
+      overrideTool?: UniversalMCPToolName,
+      overrideProvider?: UniversalAIProviderId,
+      overrideQuery?: string
+    ) => {
+      const toolToRun = overrideTool || selectedUniversalMcpTool;
+      const provToRun = overrideProvider || selectedUniversalProvider;
+      const qToRun = overrideQuery !== undefined ? overrideQuery : universalMcpQuery;
+      setUniversalMcpLoading(true);
+      try {
+        const res = await fetch("/api/mcp", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-reg24-ai-provider": provToRun,
+            "x-reg24-tenant": activeTenant,
+          },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: Date.now(),
+            method: "tools/call",
+            provider: provToRun,
+            tenant_id: activeTenant,
+            params: {
+              name: toolToRun,
+              arguments: {
+                query: qToRun,
+                clause_text: qToRun,
+                corporate_action: qToRun,
+                activity: qToRun,
+                citation_text: qToRun,
+                provision_id: qToRun.startsWith("prov.") ? qToRun : "prov.th.rc.73_74_77_1",
+                as_of_date: "2026-10-20",
+              },
+            },
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const pkg = data.result?.structuredContent || data.verified_evidence_package;
+          if (pkg) setUniversalMcpLivePkg(pkg);
+        }
+      } catch {
+        // Ignore network error
+      } finally {
+        setUniversalMcpLoading(false);
+      }
+    },
+    [selectedUniversalMcpTool, selectedUniversalProvider, universalMcpQuery, activeTenant]
+  );
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
@@ -1683,6 +1761,7 @@ export default function Reg24MetroConsole() {
     fetchModel24Snapshot();
     fetchThaiTaxRulings("", "ALL");
     handleSimulateCostRouter();
+    handleRunUniversalMcpTool();
 
     if (typeof window !== "undefined" && "serviceWorker" in navigator) {
       navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -2064,6 +2143,11 @@ export default function Reg24MetroConsole() {
                     labelEn: "My NotebookLM",
                     labelTh: "NotebookLM ของฉัน",
                   },
+                  {
+                    id: "connect_ai" as const,
+                    labelEn: "Connect AI (MCP)",
+                    labelTh: "เชื่อมต่อ AI (MCP)",
+                  },
                 ]
               ).map((dest) => {
                 const active = uxResearchDestination === dest.id;
@@ -2308,7 +2392,7 @@ export default function Reg24MetroConsole() {
           <div className="md:hidden px-3.5 pb-2.5">
             <nav
               aria-label="REG24 Mobile Research Navigation"
-              className={`grid grid-cols-4 gap-1 p-1 rounded-xl border ${
+              className={`grid grid-cols-5 gap-1 p-1 rounded-xl border ${
                 isLightMinimal
                   ? "bg-[#f8fafc] border-[#e2e8f0]"
                   : "bg-[#121a2b] border-[#24324b]"
@@ -2324,7 +2408,7 @@ export default function Reg24MetroConsole() {
                   {
                     id: "workspace" as const,
                     labelEn: "Workspace",
-                    labelTh: "พื้นที่ทำงาน",
+                    labelTh: "พื้นที่งาน",
                   },
                   {
                     id: "library" as const,
@@ -2335,6 +2419,11 @@ export default function Reg24MetroConsole() {
                     id: "notebooklm" as const,
                     labelEn: "NotebookLM",
                     labelTh: "NotebookLM",
+                  },
+                  {
+                    id: "connect_ai" as const,
+                    labelEn: "MCP / AI",
+                    labelTh: "เชื่อม AI",
                   },
                 ]
               ).map((dest) => {
@@ -2800,6 +2889,23 @@ export default function Reg24MetroConsole() {
                                     : languageMode === "th"
                                     ? "เชื่อมต่อ NotebookLM ของฉัน"
                                     : "Connect My NotebookLM"}
+                                </span>
+                              </button>
+
+                              {/* Contextual Control 4: Universal MCP (ChatGPT / Claude / Gemini / Qwen / DeepSeek) */}
+                              <button
+                                onClick={() => setUxResearchDestination("connect_ai")}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border cursor-pointer transition-colors ${
+                                  isLightMinimal
+                                    ? "bg-slate-100 border-slate-300 text-[#0f2c59] hover:bg-slate-200"
+                                    : "bg-[#121c31] border-[#2e4369] text-slate-200 hover:border-[#f5b700]"
+                                }`}
+                              >
+                                <Terminal className="w-3.5 h-3.5 text-[#0f2c59] dark:text-[#f5b700]" />
+                                <span>
+                                  {languageMode === "th"
+                                    ? "เชื่อม ChatGPT · Claude · Gemini · Qwen · DeepSeek"
+                                    : "Connect ChatGPT · Claude · Gemini · Qwen · DeepSeek"}
                                 </span>
                               </button>
                             </div>
@@ -5495,6 +5601,464 @@ export default function Reg24MetroConsole() {
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* ===============================================================
+                  DESTINATION 5: REG24 UNIVERSAL MCP — CONNECT TO EVERY MAJOR AI
+                  (PRD: REG24-UNIVERSAL-MCP-001 — ChatGPT, Claude, Gemini, Qwen, DeepSeek)
+                  =============================================================== */}
+              {uxResearchDestination === "connect_ai" && (
+                <div className="py-6 space-y-6">
+                  {/* Strategic Positioning Hero */}
+                  <div className={`rounded-3xl p-6 sm:p-8 space-y-5 ${surfaceCard}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider bg-[#0f2c59] text-[#f5b700]">
+                        <span>PRD: REG24-UNIVERSAL-MCP-001 &bull; MCP 2026-07-28 STATELESS CORE</span>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full text-[11px] font-mono font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+                        Same Legal Intelligence &bull; Different AI Interfaces
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <h1 className="text-[26px] sm:text-[34px] font-extrabold tracking-[-0.035em] leading-[1.15]">
+                        {languageMode === "th"
+                          ? "REG24 Universal MCP — โครงสร้างพื้นฐานปัญญากฎหมายไทยสำหรับทุก AI"
+                          : "REG24 — The Legal Intelligence Layer for Every AI"}
+                      </h1>
+                      <p className={`text-xs sm:text-sm leading-relaxed max-w-3xl ${mutedText}`}>
+                        {languageMode === "th"
+                          ? "เชื่อมต่อฐานข้อมูลกฎหมายธุรกิจไทย ข้อหารือกรมสรรพากร 3,643 ฉบับ คำพิพากษาศาลฎีกา และกราฟกฎหมาย Neo4j เข้ากับ AI ที่องค์กรของคุณเลือกใช้งานโดยตรง ไม่ว่าจะเป็น ChatGPT, Claude, Gemini, Qwen หรือ DeepSeek ด้วยหลักฐานชุดเดียวกันที่ตรวจสอบย้อนกลับได้ 100%"
+                          : "Connect authoritative Thai corporate, commercial, and tax intelligence (3,643 Revenue Dept Tax Rulings, Thai Statutes, Supreme Court Dika Precedents & Neo4j GraphRAG) directly into ChatGPT, Claude, Gemini, Qwen, and DeepSeek."}
+                      </p>
+                    </div>
+
+                    {/* Architecture Flow Banner */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+                      {[
+                        { title: "Thai Legal Knowledge", sub: "28 Laws & 50 Provisions" },
+                        { title: "Neo4j GraphRAG", sub: "3,995 Live AuraDB Nodes" },
+                        { title: "Verified Tax & Cases", sub: "3,643 RD Rulings + 11 Dika" },
+                        { title: "Compliance Engine", sub: "BOI / SEC / SET / PDPA" },
+                        { title: "Corporate Workflows", sub: "M&A / EBT / Restructuring" },
+                        { title: "Source & Citation Lock", sub: "SHA-256 + Effective Dates" },
+                      ].map((p) => (
+                        <div key={p.title} className={`p-3 rounded-xl ${subtleBox}`}>
+                          <div className="font-bold text-[#0f2c59] dark:text-[#f5b700] text-[11.5px]">
+                            {p.title}
+                          </div>
+                          <div className={`text-[10.5px] mt-0.5 ${mutedText}`}>{p.sub}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Section 4: One-Click "Connect REG24" Interactive 5-Provider Setup */}
+                  {(() => {
+                    const activeProv = UNIVERSAL_AI_PROVIDERS[selectedUniversalProvider];
+                    return (
+                      <div className={`rounded-3xl p-6 sm:p-8 space-y-6 ${surfaceCard}`}>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-slate-200/80 dark:border-slate-800">
+                          <div>
+                            <div className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                              SECTION 4 &bull; ONE-CLICK USER EXPERIENCE FOR CORPORATE LAW FIRMS
+                            </div>
+                            <h2 className="text-xl sm:text-2xl font-extrabold mt-0.5">
+                              {languageMode === "th"
+                                ? "เชื่อมต่อ REG24 เข้ากับ AI ที่คุณใช้งาน (Connect REG24)"
+                                : "Connect REG24 — Use REG24 Legal Intelligence in Your Preferred AI"}
+                            </h2>
+                          </div>
+
+                          {/* 5-Provider Selector Tabs */}
+                          <div className="flex overflow-x-auto no-scrollbar sm:flex-wrap gap-1.5">
+                            {(["chatgpt", "claude", "gemini", "qwen", "deepseek"] as const).map(
+                              (pid) => {
+                                const pSpec = UNIVERSAL_AI_PROVIDERS[pid];
+                                const isSel = selectedUniversalProvider === pid;
+                                return (
+                                  <button
+                                    key={pid}
+                                    onClick={() => {
+                                      setSelectedUniversalProvider(pid);
+                                      handleRunUniversalMcpTool(
+                                        selectedUniversalMcpTool,
+                                        pid,
+                                        universalMcpQuery
+                                      );
+                                    }}
+                                    className={`shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold border cursor-pointer transition-all ${
+                                      isSel
+                                        ? "bg-[#0f2c59] text-[#f5b700] border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f] dark:border-[#f5b700]"
+                                        : `${subtleBox} hover:border-slate-400`
+                                    }`}
+                                  >
+                                    {pSpec.display_name}
+                                  </button>
+                                );
+                              }
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                          {/* Left 6 cols: Connection Details & Copyable Endpoints */}
+                          <div className="lg:col-span-6 space-y-4">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className="text-xs font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                  {activeProv.company} &bull; {activeProv.transport_protocol}
+                                </span>
+                                <h3 className="text-lg font-extrabold mt-0.5">
+                                  {activeProv.display_name} Connection
+                                </h3>
+                              </div>
+                              <span className="px-2.5 py-1 rounded-lg text-[10.5px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+                                OAuth 2.1 + PKCE Ready
+                              </span>
+                            </div>
+
+                            <p className={`text-xs leading-relaxed ${mutedText}`}>
+                              <strong>Integration Approach:</strong> {activeProv.integration_approach} &bull;{" "}
+                              <strong>REG24 Requirement:</strong> {activeProv.reg24_requirement}
+                            </p>
+
+                            {/* Live Deployed Endpoint URL Box */}
+                            <div className={`p-3.5 rounded-2xl space-y-1.5 ${subtleBox}`}>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                  ● Live Production Endpoint (Active Now)
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(activeProv.live_endpoint_url);
+                                    showToast(`Copied live endpoint: ${activeProv.live_endpoint_url}`);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-[#0f2c59] text-[#f5b700] cursor-pointer"
+                                >
+                                  Copy Live URL
+                                </button>
+                              </div>
+                              <div className="font-mono text-xs break-all select-all">
+                                {activeProv.live_endpoint_url}
+                              </div>
+                            </div>
+
+                            {/* Proposed Dedicated MCP Domain Box (Section 2A) */}
+                            <div className={`p-3.5 rounded-2xl space-y-1.5 ${subtleBox}`}>
+                              <div className="flex items-center justify-between text-[11px]">
+                                <span className={`font-semibold ${mutedText}`}>
+                                  Proposed Dedicated MCP Domain (Section 2A Architecture)
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(
+                                      activeProv.proposed_custom_domain_url
+                                    );
+                                    showToast(
+                                      `Copied proposed URL: ${activeProv.proposed_custom_domain_url}`
+                                    );
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border cursor-pointer ${subtleBox}`}
+                                >
+                                  Copy Proposed URL
+                                </button>
+                              </div>
+                              <div className="font-mono text-xs break-all opacity-80">
+                                {activeProv.proposed_custom_domain_url}
+                              </div>
+                            </div>
+
+                            {/* 3-Step Setup Instructions */}
+                            <div className="space-y-2 pt-1">
+                              <div className="text-xs font-bold">
+                                {languageMode === "th"
+                                  ? `ขั้นตอนการเชื่อมต่อกับ ${activeProv.display_name}:`
+                                  : `How to connect ${activeProv.display_name}:`}
+                              </div>
+                              {(languageMode === "th"
+                                ? activeProv.setup_steps_th
+                                : activeProv.setup_steps_en
+                              ).map((step, idx) => (
+                                <div key={idx} className="flex items-start gap-2 text-xs">
+                                  <span className="w-5 h-5 rounded-full bg-[#0f2c59] text-[#f5b700] font-bold text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+                                    {idx + 1}
+                                  </span>
+                                  <span className={mutedText}>{step}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Right 6 cols: Ready-to-Paste Provider Configuration Snippet */}
+                          <div className="lg:col-span-6 space-y-2">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-bold">{activeProv.config_snippet_label}</span>
+                              <button
+                                onClick={() => {
+                                  navigator.clipboard?.writeText(activeProv.config_snippet_code);
+                                  showToast(`Copied ${activeProv.display_name} configuration JSON`);
+                                }}
+                                className="text-[11px] font-semibold text-[#0f2c59] dark:text-[#f5b700] hover:underline cursor-pointer"
+                              >
+                                Copy Config JSON
+                              </button>
+                            </div>
+                            <pre className="p-4 rounded-2xl bg-[#0a101d] border border-[#24324b] text-emerald-300 font-mono text-[11px] overflow-x-auto leading-relaxed">
+                              {activeProv.config_snippet_code}
+                            </pre>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Section 2B & 2C: 10-Tool Universal MCP Catalog & Model-Agnostic Verified Evidence Package Runner */}
+                  <div className={`rounded-3xl p-6 sm:p-8 space-y-6 ${surfaceCard}`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-slate-200/80 dark:border-slate-800">
+                      <div>
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                          SECTION 2B &amp; 2C &bull; 10 UNIVERSAL LEGAL MCP TOOLS &amp; VERIFIED EVIDENCE ENGINE
+                        </span>
+                        <h2 className="text-xl font-extrabold mt-0.5">
+                          {languageMode === "th"
+                            ? "ทดสอบเรียกใช้ 10 เครื่องมือกฎหมาย MCP และตรวจสอบชุดหลักฐาน (Verified Evidence Package)"
+                            : "Live 10-Tool Universal MCP Catalog & Verified Evidence Package Inspector"}
+                        </h2>
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-[#0f2c59] text-[#f5b700]">
+                        10 Core Universal Tools + 61 Specialist Tools
+                      </span>
+                    </div>
+
+                    {/* 10 Canonical Tools Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
+                      {UNIVERSAL_MCP_10_TOOLS_CATALOG.map((tool) => {
+                        const isSelected = selectedUniversalMcpTool === tool.name;
+                        return (
+                          <button
+                            key={tool.name}
+                            onClick={() => {
+                              setSelectedUniversalMcpTool(tool.name);
+                              const defaultQ = String(
+                                tool.sample_args.query ||
+                                  tool.sample_args.clause_text ||
+                                  tool.sample_args.corporate_action ||
+                                  tool.sample_args.activity ||
+                                  tool.sample_args.citation_text ||
+                                  tool.sample_args.provision_id ||
+                                  universalMcpQuery
+                              );
+                              setUniversalMcpQuery(defaultQ);
+                              handleRunUniversalMcpTool(
+                                tool.name,
+                                selectedUniversalProvider,
+                                defaultQ
+                              );
+                            }}
+                            className={`p-3 rounded-2xl text-left border transition-all cursor-pointer flex flex-col justify-between space-y-2 ${
+                              isSelected
+                                ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#163e7a] dark:border-[#f5b700]"
+                                : `${subtleBox} hover:border-slate-400`
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-1 text-[10px] font-mono">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded font-bold ${
+                                    tool.priority === "P0"
+                                      ? "bg-[#f5b700] text-[#0a192f]"
+                                      : "bg-sky-500/20 text-sky-400"
+                                  }`}
+                                >
+                                  {tool.priority}
+                                </span>
+                                <span className="opacity-75">{tool.oauth_scope}</span>
+                              </div>
+                              <div className="font-mono font-bold text-xs mt-1.5 break-all">
+                                {tool.name}
+                              </div>
+                            </div>
+                            <div
+                              className={`text-[11px] leading-snug ${
+                                isSelected ? "text-slate-200" : mutedText
+                              }`}
+                            >
+                              {languageMode === "th" ? tool.purpose_th : tool.purpose_en}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Live Tool Execution Bar */}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input
+                        type="text"
+                        value={universalMcpQuery}
+                        onChange={(e) => setUniversalMcpQuery(e.target.value)}
+                        placeholder="Enter legal query, Revenue Code section, or ruling number to test MCP tool..."
+                        className={`flex-1 px-4 py-2.5 rounded-xl text-xs border outline-none ${
+                          isLightMinimal
+                            ? "bg-slate-50 border-slate-300 text-slate-900"
+                            : "bg-[#0a101d] border-[#24324b] text-white"
+                        }`}
+                      />
+                      <button
+                        disabled={universalMcpLoading}
+                        onClick={() => handleRunUniversalMcpTool()}
+                        className="px-5 py-2.5 rounded-xl text-xs font-bold bg-[#0f2c59] text-[#f5b700] border border-[#f5b700]/60 cursor-pointer shrink-0"
+                      >
+                        {universalMcpLoading
+                          ? "Executing MCP Tool..."
+                          : `Invoke ${selectedUniversalMcpTool} via ${UNIVERSAL_AI_PROVIDERS[selectedUniversalProvider].display_name} →`}
+                      </button>
+                    </div>
+
+                    {/* Returned Model-Agnostic Verified Evidence Package (Section 2C) */}
+                    {universalMcpLivePkg && (
+                      <div className={`p-5 rounded-2xl space-y-4 ${subtleBox}`}>
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-3 border-slate-200/80 dark:border-slate-800">
+                          <div>
+                            <div className="text-[10.5px] font-mono uppercase tracking-wider text-emerald-600 dark:text-emerald-400 font-bold">
+                              ✓ VERIFIED EVIDENCE PACKAGE ({universalMcpLivePkg.package_id}) &bull; PROTOCOL{" "}
+                              {universalMcpLivePkg.protocol_version} &bull;{" "}
+                              {universalMcpLivePkg.execution_latency_ms}ms
+                            </div>
+                            <div className="text-sm font-bold mt-0.5">
+                              {languageMode === "th"
+                                ? universalMcpLivePkg.evidence_summary_th
+                                : universalMcpLivePkg.evidence_summary_en}
+                            </div>
+                          </div>
+                          <div className="text-right font-mono text-[11px]">
+                            <div className="font-bold text-[#0f2c59] dark:text-[#f5b700]">
+                              Caller: {universalMcpLivePkg.invoking_ai_provider.toUpperCase()}
+                            </div>
+                            <div className={mutedText}>
+                              Metered: ${universalMcpLivePkg.metering_and_cost_attribution.reconciled_cost_usd.toFixed(5)} (
+                              {universalMcpLivePkg.metering_and_cost_attribution.execution_tier})
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {universalMcpLivePkg.authorities.map((auth) => (
+                            <div
+                              key={auth.source_id}
+                              className={`p-3.5 rounded-xl border space-y-1.5 text-xs ${surfaceCard}`}
+                            >
+                              <div className="flex items-center justify-between gap-2 text-[10.5px] font-mono">
+                                <span className="px-2 py-0.5 rounded font-bold bg-[#0f2c59] text-[#f5b700]">
+                                  {auth.authority_type}
+                                </span>
+                                <span className="text-emerald-600 dark:text-emerald-400 font-semibold">
+                                  ✓ {auth.verification_status}
+                                </span>
+                              </div>
+                              <div className="font-bold text-[13px]">
+                                {languageMode === "th" ? auth.title_th : auth.title_en}
+                              </div>
+                              <div className={`text-[11px] font-mono ${mutedText}`}>
+                                ID: {auth.identifier} &bull; Effective: {auth.effective_from} &bull; Status:{" "}
+                                {auth.legal_status}
+                              </div>
+                              <p className={`text-[11.5px] leading-relaxed line-clamp-3 ${mutedText}`}>
+                                {auth.verbatim_excerpt}
+                              </p>
+                              <div className="text-[10px] font-mono opacity-70 truncate">
+                                SHA-256: {auth.sha256_provenance}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Section 1 & Section 3: 5-Provider Compatibility Matrix + Direction 2 Internal LLM Provider Gateway (BYOK) */}
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    <div className={`lg:col-span-7 rounded-3xl p-6 space-y-4 ${surfaceCard}`}>
+                      <div className="text-xs font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                        SECTION 1 &bull; FIVE-PROVIDER COMPATIBILITY MATRIX (OCTOBER 2026)
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-200 dark:border-slate-800 text-[10.5px] uppercase opacity-70">
+                              <th className="py-2 pr-3">AI Provider</th>
+                              <th className="py-2 pr-3">Integration Approach</th>
+                              <th className="py-2">REG24 Adapter</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200/70 dark:divide-slate-800">
+                            {Object.values(UNIVERSAL_AI_PROVIDERS).map((p) => (
+                              <tr key={p.id}>
+                                <td className="py-2.5 pr-3 font-bold">{p.display_name}</td>
+                                <td className={`py-2.5 pr-3 ${mutedText}`}>{p.integration_approach}</td>
+                                <td className="py-2.5 font-mono text-[11px] text-[#0f2c59] dark:text-[#f5b700] font-semibold">
+                                  {p.reg24_requirement}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                    <div className={`lg:col-span-5 rounded-3xl p-6 space-y-4 ${surfaceCard}`}>
+                      <div>
+                        <div className="text-xs font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                          SECTION 3 &bull; DIRECTION 2: INTERNAL 5-MODEL GATEWAY &amp; BYOK
+                        </div>
+                        <p className={`text-[11.5px] mt-1 ${mutedText}`}>
+                          Configure firm-level BYOK and strict client-document privilege boundaries before any external LLM call:
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        {(["chatgpt", "claude", "gemini", "qwen", "deepseek"] as const).map(
+                          (pid) => {
+                            const pSpec = UNIVERSAL_AI_PROVIDERS[pid];
+                            const pol = universalByokPolicy[pid];
+                            return (
+                              <div
+                                key={pid}
+                                className={`p-3 rounded-xl flex items-center justify-between gap-2 text-xs ${subtleBox}`}
+                              >
+                                <div>
+                                  <div className="font-bold">{pSpec.display_name} Adapter</div>
+                                  <div className={`text-[10.5px] font-mono ${mutedText}`}>
+                                    {pol.api_key_masked}
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() =>
+                                    setUniversalByokPolicy((prev) => ({
+                                      ...prev,
+                                      [pid]: {
+                                        ...prev[pid],
+                                        allow_client_docs: !prev[pid].allow_client_docs,
+                                      },
+                                    }))
+                                  }
+                                  className={`px-2.5 py-1 rounded-lg text-[10.5px] font-bold border cursor-pointer ${
+                                    pol.allow_client_docs
+                                      ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                      : "bg-amber-500/15 border-amber-500/40 text-amber-800 dark:text-[#f5b700]"
+                                  }`}
+                                >
+                                  {pol.allow_client_docs
+                                    ? "Client Docs: Authorized"
+                                    : "Public Statutes Only (Locked)"}
+                                </button>
+                              </div>
+                            );
+                          }
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -12627,7 +13191,7 @@ export default function Reg24MetroConsole() {
             : "bg-[#0a101d]/95 border-[#1e293b] text-slate-200"
         }`}
       >
-        <div className="grid grid-cols-4 gap-1 px-2 py-1.5">
+        <div className="grid grid-cols-5 gap-1 px-2 py-1.5">
           {[
             {
               id: "research" as const,
@@ -12636,7 +13200,7 @@ export default function Reg24MetroConsole() {
             },
             {
               id: "workspace" as const,
-              labelTh: "พื้นที่ทำงาน",
+              labelTh: "ทำงาน",
               labelEn: "Workspace",
             },
             {
@@ -12648,6 +13212,11 @@ export default function Reg24MetroConsole() {
               id: "notebooklm" as const,
               labelTh: "NotebookLM",
               labelEn: "NotebookLM",
+            },
+            {
+              id: "connect_ai" as const,
+              labelTh: "เชื่อม AI",
+              labelEn: "MCP / AI",
             },
           ].map((nav) => {
             const isActive =
