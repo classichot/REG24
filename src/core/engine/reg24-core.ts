@@ -8448,7 +8448,7 @@ export class Reg24PlatformCore {
           )
         : undefined;
 
-    // 5. Check if query references or matches one of the 278 Google Drive & Legal Database Resource Master regulations
+    // 5. Check if query references or matches one of the 2,312 Google Drive & Legal Database Resource Master regulations (17 Authority Folders)
     let matchedResourceMaster: LegalResourceMasterRecord | undefined =
       !matchedOneDriveRuling && !matchedDikaCase
         ? LEGAL_RESOURCE_MASTER_CORPUS.find(
@@ -8461,7 +8461,7 @@ export class Reg24PlatformCore {
     if (
       !matchedResourceMaster &&
       !matchedOneDriveRuling &&
-      /ภาษีส่วนเพิ่ม|pillar\s*two|pillar\s*2|top-up\s*tax|prk2567|moftopuptax|dgtopuptax|โซลาร์ฟาร์ม|สหกรณ์ภาคการเกษตร|ประมวลหลักการปฏิบัติ|code\s*of\s*practice|erc-cop|ร่วมลงทุน|ppp\s*law|gsaas|ดาวเทียม|ico\s*portal|ส\.ป\.ก\.|tgo|cfo/i.test(
+      /ภาษีส่วนเพิ่ม|pillar\s*two|pillar\s*2|top-up\s*tax|prk2567|moftopuptax|dgtopuptax|โซลาร์ฟาร์ม|สหกรณ์ภาคการเกษตร|ประมวลหลักการปฏิบัติ|code\s*of\s*practice|erc-cop|ร่วมลงทุน|ppp\s*law|gsaas|ดาวเทียม|ico\s*portal|ส\.ป\.ก\.|tgo|cfo|dbd|กรมพัฒนาธุรกิจการค้า|bj-r|torjor|sorjor|dmf|กรมเชื้อเพลิงธรรมชาติ|ปิโตรเลียม|ศุลกากร|customs|สรรพสามิต|excise|dft|การค้าต่างประเทศ|dip|ทรัพย์สินทางปัญญา|ditp|tcct|กขค|การแข่งขันทางการค้า|credit\s*term|exchange\s*control|amlo|ปปง|ฟอกเงิน|สถานพยาบาล|แพทยสภา|สปสช/i.test(
         params.query
       )
     ) {

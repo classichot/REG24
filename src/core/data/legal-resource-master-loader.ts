@@ -1,24 +1,59 @@
 /**
- * REG24 — Google Drive & Synced Legal Database Resource Master Loader & Search Engine
+ * REG24 — Google Drive Legal Database Resource Master Loader & Search Engine
  *
- * Incorporates all 278 regulations, statutes, notifications, administrative rulings,
- * environmental CoP checklists, contract taxonomy sources, and ESG regulatory registers
- * from the user's Google Drive (DriveFS 105088240612977611801) and synced master folders:
- *   1. Google_Drive_Regulations (8 Master Folders/Instruments: ERC Solar Farm Co-op Regs No.1 & No.2,
- *      ERC ORS Kor.1 & PPA Sections I–IV, ERC/PEA POA & Feeder Check, SEC Digital Asset & ICO Portal IT Regs,
- *      NBTC GSaaS & Foreign Satellite Landing Rights Regs, AI Law Lab Defensibility, Blackhorse Master Contracts)
- *   2. ERC_Energy_Regulations_Master (30 Official ERC Regulations, Notifications & CoP Checklists)
- *   3. OECD_Pillar_Two_TopUpTax_Regs (11 Official Thailand Top-Up Tax B.E. 2567–2569 Regulations:
- *      Emergency Decree prk2567, MOF Notification No. 1 moftopuptax1, RD DG Notifications No. 1–8 dgtopuptax1–8)
- *   4. Legal_Docs_Database_7L_Master (71 Files: 57 Thai Statutory & Supreme Court Dika Compendiums, PPP Law 2556 &
- *      PPP Rulings on EGAT/Rental Fee/Waste Mgmt, Securities Law Framework + 14 7L Advisory PDPA/GDPR/SET/M&A/TP Resources)
- *   5. Thailand_500_Contract_Legal_Sources (41 Items: 16 Official Legal Sources LS01–LS16 + 25 Contract Categories C01–C25 = 500 Contracts)
- *   6. ESG24_Regulatory_Source_Register (117 Thai & Global ESG, SEC One Report, TGO Carbon, Factory & EIA Regulations)
+ * Master Folder: https://drive.google.com/drive/folders/1Q81SV8sXWFrt9ASLf8uBsezFMd1d1Ltm
+ *
+ * Incorporates all 2,034 regulation & judicial files across all 17 Authority Folders in
+ * "Legal Database Resource Master" plus 278 deep statutory/contract/ESG records (2,312 total):
+ *
+ *   17 Authority Subfolders in Legal Database Resource Master (2,034 files):
+ *   1. DBD — Department of Business Development (113 files | Folder ID: 1rzEBsNIfbHoB37J2Nt05E60EDEZaVkgM)
+ *   2. SET — Stock Exchange of Thailand (41 files | Subfolders: Regulations, Notifications, Guidelines)
+ *   3. SEC — Securities and Exchange Commission Thailand (18 files)
+ *   4. RD — Revenue Department (81 files | Subfolders: CIT, PIT, VAT, WHT, SBT, Stamp, Top-up Tax Pillar Two, Transfer Pricing)
+ *   5. BOI — Board of Investment (124 files)
+ *   6. ERC — Energy Regulatory Commission (92 files)
+ *   7. DMF — Department of Mineral Fuels (130 files)
+ *   8. Customs — Customs Department (92 files)
+ *   9. Excise — Excise Department (125 files)
+ *  10. DFT — Department of Foreign Trade (178 files)
+ *  11. DIP — Department of Intellectual Property (280 files)
+ *  12. DITP — Department of International Trade Promotion (21 files)
+ *  13. TCCT — Trade Competition Commission of Thailand (424 files)
+ *  14. BOT — Bank of Thailand (69 files)
+ *  15. AMLO — Anti-Money Laundering Office (143 files)
+ *  16. Health — MOPH / FDA / HSS / Medical Council / NHSO (65 files | 7 Subfolders)
+ *  17. Deka Database — Supreme Court & Specialized Courts Jurisprudence (38 files | Full Deka Rulings & JSONL Index)
+ *
+ *   Plus 6 Specialized Deep-Extraction Collections (278 records):
+ *  18. Google_Drive_Regulations (8 Instruments)
+ *  19. OECD_Pillar_Two_TopUpTax_Regs (11 Full-Text DOCX Statutory Extracts)
+ *  20. ERC_Energy_Regulations_Master (30 CoP & Licensing Checklists)
+ *  21. Legal_Docs_Database_7L_Master (71 Compendiums & 7L Advisory Guides)
+ *  22. Thailand_500_Contract_Legal_Sources (41 Contract Taxonomy & Statutory Sources)
+ *  23. ESG24_Regulatory_Source_Register (117 Climate, TGO, Factory & SEC ESG Sources)
  */
 
 import rawMasterCorpus from "./legal-resource-master-corpus.json";
 
 export type ResourceMasterCollectionId =
+  | "DBD_Business_Development"
+  | "SET_Stock_Exchange"
+  | "SEC_Securities_Exchange"
+  | "RD_Revenue_Department"
+  | "BOI_Board_of_Investment"
+  | "ERC_Energy_Commission"
+  | "DMF_Mineral_Fuels"
+  | "Customs_Department"
+  | "Excise_Department"
+  | "DFT_Foreign_Trade"
+  | "DIP_Intellectual_Property"
+  | "DITP_Trade_Promotion"
+  | "TCCT_Trade_Competition"
+  | "BOT_Bank_of_Thailand"
+  | "AMLO_Anti_Money_Laundering"
+  | "Health_Public_Health_FDA"
+  | "Deka_Supreme_Court_Database"
   | "Google_Drive_Regulations"
   | "ERC_Energy_Regulations_Master"
   | "OECD_Pillar_Two_TopUpTax_Regs"
@@ -30,15 +65,17 @@ export interface LegalResourceMasterRecord {
   id: string;
   code: string;
   collection: ResourceMasterCollectionId;
+  authority_code?: string;
   folder_path: string;
   drive_stable_id: string;
+  drive_url?: string;
   title_th: string;
   title_en: string;
   regulator: string;
   instrument_type: string;
   year_be: number;
   effective_date: string;
-  status: "IN_FORCE" | "AMENDED_BY_NO2_2560" | "WATCHLIST_DRAFT" | string;
+  status: "IN_FORCE" | "SUPERSEDED" | "AMENDED_BY_NO2_2560" | "WATCHLIST_DRAFT" | string;
   legal_provisions: string;
   summary_th: string;
   verbatim_excerpt: string;
@@ -50,6 +87,243 @@ export interface LegalResourceMasterRecord {
 export const LEGAL_RESOURCE_MASTER_CORPUS: LegalResourceMasterRecord[] =
   rawMasterCorpus as LegalResourceMasterRecord[];
 
+export const MASTER_DRIVE_FOLDER_URL =
+  "https://drive.google.com/drive/folders/1Q81SV8sXWFrt9ASLf8uBsezFMd1d1Ltm";
+
+export interface MasterAuthorityFolderMeta {
+  code: string;
+  collection: ResourceMasterCollectionId;
+  short_name: string;
+  folder_name: string;
+  label_th: string;
+  label_en: string;
+  drive_folder_id: string;
+  drive_folder_url: string;
+  subfolders: string[];
+  count: number;
+}
+
+export const MASTER_AUTHORITY_FOLDERS: MasterAuthorityFolderMeta[] = [
+  {
+    code: "DBD",
+    collection: "DBD_Business_Development",
+    short_name: "DBD",
+    folder_name: "DBD - Department of Business Development",
+    label_th: "กรมพัฒนาธุรกิจการค้า (DBD) — กฎหมายหุ้นส่วนบริษัท มหาชน คนต่างด้าว และการบัญชี",
+    label_en: "DBD — Department of Business Development (Corporate, Foreign Business Act & Accounting)",
+    drive_folder_id: "1rzEBsNIfbHoB37J2Nt05E60EDEZaVkgM",
+    drive_folder_url: "https://drive.google.com/drive/folders/1rzEBsNIfbHoB37J2Nt05E60EDEZaVkgM",
+    subfolders: [],
+    count: 113,
+  },
+  {
+    code: "SET",
+    collection: "SET_Stock_Exchange",
+    short_name: "SET",
+    folder_name: "SET - Stock Exchange of Thailand",
+    label_th: "ตลาดหลักทรัพย์แห่งประเทศไทย (SET) — ข้อบังคับ ประกาศ และแนวทางบริษัทจดทะเบียน",
+    label_en: "SET — Stock Exchange of Thailand (Regulations, Notifications & Guidelines)",
+    drive_folder_id: "1gQhTyb9Sa3vRoCl7ybyW3pilfnT6jjH_",
+    drive_folder_url: "https://drive.google.com/drive/folders/1gQhTyb9Sa3vRoCl7ybyW3pilfnT6jjH_",
+    subfolders: ["Regulations", "Notifications", "Guidelines"],
+    count: 41,
+  },
+  {
+    code: "SEC",
+    collection: "SEC_Securities_Exchange",
+    short_name: "SEC",
+    folder_name: "SEC - Securities and Exchange Commission Thailand",
+    label_th: "สำนักงาน ก.ล.ต. (SEC Thailand) — ประกาศคณะกรรมการกำกับตลาดทุน ตราสารหนี้ และหุ้นกู้",
+    label_en: "SEC — Securities and Exchange Commission Thailand (Capital Market Notifications)",
+    drive_folder_id: "14GpOTTS7h8Fx9SyEOn8TYOTwNYhXbvJB",
+    drive_folder_url: "https://drive.google.com/drive/folders/14GpOTTS7h8Fx9SyEOn8TYOTwNYhXbvJB",
+    subfolders: [],
+    count: 18,
+  },
+  {
+    code: "RD",
+    collection: "RD_Revenue_Department",
+    short_name: "RD",
+    folder_name: "RD - Revenue Department",
+    label_th: "กรมสรรพากร (RD) — CIT, PIT, VAT, WHT, SBT, อากรแสตมป์, Pillar Two & Transfer Pricing",
+    label_en: "RD — Revenue Department (CIT, PIT, VAT, WHT, SBT, Stamp, Pillar Two, Transfer Pricing)",
+    drive_folder_id: "1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6",
+    drive_folder_url: "https://drive.google.com/drive/folders/1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6",
+    subfolders: ["CIT", "PIT", "VAT", "WHT", "SBT", "Stamp", "Top-up Tax (Pillar Two)", "Transfer Pricing"],
+    count: 81,
+  },
+  {
+    code: "BOI",
+    collection: "BOI_Board_of_Investment",
+    short_name: "BOI",
+    folder_name: "BOI - Board of Investment",
+    label_th: "สำนักงานคณะกรรมการส่งเสริมการลงทุน (BOI) — นโยบายส่งเสริมการลงทุน สิทธิประโยชน์ และ Smart Visa",
+    label_en: "BOI — Board of Investment (Investment Promotion Policies, Incentives & Smart Visa)",
+    drive_folder_id: "1O_y2gYVNmj4D9jB4ZI4aHc9a4XQeFlq5",
+    drive_folder_url: "https://drive.google.com/drive/folders/1O_y2gYVNmj4D9jB4ZI4aHc9a4XQeFlq5",
+    subfolders: [],
+    count: 124,
+  },
+  {
+    code: "ERC",
+    collection: "ERC_Energy_Commission",
+    short_name: "ERC",
+    folder_name: "ERC - Energy Regulatory Commission",
+    label_th: "สำนักงานคณะกรรมการกำกับกิจการพลังงาน (กกพ. / ERC) — ใบอนุญาตพลังงาน อัตราค่าไฟฟ้า และ PPA",
+    label_en: "ERC — Energy Regulatory Commission (Power Licensing, FiT, Tariffs & Grid Regulations)",
+    drive_folder_id: "1DCCntM2MmZ3d8l8PB_cjMkiMZAv7GDAT",
+    drive_folder_url: "https://drive.google.com/drive/folders/1DCCntM2MmZ3d8l8PB_cjMkiMZAv7GDAT",
+    subfolders: [],
+    count: 92,
+  },
+  {
+    code: "DMF",
+    collection: "DMF_Mineral_Fuels",
+    short_name: "DMF",
+    folder_name: "DMF - Department of Mineral Fuels",
+    label_th: "กรมเชื้อเพลิงธรรมชาติ (DMF) — กฎหมายปิโตรเลียม สัมปทาน แบ่งปันผลผลิต (PSC) และรื้อถอนแท่น",
+    label_en: "DMF — Department of Mineral Fuels (Petroleum Act, Concessions, PSC & Decommissioning)",
+    drive_folder_id: "1jCDwAEoCWs7UspUJ99h4IHedRWX6s0y-",
+    drive_folder_url: "https://drive.google.com/drive/folders/1jCDwAEoCWs7UspUJ99h4IHedRWX6s0y-",
+    subfolders: [],
+    count: 130,
+  },
+  {
+    code: "CUSTOMS",
+    collection: "Customs_Department",
+    short_name: "Customs",
+    folder_name: "Customs - Customs Department",
+    label_th: "กรมศุลกากร (Customs) — พ.ร.บ. ศุลกากร พิกัดอัตราศุลกากร เขตปลอดอากร และคำวินิจฉัยอุทธรณ์",
+    label_en: "Customs — Customs Department (Customs Act, Tariffs, Valuation & Appeal Rulings)",
+    drive_folder_id: "1BaWRZgpQbEl7hl8Xsh3vPXMZsDjXkgxv",
+    drive_folder_url: "https://drive.google.com/drive/folders/1BaWRZgpQbEl7hl8Xsh3vPXMZsDjXkgxv",
+    subfolders: [],
+    count: 92,
+  },
+  {
+    code: "EXCISE",
+    collection: "Excise_Department",
+    short_name: "Excise",
+    folder_name: "Excise - Excise Department",
+    label_th: "กรมสรรพสามิต (Excise) — พ.ร.บ. ภาษีสรรพสามิต พิกัดอัตราภาษี มาตรการ EV และแบตเตอรี่",
+    label_en: "Excise — Excise Department (Excise Tax Act, Tariff Schedules & EV/Battery Measures)",
+    drive_folder_id: "1r9buiqHavK-pOVDw3lnjuX-y5Gex_YAA",
+    drive_folder_url: "https://drive.google.com/drive/folders/1r9buiqHavK-pOVDw3lnjuX-y5Gex_YAA",
+    subfolders: [],
+    count: 125,
+  },
+  {
+    code: "DFT",
+    collection: "DFT_Foreign_Trade",
+    short_name: "DFT",
+    folder_name: "DFT - Department of Foreign Trade",
+    label_th: "กรมการค้าต่างประเทศ (DFT) — การส่งออก-นำเข้า ถิ่นกำเนิดสินค้า FTA และการตอบโต้การทุ่มตลาด (AD/CVD)",
+    label_en: "DFT — Department of Foreign Trade (Export-Import Controls, Rules of Origin, FTA & AD/CVD)",
+    drive_folder_id: "1XCcLJfgz1WLwfuGkGfju3ojvqAxWTUzL",
+    drive_folder_url: "https://drive.google.com/drive/folders/1XCcLJfgz1WLwfuGkGfju3ojvqAxWTUzL",
+    subfolders: [],
+    count: 178,
+  },
+  {
+    code: "DIP",
+    collection: "DIP_Intellectual_Property",
+    short_name: "DIP",
+    folder_name: "DIP - Department of Intellectual Property",
+    label_th: "กรมทรัพย์สินทางปัญญา (DIP) — สิทธิบัตร เครื่องหมายการค้า ลิขสิทธิ์ ความลับทางการค้า และ GI",
+    label_en: "DIP — Department of Intellectual Property (Patents, Trademarks, Copyright, Trade Secrets & GI)",
+    drive_folder_id: "16mP-VcR_RZl41JSyPb5O8nYk-1Uzr5wt",
+    drive_folder_url: "https://drive.google.com/drive/folders/16mP-VcR_RZl41JSyPb5O8nYk-1Uzr5wt",
+    subfolders: [],
+    count: 280,
+  },
+  {
+    code: "DITP",
+    collection: "DITP_Trade_Promotion",
+    short_name: "DITP",
+    folder_name: "DITP - Department of International Trade Promotion",
+    label_th: "กรมส่งเสริมการค้าระหว่างประเทศ (DITP) — SMEs Pro-active, Thailand Trust Mark และระเบียบอุดหนุนการค้า",
+    label_en: "DITP — Department of International Trade Promotion (SME Pro-active & Export Promotion Rules)",
+    drive_folder_id: "1J3v1MBMRJo6QTBnsv6-8TJYL2cR8Cn4U",
+    drive_folder_url: "https://drive.google.com/drive/folders/1J3v1MBMRJo6QTBnsv6-8TJYL2cR8Cn4U",
+    subfolders: [],
+    count: 21,
+  },
+  {
+    code: "TCCT",
+    collection: "TCCT_Trade_Competition",
+    short_name: "TCCT",
+    folder_name: "TCCT - Trade Competition Commission of Thailand",
+    label_th: "สำนักงานคณะกรรมการการแข่งขันทางการค้า (กขค. / TCCT) — ควบรวมธุรกิจ อำนาจเหนือตลาด Credit Term และคำวินิจฉัย",
+    label_en: "TCCT — Trade Competition Commission of Thailand (Merger Control, Dominance, Credit Terms & Rulings)",
+    drive_folder_id: "1qlvpJ75tLWBgBSR5Roo6_fI14w8n2MuP",
+    drive_folder_url: "https://drive.google.com/drive/folders/1qlvpJ75tLWBgBSR5Roo6_fI14w8n2MuP",
+    subfolders: [],
+    count: 424,
+  },
+  {
+    code: "BOT",
+    collection: "BOT_Bank_of_Thailand",
+    short_name: "BOT",
+    folder_name: "BOT - Bank of Thailand",
+    label_th: "ธนาคารแห่งประเทศไทย (ธปท. / BOT) — ควบคุมการแลกเปลี่ยนเงิน สถาบันการเงิน และระบบการชำระเงิน",
+    label_en: "BOT — Bank of Thailand (Exchange Control, Financial Institutions & Payment Systems)",
+    drive_folder_id: "1ogA-OJLKZZP4BQDGxzrZ2f_JDwwwNNQF",
+    drive_folder_url: "https://drive.google.com/drive/folders/1ogA-OJLKZZP4BQDGxzrZ2f_JDwwwNNQF",
+    subfolders: [],
+    count: 69,
+  },
+  {
+    code: "AMLO",
+    collection: "AMLO_Anti_Money_Laundering",
+    short_name: "AMLO",
+    folder_name: "AMLO - Anti-Money Laundering Office",
+    label_th: "สำนักงานป้องกันและปราบปรามการฟอกเงิน (ปปง. / AMLO) — กฎหมายฟอกเงิน KYC/CDD และรายงานธุรกรรม",
+    label_en: "AMLO — Anti-Money Laundering Office (AML/CFT Act, KYC/CDD & Transaction Reporting)",
+    drive_folder_id: "1v0A2tcjqs_xPnaff2FDy3hQQfbA01P3v",
+    drive_folder_url: "https://drive.google.com/drive/folders/1v0A2tcjqs_xPnaff2FDy3hQQfbA01P3v",
+    subfolders: [],
+    count: 143,
+  },
+  {
+    code: "HEALTH",
+    collection: "Health_Public_Health_FDA",
+    short_name: "Health",
+    folder_name: "Health",
+    label_th: "กฎหมายสาธารณสุข (Health) — พ.ร.บ. สถานพยาบาล โฆษณาอาหาร/ยา (อย.) แพทยสภา และ สปสช.",
+    label_en: "Health — Healthcare Acts, Hospitals & Clinics, FDA Advertising, Medical Council & NHSO",
+    drive_folder_id: "1yCcf--L1g11uRCqagTCjwdhdnh_C-piv",
+    drive_folder_url: "https://drive.google.com/drive/folders/1yCcf--L1g11uRCqagTCjwdhdnh_C-piv",
+    subfolders: [
+      "Acts",
+      "Hospitals & Clinics",
+      "Advertising - Facilities",
+      "Advertising - FDA products",
+      "Medical Council",
+      "NHSO",
+      "Consumer Protection",
+    ],
+    count: 65,
+  },
+  {
+    code: "DEKA",
+    collection: "Deka_Supreme_Court_Database",
+    short_name: "Deka Database",
+    folder_name: "Deka Database",
+    label_th: "ฐานข้อมูลคำพิพากษาศาลฎีกาและศาลชำนัญพิเศษ (Deka Database) — ฎีกาภาษีอากร พาณิชย์ ปกครอง และรัฐธรรมนูญ",
+    label_en: "Deka Database — Supreme Court, Administrative, Tax, Specialized Appeal & Constitutional Courts",
+    drive_folder_id: "1BpwNu1FmibYUDLtQ6PnEnt6OeogXAvDc",
+    drive_folder_url: "https://drive.google.com/drive/folders/1BpwNu1FmibYUDLtQ6PnEnt6OeogXAvDc",
+    subfolders: [
+      "01_Supreme_Court_Deka",
+      "02_Administrative_Court",
+      "03_Tax_Court",
+      "04_Specialized_Appeal_Court",
+      "05_Constitutional_Court",
+    ],
+    count: 38,
+  },
+];
+
 export const RESOURCE_MASTER_COLLECTIONS: Record<
   ResourceMasterCollectionId,
   {
@@ -57,10 +331,164 @@ export const RESOURCE_MASTER_COLLECTIONS: Record<
     label_th: string;
     label_en: string;
     drive_source: string;
+    drive_url?: string;
     count: number;
     badge_color: string;
   }
 > = {
+  DBD_Business_Development: {
+    id: "DBD_Business_Development",
+    label_th: "DBD — กรมพัฒนาธุรกิจการค้า (113 ฉบับ)",
+    label_en: "DBD — Department of Business Development (113 Files)",
+    drive_source: "Legal Database Resource Master / DBD (1rzEBsNIfbHoB37J2Nt05E60EDEZaVkgM)",
+    drive_url: "https://drive.google.com/drive/folders/1rzEBsNIfbHoB37J2Nt05E60EDEZaVkgM",
+    count: 113,
+    badge_color: "emerald",
+  },
+  SET_Stock_Exchange: {
+    id: "SET_Stock_Exchange",
+    label_th: "SET — ตลาดหลักทรัพย์แห่งประเทศไทย (41 ฉบับ)",
+    label_en: "SET — Stock Exchange of Thailand (41 Files: Regulations, Notifications, Guidelines)",
+    drive_source: "Legal Database Resource Master / SET (1gQhTyb9Sa3vRoCl7ybyW3pilfnT6jjH_)",
+    drive_url: "https://drive.google.com/drive/folders/1gQhTyb9Sa3vRoCl7ybyW3pilfnT6jjH_",
+    count: 41,
+    badge_color: "cyan",
+  },
+  SEC_Securities_Exchange: {
+    id: "SEC_Securities_Exchange",
+    label_th: "SEC — สำนักงาน ก.ล.ต. (18 ฉบับ)",
+    label_en: "SEC — Securities and Exchange Commission Thailand (18 Files)",
+    drive_source: "Legal Database Resource Master / SEC (14GpOTTS7h8Fx9SyEOn8TYOTwNYhXbvJB)",
+    drive_url: "https://drive.google.com/drive/folders/14GpOTTS7h8Fx9SyEOn8TYOTwNYhXbvJB",
+    count: 18,
+    badge_color: "indigo",
+  },
+  RD_Revenue_Department: {
+    id: "RD_Revenue_Department",
+    label_th: "RD — กรมสรรพากร: CIT, PIT, VAT, WHT, Pillar Two, Transfer Pricing (81 ฉบับ)",
+    label_en: "RD — Revenue Department: CIT, PIT, VAT, WHT, Pillar Two, Transfer Pricing (81 Files)",
+    drive_source: "Legal Database Resource Master / RD (1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6)",
+    drive_url: "https://drive.google.com/drive/folders/1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6",
+    count: 81,
+    badge_color: "amber",
+  },
+  BOI_Board_of_Investment: {
+    id: "BOI_Board_of_Investment",
+    label_th: "BOI — สำนักงานคณะกรรมการส่งเสริมการลงทุน (124 ฉบับ)",
+    label_en: "BOI — Board of Investment (124 Files)",
+    drive_source: "Legal Database Resource Master / BOI (1O_y2gYVNmj4D9jB4ZI4aHc9a4XQeFlq5)",
+    drive_url: "https://drive.google.com/drive/folders/1O_y2gYVNmj4D9jB4ZI4aHc9a4XQeFlq5",
+    count: 124,
+    badge_color: "violet",
+  },
+  ERC_Energy_Commission: {
+    id: "ERC_Energy_Commission",
+    label_th: "ERC — สำนักงานคณะกรรมการกำกับกิจการพลังงาน กกพ. (92 ฉบับ)",
+    label_en: "ERC — Energy Regulatory Commission (92 Files)",
+    drive_source: "Legal Database Resource Master / ERC (1DCCntM2MmZ3d8l8PB_cjMkiMZAv7GDAT)",
+    drive_url: "https://drive.google.com/drive/folders/1DCCntM2MmZ3d8l8PB_cjMkiMZAv7GDAT",
+    count: 92,
+    badge_color: "teal",
+  },
+  DMF_Mineral_Fuels: {
+    id: "DMF_Mineral_Fuels",
+    label_th: "DMF — กรมเชื้อเพลิงธรรมชาติ (130 ฉบับ)",
+    label_en: "DMF — Department of Mineral Fuels (130 Files)",
+    drive_source: "Legal Database Resource Master / DMF (1jCDwAEoCWs7UspUJ99h4IHedRWX6s0y-)",
+    drive_url: "https://drive.google.com/drive/folders/1jCDwAEoCWs7UspUJ99h4IHedRWX6s0y-",
+    count: 130,
+    badge_color: "amber",
+  },
+  Customs_Department: {
+    id: "Customs_Department",
+    label_th: "Customs — กรมศุลกากร (92 ฉบับ)",
+    label_en: "Customs — Customs Department (92 Files)",
+    drive_source: "Legal Database Resource Master / Customs (1BaWRZgpQbEl7hl8Xsh3vPXMZsDjXkgxv)",
+    drive_url: "https://drive.google.com/drive/folders/1BaWRZgpQbEl7hl8Xsh3vPXMZsDjXkgxv",
+    count: 92,
+    badge_color: "cyan",
+  },
+  Excise_Department: {
+    id: "Excise_Department",
+    label_th: "Excise — กรมสรรพสามิต (125 ฉบับ)",
+    label_en: "Excise — Excise Department (125 Files)",
+    drive_source: "Legal Database Resource Master / Excise (1r9buiqHavK-pOVDw3lnjuX-y5Gex_YAA)",
+    drive_url: "https://drive.google.com/drive/folders/1r9buiqHavK-pOVDw3lnjuX-y5Gex_YAA",
+    count: 125,
+    badge_color: "emerald",
+  },
+  DFT_Foreign_Trade: {
+    id: "DFT_Foreign_Trade",
+    label_th: "DFT — กรมการค้าต่างประเทศ (178 ฉบับ)",
+    label_en: "DFT — Department of Foreign Trade (178 Files)",
+    drive_source: "Legal Database Resource Master / DFT (1XCcLJfgz1WLwfuGkGfju3ojvqAxWTUzL)",
+    drive_url: "https://drive.google.com/drive/folders/1XCcLJfgz1WLwfuGkGfju3ojvqAxWTUzL",
+    count: 178,
+    badge_color: "indigo",
+  },
+  DIP_Intellectual_Property: {
+    id: "DIP_Intellectual_Property",
+    label_th: "DIP — กรมทรัพย์สินทางปัญญา (280 ฉบับ)",
+    label_en: "DIP — Department of Intellectual Property (280 Files)",
+    drive_source: "Legal Database Resource Master / DIP (16mP-VcR_RZl41JSyPb5O8nYk-1Uzr5wt)",
+    drive_url: "https://drive.google.com/drive/folders/16mP-VcR_RZl41JSyPb5O8nYk-1Uzr5wt",
+    count: 280,
+    badge_color: "violet",
+  },
+  DITP_Trade_Promotion: {
+    id: "DITP_Trade_Promotion",
+    label_th: "DITP — กรมส่งเสริมการค้าระหว่างประเทศ (21 ฉบับ)",
+    label_en: "DITP — Department of International Trade Promotion (21 Files)",
+    drive_source: "Legal Database Resource Master / DITP (1J3v1MBMRJo6QTBnsv6-8TJYL2cR8Cn4U)",
+    drive_url: "https://drive.google.com/drive/folders/1J3v1MBMRJo6QTBnsv6-8TJYL2cR8Cn4U",
+    count: 21,
+    badge_color: "teal",
+  },
+  TCCT_Trade_Competition: {
+    id: "TCCT_Trade_Competition",
+    label_th: "TCCT — สำนักงานคณะกรรมการการแข่งขันทางการค้า กขค. (424 ฉบับ)",
+    label_en: "TCCT — Trade Competition Commission of Thailand (424 Files)",
+    drive_source: "Legal Database Resource Master / TCCT (1qlvpJ75tLWBgBSR5Roo6_fI14w8n2MuP)",
+    drive_url: "https://drive.google.com/drive/folders/1qlvpJ75tLWBgBSR5Roo6_fI14w8n2MuP",
+    count: 424,
+    badge_color: "amber",
+  },
+  BOT_Bank_of_Thailand: {
+    id: "BOT_Bank_of_Thailand",
+    label_th: "BOT — ธนาคารแห่งประเทศไทย ธปท. (69 ฉบับ)",
+    label_en: "BOT — Bank of Thailand (69 Files)",
+    drive_source: "Legal Database Resource Master / BOT (1ogA-OJLKZZP4BQDGxzrZ2f_JDwwwNNQF)",
+    drive_url: "https://drive.google.com/drive/folders/1ogA-OJLKZZP4BQDGxzrZ2f_JDwwwNNQF",
+    count: 69,
+    badge_color: "cyan",
+  },
+  AMLO_Anti_Money_Laundering: {
+    id: "AMLO_Anti_Money_Laundering",
+    label_th: "AMLO — สำนักงานป้องกันและปราบปรามการฟอกเงิน ปปง. (143 ฉบับ)",
+    label_en: "AMLO — Anti-Money Laundering Office (143 Files)",
+    drive_source: "Legal Database Resource Master / AMLO (1v0A2tcjqs_xPnaff2FDy3hQQfbA01P3v)",
+    drive_url: "https://drive.google.com/drive/folders/1v0A2tcjqs_xPnaff2FDy3hQQfbA01P3v",
+    count: 143,
+    badge_color: "emerald",
+  },
+  Health_Public_Health_FDA: {
+    id: "Health_Public_Health_FDA",
+    label_th: "Health — กฎหมายสาธารณสุข อย. สถานพยาบาล แพทยสภา และ สปสช. (65 ฉบับ)",
+    label_en: "Health — Public Health, Hospitals, FDA Advertising, Medical Council & NHSO (65 Files)",
+    drive_source: "Legal Database Resource Master / Health (1yCcf--L1g11uRCqagTCjwdhdnh_C-piv)",
+    drive_url: "https://drive.google.com/drive/folders/1yCcf--L1g11uRCqagTCjwdhdnh_C-piv",
+    count: 65,
+    badge_color: "teal",
+  },
+  Deka_Supreme_Court_Database: {
+    id: "Deka_Supreme_Court_Database",
+    label_th: "Deka Database — คำพิพากษาศาลฎีกาและศาลชำนัญพิเศษ (38 ฉบับ)",
+    label_en: "Deka Database — Supreme Court, Tax, Administrative & Constitutional Rulings (38 Files)",
+    drive_source: "Legal Database Resource Master / Deka Database (1BpwNu1FmibYUDLtQ6PnEnt6OeogXAvDc)",
+    drive_url: "https://drive.google.com/drive/folders/1BpwNu1FmibYUDLtQ6PnEnt6OeogXAvDc",
+    count: 38,
+    badge_color: "indigo",
+  },
   Google_Drive_Regulations: {
     id: "Google_Drive_Regulations",
     label_th: "Google Drive — โฟลเดอร์ Regulations, ERC, ก.ล.ต. ICO, กสทช. GSaaS & AI Law Lab",
@@ -114,6 +542,7 @@ export const RESOURCE_MASTER_COLLECTIONS: Record<
 export function searchLegalResourceMaster(options?: {
   query?: string;
   collection?: ResourceMasterCollectionId | "ALL";
+  authority_code?: string;
   regulator?: string;
   year_be?: number;
   limit?: number;
@@ -121,6 +550,8 @@ export function searchLegalResourceMaster(options?: {
 }): {
   total_corpus_count: number;
   matched_count: number;
+  master_drive_folder_url: string;
+  authority_folders: MasterAuthorityFolderMeta[];
   collections: typeof RESOURCE_MASTER_COLLECTIONS;
   collection_breakdown: Record<string, number>;
   results: LegalResourceMasterRecord[];
@@ -130,10 +561,12 @@ export function searchLegalResourceMaster(options?: {
     .split(/\s+/)
     .map((t) => t.trim())
     .filter((t) => t.length > 0);
-  const collectionFilter = options?.collection && options.collection !== "ALL" ? options.collection : undefined;
+  const collectionFilter =
+    options?.collection && options.collection !== "ALL" ? options.collection : undefined;
+  const authorityCodeFilter = (options?.authority_code || "").trim().toUpperCase();
   const regulatorFilter = (options?.regulator || "").trim().toLowerCase();
   const yearFilter = options?.year_be;
-  const limit = Math.min(Math.max(options?.limit ?? 50, 1), 300);
+  const limit = Math.min(Math.max(options?.limit ?? 50, 1), 500);
   const offset = Math.max(options?.offset ?? 0, 0);
 
   const collectionBreakdown: Record<string, number> = {};
@@ -143,6 +576,13 @@ export function searchLegalResourceMaster(options?: {
 
   let filtered = LEGAL_RESOURCE_MASTER_CORPUS.filter((item) => {
     if (collectionFilter && item.collection !== collectionFilter) {
+      return false;
+    }
+    if (
+      authorityCodeFilter &&
+      authorityCodeFilter !== "ALL" &&
+      (item.authority_code || "").toUpperCase() !== authorityCodeFilter
+    ) {
       return false;
     }
     if (regulatorFilter && !item.regulator.toLowerCase().includes(regulatorFilter)) {
@@ -160,6 +600,7 @@ export function searchLegalResourceMaster(options?: {
         const haystack = [
           item.id,
           item.code,
+          item.authority_code || "",
           item.title_th,
           item.title_en,
           item.regulator,
@@ -175,7 +616,11 @@ export function searchLegalResourceMaster(options?: {
 
         let score = 0;
         for (const term of terms) {
-          if (item.code.toLowerCase().includes(term) || item.id.toLowerCase().includes(term)) {
+          if (
+            item.code.toLowerCase().includes(term) ||
+            item.id.toLowerCase().includes(term) ||
+            (item.authority_code || "").toLowerCase() === term
+          ) {
             score += 12;
           }
           if (item.title_th.toLowerCase().includes(term) || item.title_en.toLowerCase().includes(term)) {
@@ -199,6 +644,8 @@ export function searchLegalResourceMaster(options?: {
   return {
     total_corpus_count: LEGAL_RESOURCE_MASTER_CORPUS.length,
     matched_count: filtered.length,
+    master_drive_folder_url: MASTER_DRIVE_FOLDER_URL,
+    authority_folders: MASTER_AUTHORITY_FOLDERS,
     collections: RESOURCE_MASTER_COLLECTIONS,
     collection_breakdown: collectionBreakdown,
     results: filtered.slice(offset, offset + limit),

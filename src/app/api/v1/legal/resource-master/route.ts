@@ -3,6 +3,8 @@ import {
   searchLegalResourceMaster,
   getLegalResourceMasterById,
   RESOURCE_MASTER_COLLECTIONS,
+  MASTER_AUTHORITY_FOLDERS,
+  MASTER_DRIVE_FOLDER_URL,
   type ResourceMasterCollectionId,
 } from "@/core/data/legal-resource-master-loader";
 
@@ -20,7 +22,7 @@ export async function GET(req: NextRequest) {
       }
       return NextResponse.json({
         status: "ok",
-        source: "REG24 Google Drive & Legal Database Resource Master",
+        source: "REG24 Google Drive — Legal Database Resource Master",
         record,
       });
     }
@@ -29,6 +31,8 @@ export async function GET(req: NextRequest) {
     const collection = (searchParams.get("collection") || "ALL") as
       | ResourceMasterCollectionId
       | "ALL";
+    const authorityCode =
+      searchParams.get("authority") || searchParams.get("authority_code") || "";
     const regulator = searchParams.get("regulator") || "";
     const yearBeParam = searchParams.get("year_be");
     const limitParam = searchParams.get("limit");
@@ -37,6 +41,7 @@ export async function GET(req: NextRequest) {
     const response = searchLegalResourceMaster({
       query,
       collection,
+      authority_code: authorityCode,
       regulator,
       year_be: yearBeParam ? parseInt(yearBeParam, 10) : undefined,
       limit: limitParam ? parseInt(limitParam, 10) : 60,
@@ -45,18 +50,21 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       status: "ok",
-      source: "REG24 Google Drive & Legal Database Resource Master (DriveFS 105088240612977611801 + Master Legal Folders)",
+      source:
+        "REG24 Google Drive — Legal Database Resource Master (1Q81SV8sXWFrt9ASLf8uBsezFMd1d1Ltm — All 17 Authority Folders)",
       drive_sync_metadata: {
         google_drive_account_id: "105088240612977611801",
-        indexed_folders: [
-          "Google Drive / My Drive / Company_Blackhorse Asia / Jinko _ COOP / Regulations / ERC Informations (stable_id: 4615 / 4695)",
-          "Google Drive / My Drive / Company_Blackhorse Asia / Blackhorse Silk Legal / Additional ICO Portal / IT Systems & Regulations (stable_id: 5773)",
-          "Google Drive / My Drive / Company_7L Advisory / Resources & PDPA (stable_id: 246 / 269 / 408)",
-          "Google Drive / My Drive / SAT24 & AI Law Lab (stable_id: 2519 / 2561 / 2719)",
-          "OneDrive & Downloads / Pillar2 Regs (prk2567.docx, moftopuptax1.docx, dgtopuptax1–8.docx)",
-          "OneDrive / Legal Docs Database (57 Core Thai Law & Supreme Court Compendiums + PPP Law & Rulings)",
-          "Downloads / Master_Contract_Taxonomy_Thailand_500.xlsx & ESG24_Source_Register.xlsx",
-        ],
+        master_drive_folder_id: "1Q81SV8sXWFrt9ASLf8uBsezFMd1d1Ltm",
+        master_drive_folder_url: MASTER_DRIVE_FOLDER_URL,
+        authority_folders_count: MASTER_AUTHORITY_FOLDERS.length,
+        authority_folders: MASTER_AUTHORITY_FOLDERS.map((af) => ({
+          code: af.code,
+          folder_name: af.folder_name,
+          drive_folder_id: af.drive_folder_id,
+          drive_folder_url: af.drive_folder_url,
+          subfolders: af.subfolders,
+          file_count: af.count,
+        })),
         total_regulations_incorporated: response.total_corpus_count,
       },
       ...response,
@@ -75,10 +83,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { query, collection, regulator, year_be, limit, offset } = body || {};
+    const { query, collection, authority_code, authority, regulator, year_be, limit, offset } =
+      body || {};
     const response = searchLegalResourceMaster({
       query,
       collection: collection || "ALL",
+      authority_code: authority_code || authority || "",
       regulator,
       year_be,
       limit: limit ?? 60,
