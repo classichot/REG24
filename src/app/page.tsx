@@ -1279,11 +1279,27 @@ export default function Reg24MetroConsole() {
     }
   }, []);
 
+  const [pwaInstallEvent, setPwaInstallEvent] = useState<
+    (Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }) | null
+  >(null);
+
   useEffect(() => {
     fetchSnapshot();
     fetchNeo4jHealth();
     fetchModel24Snapshot();
     fetchThaiTaxRulings("", "ALL");
+
+    if (typeof window !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+    const handleBeforeInstallPrompt = (e: Event) => {
+      e.preventDefault();
+      setPwaInstallEvent(
+        e as Event & { prompt: () => Promise<void>; userChoice: Promise<{ outcome: string }> }
+      );
+    };
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    return () => window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
   }, [fetchSnapshot, fetchNeo4jHealth, fetchModel24Snapshot, fetchThaiTaxRulings]);
 
   // Windows Phone Live Tile counter flip animation every 4s
@@ -1563,31 +1579,32 @@ export default function Reg24MetroConsole() {
           the Account / Console Switcher.
           ======================================================================= */}
       <header
-        className={`sticky top-0 z-50 border-b transition-colors ${
+        className={`sticky top-0 z-50 border-b transition-colors pt-safe ${
           isLightMinimal
             ? "bg-white/95 border-[#e2e8f0] backdrop-blur"
-            : "bg-[#0c111d] border-[#1e293b]"
+            : "bg-[#0c111d]/95 border-[#1e293b] backdrop-blur"
         }`}
       >
-        <div className="max-w-[1120px] mx-auto px-4 md:px-6 h-14 flex items-center justify-between gap-4">
+        <div className="max-w-[1120px] mx-auto px-3.5 sm:px-4 md:px-6 h-14 flex items-center justify-between gap-2 sm:gap-4">
           {/* Left Brand Lockup: REG24 */}
           <button
             onClick={() => {
               setUxExperience("research");
               setUxResearchDestination("research");
               setUxHasSubmittedResearch(false);
+              setActiveWebTurn(null);
               setUxEvidenceDrawerOpen(false);
               setVibeMode("minimal");
               setActiveScreen("PANORAMA");
             }}
-            className="flex items-center gap-2.5 text-left cursor-pointer group"
+            className="flex items-center gap-2 text-left cursor-pointer group shrink-0"
           >
             <span className="w-7 h-7 rounded-lg bg-[#0f2c59] border border-[#f5b700] text-[#f5b700] font-bold text-xs flex items-center justify-center tracking-tight">
               24
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 sm:gap-2">
               <span
-                className={`text-[18px] font-extrabold tracking-[-0.035em] leading-[1.15] transition-colors ${
+                className={`text-[17px] sm:text-[18px] font-extrabold tracking-[-0.035em] leading-[1.15] transition-colors ${
                   isLightMinimal ? "text-[#0f172a]" : "text-white"
                 }`}
               >
@@ -1595,7 +1612,7 @@ export default function Reg24MetroConsole() {
               </span>
               <span
                 title="Google Gemini & Model24 Multi-LLM Engine Connected"
-                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border ${
+                className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold tracking-wider uppercase border ${
                   isLightMinimal
                     ? "bg-emerald-50 border-emerald-200 text-emerald-700"
                     : "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
@@ -1605,7 +1622,7 @@ export default function Reg24MetroConsole() {
                 <span>AI Ready</span>
               </span>
               <span
-                className={`hidden md:inline text-[12px] font-medium ${
+                className={`hidden lg:inline text-[12px] font-medium ${
                   isLightMinimal ? "text-slate-500" : "text-slate-400"
                 }`}
               >
@@ -1620,11 +1637,11 @@ export default function Reg24MetroConsole() {
             </div>
           </button>
 
-          {/* Center: Only Three Top-Level Destinations for Normal Users (Section 5) */}
+          {/* Center (Desktop & Tablet md+): Three Top-Level Destinations for Normal Users (Section 5) */}
           {uxExperience === "research" && activeScreen === "PANORAMA" && vibeMode === "minimal" ? (
             <nav
               aria-label="REG24 Research Primary Navigation"
-              className={`flex items-center gap-1 p-1 rounded-xl border ${
+              className={`hidden md:flex items-center gap-1 p-1 rounded-xl border ${
                 isLightMinimal
                   ? "bg-[#f8fafc] border-[#e2e8f0]"
                   : "bg-[#121a2b] border-[#24324b]"
@@ -1676,7 +1693,7 @@ export default function Reg24MetroConsole() {
               })}
             </nav>
           ) : (
-            <div className="flex items-center gap-2 text-[13px] font-semibold">
+            <div className="flex items-center gap-2 text-[12px] sm:text-[13px] font-semibold">
               <button
                 onClick={() => {
                   setUxExperience("research");
@@ -1684,15 +1701,27 @@ export default function Reg24MetroConsole() {
                   setVibeMode("minimal");
                   setActiveScreen("PANORAMA");
                 }}
-                className="px-3 py-1.5 rounded-lg bg-[#0f2c59] border border-[#f5b700]/70 text-[#f5b700] font-semibold cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#0f2c59] border border-[#f5b700]/70 text-[#f5b700] font-semibold cursor-pointer"
               >
-                &larr; Return to 01. REG24 Research
+                &larr; <span className="hidden sm:inline">Return to </span>01. Research
               </button>
             </div>
           )}
 
-          {/* Right Controls: TH / EN toggle (UX-06), Theme toggle (Section 7), and Account / Console Switcher (Sections 1 & 5) */}
-          <div className="flex items-center gap-2 text-[12px] relative">
+          {/* Right Controls: PWA Install, TH / EN toggle (UX-06), Theme toggle (Section 7), and Account / Console Switcher */}
+          <div className="flex items-center gap-1.5 sm:gap-2 text-[12px] relative shrink-0">
+            {pwaInstallEvent && (
+              <button
+                onClick={async () => {
+                  await pwaInstallEvent.prompt();
+                  setPwaInstallEvent(null);
+                }}
+                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#0f2c59] text-[#f5b700] border border-[#f5b700]/60 cursor-pointer"
+              >
+                <span>Install App</span>
+              </button>
+            )}
+
             {/* Language Toggle: TH / EN (UX-06) */}
             <div
               className={`p-0.5 rounded-lg border flex items-center ${
@@ -1706,7 +1735,7 @@ export default function Reg24MetroConsole() {
                   setLanguageMode("th");
                   setWebResponseLang("th");
                 }}
-                className={`px-2 py-1 rounded-md text-[12px] font-semibold cursor-pointer transition-colors ${
+                className={`px-2 py-1 rounded-md text-[11px] sm:text-[12px] font-semibold cursor-pointer transition-colors ${
                   languageMode === "th"
                     ? isLightMinimal
                       ? "bg-[#0f2c59] text-white"
@@ -1723,7 +1752,7 @@ export default function Reg24MetroConsole() {
                   setLanguageMode("en");
                   setWebResponseLang("en");
                 }}
-                className={`px-2 py-1 rounded-md text-[12px] font-semibold cursor-pointer transition-colors ${
+                className={`px-2 py-1 rounded-md text-[11px] sm:text-[12px] font-semibold cursor-pointer transition-colors ${
                   languageMode === "en"
                     ? isLightMinimal
                       ? "bg-[#0f2c59] text-white"
@@ -1754,7 +1783,7 @@ export default function Reg24MetroConsole() {
             <div className="relative">
               <button
                 onClick={() => setUxConsoleMenuOpen((prev) => !prev)}
-                className={`px-3 py-1.5 rounded-lg border text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-[12px] sm:text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
                   isLightMinimal
                     ? "bg-white border-[#e2e8f0] text-[#0f172a] hover:bg-slate-50"
                     : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
@@ -1773,7 +1802,7 @@ export default function Reg24MetroConsole() {
 
               {uxConsoleMenuOpen && (
                 <div
-                  className={`absolute right-0 mt-2 w-80 rounded-xl border shadow-xl p-2 z-50 space-y-1 text-left ${
+                  className={`absolute right-0 mt-2 w-80 max-w-[92vw] rounded-xl border shadow-xl p-2 z-50 space-y-1 text-left ${
                     isLightMinimal
                       ? "bg-white border-[#e2e8f0] text-[#0f172a]"
                       : "bg-[#0f172a] border-[#24324b] text-slate-100"
@@ -1873,6 +1902,65 @@ export default function Reg24MetroConsole() {
             </div>
           </div>
         </div>
+
+        {/* Phone & Small Tablet Segmented Bar (< md) */}
+        {uxExperience === "research" && activeScreen === "PANORAMA" && vibeMode === "minimal" && (
+          <div className="md:hidden px-3.5 pb-2.5">
+            <nav
+              aria-label="REG24 Mobile Research Navigation"
+              className={`grid grid-cols-3 gap-1 p-1 rounded-xl border ${
+                isLightMinimal
+                  ? "bg-[#f8fafc] border-[#e2e8f0]"
+                  : "bg-[#121a2b] border-[#24324b]"
+              }`}
+            >
+              {(
+                [
+                  {
+                    id: "research" as const,
+                    labelEn: "Research",
+                    labelTh: "ค้นคว้า",
+                  },
+                  {
+                    id: "workspace" as const,
+                    labelEn: "Workspace",
+                    labelTh: "พื้นที่ทำงาน",
+                  },
+                  {
+                    id: "library" as const,
+                    labelEn: "Databases",
+                    labelTh: "ฐานข้อมูล (3,643)",
+                  },
+                ]
+              ).map((dest) => {
+                const active = uxResearchDestination === dest.id;
+                return (
+                  <button
+                    key={dest.id}
+                    onClick={() => {
+                      if (dest.id === "research" && uxResearchDestination === "research") {
+                        setUxHasSubmittedResearch(false);
+                        setActiveWebTurn(null);
+                      }
+                      setUxResearchDestination(dest.id);
+                    }}
+                    className={`py-2 px-2 rounded-lg text-[12px] font-semibold text-center truncate transition-all cursor-pointer ${
+                      active
+                        ? isLightMinimal
+                          ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
+                          : "bg-[#f5b700] text-[#0a192f] font-bold"
+                        : isLightMinimal
+                        ? "text-slate-600"
+                        : "text-slate-300"
+                    }`}
+                  >
+                    {languageMode === "th" ? dest.labelTh : dest.labelEn}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        )}
       </header>
 
       {/* TOAST BANNER */}
@@ -2833,28 +2921,35 @@ export default function Reg24MetroConsole() {
                             )}
                           </div>
 
-                          {/* LEVEL 3 — EVIDENCE DRAWER (Contextual Source Inspector — UX-05, UX-11, UX-13, Section 9) */}
+                          {/* LEVEL 3 — EVIDENCE DRAWER (Contextual Source Inspector — Mobile Bottom Sheet + Desktop Sticky Panel) */}
                           {uxEvidenceDrawerOpen && activeCitation && (
-                            <aside
-                              aria-label="Level 3 Source Evidence Inspector"
-                              className={`lg:col-span-5 rounded-2xl p-6 space-y-5 sticky top-20 ${surfaceCard}`}
-                            >
-                              <div className="flex items-start justify-between gap-2 border-b pb-4 border-slate-200/80 dark:border-slate-800">
-                                <div>
-                                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
-                                    LEVEL 3 &bull; SOURCE &amp; EVIDENCE INSPECTOR (UX-05)
-                                  </span>
-                                  <h3 className="text-[20px] font-bold tracking-[-0.035em] leading-[1.15] mt-1">
-                                    {languageMode === "th" ? activeCitation.title_th : activeCitation.title_en}
-                                  </h3>
+                            <>
+                              <div
+                                onClick={() => setUxEvidenceDrawerOpen(false)}
+                                className="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 lg:hidden"
+                                aria-hidden="true"
+                              />
+                              <aside
+                                aria-label="Level 3 Source Evidence Inspector"
+                                className={`fixed inset-x-0 bottom-0 z-50 max-h-[85vh] overflow-y-auto rounded-t-3xl lg:rounded-2xl lg:static lg:max-h-none lg:z-auto lg:col-span-5 p-5 sm:p-6 space-y-5 lg:sticky lg:top-20 shadow-2xl lg:shadow-none pb-safe ${surfaceCard}`}
+                              >
+                                <div className="w-10 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700 mx-auto mb-1 lg:hidden" />
+                                <div className="flex items-start justify-between gap-2 border-b pb-4 border-slate-200/80 dark:border-slate-800">
+                                  <div>
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                      LEVEL 3 &bull; SOURCE &amp; EVIDENCE INSPECTOR (UX-05)
+                                    </span>
+                                    <h3 className="text-[18px] sm:text-[20px] font-bold tracking-[-0.035em] leading-[1.15] mt-1">
+                                      {languageMode === "th" ? activeCitation.title_th : activeCitation.title_en}
+                                    </h3>
+                                  </div>
+                                  <button
+                                    onClick={() => setUxEvidenceDrawerOpen(false)}
+                                    className={`text-xs px-3 py-1.5 rounded-lg border font-semibold cursor-pointer shrink-0 ${subtleBox}`}
+                                  >
+                                    {languageMode === "th" ? "ปิด" : "Close"}
+                                  </button>
                                 </div>
-                                <button
-                                  onClick={() => setUxEvidenceDrawerOpen(false)}
-                                  className={`text-xs px-2 py-1 rounded-lg border cursor-pointer ${subtleBox}`}
-                                >
-                                  Close
-                                </button>
-                              </div>
 
                               {/* 4 Distinct Verification States (Section 9 Mandatory Requirement) */}
                               <div className={`p-3.5 rounded-xl space-y-2 ${subtleBox}`}>
@@ -2960,22 +3055,23 @@ export default function Reg24MetroConsole() {
                                     ? "Hide related legal graph (UX-13)"
                                     : "+ View connected statutes, rulings & cases (UX-13)"}
                                 </button>
-                                {webShowGraphPanel && (
-                                  <div className="grid grid-cols-2 gap-2 mt-3 text-[11px]">
-                                    {snapshot.caseKnowledgeGraph.nodes.slice(0, 4).map((node) => (
-                                      <div key={node.id} className={`p-2.5 rounded-lg ${subtleBox}`}>
-                                        <div className="text-[9px] font-mono uppercase opacity-70">
-                                          {node.node_type}
+                                  {webShowGraphPanel && (
+                                    <div className="grid grid-cols-2 gap-2 mt-3 text-[11px]">
+                                      {snapshot.caseKnowledgeGraph.nodes.slice(0, 4).map((node) => (
+                                        <div key={node.id} className={`p-2.5 rounded-lg ${subtleBox}`}>
+                                          <div className="text-[9px] font-mono uppercase opacity-70">
+                                            {node.node_type}
+                                          </div>
+                                          <div className="font-semibold truncate mt-0.5">
+                                            {languageMode === "th" ? node.label_th : node.label_en}
+                                          </div>
                                         </div>
-                                        <div className="font-semibold truncate mt-0.5">
-                                          {languageMode === "th" ? node.label_th : node.label_en}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </aside>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </aside>
+                            </>
                           )}
                         </div>
                       </div>
@@ -3857,8 +3953,8 @@ export default function Reg24MetroConsole() {
                           </div>
                         </div>
 
-                        {/* 11 Tax Type Category Filter Pills */}
-                        <div className="flex flex-wrap gap-1.5">
+                        {/* 11 Tax Type Category Filter Pills (Horizontally swipeable on phone, wrapped on tablet/desktop) */}
+                        <div className="flex overflow-x-auto no-scrollbar sm:flex-wrap gap-1.5 pb-1">
                           {[
                             { id: "ALL", labelEn: "All Rulings", labelTh: "ทั้งหมด", count: thaiTaxRulingsData?.total_corpus_size ?? 3643 },
                             { id: "VAT", labelEn: "VAT", labelTh: "ภาษีมูลค่าเพิ่ม", count: thaiTaxRulingsData?.category_breakdown?.VAT ?? 1038 },
@@ -3878,7 +3974,7 @@ export default function Reg24MetroConsole() {
                                   setTaxRulingCategoryFilter(cat.id);
                                   fetchThaiTaxRulings(taxRulingSearchQuery, cat.id);
                                 }}
-                                className={`px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all cursor-pointer border ${
+                                className={`shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all cursor-pointer border ${
                                   isCatActive
                                     ? "bg-[#0f2c59] text-white border-[#0f2c59] dark:bg-[#f5b700] dark:text-[#0a192f] dark:border-[#f5b700]"
                                     : `${subtleBox} border-transparent hover:border-slate-400`
@@ -3897,7 +3993,7 @@ export default function Reg24MetroConsole() {
                             Loading Thai Revenue Department Tax Rulings...
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 max-h-[780px] overflow-y-auto pr-1">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 sm:max-h-[780px] sm:overflow-y-auto pr-0 sm:pr-1">
                             {(thaiTaxRulingsData?.rulings ?? []).map((r, idx) => {
                               const isExpanded = expandedRulingNo === `${r.ruling_no}-${idx}`;
                               return (
@@ -10899,10 +10995,62 @@ export default function Reg24MetroConsole() {
         )}
       </main>
 
+      {/* MOBILE & PWA BOTTOM APP NAVIGATION BAR (Phone One-Thumb Navigation) */}
+      <nav
+        aria-label="Mobile Bottom Navigation"
+        className={`md:hidden fixed bottom-0 inset-x-0 z-40 border-t backdrop-blur-md pb-safe ${
+          isLightMinimal
+            ? "bg-white/95 border-slate-200 text-slate-800"
+            : "bg-[#0a101d]/95 border-[#1e293b] text-slate-200"
+        }`}
+      >
+        <div className="grid grid-cols-3 gap-1 px-2 py-1.5">
+          {[
+            {
+              id: "research" as const,
+              labelTh: "ค้นคว้า",
+              labelEn: "Research",
+            },
+            {
+              id: "workspace" as const,
+              labelTh: "พื้นที่ทำงาน",
+              labelEn: "Workspace",
+            },
+            {
+              id: "library" as const,
+              labelTh: `ฐานข้อมูล (${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()})`,
+              labelEn: `Databases (${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()})`,
+            },
+          ].map((nav) => {
+            const isActive =
+              uxExperience === "research" && uxResearchDestination === nav.id;
+            return (
+              <button
+                key={nav.id}
+                onClick={() => {
+                  setVibeMode("minimal");
+                  setActiveScreen("PANORAMA");
+                  setUxExperience("research");
+                  setUxResearchDestination(nav.id);
+                  window.scrollTo({ top: 0, behavior: "smooth" });
+                }}
+                className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-all cursor-pointer truncate ${
+                  isActive
+                    ? "bg-[#0f2c59] text-white dark:bg-[#f5b700] dark:text-[#0a192f]"
+                    : "opacity-75 hover:opacity-100"
+                }`}
+              >
+                {languageMode === "th" ? nav.labelTh : nav.labelEn}
+              </button>
+            );
+          })}
+        </div>
+      </nav>
+
       {/* METRO FOOTER */}
-      <footer className="border-t border-[#262630] bg-[#0c0c10] px-6 py-4 mt-12 text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-4">
+      <footer className="border-t border-[#262630] bg-[#0c0c10] px-4 sm:px-6 py-4 pb-20 md:pb-4 mt-12 text-[11px] text-zinc-500 flex flex-wrap items-center justify-between gap-4">
         <div>
-          REG24 PRD v2.0 + REG24-WEB-001 STUDIO &bull; 9 CORE DOMAINS (`LEG-*`) &bull; 9 INDUSTRY MODULES (`IND-*`) &bull; 16 THAI MODULES (`reg24.*.th`)
+          REG24 PRD v2.0 + REG24-WEB-001 STUDIO &bull; 9 CORE DOMAINS (`LEG-*`) &bull; 9 INDUSTRY MODULES (`IND-*`) &bull; 16 THAI MODULES (`reg24.*.th`) &bull; PWA READY
         </div>
         <div className="uppercase tracking-wider text-zinc-400">
           CONSUMED BY LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GMT24 &bull; ESG24 &bull; COP24 &bull; TRADE24 &bull; HOTEL24 &bull; DRUG24 &bull; RISK24

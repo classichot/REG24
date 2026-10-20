@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="112" fill="#0f2c59"/>
+  <rect x="24" y="24" width="464" height="464" rx="92" fill="none" stroke="#f5b700" stroke-width="14"/>
+  <text x="256" y="230" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="900" font-size="136" fill="#ffffff" letter-spacing="-6">REG</text>
+  <text x="256" y="388" text-anchor="middle" font-family="Inter, system-ui, sans-serif" font-weight="900" font-size="156" fill="#f5b700" letter-spacing="-4">24</text>
+</svg>

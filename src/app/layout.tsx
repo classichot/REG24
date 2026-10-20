@@ -1,10 +1,34 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#0f2c59" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0e17" },
+  ],
+};
 
 export const metadata: Metadata = {
   title: "REG24 — Corporate & Commercial Legal Intelligence Infrastructure",
   description:
     "Thai corporate, commercial and regulatory intelligence powered by REG24 Core, Temporal Graph RAG, Law-as-Code Rule Engine, and Unified MCP & REST Gateway.",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "REG24",
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
