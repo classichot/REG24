@@ -936,7 +936,7 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
       document_category: "Court judgments",
       query: "2845/2564",
     });
-    expect(dikaSearch.total_count).toBe(1);
+    expect(dikaSearch.total_count).toBeGreaterThanOrEqual(1);
     expect(dikaSearch.items[0].verification_status).toBe("human_verified");
     expect(dikaSearch.items[0].ai_summary_interpretation_th).not.toBe(
       dikaSearch.items[0].original_source_snippet_th

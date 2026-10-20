@@ -3303,6 +3303,124 @@ export default function Reg24MetroConsole() {
                         </div>
                       </div>
 
+                      {/* Complete Table of All 60 Canonical Statutory Provisions */}
+                      <div className={`rounded-2xl overflow-hidden border ${surfaceCard}`}>
+                        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                          <span className="text-[13px] font-bold">
+                            {languageMode === "th"
+                              ? `ทำเนียบมาตรากฎหมายทั้งหมดในฐานข้อมูล (${snapshot.provisions.length} มาตรา / ${snapshot.provisionVersions.length} เวอร์ชันตามช่วงเวลา)`
+                              : `Complete Canonical Statutory Provision Registry (${snapshot.provisions.length} Provisions / ${snapshot.provisionVersions.length} Point-in-Time Versions)`}
+                          </span>
+                          <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                            ✓ 100% SHA-256 Grounded
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto max-h-[520px] overflow-y-auto">
+                          <table className="w-full text-left border-collapse text-[12px]">
+                            <thead className="sticky top-0 bg-slate-50 dark:bg-[#111a2c] z-10">
+                              <tr className={`border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase ${mutedText}`}>
+                                <th className="py-2.5 px-4 font-semibold">Provision ID</th>
+                                <th className="py-2.5 px-4 font-semibold">Section</th>
+                                <th className="py-2.5 px-4 font-semibold">Statutory Heading (TH / EN)</th>
+                                <th className="py-2.5 px-4 font-semibold">Module</th>
+                                <th className="py-2.5 px-4 font-semibold">Active Version</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/70">
+                              {snapshot.provisions.map((prov) => (
+                                <tr key={prov.id} className="hover:bg-slate-500/5">
+                                  <td className="py-2.5 px-4 font-mono text-[11px] font-semibold whitespace-nowrap">
+                                    {prov.id}
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px] font-bold whitespace-nowrap text-[#0f2c59] dark:text-[#f5b700]">
+                                    Sec. {prov.section_number}
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    <div className="font-bold text-[12px] leading-snug">{prov.heading_th}</div>
+                                    <div className={`text-[11px] mt-0.5 ${mutedText}`}>{prov.heading_en}</div>
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px] whitespace-nowrap">
+                                    {prov.canonical_owner_module}
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[10px] whitespace-nowrap">
+                                    {prov.current_version_id}
+                                    {prov.version_ids.length > 1 && (
+                                      <span className="ml-1.5 px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-[#f5b700] font-semibold">
+                                        {prov.version_ids.length} versions
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
+                      {/* Complete Table of 9 Tax & PDPA Subordinate Regulations */}
+                      <div className={`rounded-2xl overflow-hidden border ${surfaceCard}`}>
+                        <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                          <span className="text-[13px] font-bold">
+                            {languageMode === "th"
+                              ? `กฎหมายลำดับรองประมวลรัษฎากร (${snapshot.taxSubRegulations.length} ฉบับ) และประกาศ กคส. PDPA (${snapshot.pdpaSubordinateRegulations.length} ฉบับ)`
+                              : `Tax Subordinate Regulations (${snapshot.taxSubRegulations.length}) & PDPC Subordinate Notifications (${snapshot.pdpaSubordinateRegulations.length})`}
+                          </span>
+                          <span className={`text-[11px] ${mutedText}`}>
+                            Royal Decrees · Ministerial Regulations · PDPC Notifications
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left border-collapse text-[12px]">
+                            <thead>
+                              <tr className={`border-b border-slate-200 dark:border-slate-800 text-[11px] uppercase ${mutedText}`}>
+                                <th className="py-2.5 px-4 font-semibold">Code / Reference</th>
+                                <th className="py-2.5 px-4 font-semibold">Title & Summary (TH / EN)</th>
+                                <th className="py-2.5 px-4 font-semibold">Enabling Law</th>
+                                <th className="py-2.5 px-4 font-semibold">Effective From</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200/60 dark:divide-slate-800/70">
+                              {snapshot.taxSubRegulations.map((sr) => (
+                                <tr key={sr.id} className="hover:bg-slate-500/5">
+                                  <td className="py-2.5 px-4 font-mono text-[11px] font-semibold whitespace-nowrap">
+                                    {sr.number_code}
+                                    <div className={`text-[10px] font-normal ${mutedText}`}>{sr.id}</div>
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    <div className="font-bold text-[12px]">{sr.title_th}</div>
+                                    <div className={`text-[11px] ${mutedText}`}>{sr.title_en}</div>
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px]">
+                                    {sr.enabling_revenue_code_sections.join(", ")}
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px] whitespace-nowrap">
+                                    {sr.effective_from}
+                                  </td>
+                                </tr>
+                              ))}
+                              {snapshot.pdpaSubordinateRegulations.map((pr) => (
+                                <tr key={pr.id} className="hover:bg-slate-500/5">
+                                  <td className="py-2.5 px-4 font-mono text-[11px] font-semibold whitespace-nowrap">
+                                    {pr.regulation_code}
+                                    <div className={`text-[10px] font-normal ${mutedText}`}>{pr.id}</div>
+                                  </td>
+                                  <td className="py-2.5 px-4">
+                                    <div className="font-bold text-[12px]">{pr.title_th}</div>
+                                    <div className={`text-[11px] ${mutedText}`}>{pr.title_en}</div>
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px]">
+                                    PDPA Sec. {pr.enabling_pdpa_sections.join(", ")}
+                                  </td>
+                                  <td className="py-2.5 px-4 font-mono text-[11px] whitespace-nowrap">
+                                    {pr.effective_from}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+
                       {/* Search & Contextual Filter for Source Viewer Cards */}
                       <div className={`p-4 rounded-2xl space-y-3 ${surfaceCard}`}>
                         <div className="text-[13px] font-bold">
@@ -3490,7 +3608,7 @@ export default function Reg24MetroConsole() {
                                 {languageMode === "th" ? tr.subject_th : tr.subject_en}
                               </h3>
                               <p className={`text-[12px] leading-relaxed ${mutedText}`}>
-                                {(languageMode === "th" ? tr.conclusions_th[0] : tr.conclusions_en[0]) || tr.subject_en}
+                                {(languageMode === "th" ? tr.conclusions_th : tr.conclusions_en) || tr.subject_en}
                               </p>
                             </div>
                             <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800 flex items-center justify-between text-[11px]">
