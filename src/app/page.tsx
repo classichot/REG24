@@ -1013,6 +1013,70 @@ export default function Reg24MetroConsole() {
     }
   };
 
+  // REG-NEO-014 — Neo4j Graph Database Live Health & Migration Diagnostics states
+  const [neo4jHealth, setNeo4jHealth] = useState<{
+    connected: boolean;
+    availability: string;
+    database_engine: string;
+    environment: string;
+    schema_version: string;
+    last_successful_query_at: string | null;
+    graph_data_readiness: string;
+    live_node_count: number | null;
+    live_relationship_count: number | null;
+    latency_ms: number | null;
+    sanitized_error: string | null;
+    checked_at: string;
+  } | null>(null);
+  const [neo4jDiagnostics, setNeo4jDiagnostics] = useState<Record<string, unknown> | null>(null);
+  const [neo4jDiagLoading, setNeo4jDiagLoading] = useState<boolean>(false);
+
+  const fetchNeo4jHealth = useCallback(async () => {
+    try {
+      const res = await fetch("/api/v1/infrastructure/graph/health?detailed=true", {
+        headers: { "x-reg24-role": "Platform Administrator" },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setNeo4jHealth(data);
+        if (data.admin_diagnostics) {
+          setNeo4jDiagnostics(data.admin_diagnostics);
+        }
+      }
+    } catch {
+      // Ignore network errors during initial fetch
+    }
+  }, []);
+
+  const handleRunNeo4jAdminAction = async (action: "run_diagnostics" | "run_migration") => {
+    setNeo4jDiagLoading(true);
+    try {
+      const res = await fetch("/api/v1/infrastructure/graph/health", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reg24-role": "Platform Administrator",
+        },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (data.health) setNeo4jHealth({ ...data.health, checked_at: new Date().toISOString() });
+      if (data.reconciliation_report) {
+        setNeo4jDiagnostics({
+          reconciliation_report: data.reconciliation_report,
+          observability_metrics: data.observability_metrics,
+        });
+      }
+      showToast(
+        data.health?.connected
+          ? `Neo4j AuraDB ${action} completed (${data.health.live_node_count} nodes, ${data.health.live_relationship_count} relationships).`
+          : `Reconciliation verified (${data.reconciliation_report?.source_node_count || 0} canonical nodes, ${data.reconciliation_report?.source_relationship_count || 0} relationships • Neo4j credentials not configured).`
+      );
+    } finally {
+      setNeo4jDiagLoading(false);
+    }
+  };
+
   const fetchSnapshot = useCallback(async () => {
     const res = await fetch("/api/v1/platform");
     if (res.ok) {
@@ -1031,7 +1095,8 @@ export default function Reg24MetroConsole() {
 
   useEffect(() => {
     fetchSnapshot();
-  }, [fetchSnapshot]);
+    fetchNeo4jHealth();
+  }, [fetchSnapshot, fetchNeo4jHealth]);
 
   // Windows Phone Live Tile counter flip animation every 4s
   useEffect(() => {
@@ -3584,6 +3649,104 @@ export default function Reg24MetroConsole() {
                   LAW24 &bull; CFO24 &bull; ACC24 &bull; TP24 &bull; GOV24 &bull; TRACE24
                 </p>
               </div>
+            </div>
+
+            {/* REG-NEO-014 — Minimal Admin Interface: Graph Database Subsection */}
+            <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-6 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#1e293b] pb-4">
+                <div>
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-[#f5b700]">
+                    REG24 Infrastructure &bull; REG-NEO-014
+                  </div>
+                  <h2 className="text-[20px] font-extrabold tracking-[-0.03em] text-white mt-0.5">
+                    Graph Database
+                  </h2>
+                  <div className="mt-1 flex items-center gap-2 text-xs font-semibold">
+                    {neo4jHealth?.connected ? (
+                      <span className="text-emerald-400">● Connected (Live Neo4j AuraDB Persistence)</span>
+                    ) : (
+                      <span className="text-amber-400">
+                        ● Disconnected / Credentials Unconfigured (Explicit Read-Only Seed Mode)
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => fetchNeo4jHealth()}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#0f2c59] hover:bg-[#19478a] text-white border border-[#2a3f63] cursor-pointer"
+                  >
+                    View Health
+                  </button>
+                  <button
+                    onClick={() => handleRunNeo4jAdminAction("run_diagnostics")}
+                    disabled={neo4jDiagLoading}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#f5b700] text-[#0a192f] cursor-pointer"
+                  >
+                    {neo4jDiagLoading ? "Running..." : "Run Diagnostics"}
+                  </button>
+                  <button
+                    onClick={() => handleRunNeo4jAdminAction("run_migration")}
+                    disabled={neo4jDiagLoading}
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#182338] hover:bg-[#22314d] text-slate-200 border border-[#2e4166] cursor-pointer"
+                  >
+                    Run Neo4j Migration
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs">
+                <div className="p-3 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[11px]">Database</div>
+                  <div className="font-bold text-white mt-0.5">Neo4j AuraDB</div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[11px]">Environment</div>
+                  <div className="font-bold text-white mt-0.5 capitalize">
+                    {neo4jHealth?.environment || "development"}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[11px]">Nodes</div>
+                  <div className="font-bold text-white mt-0.5">
+                    {neo4jHealth?.connected && neo4jHealth.live_node_count !== null
+                      ? `${neo4jHealth.live_node_count} (Live)`
+                      : `${(neo4jDiagnostics?.reconciliation_report as { source_node_count?: number } | undefined)?.source_node_count ?? 259} (Seed Staged)`}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[11px]">Relationships</div>
+                  <div className="font-bold text-white mt-0.5">
+                    {neo4jHealth?.connected && neo4jHealth.live_relationship_count !== null
+                      ? `${neo4jHealth.live_relationship_count} (Live)`
+                      : `${(neo4jDiagnostics?.reconciliation_report as { source_relationship_count?: number } | undefined)?.source_relationship_count ?? 242} (Seed Staged)`}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[11px]">Last Sync</div>
+                  <div className="font-mono text-[11px] font-semibold text-white mt-0.5 truncate">
+                    {neo4jHealth?.last_successful_query_at || neo4jHealth?.checked_at || "Awaiting AuraDB URI"}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl bg-[#0b111e] border border-[#1e293b]">
+                  <div className="text-slate-400 text-[11px]">Graph Version</div>
+                  <div className="font-mono text-[11px] font-semibold text-[#f5b700] mt-0.5 truncate">
+                    {neo4jHealth?.schema_version || "reg24.neo4j.schema.v2.1.0"}
+                  </div>
+                </div>
+              </div>
+
+              {neo4jHealth?.sanitized_error && (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start justify-between gap-3">
+                  <div>
+                    <strong className="text-amber-400">Degraded / Unconfigured Notice (REG-NEO-017):</strong>{" "}
+                    {neo4jHealth.sanitized_error}
+                  </div>
+                  <span className="font-mono text-[11px] shrink-0 text-amber-300">
+                    GET /api/v1/infrastructure/graph/health
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         )}
