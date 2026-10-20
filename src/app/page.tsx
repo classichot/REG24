@@ -2094,8 +2094,8 @@ export default function Reg24MetroConsole() {
                             }`}
                           >
                             {languageMode === "th"
-                              ? "ฐานข้อมูลกฎหมายทั้งหมด (Legal Database List)"
-                              : "Legal Database List (9 Industries & 28 Laws)"}
+                              ? `ฐานข้อมูลกฎหมายทั้งหมด (${snapshot.industryModules.length} อุตสาหกรรม & ${snapshot.instruments.length} กฎหมายหลัก)`
+                              : `Legal Database List (${snapshot.industryModules.length} Industries & ${snapshot.instruments.length} Laws)`}
                           </button>
                         </div>
                       </div>
@@ -2787,8 +2787,8 @@ export default function Reg24MetroConsole() {
                       </h1>
                       <p className={`text-[14px] mt-1.5 font-normal leading-[1.5] ${mutedText}`}>
                         {languageMode === "th"
-                          ? "รวบรวมฐานข้อมูลหน่วยงานรัฐ 22 แห่ง, ฐานข้อมูลกฎหมายรายอุตสาหกรรมครบทั้ง 9 กลุ่ม (P0), โมดูลกฎหมายหลัก 16 โมดูล, พระราชบัญญัติและกฎหมายลำดับรอง 28 ฉบับ, คำพิพากษาศาลฎีกา และข้อหารือกรมสรรพากร"
-                          : "Complete inventory of 22 official Thai regulatory authorities, all 9 completed P0 Industry Legal Databases, 16 core legal modules, 28 enacted statutes & subordinate regulations, 50 canonical provisions, 11 Supreme Court judgments, and 3 Revenue Department tax rulings."}
+                          ? `รวบรวมฐานข้อมูลหน่วยงานรัฐ ${snapshot.regulators.length} แห่ง, ฐานข้อมูลกฎหมายรายอุตสาหกรรมครบทั้ง ${snapshot.industryModules.length} กลุ่ม (P0), โมดูลกฎหมายหลัก ${snapshot.modules.length} โมดูล, พระราชบัญญัติและกฎหมายลำดับรอง ${snapshot.instruments.length} ฉบับ, คำพิพากษาศาลฎีกา และข้อหารือกรมสรรพากร`
+                          : `Complete inventory of ${snapshot.regulators.length} official Thai regulatory authorities, all ${snapshot.industryModules.length} completed P0 Industry Legal Databases, ${snapshot.modules.length} core legal modules, ${snapshot.instruments.length} enacted statutes & subordinate regulations, ${snapshot.provisions.length} canonical provisions, ${snapshot.legalCases.length} Supreme Court judgments, and ${snapshot.taxRulings.length} Revenue Department tax rulings.`}
                       </p>
                     </div>
                   </div>
@@ -2801,13 +2801,13 @@ export default function Reg24MetroConsole() {
                         count: `${snapshot.regulators.length} + ${snapshot.caseConnectors.length}`,
                         labelEn: "Official Authorities & Portals",
                         labelTh: "หน่วยงานรัฐและช่องทางเชื่อมต่อ",
-                        subEn: "22 Regulators · 7 Connectors",
+                        subEn: `${snapshot.regulators.length} Regulators · ${snapshot.caseConnectors.length} Connectors`,
                       },
                       {
                         id: "industries" as const,
-                        count: `${snapshot.industryModules.length} / 9`,
+                        count: `${snapshot.industryModules.length} / ${snapshot.industryModules.length}`,
                         labelEn: "Industry Legal Databases",
-                        labelTh: "ฐานข้อมูลกฎหมาย 9 อุตสาหกรรม",
+                        labelTh: `ฐานข้อมูลกฎหมาย ${snapshot.industryModules.length} อุตสาหกรรม`,
                         subEn: "100% P0 Sector Complete",
                       },
                       {
@@ -2930,7 +2930,7 @@ export default function Reg24MetroConsole() {
                   </div>
 
                   {/* ===========================================================
-                      SECTION 1: 9 COMPLETED INDUSTRY LEGAL DATABASES (IND-*)
+                      SECTION 1: 19 COMPLETED INDUSTRY LEGAL DATABASES (IND-*)
                       =========================================================== */}
                   {(uxLibraryTab === "all" || uxLibraryTab === "industries") && (
                     <div className="space-y-4">
@@ -2938,8 +2938,8 @@ export default function Reg24MetroConsole() {
                         <div>
                           <h2 className="text-[22px] sm:text-[24px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                             {languageMode === "th"
-                              ? "1. ฐานข้อมูลกฎหมายรายอุตสาหกรรมครบทั้ง 9 กลุ่ม (9 Completed Industry Legal Databases)"
-                              : "1. Industry Legal Databases — All 9 Sectors Completed (P0 v2.0.0)"}
+                              ? `1. ฐานข้อมูลกฎหมายรายอุตสาหกรรมครบทั้ง ${snapshot.industryModules.length} กลุ่ม (${snapshot.industryModules.length} Completed Industry Legal Databases)`
+                              : `1. Industry Legal Databases — All ${snapshot.industryModules.length} Sectors Completed (P0 v2.0.0)`}
                           </h2>
                           <p className={`text-[13px] mt-1 ${mutedText}`}>
                             {languageMode === "th"
@@ -2948,7 +2948,7 @@ export default function Reg24MetroConsole() {
                           </p>
                         </div>
                         <span className="px-3 py-1 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 self-start sm:self-auto">
-                          ✓ 9 / 9 Industries Active (P0)
+                          ✓ {snapshot.industryModules.length} / {snapshot.industryModules.length} Industries Active (P0)
                         </span>
                       </div>
 

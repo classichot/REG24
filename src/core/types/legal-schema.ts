@@ -1589,6 +1589,16 @@ export type IndustryModuleCode =
   | "IND-HEALTH"
   | "IND-DIGITAL"
   | "IND-LOGISTICS"
+  | "IND-DATACENTER"
+  | "IND-OILGAS"
+  | "IND-WHOLESALE"
+  | "IND-INTL-LOGISTICS"
+  | "IND-INFRA"
+  | "IND-EEC-SEZ"
+  | "IND-EV-AUTO"
+  | "IND-AGRIFOOD"
+  | "IND-TELECOM"
+  | "IND-ESG-CARBON"
   | string;
 
 export interface CoreLegalDomainMapping {

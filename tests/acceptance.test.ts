@@ -730,9 +730,9 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
       "LEG-PDPA",
     ]);
 
-    // 2. Layer 3: 9 Pluggable Industry Modules (IND-01 to IND-10) + Dynamic Module Registration SDK
+    // 2. Layer 3: 19 Pluggable Industry Modules (IND-01 to IND-19) + Dynamic Module Registration SDK
     const indModules = core.listIndustryModules();
-    expect(indModules.length).toBeGreaterThanOrEqual(9);
+    expect(indModules.length).toBe(19);
     for (const im of indModules) {
       expect(im.priority).toBe("P0");
       expect(im.knowledge_graph.linked_provision_ids.length).toBeGreaterThanOrEqual(3);
@@ -743,6 +743,16 @@ describe("REG24 P0 Regulatory Infrastructure Acceptance Suite", () => {
     expect(indModules.some((m) => m.module_id === "IND-ENERGY")).toBe(true);
     expect(indModules.some((m) => m.module_id === "IND-FIN")).toBe(true);
     expect(indModules.some((m) => m.module_id === "IND-DIGITAL")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-DATACENTER")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-OILGAS")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-WHOLESALE")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-INTL-LOGISTICS")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-INFRA")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-EEC-SEZ")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-EV-AUTO")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-AGRIFOOD")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-TELECOM")).toBe(true);
+    expect(indModules.some((m) => m.module_id === "IND-ESG-CARBON")).toBe(true);
 
     // Dynamic registration of a new industry module without core engine changes (IND-10)
     const customInd = core.registerIndustryModule({

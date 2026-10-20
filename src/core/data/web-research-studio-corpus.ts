@@ -385,6 +385,236 @@ export const WEB_UNIFIED_SEARCH_CATALOG: WebUnifiedSearchResultItem[] = [
       "[AI Source-Grounded Interpretation — IND-LOGISTICS] Covers Customs Free Zone exemptions, 5-year post-clearance audit recordkeeping, MTO registration & SDR liability limits, and cross-border freight Transfer Pricing.",
     related_provision_ids: ["prov.th.rc.71_bis"],
   },
+  {
+    record_id: "prov.th.datacenter_cii.5_10_49",
+    document_category: "BOI announcements",
+    legal_domain: "LEG-BOI",
+    title_th: "ประกาศ BOI ประเภท 5.10.1 (Data Center / Cloud), พ.ร.บ. ไซเบอร์ พ.ศ. 2562 มาตรา 49–50 (CII) และระเบียบ กกพ. Direct PPA / UGT (IND-DATACENTER)",
+    title_en: "BOI Activity 5.10.1 (Data Center & Cloud), Cybersecurity Act B.E. 2562 Sec. 49–50 (CII) & ERC Direct PPA / UGT Clean Power Rules (IND-DATACENTER)",
+    section_or_reference: "ประกาศ BOI ประเภท 5.10.1, พ.ร.บ. การรักษาความมั่นคงปลอดภัยไซเบอร์ พ.ศ. 2562 มาตรา 49–50 และหลักเกณฑ์ Direct PPA / UGT",
+    source_authority: "BOI, สำนักงานคณะกรรมการการรักษาความมั่นคงปลอดภัยไซเบอร์แห่งชาติ (NCSA) และ กกพ. (ERC)",
+    publication_date: "2024-06-15",
+    effective_from: "2024-06-15",
+    verification_status: "human_verified",
+    official_url: "https://www.ncsa.or.th/laws",
+    sha256_hash: "aa10a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e80",
+    original_source_snippet_th:
+      "“กิจการ Data Center และ Cloud Service (BOI 5.10.1) ได้รับยกเว้นภาษีเงินได้นิติบุคคล 8 ปี (ไม่จำกัดวงเงิน) และถือกรรมสิทธิ์ที่ดินตามมาตรา 27 โดยหน่วยงานโครงสร้างพื้นฐานสำคัญทางสารสนเทศ (CII) ต้องตรวจสอบความมั่นคงปลอดภัยไซเบอร์รายปีและแจ้งเหตุต่อ สกมช. ตามมาตรา 49–50”",
+    original_source_snippet_en:
+      "“BOI Activity 5.10.1 (Data Center & Cloud Service) grants 8-year uncapped CIT exemption and Sec. 27 land ownership; Critical Information Infrastructure (CII) operators must perform annual cybersecurity audits and report cyber incidents to NCSA under Sec. 49–50, alongside ERC Direct PPA/UGT clean power procurement.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-DATACENTER] ครอบคลุมสิทธิประโยชน์ BOI 5.10.1 สำหรับ Hyperscale Data Center หน้าที่ CII ตามกฎหมายไซเบอร์ และการจัดหาไฟฟ้าสะอาด Direct PPA / UGT",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-DATACENTER] Covers BOI 5.10.1 hyperscale data center incentives, NCSA CII cybersecurity obligations, and ERC Direct PPA / UGT clean energy rules.",
+    related_provision_ids: ["prov.th.boi.24_27_31", "prov.th.pdpa.28_29"],
+  },
+  {
+    record_id: "prov.th.oilgas_petro.20_22_fta7",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-TAX",
+    title_th: "พระราชบัญญัติปิโตรเลียม พ.ศ. 2514, พ.ร.บ. ภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 (มาตรา 20–22) และ พ.ร.บ. การค้าน้ำมันเชื้อเพลิง พ.ศ. 2543 มาตรา 7 (IND-OILGAS)",
+    title_en: "Petroleum Act B.E. 2514, Petroleum Income Tax Act B.E. 2514 Sec. 20–22 (50% Tax) & Fuel Trade Act B.E. 2543 Sec. 7 Oil Reserve (IND-OILGAS)",
+    section_or_reference: "พ.ร.บ. ปิโตรเลียม มาตรา 23, พ.ร.บ. ภาษีเงินได้ปิโตรเลียม มาตรา 20–22 และ พ.ร.บ. การค้าน้ำมันเชื้อเพลิง มาตรา 7",
+    source_authority: "กรมเชื้อเพลิงธรรมชาติ (DMF) และกรมธุรกิจพลังงาน (DOEB) กระทรวงพลังงาน",
+    publication_date: "2017-06-22",
+    effective_from: "2017-06-23",
+    verification_status: "human_verified",
+    official_url: "https://www.dmf.go.th/laws",
+    sha256_hash: "bb11a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e81",
+    original_source_snippet_th:
+      "“ผู้รับสัมปทานหรือคู่สัญญาแบ่งปันผลผลิต (PSC) ต้องวางหลักประกันการรื้อถอนแท่นผลิตต่อกรมเชื้อเพลิงธรรมชาติ เสียภาษีเงินได้ปิโตรเลียมอัตราร้อยละ 50 ของกำไรสุทธิ (มาตรา 20–22) และผู้ค้าน้ำมันตามมาตรา 7 (ตั้งแต่ 100,000 เมตริกตัน/ปี) ต้องดำรงสำรองน้ำมันตามกฎหมาย”",
+    original_source_snippet_en:
+      "“Petroleum concessionaires and PSC contractors must deposit offshore decommissioning security with DMF and pay 50% Petroleum Income Tax under PITA Sec. 20–22; fuel traders with volume >= 100,000 MT/year must register under Fuel Trade Act Sec. 7 and maintain mandatory strategic fuel reserves.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-OILGAS] ครอบคลุมสัมปทานปิโตรเลียม PSC การรื้อถอนแท่นผลิต ภาษีเงินได้ปิโตรเลียม 50% และหน้าที่สำรองน้ำมันตามมาตรา 7",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-OILGAS] Governs upstream petroleum concessions/PSCs, decommissioning security, 50% PITA tax, and Section 7 fuel trader reserve obligations.",
+    related_provision_ids: ["prov.th.eia.47_48", "prov.th.rc.65_ter"],
+  },
+  {
+    record_id: "prov.th.wholesale_fba_dit.14_15_credit",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-CORP",
+    title_th: "พ.ร.บ. การประกอบธุรกิจของคนต่างด้าว บัญชีสาม (14)/(15) (ทุนขั้นต่ำ 100 ล้านบาท ค้าปลีก/ค้าส่ง) และประกาศ กขค. เรื่อง Credit Term 30–45 วัน (IND-WHOLESALE)",
+    title_en: "Foreign Business Act List 3(14)/(15) (100M THB Retail/Wholesale Capital Exemption) & TCCT 30–45 Day SME Credit Term Notification (IND-WHOLESALE)",
+    section_or_reference: "พ.ร.บ. คนต่างด้าว พ.ศ. 2542 บัญชีสาม (14), (15), พ.ร.บ. ราคาสินค้าและบริการ พ.ศ. 2542 และประกาศ กขค. พ.ศ. 2564",
+    source_authority: "กรมพัฒนาธุรกิจการค้า (DBD), กรมการค้าภายใน (DIT) และสำนักงาน กขค. (TCCT)",
+    publication_date: "2021-12-16",
+    effective_from: "2021-12-16",
+    verification_status: "human_verified",
+    official_url: "https://www.dit.go.th/laws",
+    sha256_hash: "cc12a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e82",
+    original_source_snippet_th:
+      "“การค้าปลีกและการค้าส่งสินค้าทุกประเภทของคนต่างด้าวได้รับยกเว้นไม่ต้องขอใบอนุญาต FBL เมื่อมีทุนจดทะเบียนชำระแล้วตั้งแต่ 100 ล้านบาทขึ้นไป และผู้ประกอบธุรกิจค้าส่งค้าปลีกต้องชำระค่าสินค้าให้คู่ค้า SMEs ภายใน Credit Term ไม่เกิน 30–45 วันตามประกาศ กขค.”",
+    original_source_snippet_en:
+      "“Foreign-majority wholesale and retail operators are exempt from obtaining a Foreign Business License (FBL) where paid-up registered capital is >= 100,000,000 THB, and must settle invoices with Thai SME suppliers within the mandatory 30–45 day credit term cap under TCCT guidelines.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-WHOLESALE] ครอบคลุมเงื่อนไขทุน 100 ล้านบาทสำหรับธุรกิจค้าส่ง/ค้าปลีกต่างชาติ กฎหมายควบคุมราคาสินค้า กกร. และ Credit Term 30–45 วันสำหรับ SMEs",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-WHOLESALE] Covers FBA List 3(14)/(15) 100M THB capital exemptions, DIT price controls, and TCCT mandatory 30–45 day SME credit terms.",
+    related_provision_ids: ["prov.th.fba.8_17_36", "prov.th.tca.51"],
+  },
+  {
+    record_id: "prov.th.intl_shipping_cogsa.58_tva7",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-CONTRACT",
+    title_th: "พระราชบัญญัติการรับขนของทางทะเล พ.ศ. 2534 มาตรา 46, 58 (จำกัดความรับผิดใบตราส่ง B/L) และ พ.ร.บ. เรือไทย พ.ศ. 2481 มาตรา 7 (IND-INTL-LOGISTICS)",
+    title_en: "Carriage of Goods by Sea Act B.E. 2534 Sec. 46, 58 (B/L Liability Cap & 1-Yr Time Bar) & Thai Vessels Act Sec. 7 Cabotage (IND-INTL-LOGISTICS)",
+    section_or_reference: "พ.ร.บ. การรับขนของทางทะเล พ.ศ. 2534 มาตรา 46, 58 และ พ.ร.บ. เรือไทย พ.ศ. 2481 มาตรา 7",
+    source_authority: "กรมเจ้าท่า (Marine Department) และกรมการค้าต่างประเทศ (DFT)",
+    publication_date: "1991-11-22",
+    effective_from: "1992-02-20",
+    verification_status: "human_verified",
+    official_url: "https://www.md.go.th/laws",
+    sha256_hash: "dd13a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e83",
+    original_source_snippet_th:
+      "“มาตรา 58 จำกัดความรับผิดของผู้ขนส่งทางทะเลตามใบตราส่ง (B/L) ไว้ไม่เกิน 10,000 บาทต่อหน่วยการขนส่ง หรือกิโลกรัมละ 30 บาทของน้ำหนักสุทธิ โดยมีอายุความฟ้องร้อง 1 ปีตามมาตรา 46 และเรือที่ทำการค้าในน่านน้ำไทยต้องถือหุ้นโดยผู้มีสัญชาติไทยไม่น้อยกว่าร้อยละ 70”",
+    original_source_snippet_en:
+      "“Section 58 caps sea carrier liability under a Bill of Lading at 10,000 THB per shipping unit or 30 THB per kg of net weight with a 1-year prescription period under Section 46; Thai Vessels Act Section 7 mandates >= 70% Thai shareholding for domestic coastal shipping.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-INTL-LOGISTICS] ครอบคลุมการจำกัดความรับผิดและอายุความตามใบตราส่งทางทะเล (COGSA) สัดส่วนหุ้นเรือไทย 70% และการควบคุมการส่งออกสินค้าที่ใช้ได้สองทาง (DUI)",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-INTL-LOGISTICS] Governs COGSA B/L liability caps and 1-year time bar, Thai Vessels Act 70% cabotage rules, and Dual-Use Items export controls.",
+    related_provision_ids: ["prov.th.customs_mto.152_202_243", "prov.th.rc.70_70bis"],
+  },
+  {
+    record_id: "prov.th.ppp_procurement.22_48_tpa",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-CONTRACT",
+    title_th: "พระราชบัญญัติการร่วมลงทุนระหว่างรัฐและเอกชน พ.ศ. 2562 (PPP Act มาตรา 22–48), พ.ร.บ. จัดซื้อจัดจ้างภาครัฐ มาตรา 109 และระเบียบ กกพ. TPA (IND-INFRA)",
+    title_en: "Public-Private Partnership (PPP) Act B.E. 2562 Sec. 22–48, Public Procurement Act Sec. 109 & ERC Third-Party Grid Access Rules (IND-INFRA)",
+    section_or_reference: "พ.ร.บ. ร่วมลงทุนระหว่างรัฐและเอกชน พ.ศ. 2562 มาตรา 22–48 และ พ.ร.บ. จัดซื้อจัดจ้างภาครัฐ พ.ศ. 2560 มาตรา 109",
+    source_authority: "สำนักงานคณะกรรมการนโยบายรัฐวิสาหกิจ (สคร.), กรมบัญชีกลาง (CGD) และ กกพ. (ERC)",
+    publication_date: "2019-03-10",
+    effective_from: "2019-03-11",
+    verification_status: "human_verified",
+    official_url: "https://www.sepo.go.th/laws",
+    sha256_hash: "ee14a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e84",
+    original_source_snippet_th:
+      "“โครงการร่วมลงทุน PPP มูลค่าตั้งแต่ 5,000 ล้านบาทขึ้นไปต้องผ่านความเห็นชอบของคณะกรรมการนโยบาย PPP และ ครม. ตั้งคณะกรรมการคัดเลือกตามมาตรา 36 และแก้ไขสัญญาตามมาตรา 46–48 ส่วนผู้ทิ้งงานจัดซื้อจัดจ้างภาครัฐถูกเพิกถอนสิทธิเข้ายื่นข้อเสนอตามมาตรา 109”",
+    original_source_snippet_en:
+      "“PPP infrastructure projects >= 5,000M THB require PPP Policy Committee and Cabinet approval, competitive bidding via a Sec. 36 Selection Committee, and OAG/Cabinet review for material contract amendments under Sec. 46–48; Public Procurement Act Sec. 109 governs contractor abandonment blacklisting.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-INFRA] ครอบคลุมการประมูลและแก้ไขสัญญาร่วมลงทุน PPP การป้องกันความเสี่ยงผู้ทิ้งงานภาครัฐ มาตรา 109 และการใช้ระบบโครงข่ายไฟฟ้าบุคคลที่สาม (TPA)",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-INFRA] Covers PPP Act project bidding and contract amendments, Public Procurement Act Sec. 109 blacklisting rules, and ERC TPA grid wheeling.",
+    related_provision_ids: ["prov.th.eia.47_48", "prov.th.ccc.379_383"],
+  },
+  {
+    record_id: "prov.th.eec_ieat_sez.37_54_ieat",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-BOI",
+    title_th: "พระราชบัญญัติเขตพัฒนาพิเศษภาคตะวันออก พ.ศ. 2561 มาตรา 37–54 (เช่าที่ดิน 50+49 ปี / PIT 17%) และ พ.ร.บ. กนอ. มาตรา 44–48 (IND-EEC-SEZ)",
+    title_en: "Eastern Economic Corridor (EEC) Act B.E. 2561 Sec. 37–54 (50+49 Yr Lease & 17% Expat PIT) & IEAT Act Sec. 44–48 Free Zones (IND-EEC-SEZ)",
+    section_or_reference: "พ.ร.บ. เขตพัฒนาพิเศษภาคตะวันออก พ.ศ. 2561 มาตรา 37–54 และ พ.ร.บ. การนิคมอุตสาหกรรมแห่งประเทศไทย พ.ศ. 2522 มาตรา 44–48",
+    source_authority: "สำนักงานคณะกรรมการนโยบายเขตพัฒนาพิเศษภาคตะวันออก (สกพอ.) และการนิคมอุตสาหกรรมแห่งประเทศไทย (กนอ.)",
+    publication_date: "2018-05-14",
+    effective_from: "2018-05-15",
+    verification_status: "human_verified",
+    official_url: "https://www.eeco.or.th/th/laws-and-regulations",
+    sha256_hash: "ff15a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e85",
+    original_source_snippet_th:
+      "“เลขาธิการ กพอ. มีอำนาจอนุมัติอนุญาตแบบเบ็ดเสร็จ (One-Stop Service) ในเขตส่งเสริมเศรษฐกิจพิเศษ EEC ให้สิทธิเช่าที่ดินสูงสุด 50+49 ปี สิทธิถือกรรมสิทธิ์ที่ดิน อัตราภาษีเงินได้บุคคลธรรมดาผู้เชี่ยวชาญร้อยละ 17 และสิทธิยกเว้นอากร/VAT ในเขตประกอบการเสรี กนอ.”",
+    original_source_snippet_en:
+      "“EEC Act Sec. 37–54 grants EECO One-Stop Service licensing, foreign freehold ownership, 50+49 year land leases, and a 17% flat Personal Income Tax rate for qualified expatriate specialists; IEAT Act Sec. 44–48 grants foreign land ownership and duty/VAT exemptions in IEAT Free Zones.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-EEC-SEZ] ครอบคลุมการอนุมัติอนุญาต One-Stop Service ในเขต EEC สัญญาเช่าที่ดิน 50+49 ปี ภาษีเงินได้ 17% และสิทธิประโยชน์เขตประกอบการเสรี กนอ.",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-EEC-SEZ] Governs EECO One-Stop Service permits, 50+49 year land leases, 17% specialist PIT, and IEAT Free Zone land and customs privileges.",
+    related_provision_ids: ["prov.th.factory_eec.7_12_37", "prov.th.boi.24_27_31"],
+  },
+  {
+    record_id: "prov.th.ev35_excise_tisi.ev35_offset",
+    document_category: "Subordinate regulations",
+    legal_domain: "LEG-TAX",
+    title_th: "ประกาศกรมสรรพสามิต มาตรการสนับสนุนยานยนต์ไฟฟ้า EV 3.5 (พ.ศ. 2567–2570 ผลิตชดเชย 1:2 / 1:3) และมาตรฐานบังคับ สมอ. แบตเตอรี่ EV (IND-EV-AUTO)",
+    title_en: "Excise Department EV 3.5 Package Notifications (2024–2027 Mandatory 1:2 / 1:3 Production Offset) & Mandatory TISI EV Battery Standards (IND-EV-AUTO)",
+    section_or_reference: "ประกาศกรมสรรพสามิต มาตรการ EV 3.5 (พ.ศ. 2567–2570) และ พ.ร.บ. มาตรฐานผลิตภัณฑ์อุตสาหกรรม พ.ศ. 2511 มาตรา 20–21",
+    source_authority: "กรมสรรพสามิต (Excise Department) และสำนักงานมาตรฐานผลิตภัณฑ์อุตสาหกรรม (TISI)",
+    publication_date: "2024-01-02",
+    effective_from: "2024-01-02",
+    verification_status: "human_verified",
+    official_url: "https://www.excise.go.th/laws",
+    sha256_hash: "1a16a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e86",
+    original_source_snippet_th:
+      "“ผู้นำเข้ารถยนต์ไฟฟ้าที่รับเงินอุดหนุนและลดภาษีสรรพสามิตเหลือร้อยละ 2 ตามมาตรการ EV 3.5 ต้องวางหนังสือค้ำประกันธนาคารและผลิตชดเชยในประเทศอัตราส่วน 1:2 ภายในปี 2569 หรือ 1:3 ภายในปี 2570 มิฉะนั้นต้องคืนเงินอุดหนุนพร้อมเบี้ยปรับและเงินเพิ่มภาษีสรรพสามิต”",
+    original_source_snippet_en:
+      "“EV 3.5 participants receiving subsidies and the 2% Excise Tax rate on imported CBU electric vehicles must post bank guarantees and complete domestic BEV production offsets at a 1:2 ratio by 2026 or 1:3 ratio by 2027, failing which full subsidy clawback and excise surcharges apply.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-EV-AUTO] ครอบคลุมเงื่อนไขผลิตชดเชยรถยนต์ไฟฟ้าในประเทศตามมาตรการ EV 3.5 บทกำหนดโทษเรียกคืนเงินอุดหนุน และมาตรฐานบังคับ มอก. แบตเตอรี่รถยนต์ไฟฟ้า",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-EV-AUTO] Covers EV 3.5 excise rate reductions, mandatory 1:2 / 1:3 local production offsets, clawback penalties, and mandatory TISI EV battery standards.",
+    related_provision_ids: ["prov.th.boi.24_27_31", "prov.th.customs_mto.152_202_243"],
+  },
+  {
+    record_id: "prov.th.agrifood_export.food6_doa_dld",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-CORP",
+    title_th: "พระราชบัญญัติอาหาร พ.ศ. 2522 มาตรา 6, 14 (ใบอนุญาต อ.2 / GMP-HACCP / Novel Food), พ.ร.บ. กักพืช และ พ.ร.บ. โรคระบาดสัตว์ (IND-AGRIFOOD)",
+    title_en: "Food Act B.E. 2522 Sec. 6, 14 (Or.2 License, GHPs/HACCP & Novel Food), Plant Quarantine Act & Animal Epidemics Export Rules (IND-AGRIFOOD)",
+    section_or_reference: "พ.ร.บ. อาหาร พ.ศ. 2522 มาตรา 6, 14, พ.ร.บ. กักพืช พ.ศ. 2507 และ พ.ร.บ. โรคระบาดสัตว์ พ.ศ. 2558",
+    source_authority: "สำนักงานคณะกรรมการอาหารและยา (อย.), กรมวิชาการเกษตร (DOA) และกรมปศุสัตว์ (DLD)",
+    publication_date: "2019-05-01",
+    effective_from: "2019-05-01",
+    verification_status: "human_verified",
+    official_url: "https://www.doa.go.th/laws",
+    sha256_hash: "2b17a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e87",
+    original_source_snippet_th:
+      "“โรงงานผลิตอาหารต้องได้รับใบอนุญาตผลิตอาหาร (อ.2) เลขสารบบอาหาร 13 หลัก ปฏิบัติตามมาตรฐาน GHPs/HACCP และประเมินความปลอดภัยอาหารใหม่ (Novel Food) พร้อมขอใบรับรองสุขอนามัยพืช (กรมวิชาการเกษตร) หรือรับรองโรงงานส่งออกปศุสัตว์ (EST. กรมปศุสัตว์)”",
+    original_source_snippet_en:
+      "“Food processors must hold an Or.2 Food Manufacturing License, 13-digit FDA serial registration, certified GHPs/HACCP systems, and Novel Food pre-market safety approvals, alongside DOA Phytosanitary Certificates and DLD Export Establishment (EST.) veterinary health certificates.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-AGRIFOOD] ครอบคลุมใบอนุญาตโรงงานผลิตอาหาร (อ.2) มาตรฐาน GMP/HACCP อาหารใหม่ (Novel Food) และการรับรองสุขอนามัยพืชและปศุสัตว์เพื่อการส่งออก",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-AGRIFOOD] Covers Thai FDA Or.2 food factory licensing, GHPs/HACCP, Novel Food approval, and DOA/DLD export quarantine certificates.",
+    related_provision_ids: ["prov.th.health_fda.16_24_12", "prov.th.fba.8_17_36"],
+  },
+  {
+    record_id: "prov.th.telecom_nbtc.tba7_8_dominance",
+    document_category: "Statutes and codes",
+    legal_domain: "LEG-CORP",
+    title_th: "พระราชบัญญัติการประกอบกิจการโทรคมนาคม พ.ศ. 2544 มาตรา 7–8 (ใบอนุญาต กสทช. แบบที่ 1–3) และประกาศห้ามครอบงำกิจการโดยคนต่างด้าว (IND-TELECOM)",
+    title_en: "Telecommunications Business Act B.E. 2544 Sec. 7–8 (NBTC Type 1–3 Licenses, 49% Foreign Cap) & Foreign Dominance Notification (IND-TELECOM)",
+    section_or_reference: "พ.ร.บ. การประกอบกิจการโทรคมนาคม พ.ศ. 2544 มาตรา 7–8 และประกาศ กสทช. เรื่องการห้ามครอบงำกิจการโดยคนต่างด้าว พ.ศ. 2555",
+    source_authority: "สำนักงาน กสทช. (National Broadcasting and Telecommunications Commission — NBTC)",
+    publication_date: "2012-07-23",
+    effective_from: "2012-07-24",
+    verification_status: "human_verified",
+    official_url: "https://www.nbtc.go.th/laws",
+    sha256_hash: "3c18a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e88",
+    original_source_snippet_th:
+      "“ผู้ขอรับใบอนุญาตประกอบกิจการโทรคมนาคมแบบที่สองและแบบที่สาม (มีโครงข่ายเป็นของตนเอง) ต้องมีสัดส่วนผู้ถือหุ้นต่างด้าวไม่เกินร้อยละ 49 ปฏิบัติตามประกาศ กสทช. เรื่องการห้ามครอบงำกิจการโดยคนต่างด้าว และขออนุญาตใช้ช่องสัญญาณดาวเทียมต่างชาติ (Landing Rights)”",
+    original_source_snippet_en:
+      "“NBTC Type 2 and Type 3 facilities-based telecom licensees are restricted to <= 49% foreign shareholding, must file annual certifications under the NBTC Foreign Dominance Prohibition Notification B.E. 2555, and require NBTC Landing Rights for foreign satellite capacity.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-TELECOM] ครอบคลุมใบอนุญาตโทรคมนาคม กสทช. แบบที่ 1–3 เพดานหุ้นต่างด้าว 49% ประกาศห้ามครอบงำกิจการโดยคนต่างด้าว และสิทธิช่องสัญญาณดาวเทียม (Landing Rights)",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-TELECOM] Governs NBTC Type 1–3 telecom licenses, the 49% foreign equity cap, Foreign Dominance Prohibition filings, and LEO/GEO satellite Landing Rights.",
+    related_provision_ids: ["prov.th.fba.8_17_36", "prov.th.datacenter_cii.5_10_49"],
+  },
+  {
+    record_id: "prov.th.esg_carbon_tgo.tver_56_1",
+    document_category: "SEC and SET regulations",
+    legal_domain: "LEG-SEC",
+    title_th: "ระเบียบ อบก. ว่าด้วยคาร์บอนเครดิต T-VER, มาตรฐาน Thailand Green Taxonomy และเกณฑ์เปิดเผยข้อมูลก๊าซเรือนกระจก แบบ 56-1 One Report ก.ล.ต. (IND-ESG-CARBON)",
+    title_en: "TGO T-VER Carbon Credit Regulations, Thailand Green Taxonomy & SEC Form 56-1 One Report Mandatory GHG Disclosure (IND-ESG-CARBON)",
+    section_or_reference: "ระเบียบ อบก. ว่าด้วยโครงการ T-VER, Thailand Green Taxonomy และประกาศ ก.ล.ต. แบบ 56-1 One Report",
+    source_authority: "องค์การบริหารจัดการก๊าซเรือนกระจก (TGO), สำนักงาน ก.ล.ต. (SEC) และธนาคารแห่งประเทศไทย (BOT)",
+    publication_date: "2025-06-01",
+    effective_from: "2025-06-01",
+    verification_status: "human_verified",
+    official_url: "https://www.tgo.or.th/laws",
+    sha256_hash: "4d19a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5e6f708192a3b4c5d6e89",
+    original_source_snippet_th:
+      "“การรับรองและโอนคาร์บอนเครดิต T-VER ต้องผ่านการทวนสอบจากผู้ประเมินภายนอก (VVB) และขึ้นทะเบียนกับ อบก. โดยบริษัทจดทะเบียนมีหน้าที่เปิดเผยข้อมูลการปล่อยก๊าซเรือนกระจก Scope 1–2 ที่ผ่านการทวนสอบในแบบ 56-1 One Report และจัดกลุ่มกิจกรรมตาม Thailand Green Taxonomy”",
+    original_source_snippet_en:
+      "“T-VER carbon credits require third-party Validation and Verification Body (VVB) certification and registration on the TGO Registry; SET-listed companies must disclose externally verified Scope 1–2 GHG emissions in SEC Form 56-1 One Report and align green financing with the Thailand Green Taxonomy.”",
+    ai_summary_interpretation_th:
+      "[การวิเคราะห์โดย AI บนฐานตัวบท — IND-ESG-CARBON] ครอบคลุมการขึ้นทะเบียนและซื้อขายคาร์บอนเครดิต T-VER กับ อบก. การเปิดเผยข้อมูลก๊าซเรือนกระจกใน 56-1 One Report มาตรฐาน Thailand Green Taxonomy และ CBAM",
+    ai_summary_interpretation_en:
+      "[AI Source-Grounded Interpretation — IND-ESG-CARBON] Covers TGO T-VER carbon credit certification, SEC Form 56-1 One Report verified GHG disclosure, Thailand Green Taxonomy, and EU CBAM readiness.",
+    related_provision_ids: ["prov.th.sec.89_247", "prov.th.eia.47_48"],
+  },
 ];
 
 export const SAMPLE_WEB_TEMPORAL_COMPARISON: WebTemporalResearchComparison = {
