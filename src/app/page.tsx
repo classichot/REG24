@@ -1327,14 +1327,14 @@ export default function Reg24MetroConsole() {
             </span>
             <div className="flex items-baseline gap-2">
               <span
-                className={`text-base font-bold tracking-tight transition-colors ${
+                className={`text-[18px] font-extrabold tracking-[-0.035em] leading-[1.15] transition-colors ${
                   isLightMinimal ? "text-[#0f172a]" : "text-white"
                 }`}
               >
                 REG24
               </span>
               <span
-                className={`hidden sm:inline text-xs font-medium ${
+                className={`hidden sm:inline text-[12px] font-medium ${
                   isLightMinimal ? "text-slate-500" : "text-slate-400"
                 }`}
               >
@@ -1383,7 +1383,7 @@ export default function Reg24MetroConsole() {
                   <button
                     key={dest.id}
                     onClick={() => setUxResearchDestination(dest.id)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                    className={`px-3.5 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                       active
                         ? isLightMinimal
                           ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
@@ -1399,7 +1399,7 @@ export default function Reg24MetroConsole() {
               })}
             </nav>
           ) : (
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-2 text-[13px] font-semibold">
               <button
                 onClick={() => {
                   setUxExperience("research");
@@ -1415,7 +1415,7 @@ export default function Reg24MetroConsole() {
           )}
 
           {/* Right Controls: TH / EN toggle (UX-06), Theme toggle (Section 7), and Account / Console Switcher (Sections 1 & 5) */}
-          <div className="flex items-center gap-2 text-xs relative">
+          <div className="flex items-center gap-2 text-[12px] relative">
             {/* Language Toggle: TH / EN (UX-06) */}
             <div
               className={`p-0.5 rounded-lg border flex items-center ${
@@ -1429,7 +1429,7 @@ export default function Reg24MetroConsole() {
                   setLanguageMode("th");
                   setWebResponseLang("th");
                 }}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
+                className={`px-2 py-1 rounded-md text-[12px] font-semibold cursor-pointer transition-colors ${
                   languageMode === "th"
                     ? isLightMinimal
                       ? "bg-[#0f2c59] text-white"
@@ -1446,7 +1446,7 @@ export default function Reg24MetroConsole() {
                   setLanguageMode("en");
                   setWebResponseLang("en");
                 }}
-                className={`px-2 py-1 rounded-md text-[11px] font-semibold cursor-pointer transition-colors ${
+                className={`px-2 py-1 rounded-md text-[12px] font-semibold cursor-pointer transition-colors ${
                   languageMode === "en"
                     ? isLightMinimal
                       ? "bg-[#0f2c59] text-white"
@@ -1477,7 +1477,7 @@ export default function Reg24MetroConsole() {
             <div className="relative">
               <button
                 onClick={() => setUxConsoleMenuOpen((prev) => !prev)}
-                className={`px-3 py-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 cursor-pointer transition-colors ${
+                className={`px-3 py-1.5 rounded-lg border text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
                   isLightMinimal
                     ? "bg-white border-[#e2e8f0] text-[#0f172a] hover:bg-slate-50"
                     : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
@@ -1491,7 +1491,7 @@ export default function Reg24MetroConsole() {
                     ? "02. Developer"
                     : "03. Control"}
                 </span>
-                <span className="text-[10px] opacity-60">&#9662;</span>
+                <span className="text-[11px] opacity-60">&#9662;</span>
               </button>
 
               {uxConsoleMenuOpen && (
@@ -1764,14 +1764,14 @@ export default function Reg24MetroConsole() {
                     <div className="min-h-[72vh] flex flex-col justify-between py-10">
                       <div className="my-auto max-w-[700px] w-full mx-auto text-center space-y-6">
                         {/* Minimal Brand Pill */}
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold tracking-wider uppercase bg-[#0f2c59] text-[#f5b700]">
+                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wider uppercase bg-[#0f2c59] text-[#f5b700]">
                           <span>REG24</span>
                         </div>
 
-                        {/* Headline & Subtitle (Section 2) */}
-                        <div className="space-y-2.5">
+                        {/* Headline & Subtitle (Section 2 — Page heading 32-40px, ExtraBold 800, -0.035em, 1.15) */}
+                        <div className="space-y-3">
                           <h1
-                            className={`text-3xl sm:text-[40px] font-semibold tracking-tight leading-tight ${
+                            className={`text-[32px] sm:text-[40px] font-extrabold tracking-[-0.035em] leading-[1.15] ${
                               isLightMinimal ? "text-[#0f172a]" : "text-white"
                             }`}
                           >
@@ -1779,7 +1779,7 @@ export default function Reg24MetroConsole() {
                               ? "มีคำถามข้อกฎหมายใดให้ช่วยวิเคราะห์?"
                               : "What legal question can I help with?"}
                           </h1>
-                          <p className={`text-sm sm:text-base ${mutedText}`}>
+                          <p className={`text-[15px] sm:text-[16px] font-normal leading-[1.5] ${mutedText}`}>
                             {languageMode === "th"
                               ? "ระบบอัจฉริยะด้านกฎหมายธุรกิจ การค้า และกฎระเบียบของประเทศไทย"
                               : "Thai corporate, commercial and regulatory intelligence"}
@@ -2171,10 +2171,10 @@ export default function Reg24MetroConsole() {
                             <div className={`rounded-2xl p-6 sm:p-8 space-y-6 ${surfaceCard}`}>
                               {/* Question Header & Status Line */}
                               <div className="space-y-2 border-b pb-5 border-slate-200/80 dark:border-slate-800">
-                                <h2 className="text-xl sm:text-2xl font-semibold tracking-tight leading-snug">
+                                <h2 className="text-[22px] sm:text-[26px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                                   {latestTurn.question}
                                 </h2>
-                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium">
                                   <span className="inline-flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
                                     <span className="w-2 h-2 rounded-full bg-emerald-500" />
                                     {languageMode === "th" ? "วิเคราะห์เสร็จสมบูรณ์" : "Research completed"}
@@ -2366,10 +2366,10 @@ export default function Reg24MetroConsole() {
                               <div className={`rounded-2xl p-6 sm:p-8 space-y-6 ${surfaceCard}`}>
                                 <div className="flex flex-wrap items-center justify-between gap-2 border-b pb-4 border-slate-200/80 dark:border-slate-800">
                                   <div>
-                                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
                                       LEVEL 2 &bull; EXTENDED MULTI-MODULE RESEARCH &amp; MEMORANDUM
                                     </span>
-                                    <h3 className="text-lg font-semibold mt-0.5">
+                                    <h3 className="text-[20px] sm:text-[22px] font-bold tracking-[-0.035em] leading-[1.15] mt-1">
                                       {languageMode === "th"
                                         ? "บันทึกความเห็นทางกฎหมาย ข้อหารือกรมสรรพากร คำพิพากษาศาลฎีกา และหน้าที่ตามกฎหมาย"
                                         : "Extended Legal Analysis, Rulings, Supreme Court Decisions & Compliance Obligations"}
@@ -2481,10 +2481,10 @@ export default function Reg24MetroConsole() {
                             >
                               <div className="flex items-start justify-between gap-2 border-b pb-4 border-slate-200/80 dark:border-slate-800">
                                 <div>
-                                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#0f2c59] dark:text-[#f5b700]">
+                                  <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
                                     LEVEL 3 &bull; SOURCE &amp; EVIDENCE INSPECTOR (UX-05)
                                   </span>
-                                  <h3 className="text-sm font-semibold mt-0.5">
+                                  <h3 className="text-[20px] font-bold tracking-[-0.035em] leading-[1.15] mt-1">
                                     {languageMode === "th" ? activeCitation.title_th : activeCitation.title_en}
                                   </h3>
                                 </div>
@@ -2564,12 +2564,12 @@ export default function Reg24MetroConsole() {
 
                               {/* Exact Authoritative Excerpt (Visually Distinguished from AI Interpretation — WEB-03 / UX-05) */}
                               <div className="p-4 rounded-xl border-l-4 border-[#0f2c59] dark:border-[#f5b700] bg-slate-100/80 dark:bg-[#0f2c59]/30 space-y-2">
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
+                                <div className="text-[11px] font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-[#f5b700]">
                                   {languageMode === "th"
                                     ? "ตัวบทกฎหมายต้นฉบับ (Authoritative Excerpt)"
                                     : "Exact Authoritative Source Excerpt"}
                                 </div>
-                                <p className="text-xs font-serif leading-relaxed">
+                                <p className="text-[14px] font-normal leading-[1.5]">
                                   {languageMode === "th"
                                     ? activeCitation.highlighted_source_passage_th
                                     : activeCitation.highlighted_source_passage_en}
@@ -2578,12 +2578,12 @@ export default function Reg24MetroConsole() {
 
                               {/* AI Legal Interpretation */}
                               <div className={`p-4 rounded-xl space-y-1.5 ${subtleBox}`}>
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-sky-400">
+                                <div className="text-[11px] font-semibold uppercase tracking-wider text-blue-600 dark:text-sky-400">
                                   {languageMode === "th"
                                     ? "การตีความทางกฎหมายโดย AI (AI Legal Interpretation)"
                                     : "AI Legal Interpretation Assessment"}
                                 </div>
-                                <p className="text-xs leading-relaxed">
+                                <p className="text-[14px] font-normal leading-[1.5]">
                                   {languageMode === "th"
                                     ? activeCitation.ai_interpretation_summary_th
                                     : activeCitation.ai_interpretation_summary_en}
@@ -2631,12 +2631,12 @@ export default function Reg24MetroConsole() {
                 <div className="py-6 space-y-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h1 className="text-2xl font-semibold tracking-tight">
+                      <h1 className="text-[32px] sm:text-[36px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                         {languageMode === "th"
                           ? "พื้นที่ทำงานและงานวิจัยที่บันทึกไว้ (Workspace)"
                           : "Workspace — Saved Research, Exports & Handoff"}
                       </h1>
-                      <p className={`text-xs mt-1 ${mutedText}`}>
+                      <p className={`text-[14px] mt-1.5 font-normal leading-[1.5] ${mutedText}`}>
                         {languageMode === "th"
                           ? "ประวัติการค้นคว้า โฟลเดอร์โครงการ ส่งออกรายงาน PDF/DOCX และส่งต่องานไปยัง LAW24"
                           : "Conversation history, project folders, notes, bookmarks, PDF/DOCX exports, and LAW24 handoff."}
@@ -2677,7 +2677,7 @@ export default function Reg24MetroConsole() {
                                 {sess.active_mode} &bull; {sess.as_of_date}
                               </span>
                             </div>
-                            <h3 className="text-base font-semibold mt-1.5">{sess.title}</h3>
+                            <h3 className="text-[20px] font-bold tracking-[-0.035em] leading-[1.15] mt-2">{sess.title}</h3>
                             <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800 text-xs">
                               <span className={mutedText}>
                                 {sess.turns.length} turns &bull; {sess.bookmarked_source_ids.length} bookmarked sources
@@ -2751,12 +2751,12 @@ export default function Reg24MetroConsole() {
               {uxResearchDestination === "library" && (
                 <div className="py-6 space-y-6">
                   <div>
-                    <h1 className="text-2xl font-semibold tracking-tight">
+                    <h1 className="text-[32px] sm:text-[36px] font-extrabold tracking-[-0.035em] leading-[1.15]">
                       {languageMode === "th"
                         ? "คลังแหล่งข้อมูลกฎหมายไทย (Legal Source Library)"
                         : "Library — Authoritative Thai Legal Sources"}
                     </h1>
-                    <p className={`text-xs mt-1 ${mutedText}`}>
+                    <p className={`text-[14px] mt-1.5 font-normal leading-[1.5] ${mutedText}`}>
                       {languageMode === "th"
                         ? "ค้นหาและเปิดอ่านตัวบทกฎหมาย กฎหมายลำดับรอง คำพิพากษาศาลฎีกา ข้อหารือกรมสรรพากร ก.ล.ต./ตลท. และ BOI"
                         : "Browse and filter statutes, subordinate regulations, Supreme Court judgments, Revenue Department tax rulings, SEC/SET rules, and BOI announcements."}
@@ -2819,13 +2819,13 @@ export default function Reg24MetroConsole() {
                                 ✓ {doc.verification_status === "human_verified" ? "Verified" : "Checked"}
                               </span>
                             </div>
-                            <h3 className="text-sm font-semibold leading-snug">
+                            <h3 className="text-[20px] font-bold tracking-[-0.035em] leading-[1.15]">
                               {languageMode === "th" ? doc.title_th : doc.title_en}
                             </h3>
-                            <div className={`text-xs ${mutedText}`}>
+                            <div className={`text-[12px] font-medium ${mutedText}`}>
                               {doc.source_authority} &bull; Effective: {doc.effective_from}
                             </div>
-                            <p className="text-xs font-serif leading-relaxed pt-1 opacity-90">
+                            <p className="text-[14px] font-normal leading-[1.5] pt-1 opacity-90">
                               {languageMode === "th"
                                 ? doc.original_source_snippet_th
                                 : doc.original_source_snippet_en}
@@ -2890,13 +2890,13 @@ export default function Reg24MetroConsole() {
           <div className="max-w-[1060px] mx-auto py-6 space-y-6">
             <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-widest text-[#f5b700]">
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[#f5b700]">
                   02. REG24 INFRASTRUCTURE &bull; DEVELOPER CONSOLE
                 </span>
-                <h1 className="text-2xl font-bold text-white mt-1">
+                <h1 className="text-[32px] font-extrabold tracking-[-0.035em] leading-[1.15] text-white mt-1.5">
                   API Gateway, MCP Tools &amp; Module Capabilities
                 </h1>
-                <p className="text-xs text-slate-300 mt-1">
+                <p className="text-[14px] text-slate-300 mt-1.5 font-normal leading-[1.5]">
                   Separated from the lawyer research interface per UX/UI v2.0 Section 1 &amp; Section 8.
                 </p>
               </div>
@@ -2953,13 +2953,13 @@ export default function Reg24MetroConsole() {
           <div className="max-w-[1060px] mx-auto py-6 space-y-6">
             <div className="bg-[#101829] border border-[#24324b] rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <span className="text-[11px] font-bold uppercase tracking-widest text-[#f5b700]">
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[#f5b700]">
                   03. REG24 CONTROL &bull; ADMINISTRATOR CONSOLE
                 </span>
-                <h1 className="text-2xl font-bold text-white mt-1">
+                <h1 className="text-[32px] font-extrabold tracking-[-0.035em] leading-[1.15] text-white mt-1.5">
                   Source Ingestion, 3R Graph RAG, Data Quality &amp; Audit Control
                 </h1>
-                <p className="text-xs text-slate-300 mt-1">
+                <p className="text-[14px] text-slate-300 mt-1.5 font-normal leading-[1.5]">
                   Restricted to platform administrators and legal knowledge engineers per UX/UI v2.0 Section 1.
                 </p>
               </div>
@@ -3026,15 +3026,15 @@ export default function Reg24MetroConsole() {
             <div className="relative border border-[#24324b] bg-gradient-to-r from-[#0e1729] via-[#122648] to-[#3d3012] p-6 overflow-hidden">
               {/* Top-left Lacquer Yellow accent bar */}
               <div className="absolute top-0 left-0 w-16 h-[3px] bg-[#f5b700]" />
-              <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#f5b700]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#f5b700]">
                 {languageMode === "th"
                   ? "REG24 DIRECT / โหมดใช้งานง่าย (EASY MODE)"
                   : "REG24 DIRECT / EASY MODE"}
               </div>
-              <h1 className="text-2xl md:text-[30px] font-bold text-white tracking-tight mt-1.5">
+              <h1 className="text-[32px] md:text-[36px] font-extrabold text-white tracking-[-0.035em] leading-[1.15] mt-1.5">
                 {languageMode === "th" ? "เลือกจุดเริ่มต้นของคุณ" : "Choose a starting point"}
               </h1>
-              <p className="text-xs text-slate-300 mt-1">
+              <p className="text-[14px] text-slate-300 mt-1.5 font-normal leading-[1.5]">
                 {languageMode === "th"
                   ? "เลือกหนึ่งภารกิจด้านล่าง ระบบ REG24 จะพาท่านไปยังเครื่องมือวิเคราะห์ข้อกฎหมายพร้อมหลักฐานอ้างอิงทันที"
                   : "Pick one task. REG24 takes you straight to it."}
@@ -3060,12 +3060,12 @@ export default function Reg24MetroConsole() {
                       <Search className="w-4 h-4" />
                     </div>
                   </div>
-                  <h2 className="text-2xl md:text-[26px] font-bold text-white leading-[1.18] mt-2 max-w-[85%]">
+                  <h2 className="text-[24px] md:text-[28px] font-extrabold text-white tracking-[-0.035em] leading-[1.15] mt-2 max-w-[85%]">
                     {languageMode === "th"
                       ? "ตรวจสอบว่ากฎหมายไทยมีผลต่อธุรกิจของฉันอย่างไร"
                       : "Check how Thai law sees my business"}
                   </h2>
-                  <p className="text-xs text-slate-200 mt-2.5 max-w-[85%] leading-relaxed">
+                  <p className="text-[14px] text-slate-200 mt-2.5 max-w-[85%] font-normal leading-[1.5]">
                     {languageMode === "th"
                       ? "ถามข้อกฎหมายภาษาไทยหรืออังกฤษ วิเคราะห์เชิงลึก 9 ขั้นตอน และตรวจสอบคำพิพากษาศาลฎีกาพร้อมล็อกแหล่งอ้างอิง"
                       : "Check your statutory exposure, court precedents, and any saved AI legal answers."}
@@ -3102,12 +3102,12 @@ export default function Reg24MetroConsole() {
                       <Package className="w-4 h-4" />
                     </div>
                   </div>
-                  <h2 className="text-lg font-bold text-white leading-snug mt-1">
+                  <h2 className="text-[20px] md:text-[22px] font-extrabold text-white tracking-[-0.035em] leading-[1.15] mt-1.5">
                     {languageMode === "th"
                       ? "ค้นหากฎหมาย คำพิพากษาศาลฎีกา และข้อหารือภาษี"
                       : "Search statutes, cases, and tax rulings"}
                   </h2>
-                  <p className="text-xs text-slate-400 mt-1 max-w-[82%]">
+                  <p className="text-[14px] text-slate-400 mt-1.5 max-w-[82%] font-normal leading-[1.5]">
                     {languageMode === "th"
                       ? "ค้นหา 7 หมวดหมู่แหล่งกฎหมายและเปิดอ่านตัวบทต้นฉบับเทียบกับคำอธิบาย AI"
                       : "Search 7 legal categories and inspect original text vs AI interpretation before publishing."}
@@ -3446,7 +3446,7 @@ export default function Reg24MetroConsole() {
                         <strong>Legal Research Web Mode (Thai Default + EN):</strong> Conversational AI Research,
                         7-Category Legal Search, Source Viewer (Original vs AI), 9-Step Deep Research, Temporal Side-by-Side Diff &amp; PDF/DOCX Export.
                       </p>
-                      <h3 className="text-2xl font-light lowercase tracking-tight text-[#f5b700]">
+                      <h3 className="text-2xl font-normal lowercase tracking-tight text-[#f5b700]">
                         reg24 web research studio &bull; ai legal research &amp; source viewer
                       </h3>
                     </div>
@@ -3474,7 +3474,7 @@ export default function Reg24MetroConsole() {
                         Modes, 9 Industry Modules (`IND-*` + SDK), Agentic Missions (`Single`/`Team`/`Swarm`),
                         Report Studio, Enterprise Compliance &amp; Section 24 Data Quality Dashboard.
                       </p>
-                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                      <h3 className="text-2xl font-normal lowercase tracking-tight">
                         v2.0 corporate, industry &amp; report studio workspace
                       </h3>
                     </div>
@@ -3501,7 +3501,7 @@ export default function Reg24MetroConsole() {
                         Single Streamable HTTP Gateway (July 28, 2026 MCP Spec) + OpenAPI v3 REST for
                         LAW24, CFO24, ACC24, TP24, GMT24, ESG24, COP24, TRADE24, HOTEL24, DRUG24 &amp; RISK24.
                       </p>
-                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                      <h3 className="text-2xl font-normal lowercase tracking-tight">
                         unified mcp &amp; api playground
                       </h3>
                     </div>
@@ -3523,7 +3523,7 @@ export default function Reg24MetroConsole() {
                       <div className="text-[10px] uppercase tracking-wider text-white/80">
                         DETERMINISTIC RULES
                       </div>
-                      <h3 className="text-base font-light lowercase mt-1">rule studio</h3>
+                      <h3 className="text-base font-normal lowercase mt-1">rule studio</h3>
                     </div>
                   </div>
 
@@ -3545,7 +3545,7 @@ export default function Reg24MetroConsole() {
                       <div className="text-[10px] uppercase tracking-wider text-white/80">
                         CROSS-MODULE EDGES
                       </div>
-                      <h3 className="text-base font-light lowercase mt-1">legal graph</h3>
+                      <h3 className="text-base font-normal lowercase mt-1">legal graph</h3>
                     </div>
                   </div>
 
@@ -3564,7 +3564,7 @@ export default function Reg24MetroConsole() {
                       <div className="text-xs font-bold uppercase tracking-wider text-white/90">
                         ZERO-CODE HOT PLUG
                       </div>
-                      <h3 className="text-base font-light lowercase mt-1">module factory</h3>
+                      <h3 className="text-base font-normal lowercase mt-1">module factory</h3>
                     </div>
                   </div>
 
@@ -3586,7 +3586,7 @@ export default function Reg24MetroConsole() {
                       <div className="text-[10px] uppercase tracking-wider text-white/80">
                         AMENDMENT ALERTS
                       </div>
-                      <h3 className="text-base font-light lowercase mt-1">change radar</h3>
+                      <h3 className="text-base font-normal lowercase mt-1">change radar</h3>
                     </div>
                   </div>
 
@@ -3611,7 +3611,7 @@ export default function Reg24MetroConsole() {
                         Single coordinating <strong>REG24 Legal Task Agent</strong> backed by all 15 domain
                         modules. Serves LAW24, CFO24, ACC24, TP24, GMT24 &amp; External AI Agents via A2A v1.0.
                       </p>
-                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                      <h3 className="text-2xl font-normal lowercase tracking-tight">
                         agent-to-agent (a2a) legal task hub
                       </h3>
                     </div>
@@ -3639,7 +3639,7 @@ export default function Reg24MetroConsole() {
                         Notification (30d DSAR &amp; ID Minimization), 72-Hour Breach Clock, DPO Sec. 41,
                         Cross-Border BCRs/SCCs, PDPC 7M THB Order &amp; Privacy-by-Design PII Redaction.
                       </p>
-                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                      <h3 className="text-2xl font-normal lowercase tracking-tight">
                         pdpa regulatory intelligence &amp; 2026 dsar engine
                       </h3>
                     </div>
@@ -3667,7 +3667,7 @@ export default function Reg24MetroConsole() {
                         Revenue Code Sec. 73/74/77/1(8) to Royal Decree No. 10, MR No. 126, RD Ruling 462/2569,
                         RD Opinion 453/2568, TRC 40/2560, Supreme Court 5412/2565 &amp; Top-up Tax B.E. 2567.
                       </p>
-                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                      <h3 className="text-2xl font-normal lowercase tracking-tight">
                         tax rulings, sub-regulations &amp; merger graphrag
                       </h3>
                     </div>
@@ -3695,7 +3695,7 @@ export default function Reg24MetroConsole() {
                         debt default, debt-to-equity conversion, strategic investor (24.5% vs 25% MTO /
                         Whitewash), 1 July 2026 SET MT/RPT rules &amp; Central Bankruptcy Court rehab.
                       </p>
-                      <h3 className="text-2xl font-light lowercase tracking-tight">
+                      <h3 className="text-2xl font-normal lowercase tracking-tight">
                         capital markets, restructuring &amp; insolvency mission
                       </h3>
                     </div>
@@ -3716,7 +3716,7 @@ export default function Reg24MetroConsole() {
                   </span>
                   <Database className="w-4 h-4 text-[#A20025]" />
                 </div>
-                <h3 className="text-lg font-light lowercase text-white mb-1">
+                <h3 className="text-lg font-normal lowercase text-white mb-1">
                   reg24 data infrastructure
                 </h3>
                 <p className="text-xs text-zinc-400 leading-relaxed">
@@ -3735,7 +3735,7 @@ export default function Reg24MetroConsole() {
                   </span>
                   <Terminal className="w-4 h-4 text-[#1BA1E2]" />
                 </div>
-                <h3 className="text-lg font-light lowercase text-white mb-1">
+                <h3 className="text-lg font-normal lowercase text-white mb-1">
                   reg24 mcp infrastructure
                 </h3>
                 <p className="text-xs text-zinc-400 leading-relaxed">
@@ -3754,7 +3754,7 @@ export default function Reg24MetroConsole() {
                   </span>
                   <Layers className="w-4 h-4 text-[#E51400]" />
                 </div>
-                <h3 className="text-lg font-light lowercase text-white mb-1">
+                <h3 className="text-lg font-normal lowercase text-white mb-1">
                   reg24 a2a infrastructure
                 </h3>
                 <p className="text-xs text-zinc-400 leading-relaxed">
@@ -3884,7 +3884,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#008A00]">
                   CONSOLE SCREEN A &bull; REG-MOD-001 TO 003
                 </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   module registry &amp; lifecycle manager
                 </h2>
               </div>
@@ -3922,7 +3922,7 @@ export default function Reg24MetroConsole() {
                             <div className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-85">
                               {mod.metro_tile.short_code} &bull; {mod.module_id}
                             </div>
-                            <h3 className="text-xl font-light tracking-tight leading-tight">
+                            <h3 className="text-xl font-normal tracking-tight leading-tight">
                               {mod.display_name} ({mod.display_name_th})
                             </h3>
                           </div>
@@ -4099,7 +4099,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#1BA1E2]">
                   CONSOLE SCREEN B &bull; REG-MOD-002 &amp; REG-MOD-004
                 </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   module factory &amp; zero-downtime hot installer
                 </h2>
               </div>
@@ -4281,7 +4281,7 @@ export default function Reg24MetroConsole() {
               <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#F0A30A]">
                 CONSOLE SCREEN C &bull; REG-CORE-003, REG-DATA-004 &amp; REG-SEC-002
               </span>
-              <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+              <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                 legal source manager &amp; canonical provision store
               </h2>
             </div>
@@ -4441,7 +4441,7 @@ export default function Reg24MetroConsole() {
                   <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#A20025]">
                     CONSOLE SCREEN D &bull; REG24-P0-GRAPH-001 &bull; 3R ARCHITECTURE (R1 &rarr; R2 &rarr; R3)
                   </span>
-                  <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                  <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                     hybrid legal graphrag engine &amp; 3r verification pipeline
                   </h2>
                 </div>
@@ -4916,7 +4916,7 @@ export default function Reg24MetroConsole() {
               <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#6A00FF]">
                 CONSOLE SCREEN E &bull; REG-RULE-001 TO 004 &amp; REG-QA-004
               </span>
-              <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+              <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                 deterministic rule studio &amp; human approval gate
               </h2>
             </div>
@@ -5082,7 +5082,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#D80073]">
                   CONSOLE SCREEN F &bull; REG-CHANGE-001 TO 003 &amp; REG-QA-008
                 </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   regulatory change intelligence &amp; cross-module impact radar
                 </h2>
               </div>
@@ -5192,7 +5192,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#00ABA9]">
                   CONSOLE SCREEN G &bull; JULY 28, 2026 MCP SPECIFICATION &amp; OPENAPI v3.1
                 </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   unified mcp &amp; rest api gateway playground
                 </h2>
               </div>
@@ -5412,7 +5412,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#E51400]">
                   CONSOLE SCREEN I &bull; A2A PROTOCOL v1.0 &bull; REG-A2A-001 TO REG-A2A-009
                 </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   reg24 legal task agent &amp; multi-domain delegation hub
                 </h2>
               </div>
@@ -5734,7 +5734,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-zinc-400">
                   CONSOLE SCREEN H &bull; REG-SEC-001 TO 005 &amp; TRACE24 STREAM
                 </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   trace24 provenance chain, security &amp; audit log
                 </h2>
               </div>
@@ -5802,7 +5802,7 @@ export default function Reg24MetroConsole() {
                 <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#FA6800]">
                   SCOPE EXTENSION v1.0 &bull; OCTOBER 2026 &bull; SEC / SET / RESTRUCT / INSOLV
                 </div>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   cross-module listed-company restructuring &amp; capital markets mission
                 </h2>
                 <p className="text-xs text-zinc-400 mt-1 max-w-4xl">
@@ -6122,7 +6122,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#008A00]">
                   CONSOLE SCREEN K &bull; TAX EXPANSION v1.1 (OCT 2026) &bull; REG-TAX-SUB / RULING / CASE / CHANGE
                 </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   tax rulings, sub-regulations &amp; merger graphrag
                 </h2>
               </div>
@@ -6426,7 +6426,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[10px] font-bold uppercase tracking-[0.25em] text-[#00ABA9]">
                   CONSOLE SCREEN L &bull; MODULE REG24-PDPA (`reg24.pdpa.th` &bull; P0-15) &bull; SHARED INFRASTRUCTURE
                 </span>
-                <h2 className="text-3xl font-light lowercase tracking-tight text-white">
+                <h2 className="text-3xl font-normal lowercase tracking-tight text-white">
                   pdpa b.e. 2562 &amp; 2026 access-request notification intelligence
                 </h2>
               </div>
@@ -6779,7 +6779,7 @@ export default function Reg24MetroConsole() {
                   <div className="text-[11px] font-mono uppercase tracking-[0.2em] text-[#38BDF8]">
                     MODULE REG24-CASE (`reg24.case.th`) &bull; PRIORITY P0–P2 &bull; 13 LOGICAL SERVICES &bull; 9 MCP TOOLS &amp; 11 REST ENDPOINTS
                   </div>
-                  <h2 className="text-2xl font-light tracking-tight text-white mt-1">
+                  <h2 className="text-2xl font-normal tracking-tight text-white mt-1">
                     court case intelligence &amp; legal precedent infrastructure
                   </h2>
                   <p className="text-xs text-zinc-400 mt-1">
@@ -7712,7 +7712,7 @@ export default function Reg24MetroConsole() {
                 <div className="text-[11px] font-mono uppercase tracking-[0.22em] text-[#10B981] font-bold">
                   REG24 DEVELOPER PRD v2.0 &bull; CORPORATE &amp; COMMERCIAL LEGAL INTELLIGENCE INFRASTRUCTURE
                 </div>
-                <h2 className="text-2xl md:text-3xl font-light lowercase text-white mt-0.5">
+                <h2 className="text-2xl md:text-3xl font-normal lowercase text-white mt-0.5">
                   v2.0 corporate, industry &amp; agentic legal intelligence hub
                 </h2>
                 <p className="text-xs text-zinc-400 mt-1">
@@ -8935,10 +8935,10 @@ export default function Reg24MetroConsole() {
                                 HIGHLIGHTED PASSAGE
                               </span>
                             </div>
-                            <p className="text-xs text-white font-serif leading-relaxed bg-emerald-900/40 p-2.5 border-l-2 border-emerald-400">
+                            <p className="text-xs text-white font-normal leading-relaxed bg-emerald-900/40 p-2.5 border-l-2 border-emerald-400">
                               {activeCitation.highlighted_source_passage_th}
                             </p>
-                            <p className="text-xs text-emerald-100/90 font-serif leading-relaxed">
+                            <p className="text-xs text-emerald-100/90 font-normal leading-relaxed">
                               {activeCitation.highlighted_source_passage_en}
                             </p>
                           </div>
@@ -9141,10 +9141,10 @@ export default function Reg24MetroConsole() {
                             <span className="text-[10px] font-bold uppercase bg-emerald-600 text-black px-2 py-0.5">
                               ORIGINAL STATUTORY / JUDICIAL TEXT
                             </span>
-                            <p className="text-xs text-white font-serif leading-relaxed mt-1">
+                            <p className="text-xs text-white font-normal leading-relaxed mt-1">
                               {selectedDoc.original_source_snippet_th}
                             </p>
-                            <p className="text-xs text-emerald-200/90 font-serif leading-relaxed">
+                            <p className="text-xs text-emerald-200/90 font-normal leading-relaxed">
                               {selectedDoc.original_source_snippet_en}
                             </p>
                           </div>
@@ -9219,10 +9219,10 @@ export default function Reg24MetroConsole() {
                         Effective: {comp.historical_version.effective_from} &rarr;{" "}
                         {comp.historical_version.effective_to}
                       </div>
-                      <p className="text-sm text-white font-serif leading-relaxed pt-2">
+                      <p className="text-sm text-white font-normal leading-relaxed pt-2">
                         {comp.historical_version.original_text_th}
                       </p>
-                      <p className="text-xs text-zinc-300 font-serif leading-relaxed">
+                      <p className="text-xs text-zinc-300 font-normal leading-relaxed">
                         {comp.historical_version.original_text_en}
                       </p>
                     </div>
@@ -9240,10 +9240,10 @@ export default function Reg24MetroConsole() {
                         Effective: {comp.current_version.effective_from} &rarr; Present (
                         {comp.current_version.version_id})
                       </div>
-                      <p className="text-sm text-white font-serif leading-relaxed pt-2">
+                      <p className="text-sm text-white font-normal leading-relaxed pt-2">
                         {comp.current_version.original_text_th}
                       </p>
-                      <p className="text-xs text-zinc-300 font-serif leading-relaxed">
+                      <p className="text-xs text-zinc-300 font-normal leading-relaxed">
                         {comp.current_version.original_text_en}
                       </p>
                     </div>
