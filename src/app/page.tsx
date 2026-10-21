@@ -2367,7 +2367,7 @@ export default function Reg24MetroConsole() {
             }}
             className="flex items-center gap-2 text-left cursor-pointer group shrink-0"
           >
-            <span className="w-7 h-7 rounded-lg bg-[#0f2c59] border border-[#f5b700] text-[#f5b700] font-bold text-xs flex items-center justify-center tracking-tight">
+            <span className="w-7 h-7 rounded-lg bg-[#0f2c59] border border-[#0f2c59] text-white font-bold text-xs flex items-center justify-center tracking-tight">
               24
             </span>
             <div className="flex items-center gap-1.5 sm:gap-2">
@@ -2382,11 +2382,11 @@ export default function Reg24MetroConsole() {
                 title="Google Gemini & Model24 Multi-LLM Engine Connected"
                 className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold tracking-wider uppercase border ${
                   isLightMinimal
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                    : "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
+                    ? "bg-[#0f2c59]/5 border-[#0f2c59]/20 text-[#0f2c59]"
+                    : "bg-[#0f2c59]/40 border-[#0f2c59] text-slate-200"
                 }`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="w-1.5 h-1.5 rounded-full bg-[#0f2c59] dark:bg-slate-300" />
                 <span>AI Ready</span>
               </span>
               <span
@@ -2457,9 +2457,7 @@ export default function Reg24MetroConsole() {
                     }}
                     className={`px-3.5 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
                       active
-                        ? isLightMinimal
-                          ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
-                          : "bg-[#f5b700] text-[#0a192f] font-bold"
+                        ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
                         : isLightMinimal
                         ? "text-slate-600 hover:text-[#0f172a]"
                         : "text-slate-300 hover:text-white"
@@ -2479,7 +2477,7 @@ export default function Reg24MetroConsole() {
                   setVibeMode("minimal");
                   setActiveScreen("PANORAMA");
                 }}
-                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#0f2c59] border border-[#f5b700]/70 text-[#f5b700] font-semibold cursor-pointer"
+                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#0f2c59] border border-[#0f2c59] text-white font-semibold cursor-pointer"
               >
                 &larr; <span className="hidden sm:inline">Return to </span>01. Research
               </button>
@@ -2494,7 +2492,7 @@ export default function Reg24MetroConsole() {
                   await pwaInstallEvent.prompt();
                   setPwaInstallEvent(null);
                 }}
-                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#0f2c59] text-[#f5b700] border border-[#f5b700]/60 cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#0f2c59] text-white border border-[#0f2c59] cursor-pointer"
               >
                 <span>Install App</span>
               </button>
@@ -2515,9 +2513,7 @@ export default function Reg24MetroConsole() {
                 }}
                 className={`px-2 py-1 rounded-md text-[11px] sm:text-[12px] font-semibold cursor-pointer transition-colors ${
                   languageMode === "th"
-                    ? isLightMinimal
-                      ? "bg-[#0f2c59] text-white"
-                      : "bg-[#f5b700] text-[#0a192f]"
+                    ? "bg-[#0f2c59] text-white"
                     : isLightMinimal
                     ? "text-slate-600 hover:text-[#0f172a]"
                     : "text-slate-300 hover:text-white"
@@ -2532,9 +2528,7 @@ export default function Reg24MetroConsole() {
                 }}
                 className={`px-2 py-1 rounded-md text-[11px] sm:text-[12px] font-semibold cursor-pointer transition-colors ${
                   languageMode === "en"
-                    ? isLightMinimal
-                      ? "bg-[#0f2c59] text-white"
-                      : "bg-[#f5b700] text-[#0a192f]"
+                    ? "bg-[#0f2c59] text-white"
                     : isLightMinimal
                     ? "text-slate-600 hover:text-[#0f172a]"
                     : "text-slate-300 hover:text-white"
@@ -2551,7 +2545,7 @@ export default function Reg24MetroConsole() {
               className={`p-2 rounded-lg border cursor-pointer transition-colors ${
                 isLightMinimal
                   ? "bg-white border-[#e2e8f0] text-slate-700 hover:bg-slate-100"
-                  : "bg-[#121a2b] border-[#24324b] text-[#f5b700] hover:bg-[#182338]"
+                  : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:bg-[#182338]"
               }`}
             >
               {lightSurfaceMode ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
@@ -2564,10 +2558,10 @@ export default function Reg24MetroConsole() {
                 className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-[12px] sm:text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
                   isLightMinimal
                     ? "bg-white border-[#e2e8f0] text-[#0f172a] hover:bg-slate-50"
-                    : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:border-[#f5b700]"
+                    : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:border-[#0f2c59]"
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span className="w-2 h-2 rounded-full bg-[#0f2c59] dark:bg-slate-300" />
                 <span>
                   {uxExperience === "research"
                     ? "01. Research"
@@ -2734,9 +2728,7 @@ export default function Reg24MetroConsole() {
                     }}
                     className={`py-2 px-2 rounded-lg text-[12px] font-semibold text-center truncate transition-all cursor-pointer ${
                       active
-                        ? isLightMinimal
-                          ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
-                          : "bg-[#f5b700] text-[#0a192f] font-bold"
+                        ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
                         : isLightMinimal
                         ? "text-slate-600"
                         : "text-slate-300"
@@ -2753,14 +2745,14 @@ export default function Reg24MetroConsole() {
 
       {/* TOAST BANNER */}
       {toastMessage && (
-        <div className="bg-[#0f2c59] border-b border-[#f5b700] text-white px-6 py-2 text-xs font-medium flex items-center justify-between">
+        <div className="bg-[#0f2c59] border-b border-slate-700 text-white px-6 py-2 text-xs font-medium flex items-center justify-between">
           <span className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#f5b700] inline-block" />
+            <span className="w-2 h-2 rounded-full bg-white inline-block" />
             {toastMessage}
           </span>
           <button
             onClick={() => setToastMessage(null)}
-            className="underline text-[#f5b700] text-[11px] ml-4 cursor-pointer"
+            className="underline text-slate-200 text-[11px] ml-4 cursor-pointer"
           >
             Dismiss
           </button>
@@ -2898,7 +2890,7 @@ export default function Reg24MetroConsole() {
           const mutedText = isLightMinimal ? "text-slate-500" : "text-slate-400";
 
           return (
-            <div className="max-w-[920px] mx-auto">
+            <div className={uxResearchDestination === "library" ? "max-w-[1400px] mx-auto" : "max-w-[920px] mx-auto"}>
               {/* ===============================================================
                   DESTINATION 1: RESEARCH (Default — Section 2 Home Screen & Section 3 Results)
                   =============================================================== */}
