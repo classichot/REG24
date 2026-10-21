@@ -6,10 +6,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0f2c59" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0e17" },
-  ],
+  colorScheme: "dark",
+  themeColor: "#0a0e17",
 };
 
 export const metadata: Metadata = {
@@ -37,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" style={{ colorScheme: "dark" }}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -46,7 +44,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="antialiased selection:bg-[#0f2c59] selection:text-[#f5b700]">
+      <body className="bg-[#0a0e17] text-slate-100 antialiased selection:bg-[#0f2c59] selection:text-[#f5b700]">
         {children}
       </body>
     </html>

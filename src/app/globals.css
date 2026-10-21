@@ -2,6 +2,8 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
+  color-scheme: dark;
+
   /* AI24 / REG24 Unified Typography Design Tokens (Compact Single-Line Scale) */
   --font-ui: "Inter", "Noto Sans Thai", sans-serif;
   --font-size-page-heading: clamp(1.125rem, 1.5vw, 1.25rem); /* 18–20px */
@@ -77,6 +79,7 @@
   }
 
   body {
+    color-scheme: dark;
     background-color: #0a0e17;
     color: #f8fafc;
     font-family: var(--font-ui);
@@ -85,6 +88,14 @@
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+
+  .light {
+    color-scheme: light;
   }
 
   nav a,
@@ -139,7 +150,7 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #94a3b8;
+  background: #334155;
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {

@@ -2078,6 +2078,16 @@ export default function Reg24MetroConsole() {
     return () => clearInterval(timer);
   }, []);
 
+  // Enforce Dark Mode as the default on <html> and sync when user toggles surface mode
+  useEffect(() => {
+    if (typeof document !== "undefined") {
+      const isDark = !lightSurfaceMode;
+      document.documentElement.classList.toggle("dark", isDark);
+      document.documentElement.classList.toggle("light", !isDark);
+      document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+    }
+  }, [lightSurfaceMode]);
+
   // Update default Rule Studio inputs when user selects a different rule
   const handleSelectRule = (ruleId: string) => {
     setSelectedRuleId(ruleId);
@@ -2327,7 +2337,8 @@ export default function Reg24MetroConsole() {
 
   const isMinimalResearchUi =
     activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "research";
-  const isLightMinimal = isMinimalResearchUi && lightSurfaceMode;
+  const isLightMinimal =
+    activeScreen === "PANORAMA" && vibeMode === "minimal" && lightSurfaceMode;
 
   return (
     <div
@@ -2538,17 +2549,32 @@ export default function Reg24MetroConsole() {
               </button>
             </div>
 
-            {/* Light / Dark Surface Toggle (Section 7) */}
+            {/* Light / Dark Surface Toggle (Section 7 — Dark Mode Default) */}
             <button
               onClick={() => setLightSurfaceMode((prev) => !prev)}
-              title="Toggle Light / Dark Surface"
-              className={`p-2 rounded-lg border cursor-pointer transition-colors ${
+              aria-label={lightSurfaceMode ? "Switch to Dark Mode (Default)" : "Switch to Light Mode"}
+              title={
+                lightSurfaceMode
+                  ? "Light Mode Active — Click to switch to Dark Mode (Default)"
+                  : "Dark Mode Active (Default) — Click to switch to Light Mode"
+              }
+              className={`px-2.5 py-1.5 rounded-lg border cursor-pointer transition-colors flex items-center gap-1.5 text-[11px] font-semibold ${
                 isLightMinimal
                   ? "bg-white border-[#e2e8f0] text-slate-700 hover:bg-slate-100"
                   : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:bg-[#182338]"
               }`}
             >
-              {lightSurfaceMode ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+              {lightSurfaceMode ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-500" />
+                  <span className="hidden sm:inline">Light</span>
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-slate-200" />
+                  <span className="hidden sm:inline">Dark</span>
+                </>
+              )}
             </button>
 
             {/* Account / Workspace Switcher (Separates 01. Research, 02. Infrastructure, 03. Control per Section 1 & 5) */}
