@@ -2351,21 +2351,22 @@ export default function Reg24MetroConsole() {
       }`}
     >
       {/* =======================================================================
-          UX/UI v2.0 MINIMAL TOP NAVIGATION BAR
-          Section 5: Only three top-level destinations visible to ordinary users:
-          [ Research | Workspace | Library ]
-          Developer (02. Infrastructure) & Admin (03. Control) separated into
-          the Account / Console Switcher.
+          UX/UI v2.0 COLOR-GROUPED UNIFIED TOP NAVIGATION BAR
+          Consistent across all views & consoles with 3 color-coded menu groups:
+          - Group 1 (Sapphire Blue): Legal Research, Workspace & Legal Databases
+          - Group 2 (Emerald Teal): My NotebookLM & Connect AI (MCP)
+          - Group 3 (Amber Gold): Developer, Admin Control & 16-Module Matrix
+          - Group 4 (Right Utilities): Language (TH/EN), Theme (Dark/Light) & Quick Switcher
           ======================================================================= */}
       <header
         className={`sticky top-0 z-50 border-b transition-colors pt-safe ${
           isLightMinimal
-            ? "bg-white/95 border-[#e2e8f0] backdrop-blur"
-            : "bg-[#0c111d]/95 border-[#1e293b] backdrop-blur"
+            ? "bg-white/95 border-[#cbd5e1] backdrop-blur-md shadow-[0_1px_3px_rgba(15,23,42,0.04)]"
+            : "bg-[#0a0f1c]/95 border-[#1e293b] backdrop-blur-md shadow-[0_2px_12px_rgba(0,0,0,0.35)]"
         }`}
       >
-        <div className="max-w-[1120px] mx-auto px-3.5 sm:px-4 md:px-6 h-14 flex items-center justify-between gap-2 sm:gap-4">
-          {/* Left Brand Lockup: REG24 */}
+        <div className="max-w-[1440px] mx-auto px-3 sm:px-4 md:px-6 h-15 flex items-center justify-between gap-2 sm:gap-3">
+          {/* Left Brand Lockup: REG24 + Active Group Status Pill */}
           <button
             onClick={() => {
               setUxExperience("research");
@@ -2376,14 +2377,14 @@ export default function Reg24MetroConsole() {
               setVibeMode("minimal");
               setActiveScreen("PANORAMA");
             }}
-            className="flex items-center gap-2 text-left cursor-pointer group shrink-0"
+            className="flex items-center gap-2.5 text-left cursor-pointer group shrink-0"
           >
-            <span className="w-7 h-7 rounded-lg bg-[#0f2c59] border border-[#0f2c59] text-white font-bold text-xs flex items-center justify-center tracking-tight">
+            <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0f2c59] to-[#1d4ed8] border border-blue-400/30 text-white font-extrabold text-xs flex items-center justify-center tracking-tight shadow-xs">
               24
             </span>
-            <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="flex items-center gap-2">
               <span
-                className={`text-[17px] sm:text-[18px] font-extrabold tracking-[-0.035em] leading-[1.15] transition-colors ${
+                className={`text-[17px] sm:text-[18px] font-extrabold tracking-[-0.035em] leading-none transition-colors ${
                   isLightMinimal ? "text-[#0f172a]" : "text-white"
                 }`}
               >
@@ -2391,130 +2392,285 @@ export default function Reg24MetroConsole() {
               </span>
               <span
                 title="Google Gemini & Model24 Multi-LLM Engine Connected"
-                className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[9.5px] sm:text-[10px] font-bold tracking-wider uppercase border ${
+                className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border ${
                   isLightMinimal
-                    ? "bg-[#0f2c59]/5 border-[#0f2c59]/20 text-[#0f2c59]"
-                    : "bg-[#0f2c59]/40 border-[#0f2c59] text-slate-200"
+                    ? "bg-emerald-50 border-emerald-300 text-emerald-800"
+                    : "bg-emerald-500/15 border-emerald-500/35 text-emerald-300"
                 }`}
               >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#0f2c59] dark:bg-slate-300" />
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span>AI Ready</span>
-              </span>
-              <span
-                className={`hidden lg:inline text-[12px] font-medium ${
-                  isLightMinimal ? "text-slate-500" : "text-slate-400"
-                }`}
-              >
-                {uxExperience === "research"
-                  ? languageMode === "th"
-                    ? "วิจัยกฎหมายธุรกิจ"
-                    : "Legal Research"
-                  : uxExperience === "infrastructure"
-                  ? "02. Infrastructure (Developer)"
-                  : "03. Control (Administrator)"}
               </span>
             </div>
           </button>
 
-          {/* Center (Desktop & Tablet md+): Three Top-Level Destinations for Normal Users (Section 5) */}
-          {uxExperience === "research" && activeScreen === "PANORAMA" && vibeMode === "minimal" ? (
-            <nav
-              aria-label="REG24 Research Primary Navigation"
-              className={`hidden md:flex items-center gap-1 p-1 rounded-xl border ${
+          {/* Center (Desktop lg+): 3 Color-Coded Menu Groups (Always Consistent Across Views) */}
+          <nav
+            aria-label="REG24 Research Primary Navigation"
+            className="hidden lg:flex items-center gap-2 overflow-x-auto no-scrollbar"
+          >
+            {/* GROUP 1 — SAPPHIRE BLUE: LEGAL RESEARCH & CORPUS */}
+            <div
+              className={`flex items-center gap-1 p-1 rounded-xl border ${
                 isLightMinimal
-                  ? "bg-[#f8fafc] border-[#e2e8f0]"
-                  : "bg-[#121a2b] border-[#24324b]"
+                  ? "bg-blue-50/80 border-blue-200/90"
+                  : "bg-blue-950/30 border-blue-500/25"
               }`}
             >
+              <span
+                title="Group 1: Legal Research & Corpus"
+                className={`hidden xl:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider select-none ${
+                  isLightMinimal ? "text-blue-800" : "text-blue-300"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                <span>{languageMode === "th" ? "วิจัย" : "Legal"}</span>
+              </span>
               {(
                 [
                   {
                     id: "research" as const,
                     labelEn: "Research",
-                    labelTh: "ค้นคว้า (Research)",
+                    labelTh: "ค้นคว้า",
+                    icon: Search,
                   },
                   {
                     id: "workspace" as const,
                     labelEn: "Workspace",
-                    labelTh: "พื้นที่ทำงาน (Workspace)",
+                    labelTh: "พื้นที่งาน",
+                    icon: FileSignature,
                   },
                   {
                     id: "library" as const,
-                    labelEn: "Legal Databases",
-                    labelTh: "คลังฐานข้อมูลกฎหมาย (Legal Databases)",
-                  },
-                  {
-                    id: "notebooklm" as const,
-                    labelEn: "My NotebookLM",
-                    labelTh: "NotebookLM ของฉัน",
-                  },
-                  {
-                    id: "connect_ai" as const,
-                    labelEn: "Connect AI (MCP)",
-                    labelTh: "เชื่อมต่อ AI (MCP)",
+                    labelEn: "Databases",
+                    labelTh: "ฐานข้อมูล",
+                    icon: Database,
                   },
                 ]
               ).map((dest) => {
-                const active = uxResearchDestination === dest.id;
+                const Icon = dest.icon;
+                const active =
+                  activeScreen === "PANORAMA" &&
+                  vibeMode === "minimal" &&
+                  uxExperience === "research" &&
+                  uxResearchDestination === dest.id;
                 return (
                   <button
                     key={dest.id}
                     onClick={() => {
-                      if (dest.id === "research" && uxResearchDestination === "research") {
+                      if (
+                        dest.id === "research" &&
+                        activeScreen === "PANORAMA" &&
+                        vibeMode === "minimal" &&
+                        uxExperience === "research" &&
+                        uxResearchDestination === "research"
+                      ) {
                         setUxHasSubmittedResearch(false);
                         setActiveWebTurn(null);
                       }
+                      setUxExperience("research");
                       setUxResearchDestination(dest.id);
+                      setVibeMode("minimal");
+                      setActiveScreen("PANORAMA");
                     }}
-                    className={`px-3.5 py-1.5 rounded-lg text-[13px] font-semibold transition-all cursor-pointer ${
+                    className={`h-8 px-3 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
                       active
-                        ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
+                        ? "bg-blue-600 text-white shadow-xs"
                         : isLightMinimal
-                        ? "text-slate-600 hover:text-[#0f172a]"
-                        : "text-slate-300 hover:text-white"
+                        ? "text-blue-950 hover:bg-blue-100/80"
+                        : "text-blue-100/85 hover:bg-blue-500/20 hover:text-white"
                     }`}
                   >
-                    {languageMode === "th" ? dest.labelTh : dest.labelEn}
+                    <Icon className={`w-3.5 h-3.5 ${active ? "text-white" : isLightMinimal ? "text-blue-700" : "text-blue-400"}`} />
+                    <span>{languageMode === "th" ? dest.labelTh : dest.labelEn}</span>
                   </button>
                 );
               })}
-            </nav>
-          ) : (
-            <div className="flex items-center gap-2 text-[12px] sm:text-[13px] font-semibold">
+            </div>
+
+            {/* GROUP 2 — EMERALD TEAL: AI KNOWLEDGE & MCP STUDIO */}
+            <div
+              className={`flex items-center gap-1 p-1 rounded-xl border ${
+                isLightMinimal
+                  ? "bg-emerald-50/80 border-emerald-200/90"
+                  : "bg-emerald-950/30 border-emerald-500/25"
+              }`}
+            >
+              <span
+                title="Group 2: AI Studio & MCP"
+                className={`hidden xl:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider select-none ${
+                  isLightMinimal ? "text-emerald-800" : "text-emerald-300"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span>AI</span>
+              </span>
+              {(
+                [
+                  {
+                    id: "notebooklm" as const,
+                    labelEn: "NotebookLM",
+                    labelTh: "NotebookLM",
+                    icon: BookOpen,
+                  },
+                  {
+                    id: "connect_ai" as const,
+                    labelEn: "Connect AI (MCP)",
+                    labelTh: "เชื่อม AI (MCP)",
+                    icon: Cpu,
+                  },
+                ]
+              ).map((dest) => {
+                const Icon = dest.icon;
+                const active =
+                  activeScreen === "PANORAMA" &&
+                  vibeMode === "minimal" &&
+                  uxExperience === "research" &&
+                  uxResearchDestination === dest.id;
+                return (
+                  <button
+                    key={dest.id}
+                    onClick={() => {
+                      setUxExperience("research");
+                      setUxResearchDestination(dest.id);
+                      setVibeMode("minimal");
+                      setActiveScreen("PANORAMA");
+                    }}
+                    className={`h-8 px-3 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                      active
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : isLightMinimal
+                        ? "text-emerald-950 hover:bg-emerald-100/80"
+                        : "text-emerald-100/85 hover:bg-emerald-500/20 hover:text-white"
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${active ? "text-white" : isLightMinimal ? "text-emerald-700" : "text-emerald-400"}`} />
+                    <span>{languageMode === "th" ? dest.labelTh : dest.labelEn}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* GROUP 3 — AMBER GOLD: PLATFORM CONSOLES & MODULE MATRIX */}
+            <div
+              className={`flex items-center gap-1 p-1 rounded-xl border ${
+                isLightMinimal
+                  ? "bg-amber-50/85 border-amber-200/90"
+                  : "bg-amber-950/25 border-amber-500/25"
+              }`}
+            >
+              <span
+                title="Group 3: Developer, Admin & Module Matrix"
+                className={`hidden xl:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider select-none ${
+                  isLightMinimal ? "text-amber-900" : "text-amber-300"
+                }`}
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                <span>{languageMode === "th" ? "ระบบ" : "Ops"}</span>
+              </span>
               <button
                 onClick={() => {
-                  setUxExperience("research");
-                  setUxResearchDestination("research");
+                  setUxExperience("infrastructure");
                   setVibeMode("minimal");
                   setActiveScreen("PANORAMA");
                 }}
-                className="px-2.5 sm:px-3 py-1.5 rounded-lg bg-[#0f2c59] border border-[#0f2c59] text-white font-semibold cursor-pointer"
+                className={`h-8 px-2.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "infrastructure"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : isLightMinimal
+                    ? "text-amber-950 hover:bg-amber-100/80"
+                    : "text-amber-100/85 hover:bg-amber-500/20 hover:text-white"
+                }`}
               >
-                &larr; <span className="hidden sm:inline">Return to </span>01. Research
+                <Code2
+                  className={`w-3.5 h-3.5 ${
+                    activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "infrastructure"
+                      ? "text-white"
+                      : isLightMinimal
+                      ? "text-amber-700"
+                      : "text-amber-400"
+                  }`}
+                />
+                <span>{languageMode === "th" ? "นักพัฒนา" : "Developer"}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setUxExperience("control");
+                  setVibeMode("minimal");
+                  setActiveScreen("PANORAMA");
+                }}
+                className={`h-8 px-2.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "control"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : isLightMinimal
+                    ? "text-amber-950 hover:bg-amber-100/80"
+                    : "text-amber-100/85 hover:bg-amber-500/20 hover:text-white"
+                }`}
+              >
+                <ShieldCheck
+                  className={`w-3.5 h-3.5 ${
+                    activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "control"
+                      ? "text-white"
+                      : isLightMinimal
+                      ? "text-amber-700"
+                      : "text-amber-400"
+                  }`}
+                />
+                <span>{languageMode === "th" ? "ผู้ดูแล" : "Control"}</span>
+              </button>
+              <button
+                onClick={() => {
+                  setVibeMode("professional");
+                  setActiveScreen("PANORAMA");
+                }}
+                className={`h-8 px-2.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  vibeMode === "professional" || activeScreen !== "PANORAMA"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : isLightMinimal
+                    ? "text-amber-950 hover:bg-amber-100/80"
+                    : "text-amber-100/85 hover:bg-amber-500/20 hover:text-white"
+                }`}
+              >
+                <Layers
+                  className={`w-3.5 h-3.5 ${
+                    vibeMode === "professional" || activeScreen !== "PANORAMA"
+                      ? "text-white"
+                      : isLightMinimal
+                      ? "text-amber-700"
+                      : "text-amber-400"
+                  }`}
+                />
+                <span>{languageMode === "th" ? "16 โมดูล" : "16 Modules"}</span>
               </button>
             </div>
-          )}
+          </nav>
 
-          {/* Right Controls: PWA Install, TH / EN toggle (UX-06), Theme toggle (Section 7), and Account / Console Switcher */}
-          <div className="flex items-center gap-1.5 sm:gap-2 text-[12px] relative shrink-0">
+          {/* Right Group — Unified System & View Controls (Violet / Slate Container) */}
+          <div
+            className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 relative ${
+              isLightMinimal
+                ? "bg-slate-100/90 border-slate-300/90"
+                : "bg-[#121a2b] border-[#26354f]"
+            }`}
+          >
             {pwaInstallEvent && (
               <button
                 onClick={async () => {
                   await pwaInstallEvent.prompt();
                   setPwaInstallEvent(null);
                 }}
-                className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-[#0f2c59] text-white border border-[#0f2c59] cursor-pointer"
+                className="hidden sm:inline-flex items-center gap-1 h-8 px-2.5 rounded-lg text-[11px] font-bold bg-blue-600 text-white cursor-pointer"
               >
-                <span>Install App</span>
+                <span>Install</span>
               </button>
             )}
 
             {/* Language Toggle: TH / EN (UX-06) */}
             <div
-              className={`p-0.5 rounded-lg border flex items-center ${
+              className={`h-8 p-0.5 rounded-lg border flex items-center ${
                 isLightMinimal
-                  ? "bg-[#f8fafc] border-[#e2e8f0]"
-                  : "bg-[#121a2b] border-[#24324b]"
+                  ? "bg-white border-slate-200"
+                  : "bg-[#0b111e] border-[#1e293b]"
               }`}
             >
               <button
@@ -2522,11 +2678,11 @@ export default function Reg24MetroConsole() {
                   setLanguageMode("th");
                   setWebResponseLang("th");
                 }}
-                className={`px-2 py-1 rounded-md text-[11px] sm:text-[12px] font-semibold cursor-pointer transition-colors ${
+                className={`h-7 px-2 rounded-md text-[11px] font-bold cursor-pointer transition-colors ${
                   languageMode === "th"
                     ? "bg-[#0f2c59] text-white"
                     : isLightMinimal
-                    ? "text-slate-600 hover:text-[#0f172a]"
+                    ? "text-slate-700 hover:text-[#0f172a]"
                     : "text-slate-300 hover:text-white"
                 }`}
               >
@@ -2537,11 +2693,11 @@ export default function Reg24MetroConsole() {
                   setLanguageMode("en");
                   setWebResponseLang("en");
                 }}
-                className={`px-2 py-1 rounded-md text-[11px] sm:text-[12px] font-semibold cursor-pointer transition-colors ${
+                className={`h-7 px-2 rounded-md text-[11px] font-bold cursor-pointer transition-colors ${
                   languageMode === "en"
                     ? "bg-[#0f2c59] text-white"
                     : isLightMinimal
-                    ? "text-slate-600 hover:text-[#0f172a]"
+                    ? "text-slate-700 hover:text-[#0f172a]"
                     : "text-slate-300 hover:text-white"
                 }`}
               >
@@ -2558,10 +2714,10 @@ export default function Reg24MetroConsole() {
                   ? "Light Mode Active — Click to switch to Dark Mode (Default)"
                   : "Dark Mode Active (Default) — Click to switch to Light Mode"
               }
-              className={`px-2.5 py-1.5 rounded-lg border cursor-pointer transition-colors flex items-center gap-1.5 text-[11px] font-semibold ${
+              className={`h-8 px-2.5 rounded-lg border cursor-pointer transition-colors flex items-center gap-1.5 text-[11px] font-bold ${
                 isLightMinimal
-                  ? "bg-white border-[#e2e8f0] text-slate-700 hover:bg-slate-100"
-                  : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:bg-[#182338]"
+                  ? "bg-white border-slate-200 text-slate-800 hover:bg-slate-50"
+                  : "bg-[#0b111e] border-[#1e293b] text-slate-200 hover:bg-[#162033]"
               }`}
             >
               {lightSurfaceMode ? (
@@ -2571,118 +2727,172 @@ export default function Reg24MetroConsole() {
                 </>
               ) : (
                 <>
-                  <Moon className="w-3.5 h-3.5 text-slate-200" />
+                  <Moon className="w-3.5 h-3.5 text-blue-300" />
                   <span className="hidden sm:inline">Dark</span>
                 </>
               )}
             </button>
 
-            {/* Account / Workspace Switcher (Separates 01. Research, 02. Infrastructure, 03. Control per Section 1 & 5) */}
+            {/* All Views / Mode Switcher Dropdown */}
             <div className="relative">
               <button
                 onClick={() => setUxConsoleMenuOpen((prev) => !prev)}
-                className={`px-2.5 sm:px-3 py-1.5 rounded-lg border text-[12px] sm:text-[13px] font-semibold flex items-center gap-1.5 cursor-pointer transition-colors ${
+                className={`h-8 px-2.5 rounded-lg border text-[11px] sm:text-[12px] font-bold flex items-center gap-1.5 cursor-pointer transition-colors ${
                   isLightMinimal
-                    ? "bg-white border-[#e2e8f0] text-[#0f172a] hover:bg-slate-50"
-                    : "bg-[#121a2b] border-[#24324b] text-slate-200 hover:border-[#0f2c59]"
+                    ? "bg-white border-slate-200 text-[#0f172a] hover:bg-slate-50"
+                    : "bg-[#0b111e] border-[#1e293b] text-slate-100 hover:border-blue-500/50"
                 }`}
               >
-                <span className="w-2 h-2 rounded-full bg-[#0f2c59] dark:bg-slate-300" />
-                <span>
-                  {uxExperience === "research"
-                    ? "01. Research"
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    vibeMode === "professional" || activeScreen !== "PANORAMA" || uxExperience !== "research"
+                      ? "bg-amber-500"
+                      : uxResearchDestination === "notebooklm" || uxResearchDestination === "connect_ai"
+                      ? "bg-emerald-500"
+                      : "bg-blue-500"
+                  }`}
+                />
+                <span className="hidden xl:inline">
+                  {vibeMode === "easy"
+                    ? "Easy 1-2-3-4"
+                    : vibeMode === "professional" || activeScreen !== "PANORAMA"
+                    ? "16-Module Pro"
                     : uxExperience === "infrastructure"
                     ? "02. Developer"
-                    : "03. Control"}
+                    : uxExperience === "control"
+                    ? "03. Control"
+                    : "Views"}
                 </span>
-                <span className="text-[11px] opacity-60">&#9662;</span>
+                <span className="text-[10px] opacity-70">&#9662;</span>
               </button>
 
               {uxConsoleMenuOpen && (
                 <div
-                  className={`absolute right-0 mt-2 w-80 max-w-[92vw] rounded-xl border shadow-xl p-2 z-50 space-y-1 text-left ${
+                  className={`absolute right-0 mt-2 w-80 max-w-[92vw] rounded-2xl border shadow-2xl p-2.5 z-50 space-y-2 text-left ${
                     isLightMinimal
-                      ? "bg-white border-[#e2e8f0] text-[#0f172a]"
-                      : "bg-[#0f172a] border-[#24324b] text-slate-100"
+                      ? "bg-white border-slate-200 text-[#0f172a]"
+                      : "bg-[#0f172a] border-[#26354f] text-slate-100"
                   }`}
                 >
-                  <div className="px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    REG24 Product Experiences (Section 1)
-                  </div>
-                  <button
-                    onClick={() => {
-                      setUxExperience("research");
-                      setUxResearchDestination("research");
-                      setVibeMode("minimal");
-                      setActiveScreen("PANORAMA");
-                      setUxConsoleMenuOpen(false);
-                    }}
-                    className={`w-full p-2.5 rounded-lg text-left cursor-pointer transition-colors ${
-                      uxExperience === "research" && vibeMode === "minimal"
-                        ? isLightMinimal
-                          ? "bg-slate-100 font-semibold"
-                          : "bg-[#0f2c59] text-white"
-                        : "hover:bg-slate-500/10"
-                    }`}
-                  >
-                    <div className="text-xs font-bold">01. REG24 Research — Default</div>
-                    <div className="text-[11px] opacity-75 mt-0.5">
-                      Ask questions, analyze rulings, compare laws, upload documents &amp; generate memos.
+                  {/* Group 1: Blue */}
+                  <div className="p-2 rounded-xl border border-blue-500/20 bg-blue-500/5 space-y-1">
+                    <div className="px-1.5 text-[10px] font-extrabold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      <span>Group 1 &bull; Legal Research &amp; Modes</span>
                     </div>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setUxExperience("infrastructure");
-                      setVibeMode("minimal");
-                      setActiveScreen("PANORAMA");
-                      setUxConsoleMenuOpen(false);
-                    }}
-                    className={`w-full p-2.5 rounded-lg text-left cursor-pointer transition-colors ${
-                      uxExperience === "infrastructure"
-                        ? isLightMinimal
-                          ? "bg-slate-100 font-semibold"
-                          : "bg-[#0f2c59] text-white"
-                        : "hover:bg-slate-500/10"
-                    }`}
-                  >
-                    <div className="text-xs font-bold">02. REG24 Infrastructure — Developer</div>
-                    <div className="text-[11px] opacity-75 mt-0.5">
-                      API keys, MCP access (61 tools), module capabilities, usage quotas &amp; integrations.
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setUxExperience("control");
-                      setVibeMode("minimal");
-                      setActiveScreen("PANORAMA");
-                      setUxConsoleMenuOpen(false);
-                    }}
-                    className={`w-full p-2.5 rounded-lg text-left cursor-pointer transition-colors ${
-                      uxExperience === "control"
-                        ? isLightMinimal
-                          ? "bg-slate-100 font-semibold"
-                          : "bg-[#0f2c59] text-white"
-                        : "hover:bg-slate-500/10"
-                    }`}
-                  >
-                    <div className="text-xs font-bold">03. REG24 Control — Administrator</div>
-                    <div className="text-[11px] opacity-75 mt-0.5">
-                      Source ingestion, Graph RAG, 2R/3R processing, data quality &amp; agent monitoring.
-                    </div>
-                  </button>
-
-                  <div className="border-t border-slate-500/20 pt-1 mt-1 flex items-center justify-between px-2 py-1">
+                    <button
+                      onClick={() => {
+                        setUxExperience("research");
+                        setUxResearchDestination("research");
+                        setVibeMode("minimal");
+                        setActiveScreen("PANORAMA");
+                        setUxConsoleMenuOpen(false);
+                      }}
+                      className={`w-full p-2 rounded-lg text-left cursor-pointer transition-colors ${
+                        uxExperience === "research" && vibeMode === "minimal"
+                          ? "bg-blue-600 text-white"
+                          : "hover:bg-blue-500/10"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">01. Minimal Legal Research (Default)</div>
+                      <div className="text-[11px] opacity-80">
+                        Research, Workspace &amp; 16+19 Legal Databases.
+                      </div>
+                    </button>
                     <button
                       onClick={() => {
                         setVibeMode("easy");
                         setActiveScreen("PANORAMA");
                         setUxConsoleMenuOpen(false);
                       }}
-                      className="text-[11px] text-[#0f2c59] dark:text-slate-300 hover:underline cursor-pointer"
+                      className={`w-full p-2 rounded-lg text-left cursor-pointer transition-colors ${
+                        vibeMode === "easy" && activeScreen === "PANORAMA"
+                          ? "bg-blue-600 text-white"
+                          : "hover:bg-blue-500/10"
+                      }`}
                     >
-                      Easy 1-2-3-4 Mode
+                      <div className="text-xs font-bold">Easy 1-2-3-4 Guided Bento Mode</div>
+                      <div className="text-[11px] opacity-80">
+                        4-step starting point for business &amp; compliance teams.
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* Group 2: Emerald */}
+                  <div className="p-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
+                    <div className="px-1.5 text-[10px] font-extrabold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      <span>Group 2 &bull; AI Knowledge &amp; MCP</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1">
+                      <button
+                        onClick={() => {
+                          setUxExperience("research");
+                          setUxResearchDestination("notebooklm");
+                          setVibeMode("minimal");
+                          setActiveScreen("PANORAMA");
+                          setUxConsoleMenuOpen(false);
+                        }}
+                        className="p-2 rounded-lg text-xs font-bold text-left hover:bg-emerald-500/15 cursor-pointer"
+                      >
+                        My NotebookLM
+                      </button>
+                      <button
+                        onClick={() => {
+                          setUxExperience("research");
+                          setUxResearchDestination("connect_ai");
+                          setVibeMode("minimal");
+                          setActiveScreen("PANORAMA");
+                          setUxConsoleMenuOpen(false);
+                        }}
+                        className="p-2 rounded-lg text-xs font-bold text-left hover:bg-emerald-500/15 cursor-pointer"
+                      >
+                        Connect AI (MCP)
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Group 3: Amber */}
+                  <div className="p-2 rounded-xl border border-amber-500/25 bg-amber-500/5 space-y-1">
+                    <div className="px-1.5 text-[10px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-amber-500" />
+                      <span>Group 3 &bull; Consoles &amp; 16-Module Matrix</span>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setUxExperience("infrastructure");
+                        setVibeMode("minimal");
+                        setActiveScreen("PANORAMA");
+                        setUxConsoleMenuOpen(false);
+                      }}
+                      className={`w-full p-2 rounded-lg text-left cursor-pointer transition-colors ${
+                        uxExperience === "infrastructure" && vibeMode === "minimal"
+                          ? "bg-amber-600 text-white"
+                          : "hover:bg-amber-500/10"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">02. Developer Infrastructure Console</div>
+                      <div className="text-[11px] opacity-80">
+                        API Gateway, 61 MCP Tools, Neo4j &amp; Model24 Cost Router.
+                      </div>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setUxExperience("control");
+                        setVibeMode("minimal");
+                        setActiveScreen("PANORAMA");
+                        setUxConsoleMenuOpen(false);
+                      }}
+                      className={`w-full p-2 rounded-lg text-left cursor-pointer transition-colors ${
+                        uxExperience === "control" && vibeMode === "minimal"
+                          ? "bg-amber-600 text-white"
+                          : "hover:bg-amber-500/10"
+                      }`}
+                    >
+                      <div className="text-xs font-bold">03. Administrator Control Console</div>
+                      <div className="text-[11px] opacity-80">
+                        Source Ingestion, 3R Graph RAG, Data Quality &amp; Audit.
+                      </div>
                     </button>
                     <button
                       onClick={() => {
@@ -2690,9 +2900,13 @@ export default function Reg24MetroConsole() {
                         setActiveScreen("PANORAMA");
                         setUxConsoleMenuOpen(false);
                       }}
-                      className="text-[11px] text-[#0f2c59] dark:text-slate-300 hover:underline cursor-pointer"
+                      className={`w-full p-2 rounded-lg text-left cursor-pointer transition-colors ${
+                        vibeMode === "professional"
+                          ? "bg-amber-600 text-white"
+                          : "hover:bg-amber-500/10"
+                      }`}
                     >
-                      16-Module Matrix &rarr;
+                      <div className="text-xs font-bold">Professional 16-Module &amp; 15-Screen Matrix &rarr;</div>
                     </button>
                   </div>
                 </div>
@@ -2701,72 +2915,159 @@ export default function Reg24MetroConsole() {
           </div>
         </div>
 
-        {/* Phone & Small Tablet Segmented Bar (< md) */}
-        {uxExperience === "research" && activeScreen === "PANORAMA" && vibeMode === "minimal" && (
-          <div className="md:hidden px-3.5 pb-2.5">
-            <nav
-              aria-label="REG24 Mobile Research Navigation"
-              className={`grid grid-cols-5 gap-1 p-1 rounded-xl border ${
+        {/* Tablet & Mobile Color-Grouped Bar (< lg) — Consistent across all screens */}
+        <div className="lg:hidden px-3 pb-2.5">
+          <nav
+            aria-label="REG24 Mobile Research Navigation"
+            className="flex items-center gap-1.5 overflow-x-auto no-scrollbar"
+          >
+            {/* Mobile Group 1: Blue (Research, Workspace, Databases) */}
+            <div
+              className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
                 isLightMinimal
-                  ? "bg-[#f8fafc] border-[#e2e8f0]"
-                  : "bg-[#121a2b] border-[#24324b]"
+                  ? "bg-blue-50/90 border-blue-200"
+                  : "bg-blue-950/35 border-blue-500/25"
               }`}
             >
               {(
                 [
-                  {
-                    id: "research" as const,
-                    labelEn: "Research",
-                    labelTh: "ค้นคว้า",
-                  },
-                  {
-                    id: "workspace" as const,
-                    labelEn: "Workspace",
-                    labelTh: "พื้นที่งาน",
-                  },
-                  {
-                    id: "library" as const,
-                    labelEn: "Databases",
-                    labelTh: "ฐานข้อมูล",
-                  },
-                  {
-                    id: "notebooklm" as const,
-                    labelEn: "NotebookLM",
-                    labelTh: "NotebookLM",
-                  },
-                  {
-                    id: "connect_ai" as const,
-                    labelEn: "MCP / AI",
-                    labelTh: "เชื่อม AI",
-                  },
+                  { id: "research" as const, labelEn: "Research", labelTh: "ค้นคว้า" },
+                  { id: "workspace" as const, labelEn: "Workspace", labelTh: "พื้นที่งาน" },
+                  { id: "library" as const, labelEn: "Databases", labelTh: "ฐานข้อมูล" },
                 ]
               ).map((dest) => {
-                const active = uxResearchDestination === dest.id;
+                const active =
+                  activeScreen === "PANORAMA" &&
+                  vibeMode === "minimal" &&
+                  uxExperience === "research" &&
+                  uxResearchDestination === dest.id;
                 return (
                   <button
                     key={dest.id}
                     onClick={() => {
-                      if (dest.id === "research" && uxResearchDestination === "research") {
+                      if (dest.id === "research" && active) {
                         setUxHasSubmittedResearch(false);
                         setActiveWebTurn(null);
                       }
+                      setUxExperience("research");
                       setUxResearchDestination(dest.id);
+                      setVibeMode("minimal");
+                      setActiveScreen("PANORAMA");
                     }}
-                    className={`py-2 px-2 rounded-lg text-[12px] font-semibold text-center truncate transition-all cursor-pointer ${
+                    className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
                       active
-                        ? "bg-[#0f2c59] text-white font-semibold shadow-xs"
+                        ? "bg-blue-600 text-white shadow-xs"
                         : isLightMinimal
-                        ? "text-slate-600"
-                        : "text-slate-300"
+                        ? "text-blue-950"
+                        : "text-blue-100"
                     }`}
                   >
                     {languageMode === "th" ? dest.labelTh : dest.labelEn}
                   </button>
                 );
               })}
-            </nav>
-          </div>
-        )}
+            </div>
+
+            {/* Mobile Group 2: Emerald (NotebookLM, MCP / AI) */}
+            <div
+              className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
+                isLightMinimal
+                  ? "bg-emerald-50/90 border-emerald-200"
+                  : "bg-emerald-950/35 border-emerald-500/25"
+              }`}
+            >
+              {(
+                [
+                  { id: "notebooklm" as const, labelEn: "NotebookLM", labelTh: "NotebookLM" },
+                  { id: "connect_ai" as const, labelEn: "MCP / AI", labelTh: "เชื่อม AI" },
+                ]
+              ).map((dest) => {
+                const active =
+                  activeScreen === "PANORAMA" &&
+                  vibeMode === "minimal" &&
+                  uxExperience === "research" &&
+                  uxResearchDestination === dest.id;
+                return (
+                  <button
+                    key={dest.id}
+                    onClick={() => {
+                      setUxExperience("research");
+                      setUxResearchDestination(dest.id);
+                      setVibeMode("minimal");
+                      setActiveScreen("PANORAMA");
+                    }}
+                    className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                      active
+                        ? "bg-emerald-600 text-white shadow-xs"
+                        : isLightMinimal
+                        ? "text-emerald-950"
+                        : "text-emerald-100"
+                    }`}
+                  >
+                    {languageMode === "th" ? dest.labelTh : dest.labelEn}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Mobile Group 3: Amber (Developer, Control, 16 Modules) */}
+            <div
+              className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
+                isLightMinimal
+                  ? "bg-amber-50/90 border-amber-200"
+                  : "bg-amber-950/35 border-amber-500/25"
+              }`}
+            >
+              <button
+                onClick={() => {
+                  setUxExperience("infrastructure");
+                  setVibeMode("minimal");
+                  setActiveScreen("PANORAMA");
+                }}
+                className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "infrastructure"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : isLightMinimal
+                    ? "text-amber-950"
+                    : "text-amber-100"
+                }`}
+              >
+                {languageMode === "th" ? "นักพัฒนา" : "Developer"}
+              </button>
+              <button
+                onClick={() => {
+                  setUxExperience("control");
+                  setVibeMode("minimal");
+                  setActiveScreen("PANORAMA");
+                }}
+                className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "control"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : isLightMinimal
+                    ? "text-amber-950"
+                    : "text-amber-100"
+                }`}
+              >
+                {languageMode === "th" ? "ผู้ดูแล" : "Control"}
+              </button>
+              <button
+                onClick={() => {
+                  setVibeMode("professional");
+                  setActiveScreen("PANORAMA");
+                }}
+                className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
+                  vibeMode === "professional" || activeScreen !== "PANORAMA"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : isLightMinimal
+                    ? "text-amber-950"
+                    : "text-amber-100"
+                }`}
+              >
+                {languageMode === "th" ? "16 โมดูล" : "16 Modules"}
+              </button>
+            </div>
+          </nav>
+        </div>
       </header>
 
       {/* TOAST BANNER */}
@@ -2785,25 +3086,26 @@ export default function Reg24MetroConsole() {
         </div>
       )}
 
-      {/* CLEAN INFRASTRUCTURE SUB-NAVIGATION BAR (Only shown when in Infrastructure / Admin Matrix screens) */}
+      {/* COLOR-GROUPED ARCHITECTURE SUB-NAVIGATION BAR (Shown in 16-Module Pro Matrix & Deep-Dive Consoles) */}
       {(vibeMode === "professional" || activeScreen !== "PANORAMA") && (
-        <div className="px-6 py-3 border-b border-[#1e293b] bg-[#0b111e]">
-          <div className="max-w-[1440px] mx-auto flex flex-col gap-3">
+        <div
+          className={`px-4 md:px-6 py-3 border-b transition-colors ${
+            isLightMinimal
+              ? "bg-slate-50/90 border-slate-200"
+              : "bg-[#0b111e] border-[#1e293b]"
+          }`}
+        >
+          <div className="max-w-[1440px] mx-auto flex flex-col gap-2.5">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => {
-                    setUxExperience("research");
-                    setUxResearchDestination("research");
-                    setVibeMode("minimal");
-                    setActiveScreen("PANORAMA");
-                  }}
-                  className="bg-[#0f2c59] hover:bg-[#163e7a] border border-[#0f2c59] text-white px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
-                >
-                  <span>&larr; Research Home</span>
-                </button>
-                <span className="text-xs font-semibold text-slate-300">
-                  REG24 Architecture &amp; Module Console
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>REG24 16-Module &amp; 15-Console Matrix</span>
+                </span>
+                <span className={`hidden md:inline text-[11px] ${isLightMinimal ? "text-slate-600" : "text-slate-400"}`}>
+                  Color-coded by domain: <strong className="text-blue-600 dark:text-blue-400">Blue (Legal Studios)</strong> &bull;{" "}
+                  <strong className="text-emerald-600 dark:text-emerald-400">Emerald (AI/Graph/MCP)</strong> &bull;{" "}
+                  <strong className="text-amber-600 dark:text-amber-400">Amber (Governance &amp; Registry)</strong>
                 </span>
               </div>
 
@@ -2812,7 +3114,11 @@ export default function Reg24MetroConsole() {
                   aria-label="Active Consumer Client / Tenant"
                   value={activeTenant}
                   onChange={(e) => setActiveTenant(e.target.value)}
-                  className="bg-[#111a2c] border border-[#24324b] rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+                  className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold border ${
+                    isLightMinimal
+                      ? "bg-white border-slate-300 text-slate-800"
+                      : "bg-[#111a2c] border-[#24324b] text-slate-200"
+                  }`}
                 >
                   <option value="tenant.law24.prod">Tenant: LAW24 Enterprise</option>
                   <option value="tenant.trace24.audit">Tenant: TRACE24 Audit</option>
@@ -2824,7 +3130,11 @@ export default function Reg24MetroConsole() {
                   aria-label="RBAC Role (REG-SEC-001)"
                   value={activeRole}
                   onChange={(e) => setActiveRole(e.target.value as UserRole)}
-                  className="bg-[#111a2c] border border-[#24324b] rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-slate-200"
+                  className={`rounded-lg px-2.5 py-1.5 text-[11px] font-semibold border ${
+                    isLightMinimal
+                      ? "bg-white border-slate-300 text-slate-800"
+                      : "bg-[#111a2c] border-[#24324b] text-slate-200"
+                  }`}
                 >
                   <option value="Platform Administrator">Role: Platform Admin</option>
                   <option value="Legal Reviewer">Role: Legal Reviewer</option>
@@ -2838,7 +3148,9 @@ export default function Reg24MetroConsole() {
                   onClick={() => setExpertView((v) => !v)}
                   className={`px-3 py-1.5 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 border cursor-pointer transition-colors ${
                     expertView
-                      ? "bg-[#0f2c59] border-[#0f2c59] text-white"
+                      ? "bg-blue-600 border-blue-600 text-white"
+                      : isLightMinimal
+                      ? "bg-white border-slate-300 text-slate-700"
                       : "bg-[#111a2c] border-[#24324b] text-slate-300"
                   }`}
                 >
@@ -2848,21 +3160,44 @@ export default function Reg24MetroConsole() {
               </div>
             </div>
 
-            {/* CLEAN WRAPPED PILL NAVIGATION (No horizontal scrollbar clutter) */}
+            {/* COLOR-GROUPED CONSOLE PILL NAVIGATION */}
             <nav className="flex flex-wrap items-center gap-1.5">
               {SCREEN_CONFIG.map((item) => {
                 const active = activeScreen === item.id;
+                const isAiGroup = ["SCREEN_D_GRAPH", "SCREEN_E_RULES", "SCREEN_G_MCP", "SCREEN_I_A2A"].includes(item.id);
+                const isGovGroup = ["SCREEN_A_REGISTRY", "SCREEN_B_FACTORY", "SCREEN_C_SOURCES", "SCREEN_F_CHANGES", "SCREEN_H_AUDIT"].includes(item.id);
+                const dotColor = isAiGroup
+                  ? "bg-emerald-500"
+                  : isGovGroup
+                  ? "bg-amber-500"
+                  : "bg-blue-500";
+                const activeBg = isAiGroup
+                  ? "bg-emerald-600 text-white border-emerald-500"
+                  : isGovGroup
+                  ? "bg-amber-600 text-white border-amber-500"
+                  : "bg-blue-600 text-white border-blue-500";
+                const inactiveStyle = isLightMinimal
+                  ? isAiGroup
+                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-950 hover:bg-emerald-100"
+                    : isGovGroup
+                    ? "bg-amber-50/70 border-amber-200 text-amber-950 hover:bg-amber-100"
+                    : "bg-blue-50/70 border-blue-200 text-blue-950 hover:bg-blue-100"
+                  : isAiGroup
+                  ? "bg-emerald-950/25 border-emerald-500/25 text-emerald-100 hover:border-emerald-400"
+                  : isGovGroup
+                  ? "bg-amber-950/25 border-amber-500/25 text-amber-100 hover:border-amber-400"
+                  : "bg-blue-950/25 border-blue-500/25 text-blue-100 hover:border-blue-400";
+
                 return (
                   <button
                     key={item.id}
                     onClick={() => setActiveScreen(item.id)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      active
-                        ? "bg-[#0f2c59] text-white border border-slate-500 shadow-xs"
-                        : "bg-[#111a2c] border border-[#1e293b] text-slate-300 hover:border-slate-500 hover:text-white"
+                    className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 border ${
+                      active ? `${activeBg} shadow-xs` : inactiveStyle
                     }`}
                   >
-                    <span className="text-[10px] font-mono opacity-75">{item.code}</span>
+                    <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white" : dotColor}`} />
+                    <span className="text-[10px] font-mono opacity-80">{item.code}</span>
                     <span className="capitalize">{item.label}</span>
                   </button>
                 );
