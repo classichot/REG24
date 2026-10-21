@@ -2365,7 +2365,7 @@ export default function Reg24MetroConsole() {
             : "bg-[#0a0f1c]/95 border-[#1e293b] backdrop-blur-md shadow-[0_2px_12px_rgba(0,0,0,0.35)]"
         }`}
       >
-        <div className="max-w-[1440px] mx-auto px-3 sm:px-4 md:px-6 h-15 flex items-center justify-between gap-2 sm:gap-3">
+        <div className="max-w-[1440px] mx-auto px-3 sm:px-4 md:px-6 py-2.5 flex flex-wrap xl:flex-nowrap items-center justify-between gap-2">
           {/* Left Brand Lockup: REG24 + Active Group Status Pill */}
           <button
             onClick={() => {
@@ -2377,14 +2377,14 @@ export default function Reg24MetroConsole() {
               setVibeMode("minimal");
               setActiveScreen("PANORAMA");
             }}
-            className="flex items-center gap-2.5 text-left cursor-pointer group shrink-0"
+            className="flex items-center gap-2 text-left cursor-pointer group shrink-0"
           >
             <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0f2c59] to-[#1d4ed8] border border-blue-400/30 text-white font-extrabold text-xs flex items-center justify-center tracking-tight shadow-xs">
               24
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <span
-                className={`text-[17px] sm:text-[18px] font-extrabold tracking-[-0.035em] leading-none transition-colors ${
+                className={`text-[17px] font-extrabold tracking-[-0.035em] leading-none transition-colors ${
                   isLightMinimal ? "text-[#0f172a]" : "text-white"
                 }`}
               >
@@ -2392,7 +2392,7 @@ export default function Reg24MetroConsole() {
               </span>
               <span
                 title="Google Gemini & Model24 Multi-LLM Engine Connected"
-                className={`hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border ${
+                className={`hidden 2xl:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase border ${
                   isLightMinimal
                     ? "bg-emerald-50 border-emerald-300 text-emerald-800"
                     : "bg-emerald-500/15 border-emerald-500/35 text-emerald-300"
@@ -2404,28 +2404,19 @@ export default function Reg24MetroConsole() {
             </div>
           </button>
 
-          {/* Center (Desktop lg+): 3 Color-Coded Menu Groups (Always Consistent Across Views) */}
+          {/* Center (Desktop xl+): 3 Color-Coded Menu Groups — Zero Horizontal Clipping */}
           <nav
             aria-label="REG24 Research Primary Navigation"
-            className="hidden lg:flex items-center gap-2 overflow-x-auto no-scrollbar"
+            className="hidden xl:flex items-center justify-center gap-2 shrink-0"
           >
             {/* GROUP 1 — SAPPHIRE BLUE: LEGAL RESEARCH & CORPUS */}
             <div
-              className={`flex items-center gap-1 p-1 rounded-xl border ${
+              className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
                 isLightMinimal
-                  ? "bg-blue-50/80 border-blue-200/90"
-                  : "bg-blue-950/30 border-blue-500/25"
+                  ? "bg-blue-50/90 border-blue-200"
+                  : "bg-blue-950/35 border-blue-500/30"
               }`}
             >
-              <span
-                title="Group 1: Legal Research & Corpus"
-                className={`hidden xl:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider select-none ${
-                  isLightMinimal ? "text-blue-800" : "text-blue-300"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                <span>{languageMode === "th" ? "วิจัย" : "Legal"}</span>
-              </span>
               {(
                 [
                   {
@@ -2473,15 +2464,15 @@ export default function Reg24MetroConsole() {
                       setVibeMode("minimal");
                       setActiveScreen("PANORAMA");
                     }}
-                    className={`h-8 px-3 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    className={`h-8 px-2.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                       active
                         ? "bg-blue-600 text-white shadow-xs"
                         : isLightMinimal
-                        ? "text-blue-950 hover:bg-blue-100/80"
-                        : "text-blue-100/85 hover:bg-blue-500/20 hover:text-white"
+                        ? "text-blue-950 hover:bg-blue-100/90"
+                        : "text-blue-100 hover:bg-blue-500/20 hover:text-white"
                     }`}
                   >
-                    <Icon className={`w-3.5 h-3.5 ${active ? "text-white" : isLightMinimal ? "text-blue-700" : "text-blue-400"}`} />
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? "text-white" : isLightMinimal ? "text-blue-700" : "text-blue-400"}`} />
                     <span>{languageMode === "th" ? dest.labelTh : dest.labelEn}</span>
                   </button>
                 );
@@ -2490,21 +2481,12 @@ export default function Reg24MetroConsole() {
 
             {/* GROUP 2 — EMERALD TEAL: AI KNOWLEDGE & MCP STUDIO */}
             <div
-              className={`flex items-center gap-1 p-1 rounded-xl border ${
+              className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
                 isLightMinimal
-                  ? "bg-emerald-50/80 border-emerald-200/90"
-                  : "bg-emerald-950/30 border-emerald-500/25"
+                  ? "bg-emerald-50/90 border-emerald-200"
+                  : "bg-emerald-950/35 border-emerald-500/30"
               }`}
             >
-              <span
-                title="Group 2: AI Studio & MCP"
-                className={`hidden xl:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider select-none ${
-                  isLightMinimal ? "text-emerald-800" : "text-emerald-300"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                <span>AI</span>
-              </span>
               {(
                 [
                   {
@@ -2536,59 +2518,50 @@ export default function Reg24MetroConsole() {
                       setVibeMode("minimal");
                       setActiveScreen("PANORAMA");
                     }}
-                    className={`h-8 px-3 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                    className={`h-8 px-2.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                       active
                         ? "bg-emerald-600 text-white shadow-xs"
                         : isLightMinimal
-                        ? "text-emerald-950 hover:bg-emerald-100/80"
-                        : "text-emerald-100/85 hover:bg-emerald-500/20 hover:text-white"
+                        ? "text-emerald-950 hover:bg-emerald-100/90"
+                        : "text-emerald-100 hover:bg-emerald-500/20 hover:text-white"
                     }`}
                   >
-                    <Icon className={`w-3.5 h-3.5 ${active ? "text-white" : isLightMinimal ? "text-emerald-700" : "text-emerald-400"}`} />
+                    <Icon className={`w-3.5 h-3.5 shrink-0 ${active ? "text-white" : isLightMinimal ? "text-emerald-700" : "text-emerald-400"}`} />
                     <span>{languageMode === "th" ? dest.labelTh : dest.labelEn}</span>
                   </button>
                 );
               })}
             </div>
 
-            {/* GROUP 3 — AMBER GOLD: PLATFORM CONSOLES & MODULE MATRIX */}
+            {/* GROUP 3 — AMBER GOLD: PLATFORM CONSOLES & MODULE MATRIX (Complete, Unclipped Yellow Group) */}
             <div
-              className={`flex items-center gap-1 p-1 rounded-xl border ${
+              className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
                 isLightMinimal
-                  ? "bg-amber-50/85 border-amber-200/90"
-                  : "bg-amber-950/25 border-amber-500/25"
+                  ? "bg-amber-50 border-amber-300"
+                  : "bg-amber-500/10 border-amber-500/40"
               }`}
             >
-              <span
-                title="Group 3: Developer, Admin & Module Matrix"
-                className={`hidden xl:inline-flex items-center gap-1 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wider select-none ${
-                  isLightMinimal ? "text-amber-900" : "text-amber-300"
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                <span>{languageMode === "th" ? "ระบบ" : "Ops"}</span>
-              </span>
               <button
                 onClick={() => {
                   setUxExperience("infrastructure");
                   setVibeMode("minimal");
                   setActiveScreen("PANORAMA");
                 }}
-                className={`h-8 px-2.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                className={`h-8 px-2.5 rounded-lg text-[12px] font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "infrastructure"
-                    ? "bg-amber-600 text-white shadow-xs"
+                    ? "bg-[#f5b700] text-[#0f172a] shadow-xs"
                     : isLightMinimal
-                    ? "text-amber-950 hover:bg-amber-100/80"
-                    : "text-amber-100/85 hover:bg-amber-500/20 hover:text-white"
+                    ? "bg-amber-100/70 text-amber-950 hover:bg-amber-200/80"
+                    : "bg-amber-500/15 text-amber-200 hover:bg-amber-500/25 hover:text-white"
                 }`}
               >
                 <Code2
-                  className={`w-3.5 h-3.5 ${
+                  className={`w-3.5 h-3.5 shrink-0 ${
                     activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "infrastructure"
-                      ? "text-white"
+                      ? "text-[#0f172a]"
                       : isLightMinimal
-                      ? "text-amber-700"
-                      : "text-amber-400"
+                      ? "text-amber-800"
+                      : "text-[#f5b700]"
                   }`}
                 />
                 <span>{languageMode === "th" ? "นักพัฒนา" : "Developer"}</span>
@@ -2599,21 +2572,21 @@ export default function Reg24MetroConsole() {
                   setVibeMode("minimal");
                   setActiveScreen("PANORAMA");
                 }}
-                className={`h-8 px-2.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                className={`h-8 px-2.5 rounded-lg text-[12px] font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "control"
-                    ? "bg-amber-600 text-white shadow-xs"
+                    ? "bg-[#f5b700] text-[#0f172a] shadow-xs"
                     : isLightMinimal
-                    ? "text-amber-950 hover:bg-amber-100/80"
-                    : "text-amber-100/85 hover:bg-amber-500/20 hover:text-white"
+                    ? "bg-amber-100/70 text-amber-950 hover:bg-amber-200/80"
+                    : "bg-amber-500/15 text-amber-200 hover:bg-amber-500/25 hover:text-white"
                 }`}
               >
                 <ShieldCheck
-                  className={`w-3.5 h-3.5 ${
+                  className={`w-3.5 h-3.5 shrink-0 ${
                     activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "control"
-                      ? "text-white"
+                      ? "text-[#0f172a]"
                       : isLightMinimal
-                      ? "text-amber-700"
-                      : "text-amber-400"
+                      ? "text-amber-800"
+                      : "text-[#f5b700]"
                   }`}
                 />
                 <span>{languageMode === "th" ? "ผู้ดูแล" : "Control"}</span>
@@ -2623,21 +2596,21 @@ export default function Reg24MetroConsole() {
                   setVibeMode("professional");
                   setActiveScreen("PANORAMA");
                 }}
-                className={`h-8 px-2.5 rounded-lg text-[12px] font-semibold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                className={`h-8 px-2.5 rounded-lg text-[12px] font-bold inline-flex items-center gap-1.5 transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                   vibeMode === "professional" || activeScreen !== "PANORAMA"
-                    ? "bg-amber-600 text-white shadow-xs"
+                    ? "bg-[#f5b700] text-[#0f172a] shadow-xs"
                     : isLightMinimal
-                    ? "text-amber-950 hover:bg-amber-100/80"
-                    : "text-amber-100/85 hover:bg-amber-500/20 hover:text-white"
+                    ? "bg-amber-100/70 text-amber-950 hover:bg-amber-200/80"
+                    : "bg-amber-500/15 text-amber-200 hover:bg-amber-500/25 hover:text-white"
                 }`}
               >
                 <Layers
-                  className={`w-3.5 h-3.5 ${
+                  className={`w-3.5 h-3.5 shrink-0 ${
                     vibeMode === "professional" || activeScreen !== "PANORAMA"
-                      ? "text-white"
+                      ? "text-[#0f172a]"
                       : isLightMinimal
-                      ? "text-amber-700"
-                      : "text-amber-400"
+                      ? "text-amber-800"
+                      : "text-[#f5b700]"
                   }`}
                 />
                 <span>{languageMode === "th" ? "16 โมดูล" : "16 Modules"}</span>
@@ -2915,18 +2888,18 @@ export default function Reg24MetroConsole() {
           </div>
         </div>
 
-        {/* Tablet & Mobile Color-Grouped Bar (< lg) — Consistent across all screens */}
-        <div className="lg:hidden px-3 pb-2.5">
+        {/* Tablet & Mobile Color-Grouped Bar (< xl) — Wraps cleanly with zero clipping */}
+        <div className="xl:hidden px-3 pb-2.5">
           <nav
             aria-label="REG24 Mobile Research Navigation"
-            className="flex items-center gap-1.5 overflow-x-auto no-scrollbar"
+            className="flex flex-wrap items-center gap-1.5"
           >
             {/* Mobile Group 1: Blue (Research, Workspace, Databases) */}
             <div
               className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
                 isLightMinimal
                   ? "bg-blue-50/90 border-blue-200"
-                  : "bg-blue-950/35 border-blue-500/25"
+                  : "bg-blue-950/35 border-blue-500/30"
               }`}
             >
               {(
@@ -2973,7 +2946,7 @@ export default function Reg24MetroConsole() {
               className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
                 isLightMinimal
                   ? "bg-emerald-50/90 border-emerald-200"
-                  : "bg-emerald-950/35 border-emerald-500/25"
+                  : "bg-emerald-950/35 border-emerald-500/30"
               }`}
             >
               {(
@@ -3010,12 +2983,12 @@ export default function Reg24MetroConsole() {
               })}
             </div>
 
-            {/* Mobile Group 3: Amber (Developer, Control, 16 Modules) */}
+            {/* Mobile Group 3: Amber / Yellow (Developer, Control, 16 Modules) */}
             <div
               className={`flex items-center gap-1 p-1 rounded-xl border shrink-0 ${
                 isLightMinimal
-                  ? "bg-amber-50/90 border-amber-200"
-                  : "bg-amber-950/35 border-amber-500/25"
+                  ? "bg-amber-50 border-amber-300"
+                  : "bg-amber-500/10 border-amber-500/40"
               }`}
             >
               <button
@@ -3026,10 +2999,10 @@ export default function Reg24MetroConsole() {
                 }}
                 className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
                   activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "infrastructure"
-                    ? "bg-amber-600 text-white shadow-xs"
+                    ? "bg-[#f5b700] text-[#0f172a] shadow-xs"
                     : isLightMinimal
-                    ? "text-amber-950"
-                    : "text-amber-100"
+                    ? "bg-amber-100/80 text-amber-950"
+                    : "bg-amber-500/15 text-amber-200"
                 }`}
               >
                 {languageMode === "th" ? "นักพัฒนา" : "Developer"}
@@ -3042,10 +3015,10 @@ export default function Reg24MetroConsole() {
                 }}
                 className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
                   activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "control"
-                    ? "bg-amber-600 text-white shadow-xs"
+                    ? "bg-[#f5b700] text-[#0f172a] shadow-xs"
                     : isLightMinimal
-                    ? "text-amber-950"
-                    : "text-amber-100"
+                    ? "bg-amber-100/80 text-amber-950"
+                    : "bg-amber-500/15 text-amber-200"
                 }`}
               >
                 {languageMode === "th" ? "ผู้ดูแล" : "Control"}
@@ -3057,10 +3030,10 @@ export default function Reg24MetroConsole() {
                 }}
                 className={`py-1.5 px-2.5 rounded-lg text-[11px] font-bold whitespace-nowrap transition-all cursor-pointer ${
                   vibeMode === "professional" || activeScreen !== "PANORAMA"
-                    ? "bg-amber-600 text-white shadow-xs"
+                    ? "bg-[#f5b700] text-[#0f172a] shadow-xs"
                     : isLightMinimal
-                    ? "text-amber-950"
-                    : "text-amber-100"
+                    ? "bg-amber-100/80 text-amber-950"
+                    : "bg-amber-500/15 text-amber-200"
                 }`}
               >
                 {languageMode === "th" ? "16 โมดูล" : "16 Modules"}
