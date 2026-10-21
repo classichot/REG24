@@ -2081,12 +2081,12 @@ export default function Reg24MetroConsole() {
   // Enforce Dark Mode as the default on <html> and sync when user toggles surface mode
   useEffect(() => {
     if (typeof document !== "undefined") {
-      const isDark = !lightSurfaceMode;
+      const isDark = !(activeScreen === "PANORAMA" && lightSurfaceMode);
       document.documentElement.classList.toggle("dark", isDark);
       document.documentElement.classList.toggle("light", !isDark);
       document.documentElement.style.colorScheme = isDark ? "dark" : "light";
     }
-  }, [lightSurfaceMode]);
+  }, [activeScreen, lightSurfaceMode]);
 
   // Update default Rule Studio inputs when user selects a different rule
   const handleSelectRule = (ruleId: string) => {
@@ -2338,7 +2338,7 @@ export default function Reg24MetroConsole() {
   const isMinimalResearchUi =
     activeScreen === "PANORAMA" && vibeMode === "minimal" && uxExperience === "research";
   const isLightMinimal =
-    activeScreen === "PANORAMA" && vibeMode === "minimal" && lightSurfaceMode;
+    activeScreen === "PANORAMA" && lightSurfaceMode;
 
   return (
     <div
@@ -2908,12 +2908,12 @@ export default function Reg24MetroConsole() {
                 ];
 
           const surfaceCard = isLightMinimal
-            ? "bg-white border border-[#e2e8f0] text-[#0f172a] shadow-xs"
+            ? "bg-white border border-[#cbd5e1] text-[#0f172a] shadow-xs"
             : "bg-[#101829] border border-[#24324b] text-slate-100";
           const subtleBox = isLightMinimal
-            ? "bg-[#f8fafc] border border-[#e2e8f0] text-[#0f172a]"
+            ? "bg-[#f1f5f9] border border-[#cbd5e1] text-[#0f172a]"
             : "bg-[#0b111e] border border-[#1e2d47] text-slate-200";
-          const mutedText = isLightMinimal ? "text-slate-500" : "text-slate-400";
+          const mutedText = isLightMinimal ? "text-slate-700" : "text-slate-400";
 
           return (
             <div className={uxResearchDestination === "library" ? "max-w-[1400px] mx-auto" : "max-w-[920px] mx-auto"}>
@@ -2987,7 +2987,7 @@ export default function Reg24MetroConsole() {
                             }
                             className={`w-full bg-transparent text-base resize-none focus:outline-none leading-relaxed ${
                               isLightMinimal
-                                ? "text-[#0f172a] placeholder-slate-400"
+                                ? "text-[#0f172a] placeholder-slate-500"
                                 : "text-white placeholder-slate-400"
                             }`}
                           />
@@ -8399,12 +8399,12 @@ export default function Reg24MetroConsole() {
               </div>
 
               {neo4jHealth?.sanitized_error && (
-                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start justify-between gap-3">
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 text-amber-950 dark:text-amber-200 text-xs flex items-start justify-between gap-3">
                   <div>
-                    <strong className="text-amber-400">Degraded / Unconfigured Notice (REG-NEO-017):</strong>{" "}
+                    <strong className="text-amber-800 dark:text-amber-400">Degraded / Unconfigured Notice (REG-NEO-017):</strong>{" "}
                     {neo4jHealth.sanitized_error}
                   </div>
-                  <span className="font-mono text-[11px] shrink-0 text-amber-300">
+                  <span className="font-mono text-[11px] shrink-0 text-amber-800 dark:text-amber-300">
                     GET /api/v1/infrastructure/graph/health
                   </span>
                 </div>
@@ -8415,17 +8415,17 @@ export default function Reg24MetroConsole() {
                   (4-Pillar Operations: Infrastructure, Coverage, Quality, Pipeline
                    + Verified Node Inventory + 200-Question Evaluation Benchmark)
                   =============================================================== */}
-              <div className="pt-3 border-t border-[#24324b] space-y-4">
+              <div className="pt-3 border-t border-slate-200 dark:border-[#24324b] space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <span className="text-[11px] font-semibold uppercase tracking-widest text-[#f5b700]">
+                    <span className="text-[11px] font-semibold uppercase tracking-widest text-[#0f2c59] dark:text-[#f5b700]">
                       DEV-001..DEV-028 &bull; Knowledge Graph Operations, Verified Node Audit &amp; Expansion Roadmap
                     </span>
-                    <p className="text-xs text-slate-400 mt-0.5">
+                    <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
                       Live programmatic audit of Neo4j AuraDB entities, L1–L5 source trust classification, 15-stage ingestion pipeline, and 200-question business-law benchmark gates.
                     </p>
                   </div>
-                  <span className="px-2.5 py-1 rounded-md text-[11px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                  <span className="px-2.5 py-1 rounded-md text-[11px] font-mono font-bold bg-emerald-50 dark:bg-emerald-500/15 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
                     Orphan Nodes: 0 &bull; Provenance: 100% &bull; P0 Gates: 9/9 PASSED
                   </span>
                 </div>

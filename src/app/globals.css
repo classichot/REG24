@@ -1,9 +1,7 @@
 @import "tailwindcss";
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (&:where(.dark, .dark *):not(.light, .light *));
 
 :root {
-  color-scheme: dark;
-
   /* AI24 / REG24 Unified Typography Design Tokens (Compact Single-Line Scale) */
   --font-ui: "Inter", "Noto Sans Thai", sans-serif;
   --font-size-page-heading: clamp(1.125rem, 1.5vw, 1.25rem); /* 18–20px */
@@ -78,8 +76,20 @@
     line-height: 1.45;
   }
 
-  body {
+  html.dark,
+  .dark {
     color-scheme: dark;
+  }
+
+  html.light,
+  html.light body,
+  .light {
+    color-scheme: light;
+    background-color: #f8fafc;
+    color: #0f172a;
+  }
+
+  body {
     background-color: #0a0e17;
     color: #f8fafc;
     font-family: var(--font-ui);
@@ -88,14 +98,6 @@
     overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-  }
-
-  .dark {
-    color-scheme: dark;
-  }
-
-  .light {
-    color-scheme: light;
   }
 
   nav a,
@@ -122,6 +124,33 @@
 .font-serif,
 .font-mono {
   font-family: var(--font-ui) !important;
+}
+
+/* High-contrast Light Mode readability safeguards (WCAG AAA / AA on white & mist surfaces) */
+.light :not(.bg-\[\#0f2c59\], .bg-\[\#0f2c59\] *, .bg-\[\#101829\], .bg-\[\#101829\] *, .bg-\[\#0b111e\], .bg-\[\#0b111e\] *, .bg-\[\#0b1322\], .bg-\[\#0b1322\] *, .bg-\[\#0c111d\], .bg-\[\#0c111d\] *, .bg-\[\#111a2c\], .bg-\[\#111a2c\] *, .bg-\[\#121a2b\], .bg-\[\#121a2b\] *).text-slate-400 {
+  color: #475569 !important;
+}
+
+.light :not(.bg-\[\#0f2c59\], .bg-\[\#0f2c59\] *, .bg-\[\#101829\], .bg-\[\#101829\] *, .bg-\[\#0b111e\], .bg-\[\#0b111e\] *, .bg-\[\#0b1322\], .bg-\[\#0b1322\] *, .bg-\[\#0c111d\], .bg-\[\#0c111d\] *, .bg-\[\#111a2c\], .bg-\[\#111a2c\] *, .bg-\[\#121a2b\], .bg-\[\#121a2b\] *).text-slate-500 {
+  color: #334155 !important;
+}
+
+.light :not(.bg-\[\#0f2c59\], .bg-\[\#0f2c59\] *, .bg-\[\#101829\], .bg-\[\#101829\] *, .bg-\[\#0b111e\], .bg-\[\#0b111e\] *, .bg-\[\#0b1322\], .bg-\[\#0b1322\] *, .bg-\[\#0c111d\], .bg-\[\#0c111d\] *, .bg-\[\#111a2c\], .bg-\[\#111a2c\] *, .bg-\[\#121a2b\], .bg-\[\#121a2b\] *).text-slate-600 {
+  color: #1e293b !important;
+}
+
+.light :not(.bg-\[\#0f2c59\], .bg-\[\#0f2c59\] *, .bg-\[\#101829\], .bg-\[\#101829\] *, .bg-\[\#0b111e\], .bg-\[\#0b111e\] *, .bg-\[\#0b1322\], .bg-\[\#0b1322\] *, .bg-\[\#0c111d\], .bg-\[\#0c111d\] *, .bg-\[\#111a2c\], .bg-\[\#111a2c\] *, .bg-\[\#121a2b\], .bg-\[\#121a2b\] *).text-slate-700 {
+  color: #0f172a !important;
+}
+
+.light input::placeholder,
+.light textarea::placeholder {
+  color: #475569 !important;
+  opacity: 1 !important;
+}
+
+.light :not(.bg-\[\#0f2c59\], .bg-\[\#0f2c59\] *, .bg-\[\#101829\], .bg-\[\#101829\] *, .bg-\[\#0b111e\], .bg-\[\#0b111e\] *, .bg-\[\#0b1322\], .bg-\[\#0b1322\] *):is(.opacity-50, .opacity-60, .opacity-65, .opacity-70, .opacity-75, .opacity-80) {
+  opacity: 0.92 !important;
 }
 
 .metro-tile {
