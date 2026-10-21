@@ -2920,7 +2920,7 @@ export default function Reg24MetroConsole() {
                         {/* Headline & Subtitle (Compact Single-Line Scale) */}
                         <div className="space-y-2">
                           <h1
-                            className={`text-[20px] sm:text-[24px] font-bold tracking-[-0.025em] leading-snug ${
+                            className={`text-[18px] sm:text-[21px] font-semibold tracking-[-0.015em] leading-snug ${
                               isLightMinimal ? "text-[#0f172a]" : "text-white"
                             }`}
                           >
@@ -3546,7 +3546,7 @@ export default function Reg24MetroConsole() {
                             <div className={`rounded-2xl p-6 sm:p-8 space-y-6 ${surfaceCard}`}>
                               {/* Question Header & Status Line */}
                               <div className="space-y-2 border-b pb-4 border-slate-200/80 dark:border-slate-800">
-                                <h2 className="text-[17px] sm:text-[19px] font-bold tracking-[-0.02em] leading-snug">
+                                <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed">
                                   {latestTurn.question}
                                 </h2>
                                 <div className="flex flex-wrap items-center gap-2 text-[12px] font-medium">
@@ -3867,7 +3867,7 @@ export default function Reg24MetroConsole() {
                                     <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                                       LEVEL 2 &bull; EXTENDED MULTI-MODULE RESEARCH &amp; MEMORANDUM
                                     </span>
-                                    <h3 className="text-[16px] sm:text-[18px] font-bold tracking-[-0.025em] leading-snug mt-1">
+                                    <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed mt-1">
                                       {languageMode === "th"
                                         ? "บันทึกความเห็นทางกฎหมาย ข้อหารือกรมสรรพากร คำพิพากษาศาลฎีกา และหน้าที่ตามกฎหมาย"
                                         : "Extended Legal Analysis, Rulings, Supreme Court Decisions & Compliance Obligations"}
@@ -3984,7 +3984,7 @@ export default function Reg24MetroConsole() {
                                         <span className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                                           AGR-013 &bull; USER-FRIENDLY AGENTIC RESEARCH TRACE
                                         </span>
-                                        <h3 className="text-[17px] font-bold mt-0.5">
+                                        <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed mt-0.5">
                                           {languageMode === "th"
                                             ? `ประวัติการวางแผน ค้นหา และตรวจสอบของเอเจนต์ (${agenticResearchMission.trace.what_reg24_investigated.length} งานวิจัย · ${agenticResearchMission.execution_latency_ms} ms)`
                                             : `Agentic Research Execution Trace (${agenticResearchMission.trace.what_reg24_investigated.length} Tasks · ${agenticResearchMission.execution_latency_ms} ms)`}
@@ -4079,7 +4079,7 @@ export default function Reg24MetroConsole() {
                                             Traceability: {agenticResearchMission.citation_verification.material_claim_traceability_pct}%
                                           </span>
                                         </div>
-                                        <h3 className="text-[16px] sm:text-[18px] font-bold tracking-[-0.025em] leading-snug">
+                                        <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed">
                                           {languageMode === "th"
                                             ? "รายงานผลการวิจัยกฎหมายแบบมีโครงสร้าง 14 หมวด (พร้อมการตรวจสอบแหล่งอ้างอิง 10 จุด)"
                                             : "Structured 14-Section Legal Research Report (with 10-Point Citation Verification)"}
@@ -4264,7 +4264,7 @@ export default function Reg24MetroConsole() {
                                     <span className="text-[11px] font-semibold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                                       LEVEL 3 &bull; SOURCE &amp; EVIDENCE INSPECTOR (UX-05)
                                     </span>
-                                    <h3 className="text-[16px] sm:text-[18px] font-bold tracking-[-0.025em] leading-snug mt-1">
+                                    <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed mt-1">
                                       {languageMode === "th" ? activeCitation.title_th : activeCitation.title_en}
                                     </h3>
                                   </div>
@@ -4412,7 +4412,7 @@ export default function Reg24MetroConsole() {
                 <div className="py-6 space-y-6">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <h1 className="text-[19px] sm:text-[22px] font-bold tracking-[-0.025em] leading-snug">
+                      <h1 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.015em] leading-snug">
                         {languageMode === "th"
                           ? "พื้นที่ทำงานและงานวิจัยที่บันทึกไว้ (Workspace)"
                           : "Workspace — Saved Research, Exports & Handoff"}
@@ -4458,7 +4458,7 @@ export default function Reg24MetroConsole() {
                                 {sess.active_mode} &bull; {sess.as_of_date}
                               </span>
                             </div>
-                            <h3 className="text-[16px] font-bold tracking-[-0.02em] leading-snug mt-2">{sess.title}</h3>
+                            <h3 className="text-[14px] sm:text-[15px] font-semibold tracking-normal leading-relaxed mt-2">{sess.title}</h3>
                             <div className="flex flex-wrap items-center justify-between gap-2 mt-3 pt-3 border-t border-slate-200/70 dark:border-slate-800 text-xs">
                               <span className={mutedText}>
                                 {sess.turns.length} turns &bull; {sess.bookmarked_source_ids.length} bookmarked sources
@@ -4539,7 +4539,7 @@ export default function Reg24MetroConsole() {
                       <div className={`text-[11px] font-mono uppercase tracking-wider mb-1 ${mutedText}`}>
                         REG24 Legal Directory &bull; 2,312 Regulations &bull; 3,643 Tax Rulings &bull; 9,242 Neo4j Nodes
                       </div>
-                      <h1 className="text-[19px] sm:text-[22px] font-bold tracking-[-0.025em] leading-snug">
+                      <h1 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.015em] leading-snug">
                         {languageMode === "th"
                           ? "ฐานข้อมูลกฎหมายและข้อบังคับไทย (Legal Databases)"
                           : "Legal Databases & Regulatory Directory"}
@@ -5054,7 +5054,7 @@ export default function Reg24MetroConsole() {
                               <Cpu className="w-3.5 h-3.5" />
                               <span>PRD v1.0 &bull; REG-AI-01 through REG-AI-12 &bull; 325 Benchmark Cases</span>
                             </div>
-                            <h2 className="text-[16px] sm:text-[17px] font-bold tracking-[-0.02em] leading-snug text-[#0f2c59] dark:text-white">
+                            <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                               {languageMode === "th"
                                 ? "REG24 — โครงสร้างพื้นฐานปัญญากฎหมายและการบังคับใช้สำหรับองค์กร (12 เทคโนโลยีหลัก)"
                                 : "REG24 — Legal Intelligence & Execution Infrastructure for Enterprise AI (12 Mandatory Technologies)"}
@@ -5161,7 +5161,7 @@ export default function Reg24MetroConsole() {
                             <div className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                               Section 6 Orchestrator &bull; Section 7.3 Universal Response Contract &bull; Section 14 Mandatory UATs
                             </div>
-                            <h3 className="text-[17px] sm:text-[19px] font-bold mt-0.5 text-[#0f2c59] dark:text-white">
+                            <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed mt-0.5 text-[#0f2c59] dark:text-white">
                               {languageMode === "th"
                                 ? "ทดสอบสถานการณ์บังคับครบวงจร 7 กรณี (End-to-End UAT Scenarios: Test A – Test G)"
                                 : "Interactive End-to-End UAT Runner (Mandatory Scenarios: Test A through Test G)"}
@@ -5472,7 +5472,7 @@ export default function Reg24MetroConsole() {
                               <div className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                                 REG-AI-10 &bull; Causal & Counterfactual Legal Scenario Analysis Engine
                               </div>
-                              <h3 className="text-[17px] font-bold mt-0.5 text-[#0f2c59] dark:text-white">
+                              <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed mt-0.5 text-[#0f2c59] dark:text-white">
                                 {languageMode === "th"
                                   ? scenarioComparisonRes.title_th
                                   : scenarioComparisonRes.title_en}
@@ -5573,7 +5573,7 @@ export default function Reg24MetroConsole() {
                               <Clock className="w-3.5 h-3.5" />
                               <span>REG24-TEMPORAL-GRAPH-001 &bull; Bi-Temporal Legal Time-Machine</span>
                             </div>
-                            <h2 className="text-[16px] sm:text-[17px] font-bold tracking-[-0.02em] leading-snug text-[#0f2c59] dark:text-white">
+                            <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                               {languageMode === "th"
                                 ? "กราฟความรู้กฎหมายสองมิติเวลา (Bi-Temporal Knowledge Graph พ.ศ. 2544–2569)"
                                 : "Bi-Temporal Legal Knowledge Graph & Stale-Ruling Detector (B.E. 2544–2569 / 2001–2026)"}
@@ -5769,7 +5769,7 @@ export default function Reg24MetroConsole() {
                           {/* Left 2 Columns: Point-in-Time ProvisionVersions Ledger Table */}
                           <div className={`lg:col-span-2 rounded-xl overflow-hidden border ${surfaceCard}`}>
                             <div className="px-4 py-3.5 border-b border-slate-200 dark:border-slate-800">
-                              <h3 className="text-[15px] font-bold text-[#0f2c59] dark:text-white">
+                              <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                                 {languageMode === "th"
                                   ? `สถานะโหนดความรู้กฎหมาย ณ วันที่ ${temporalSnapshot.as_of_date} (พ.ศ. ${temporalSnapshot.as_of_year_be})`
                                   : `Point-in-Time Knowledge Graph Nodes as of ${temporalSnapshot.as_of_date} (B.E. ${temporalSnapshot.as_of_year_be})`}
@@ -5830,7 +5830,7 @@ export default function Reg24MetroConsole() {
                           {/* Right Column: Temporal Edges + Neo4j Bi-Temporal Cypher */}
                           <div className={`p-5 rounded-xl border space-y-4 ${surfaceCard}`}>
                             <div>
-                              <h3 className="text-[15px] font-bold text-[#0f2c59] dark:text-white">
+                              <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                                 {languageMode === "th"
                                   ? "เส้นเชื่อมโยงการแก้ไขและบรรทัดฐาน (Temporal Edges)"
                                   : "Temporal Supersession & Precedent Edges"}
@@ -5886,7 +5886,7 @@ export default function Reg24MetroConsole() {
                         <div className="p-5 border-b border-slate-200 dark:border-slate-800 space-y-3">
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                             <div>
-                              <h3 className="text-[16px] sm:text-[18px] font-bold text-[#0f2c59] dark:text-white">
+                              <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                                 {languageMode === "th"
                                   ? "ระบบตรวจจับข้อหารือกรมสรรพากรที่กฎหมายแม่บทแก้ไขหรือมีคำพิพากษาฎีกาใหม่ทับแล้ว"
                                   : "Automatic Stale-Ruling & Statutory Amendment Detector Across 3,643 RD Tax Rulings"}
@@ -6010,7 +6010,7 @@ export default function Reg24MetroConsole() {
                         <div className={`p-5 sm:p-6 rounded-xl border space-y-4 ${surfaceCard}`}>
                           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div>
-                              <h3 className="text-[16px] font-bold text-[#0f2c59] dark:text-white">
+                              <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                                 {languageMode === "th"
                                   ? `เปรียบเทียบสถานะกฎหมายสองจุดเวลา: วันทำสัญญา (${temporalComparison.date_a}) vs. วันตรวจสอบ (${temporalComparison.date_b})`
                                   : `Date-vs-Date Transaction Replay: Contract Date (${temporalComparison.date_a}) vs. Audit Date (${temporalComparison.date_b})`}
@@ -6085,7 +6085,7 @@ export default function Reg24MetroConsole() {
                     <div className={`rounded-xl overflow-hidden border ${surfaceCard}`}>
                       <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                         <div>
-                          <h2 className="text-[17px] font-bold tracking-[-0.02em] text-[#0f2c59] dark:text-white">
+                          <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                             {languageMode === "th"
                               ? `ฐานข้อมูลกฎหมายรายอุตสาหกรรม (${snapshot.industryModules.length} กลุ่มอุตสาหกรรม P0)`
                               : `Industry Legal Databases (${snapshot.industryModules.length} P0 Sectors)`}
@@ -6182,7 +6182,7 @@ export default function Reg24MetroConsole() {
                       <div className={`rounded-xl overflow-hidden border ${surfaceCard}`}>
                         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
                           <div>
-                            <h2 className="text-[17px] font-bold tracking-[-0.02em] text-[#0f2c59] dark:text-white">
+                            <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                               {languageMode === "th"
                                 ? `ฐานข้อมูลหน่วยงานกำกับดูแลและผู้ทรงอำนาจตามกฎหมายไทย (${snapshot.regulators.length} หน่วยงาน)`
                                 : `Official Thai Legal Authorities & Regulatory Databases (${snapshot.regulators.length} Authorities)`}
@@ -6246,7 +6246,7 @@ export default function Reg24MetroConsole() {
                       {/* 7 Live Ingestion Connectors Ledger Table */}
                       <div className={`rounded-xl overflow-hidden border ${surfaceCard}`}>
                         <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800">
-                          <h3 className="text-[15px] font-bold text-[#0f2c59] dark:text-white">
+                          <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                             {languageMode === "th"
                               ? `ตัวเชื่อมต่อฐานข้อมูลกฎหมายและคำพิพากษาอัตโนมัติ (${snapshot.caseConnectors.length} Live Source Connectors)`
                               : `Live Official Legal & Judicial Source Connectors (${snapshot.caseConnectors.length} Active Pipelines)`}
@@ -6294,7 +6294,7 @@ export default function Reg24MetroConsole() {
                   {(uxLibraryTab === "all" || uxLibraryTab === "modules") && (
                     <div className={`rounded-xl overflow-hidden border ${surfaceCard}`}>
                       <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-                        <h2 className="text-[17px] font-bold tracking-[-0.02em] text-[#0f2c59] dark:text-white">
+                        <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                           {languageMode === "th"
                             ? `โมดูลกฎหมายหลักในระบบ REG24 (${snapshot.modules.length} Core Legal Modules)`
                             : `Core Legal Intelligence Modules (${snapshot.modules.length} Published P0 Modules)`}
@@ -6365,7 +6365,7 @@ export default function Reg24MetroConsole() {
                   {(uxLibraryTab === "all" || uxLibraryTab === "statutes") && (
                     <div className="space-y-5">
                       <div>
-                        <h2 className="text-[16px] sm:text-[17px] font-bold tracking-[-0.02em] leading-snug text-[#0f2c59] dark:text-white">
+                        <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                           {languageMode === "th"
                             ? `พระราชบัญญัติ ประมวลกฎหมาย และกฎหมายลำดับรอง (${snapshot.instruments.length} ฉบับหลัก + ${snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length} ประกาศเฉพาะด้าน)`
                             : `Enacted Statutes, Codes & Subordinate Regulations (${snapshot.instruments.length} Primary Instruments + ${snapshot.taxSubRegulations.length + snapshot.pdpaSubordinateRegulations.length} Sub-Regulations)`}
@@ -6696,7 +6696,7 @@ export default function Reg24MetroConsole() {
                         <div className="p-5 border-b border-slate-200 dark:border-slate-800 space-y-4">
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
                             <div>
-                              <h2 className="text-[16px] sm:text-[17px] font-bold tracking-[-0.02em] text-[#0f2c59] dark:text-white">
+                              <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                                 {languageMode === "th"
                                   ? `ฐานข้อมูลข้อหารือกรมสรรพากร (${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()} ฉบับ · พ.ศ. 2543–2569)`
                                   : `Thai Revenue Department Tax Rulings Ledger (${(thaiTaxRulingsData?.total_corpus_size ?? 3643).toLocaleString()} Rulings · B.E. 2543–2569)`}
@@ -7035,7 +7035,7 @@ export default function Reg24MetroConsole() {
                       {/* Supreme Court Precedents Ledger Table */}
                       <div className={`rounded-xl overflow-hidden border ${surfaceCard}`}>
                         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800">
-                          <h3 className="text-[16px] font-bold text-[#0f2c59] dark:text-white">
+                          <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed text-[#0f2c59] dark:text-white">
                             {languageMode === "th"
                               ? `คำพิพากษาศาลฎีกาบรรทัดฐาน (${snapshot.legalCases.length} ฎีกาหลัก)`
                               : `Supreme Court Dika Precedents (${snapshot.legalCases.length} Landmark Judgments)`}
@@ -7114,7 +7114,7 @@ export default function Reg24MetroConsole() {
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <h1 className="text-[19px] sm:text-[22px] font-bold tracking-[-0.025em] leading-snug">
+                          <h1 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.015em] leading-snug">
                             {languageMode === "th" ? "NotebookLM ของฉัน" : "My NotebookLM"}
                           </h1>
                           <span
@@ -7232,7 +7232,7 @@ export default function Reg24MetroConsole() {
                       </div>
 
                       <div className="max-w-md mx-auto space-y-2">
-                        <h2 className="text-lg sm:text-xl font-extrabold">
+                        <h2 className="text-[16px] sm:text-[17px] font-semibold leading-relaxed">
                           {languageMode === "th"
                             ? "ยังไม่ได้เชื่อมต่อ NotebookLM"
                             : "NotebookLM Not Connected Yet"}
@@ -7565,7 +7565,7 @@ export default function Reg24MetroConsole() {
                                     {binder.last_synced}
                                   </span>
                                 </div>
-                                <h3 className="text-[17px] sm:text-[19px] font-bold tracking-[-0.025em]">
+                                <h3 className="text-[14px] sm:text-[15px] font-semibold leading-relaxed">
                                   {languageMode === "th" ? binder.title_th : binder.title_en}
                                 </h3>
                               </div>
@@ -7783,7 +7783,7 @@ export default function Reg24MetroConsole() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <h1 className="text-[19px] sm:text-[22px] font-bold tracking-[-0.025em] leading-snug">
+                      <h1 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.015em] leading-snug">
                         {languageMode === "th"
                           ? "REG24 Universal MCP — โครงสร้างพื้นฐานปัญญากฎหมายไทยสำหรับทุก AI"
                           : "REG24 — The Legal Intelligence Layer for Every AI"}
@@ -7825,7 +7825,7 @@ export default function Reg24MetroConsole() {
                             <div className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                               SECTION 4 &bull; ONE-CLICK USER EXPERIENCE FOR CORPORATE LAW FIRMS
                             </div>
-                            <h2 className="text-[16px] sm:text-[18px] font-bold mt-0.5">
+                            <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed mt-0.5">
                               {languageMode === "th"
                                 ? "เชื่อมต่อ REG24 เข้ากับ AI ที่คุณใช้งาน (Connect REG24)"
                                 : "Connect REG24 — Use REG24 Legal Intelligence in Your Preferred AI"}
@@ -7871,7 +7871,7 @@ export default function Reg24MetroConsole() {
                                 <span className="text-xs font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                                   {activeProv.company} &bull; {activeProv.transport_protocol}
                                 </span>
-                                <h3 className="text-lg font-extrabold mt-0.5">
+                                <h3 className="text-[15px] font-semibold mt-0.5">
                                   {activeProv.display_name} Connection
                                 </h3>
                               </div>
@@ -7982,7 +7982,7 @@ export default function Reg24MetroConsole() {
                         <span className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                           SECTION 2B &amp; 2C &bull; 10 UNIVERSAL LEGAL MCP TOOLS &amp; VERIFIED EVIDENCE ENGINE
                         </span>
-                        <h2 className="text-[16px] sm:text-[18px] font-bold mt-0.5">
+                        <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed mt-0.5">
                           {languageMode === "th"
                             ? "ทดสอบเรียกใช้ 10 เครื่องมือกฎหมาย MCP และตรวจสอบชุดหลักฐาน (Verified Evidence Package)"
                             : "Live 10-Tool Universal MCP Catalog & Verified Evidence Package Inspector"}
@@ -8238,7 +8238,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[11px] font-semibold uppercase tracking-widest text-[#0f2c59] dark:text-slate-300">
                   02. REG24 INFRASTRUCTURE &bull; DEVELOPER CONSOLE
                 </span>
-                <h1 className="text-[19px] sm:text-[22px] font-bold tracking-[-0.025em] leading-snug text-slate-900 dark:text-white mt-1">
+                <h1 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.015em] leading-snug text-slate-900 dark:text-white mt-1">
                   API Gateway, MCP Tools &amp; Module Capabilities
                 </h1>
                 <p className="text-[14px] text-slate-600 dark:text-slate-300 mt-1.5 font-normal leading-[1.5]">
@@ -8294,7 +8294,7 @@ export default function Reg24MetroConsole() {
                   <div className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                     REG24 Infrastructure &bull; REG-NEO-014
                   </div>
-                  <h2 className="text-[17px] font-bold tracking-[-0.02em] text-slate-900 dark:text-white mt-0.5">
+                  <h2 className="text-[15px] sm:text-base font-semibold leading-snug text-slate-900 dark:text-white mt-0.5">
                     Graph Database
                   </h2>
                   <div className="mt-1 flex items-center gap-2 text-xs font-semibold">
@@ -8822,7 +8822,7 @@ export default function Reg24MetroConsole() {
                       FR-001..FR-003 QUALITY-FIRST ROUTING ACTIVE
                     </span>
                   </div>
-                  <h3 className="text-lg font-extrabold text-white mt-1">
+                  <h3 className="text-sm sm:text-[15px] font-semibold leading-relaxed text-white mt-1">
                     AI Cost Router &amp; Token Metering Engine
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
@@ -9250,7 +9250,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[11px] font-semibold uppercase tracking-widest text-[#0f2c59] dark:text-slate-300">
                   03. REG24 CONTROL &bull; ADMINISTRATOR CONSOLE
                 </span>
-                <h1 className="text-[19px] sm:text-[22px] font-bold tracking-[-0.025em] leading-snug text-slate-900 dark:text-white mt-1">
+                <h1 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.015em] leading-snug text-slate-900 dark:text-white mt-1">
                   Source Ingestion, 3R Graph RAG, Data Quality &amp; Audit Control
                 </h1>
                 <p className="text-[14px] text-slate-600 dark:text-slate-300 mt-1.5 font-normal leading-[1.5]">
@@ -9593,7 +9593,7 @@ export default function Reg24MetroConsole() {
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                     1. Core Substantive Legal Modules &bull; {snapshot.modules.length} Published Modules
                   </span>
-                  <h2 className="text-[17px] sm:text-[19px] font-bold tracking-[-0.025em] text-slate-900 dark:text-white mt-0.5">
+                  <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-slate-900 dark:text-white mt-0.5">
                     {languageMode === "th"
                       ? `โมดูลกฎหมายหลัก (${snapshot.modules.length} โมดูล P0)`
                       : `Substantive Thai Legal Modules (${snapshot.modules.length} P0 Modules)`}
@@ -9652,7 +9652,7 @@ export default function Reg24MetroConsole() {
                         </div>
 
                         <div>
-                          <h3 className={`text-[15px] font-bold tracking-[-0.02em] leading-snug ${isFoundation ? "text-white" : "text-slate-900 dark:text-white"}`}>
+                          <h3 className={`text-[14px] font-semibold leading-relaxed ${isFoundation ? "text-white" : "text-slate-900 dark:text-white"}`}>
                             {languageMode === "th" ? mod.display_name_th : mod.display_name}
                           </h3>
                           <div className={`text-[11px] font-mono mt-0.5 truncate ${isFoundation ? "text-slate-300" : "text-slate-500 dark:text-slate-400"}`}>
@@ -9691,7 +9691,7 @@ export default function Reg24MetroConsole() {
                   <span className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                     2. Sector-Specific Legal Databases &bull; {snapshot.industryModules.length} P0 Industries
                   </span>
-                  <h2 className="text-[17px] sm:text-[19px] font-bold tracking-[-0.025em] text-slate-900 dark:text-white mt-0.5">
+                  <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-slate-900 dark:text-white mt-0.5">
                     {languageMode === "th"
                       ? `ฐานข้อมูลกฎหมายรายอุตสาหกรรม (${snapshot.industryModules.length} กลุ่มธุรกิจ)`
                       : `Industry Legal Databases (${snapshot.industryModules.length} Completed Sectors)`}
@@ -9757,7 +9757,7 @@ export default function Reg24MetroConsole() {
                 <span className="text-[11px] font-bold uppercase tracking-wider text-[#0f2c59] dark:text-slate-300">
                   3. Core Infrastructure &amp; Specialized Legal Engines
                 </span>
-                <h2 className="text-[17px] sm:text-[19px] font-bold tracking-[-0.025em] text-slate-900 dark:text-white mt-0.5">
+                <h2 className="text-[15px] sm:text-[16px] font-semibold leading-relaxed text-slate-900 dark:text-white mt-0.5">
                   {languageMode === "th"
                     ? "ระบบโครงสร้างพื้นฐาน AI กฎหมายและเครื่องมือเฉพาะทาง"
                     : "Infrastructure Consoles, Gateways & Specialized Missions"}
@@ -9863,7 +9863,7 @@ export default function Reg24MetroConsole() {
                           {item.stat}
                         </span>
                       </div>
-                      <h3 className={`text-[16px] font-bold leading-snug ${item.highlight ? "text-white" : "text-slate-900 dark:text-white"}`}>
+                      <h3 className={`text-[14px] sm:text-[15px] font-semibold leading-relaxed ${item.highlight ? "text-white" : "text-slate-900 dark:text-white"}`}>
                         {item.title}
                       </h3>
                       <p className={`text-[12px] leading-relaxed ${item.highlight ? "text-slate-200" : "text-slate-600 dark:text-slate-300"}`}>
@@ -9929,7 +9929,7 @@ export default function Reg24MetroConsole() {
                             <div className="text-[10px] font-bold uppercase tracking-[0.2em] opacity-85">
                               {mod.metro_tile.short_code} &bull; {mod.module_id}
                             </div>
-                            <h3 className="text-xl font-normal tracking-tight leading-tight">
+                            <h3 className="text-sm sm:text-[15px] font-semibold leading-relaxed">
                               {mod.display_name} ({mod.display_name_th})
                             </h3>
                           </div>
@@ -13016,7 +13016,7 @@ export default function Reg24MetroConsole() {
                         <div className="text-[10px] font-mono uppercase text-[#38BDF8]">
                           MANDATORY 8-PART SUBSTANTIVE LEGAL RESEARCH OUTPUT (SDR SECTION 7)
                         </div>
-                        <h3 className="text-lg font-semibold text-white">
+                        <h3 className="text-sm sm:text-[15px] font-semibold leading-relaxed text-white">
                           1. Question Presented: {caseResearchRes.mandatory_research_memo.question_presented}
                         </h3>
                       </div>
@@ -13321,7 +13321,7 @@ export default function Reg24MetroConsole() {
                             <div className="text-[10px] font-mono text-[#38BDF8] uppercase">
                               {activeCase.id} &bull; {activeCase.court_level} &bull; JUDGMENT DATE: {activeCase.judgment_date}
                             </div>
-                            <h3 className="text-xl font-semibold text-white mt-0.5">
+                            <h3 className="text-sm sm:text-[15px] font-semibold leading-relaxed text-white mt-0.5">
                               {activeCase.case_number} &mdash; {activeCase.case_type}
                             </h3>
                           </div>
