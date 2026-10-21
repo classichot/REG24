@@ -5016,9 +5016,6 @@ export default function Reg24MetroConsole() {
                                                       {languageMode === "th" ? "สรุปสาระสำคัญ" : "Executive Summary"}
                                                     </div>
                                                     <p className="text-slate-800 dark:text-slate-200">{item.summary_th}</p>
-                                                    {item.full_text_excerpt_th && (
-                                                      <p className={`text-xs mt-1 ${mutedText}`}>{item.full_text_excerpt_th}</p>
-                                                    )}
                                                   </div>
 
                                                   <div className="pt-2">
