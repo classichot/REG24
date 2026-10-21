@@ -12,6 +12,12 @@ import {
   UniversalMCPToolName,
   UniversalAIProviderId,
 } from "@/core/mcp/universal-mcp-gateway";
+import {
+  agenticLegalResearchOrchestrator,
+  verifyLegalCitationsAndClaims,
+  type RequestedResearchModeInput,
+  type DeliverableOutputFormat,
+} from "@/core/agentic-rag/agentic-legal-research-engine";
 
 export const MCP_TOOLS_CATALOG = [
   {
@@ -420,11 +426,301 @@ export const MCP_TOOLS_CATALOG = [
     description: `[Universal MCP ${ut.priority}] ${ut.purpose_en} — ${ut.purpose_th}`,
     inputSchema: ut.inputSchema,
   })),
+  // REG24-PRD-AGENTRAG-001 (AGR-014): Agentic Legal Research MCP Tools
+  {
+    name: "reg24.search_case_law",
+    description: "AGR-014: Search Thai Supreme Court (Dika), Tax Court, and Revenue Department tax rulings with structured provenance",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      properties: {
+        query: { type: "string" },
+        as_of_date: { type: "string" },
+        result_limit: { type: "number", default: 10 },
+      },
+    },
+  },
+  {
+    name: "reg24.get_law_version",
+    description: "AGR-006 & AGR-014: Retrieve point-in-time historical or current version of a statutory provision or subordinate regulation",
+    inputSchema: {
+      type: "object",
+      required: ["provision_id"],
+      properties: {
+        provision_id: { type: "string" },
+        as_of_date: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.start_legal_research",
+    description: "AGR-001..AGR-014: Start and execute an Agentic Legal Research mission across Fast (Mode A), Advanced (Mode B), or Deep Agentic (Mode C) pipelines",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      properties: {
+        query: { type: "string" },
+        mode: { type: "string", enum: ["AUTO", "FAST_LEGAL_LOOKUP", "ADVANCED_LEGAL_RESEARCH", "DEEP_AGENTIC_RESEARCH"], default: "AUTO" },
+        jurisdiction: { type: "string", default: "TH" },
+        as_of_date: { type: "string" },
+        practice_areas: { type: "array", items: { type: "string" } },
+        include_case_law: { type: "boolean", default: true },
+        include_tax_rulings: { type: "boolean", default: true },
+        include_subordinate_legislation: { type: "boolean", default: true },
+        max_iterations: { type: "number", default: 4 },
+        budget_tier: { type: "string", enum: ["ECONOMY", "STANDARD", "HIGH_RIGOR"], default: "STANDARD" },
+        response_format: { type: "string", enum: ["EXECUTIVE_MEMO", "STRUCTURED_JSON", "FULL_LEGAL_OPINION_DRAFT"], default: "EXECUTIVE_MEMO" },
+        citation_strictness: { type: "string", enum: ["STRICT", "STANDARD"], default: "STRICT" },
+        tenant_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.get_research_status",
+    description: "AGR-014: Inspect status, routing mode, iteration count, and trace summary of a legal research mission",
+    inputSchema: {
+      type: "object",
+      required: ["mission_id"],
+      properties: {
+        mission_id: { type: "string" },
+        tenant_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.get_research_result",
+    description: "AGR-010 & AGR-014: Retrieve the full 14-section structured legal research deliverable, citation verification report, and trace",
+    inputSchema: {
+      type: "object",
+      required: ["mission_id"],
+      properties: {
+        mission_id: { type: "string" },
+        tenant_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.verify_legal_citations",
+    description: "AGR-008 & AGR-014: Execute the 10-point citation and legal claim verification gate before response publication",
+    inputSchema: {
+      type: "object",
+      required: ["claims"],
+      properties: {
+        claims: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              claim_id: { type: "string" },
+              statement: { type: "string" },
+              cited_ids: { type: "array", items: { type: "string" } },
+            },
+          },
+        },
+        mission_id: { type: "string" },
+        as_of_date: { type: "string" },
+        strictness: { type: "string", enum: ["STRICT", "STANDARD"], default: "STRICT" },
+        tenant_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.get_legal_evidence",
+    description: "AGR-009 & AGR-014: Retrieve normalized legal provenance evidence items (AGR-009 schema) for a mission or query",
+    inputSchema: {
+      type: "object",
+      properties: {
+        mission_id: { type: "string" },
+        query: { type: "string" },
+        as_of_date: { type: "string" },
+        tenant_id: { type: "string" },
+      },
+    },
+  },
 ];
 
 const UNIVERSAL_10_TOOL_NAMES = new Set<string>(
   UNIVERSAL_MCP_10_TOOLS_CATALOG.map((t) => t.name)
 );
+
+const AGENTIC_RAG_MCP_TOOL_NAMES = new Set<string>([
+  "reg24.search_case_law",
+  "reg24.get_law_version",
+  "reg24.start_legal_research",
+  "reg24.get_research_status",
+  "reg24.get_research_result",
+  "reg24.verify_legal_citations",
+  "reg24.get_legal_evidence",
+]);
+
+async function executeAgenticRagMcpTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  tenantId: string
+): Promise<Record<string, unknown>> {
+  const effectiveTenant = String(args.tenant_id || tenantId || "PUBLIC");
+  const asOfDate = String(args.as_of_date || "2026-10-21");
+
+  switch (toolName) {
+    case "reg24.search_case_law": {
+      const mission = agenticLegalResearchOrchestrator.executeResearchMission({
+        question: String(args.query || args.question || "Supreme Court Dika & Revenue Department rulings"),
+        research_mode: "FAST_LEGAL_LOOKUP",
+        as_of_date: asOfDate,
+        tenant_id: effectiveTenant,
+      });
+      const caseAndRulings = mission.evidence.filter(
+        (ev) =>
+          ev.source_type === "judicial_decision" ||
+          ev.source_type === "tax_ruling"
+      );
+      return {
+        status: "ok",
+        prd_reference: "REG24-PRD-AGENTRAG-001 (AGR-014: reg24.search_case_law)",
+        mission_id: mission.mission_id,
+        as_of_date: asOfDate,
+        results: caseAndRulings.length > 0 ? caseAndRulings : mission.evidence,
+      };
+    }
+
+    case "reg24.get_law_version": {
+      const provId = String(args.provision_id || "prov.th.rc.65_bis");
+      const coreRes = reg24Core.executeMCPTool("reg24.get_provision", {
+        provision_id: provId,
+        as_of_date: asOfDate,
+        tenant_context: { tenant_id: effectiveTenant, role: "Legal Reviewer" },
+      });
+      return {
+        status: "ok",
+        prd_reference: "REG24-PRD-AGENTRAG-001 (AGR-006 & AGR-014: reg24.get_law_version)",
+        provision_id: provId,
+        as_of_date: asOfDate,
+        version_record: coreRes.result,
+      };
+    }
+
+    case "reg24.start_legal_research": {
+      const mission = agenticLegalResearchOrchestrator.executeResearchMission({
+        question: String(args.question || args.query || "Analyze Thai corporate and tax legal framework"),
+        research_mode: (args.research_mode || args.mode || "auto") as RequestedResearchModeInput,
+        jurisdiction: String(args.jurisdiction || "TH"),
+        as_of_date: asOfDate,
+        max_iterations: typeof args.max_iterations === "number" ? args.max_iterations : 3,
+        budget_limit_usd: typeof args.budget_limit_usd === "number" ? args.budget_limit_usd : 2.0,
+        output_format: (args.output_format || "structured_report") as DeliverableOutputFormat,
+        tenant_id: effectiveTenant,
+      });
+      return {
+        status: "ok",
+        prd_reference: "REG24-PRD-AGENTRAG-001 (AGR-014: reg24.start_legal_research)",
+        mission_id: mission.mission_id,
+        mission_status: mission.status,
+        selected_mode: mission.router_decision.selected_mode,
+        router_decision: mission.router_decision,
+        report: mission.report,
+        citation_verification: mission.citation_verification,
+        cost_ledger: mission.cost_ledger,
+      };
+    }
+
+    case "reg24.get_research_status": {
+      const missionId = String(args.mission_id || "");
+      const mission = agenticLegalResearchOrchestrator.getMission(missionId, effectiveTenant);
+      if (!mission) {
+        return {
+          status: "error",
+          error: `Mission '${missionId}' not found or unauthorized for tenant '${effectiveTenant}'.`,
+        };
+      }
+      return {
+        status: "ok",
+        prd_reference: "REG24-PRD-AGENTRAG-001 (AGR-014: reg24.get_research_status)",
+        mission_id: mission.mission_id,
+        mission_status: mission.status,
+        selected_mode: mission.router_decision.selected_mode,
+        iterations_executed: mission.trace.evidence_evaluation_rounds.length,
+        evidence_count: mission.evidence.length,
+        cost_ledger: mission.cost_ledger,
+      };
+    }
+
+    case "reg24.get_research_result": {
+      const missionId = String(args.mission_id || "");
+      const mission = agenticLegalResearchOrchestrator.getMission(missionId, effectiveTenant);
+      if (!mission) {
+        return {
+          status: "error",
+          error: `Mission '${missionId}' not found or unauthorized for tenant '${effectiveTenant}'.`,
+        };
+      }
+      return {
+        status: "ok",
+        prd_reference: "REG24-PRD-AGENTRAG-001 (AGR-010 & AGR-014: reg24.get_research_result)",
+        mission_id: mission.mission_id,
+        report: mission.report,
+        citation_verification: mission.citation_verification,
+        trace: mission.trace,
+      };
+    }
+
+    case "reg24.verify_legal_citations": {
+      const rawClaims = Array.isArray(args.claims)
+        ? (args.claims as Array<{ statement?: string; citation_text?: string }>).map((c) => ({
+            citation_text: String(c.citation_text || c.statement || ""),
+            asserted_proposition: c.statement,
+            as_of_date: asOfDate,
+          }))
+        : [{ citation_text: String(args.statement || args.query || ""), as_of_date: asOfDate }];
+      const missionId = args.mission_id ? String(args.mission_id) : undefined;
+      const mission = missionId
+        ? agenticLegalResearchOrchestrator.getMission(missionId, effectiveTenant)
+        : undefined;
+      const verification = verifyLegalCitationsAndClaims({
+        citations_to_verify: rawClaims,
+        evidence_pool: mission?.evidence || [],
+      });
+      return {
+        status: "ok",
+        prd_reference: "REG24-PRD-AGENTRAG-001 (AGR-008 & AGR-014: reg24.verify_legal_citations)",
+        verification,
+      };
+    }
+
+    case "reg24.get_legal_evidence": {
+      const missionId = args.mission_id ? String(args.mission_id) : undefined;
+      if (missionId) {
+        const mission = agenticLegalResearchOrchestrator.getMission(missionId, effectiveTenant);
+        if (!mission) {
+          return {
+            status: "error",
+            error: `Mission '${missionId}' not found or unauthorized for tenant '${effectiveTenant}'.`,
+          };
+        }
+        return {
+          status: "ok",
+          prd_reference: "REG24-PRD-AGENTRAG-001 (AGR-009 & AGR-014: reg24.get_legal_evidence)",
+          mission_id: mission.mission_id,
+          evidence: mission.evidence,
+        };
+      }
+      const fallbackMission = agenticLegalResearchOrchestrator.executeResearchMission({
+        question: String(args.query || args.question || "Thai corporate and tax provisions"),
+        research_mode: "FAST_LEGAL_LOOKUP",
+        as_of_date: asOfDate,
+        tenant_id: effectiveTenant,
+      });
+      return {
+        status: "ok",
+        prd_reference: "REG24-PRD-AGENTRAG-001 (AGR-009 & AGR-014: reg24.get_legal_evidence)",
+        mission_id: fallbackMission.mission_id,
+        evidence: fallbackMission.evidence,
+      };
+    }
+
+    default:
+      return { status: "error", error: `Unsupported Agentic RAG MCP tool: ${toolName}` };
+  }
+}
 
 export async function GET(req: NextRequest) {
   const format = req.nextUrl.searchParams.get("format");
@@ -552,6 +848,28 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        if (AGENTIC_RAG_MCP_TOOL_NAMES.has(toolName)) {
+          const agOut = await executeAgenticRagMcpTool(
+            toolName,
+            toolArgs as Record<string, unknown>,
+            tenantId
+          );
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(agOut, null, 2),
+                },
+              ],
+              structuredContent: agOut,
+              isError: agOut.status === "error",
+            },
+          });
+        }
+
         const output = reg24Core.executeMCPTool(toolName, toolArgs);
         return NextResponse.json({
           jsonrpc: "2.0",
@@ -585,6 +903,15 @@ export async function POST(req: NextRequest) {
         status: "ok",
         verified_evidence_package: evPkg,
       });
+    }
+
+    if (AGENTIC_RAG_MCP_TOOL_NAMES.has(toolName)) {
+      const agOut = await executeAgenticRagMcpTool(
+        toolName,
+        input as Record<string, unknown>,
+        tenantId
+      );
+      return NextResponse.json(agOut);
     }
 
     const output = reg24Core.executeMCPTool(toolName, input);

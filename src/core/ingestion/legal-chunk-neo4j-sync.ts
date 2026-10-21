@@ -35,7 +35,8 @@ export async function syncLegalResourceMasterChunksToNeo4j(options?: {
   const targetDocs =
     authFilter && authFilter !== "ALL"
       ? LEGAL_RESOURCE_MASTER_CORPUS.filter(
-          (r) => (r.authority_code || "").toUpperCase() === authFilter
+          (r) =>
+            (r.authority_code || r.collection || "").toUpperCase() === authFilter
         )
       : LEGAL_RESOURCE_MASTER_CORPUS;
 
