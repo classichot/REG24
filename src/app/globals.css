@@ -2,11 +2,11 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  /* AI24 / REG24 Unified Typography Design Tokens */
+  /* AI24 / REG24 Unified Typography Design Tokens (Compact Single-Line Scale) */
   --font-ui: "Inter", "Noto Sans Thai", sans-serif;
-  --font-size-page-heading: clamp(2rem, 3.2vw, 2.5rem); /* 32–40px */
-  --font-size-section-heading: clamp(1.375rem, 2.2vw, 1.75rem); /* 22–28px */
-  --font-size-card-heading: clamp(1.25rem, 1.8vw, 1.5rem); /* 20–24px */
+  --font-size-page-heading: clamp(1.25rem, 1.8vw, 1.375rem); /* 20–22px */
+  --font-size-section-heading: clamp(1.0625rem, 1.4vw, 1.1875rem); /* 17–19px */
+  --font-size-card-heading: clamp(0.9375rem, 1.1vw, 1.0625rem); /* 15–17px */
   --font-size-body: 0.9375rem; /* 14–16px */
   --font-size-nav: 0.8125rem; /* 12–14px */
   --font-size-label: 0.71875rem; /* 11–12px */
@@ -40,64 +40,66 @@
   --metro-cyan: #f5b700;
 }
 
-body,
-button,
-input,
-textarea,
-select {
-  font-family: var(--font-ui);
-}
+@layer base {
+  body,
+  button,
+  input,
+  textarea,
+  select {
+    font-family: var(--font-ui);
+  }
 
-h1,
-h2,
-h3 {
-  font-family: var(--font-ui);
-  font-weight: 800;
-  letter-spacing: -0.035em;
-  line-height: 1.15;
-}
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-ui);
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.25;
+  }
 
-h1 {
-  font-size: var(--font-size-page-heading);
-}
+  h1 {
+    font-size: var(--font-size-page-heading);
+  }
 
-h2 {
-  font-size: var(--font-size-section-heading);
-}
+  h2 {
+    font-size: var(--font-size-section-heading);
+  }
 
-h3 {
-  font-size: var(--font-size-card-heading);
-  font-weight: 700;
-}
+  h3 {
+    font-size: var(--font-size-card-heading);
+    font-weight: 700;
+  }
 
-body {
-  background-color: #0a0e17;
-  color: #f8fafc;
-  font-family: var(--font-ui);
-  font-weight: 400;
-  line-height: 1.5;
-  overflow-x: hidden;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
+  body {
+    background-color: #0a0e17;
+    color: #f8fafc;
+    font-family: var(--font-ui);
+    font-weight: 400;
+    line-height: 1.5;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 
-nav a,
-nav button {
-  font-family: var(--font-ui);
-  font-weight: 600;
-  font-size: var(--font-size-nav);
-}
+  nav a,
+  nav button {
+    font-family: var(--font-ui);
+    font-weight: 600;
+    font-size: var(--font-size-nav);
+  }
 
-button {
-  font-family: var(--font-ui);
-  font-weight: 600;
-}
+  button {
+    font-family: var(--font-ui);
+    font-weight: 600;
+  }
 
-label,
-.reg24-label {
-  font-family: var(--font-ui);
-  font-weight: 500;
-  font-size: var(--font-size-label);
+  label,
+  .reg24-label {
+    font-family: var(--font-ui);
+    font-weight: 500;
+    font-size: var(--font-size-label);
+  }
 }
 
 /* Override any residual font-serif or font-mono to maintain unified Inter + Noto Sans Thai typography */
