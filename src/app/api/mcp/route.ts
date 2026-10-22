@@ -18,6 +18,10 @@ import {
   type RequestedResearchModeInput,
   type DeliverableOutputFormat,
 } from "@/core/agentic-rag/agentic-legal-research-engine";
+import {
+  reusableLegalKnowledgeLibrary,
+  type ConsumingApplicationId,
+} from "@/core/library/legal-knowledge-library";
 
 export const MCP_TOOLS_CATALOG = [
   {
@@ -537,7 +541,194 @@ export const MCP_TOOLS_CATALOG = [
       },
     },
   },
+  // REG24-KL-001 (LIB-14): Expert Legal Commentary & Reusable Knowledge Library MCP Tools
+  {
+    name: "reg24_search_legal_commentary",
+    description: "REG24-KL-001 (LIB-14): Authority-aware hybrid search across secondary legal commentaries, textbooks, journals, and primary authorities with tenant/license enforcement",
+    inputSchema: {
+      type: "object",
+      required: ["query"],
+      properties: {
+        query: { type: "string" },
+        as_of_date: { type: "string" },
+        tenant_id: { type: "string" },
+        consuming_app: { type: "string", enum: ["REG24", "LAW24", "TP24", "ACC24", "CFO24"] },
+      },
+    },
+  },
+  {
+    name: "reg24_get_legal_opinions",
+    description: "REG24-KL-001 (LIB-14): Retrieve structured secondary legal opinions and propositions attributed to authors with page-level provenance and non-binding classification",
+    inputSchema: {
+      type: "object",
+      properties: {
+        legal_issue_id: { type: "string" },
+        document_id: { type: "string" },
+        tenant_id: { type: "string" },
+        consuming_app: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24_compare_legal_interpretations",
+    description: "REG24-KL-001 (LIB-12 & LIB-14): Compare competing academic and practitioner secondary opinions alongside judicial/administrative positions and detect contradictions",
+    inputSchema: {
+      type: "object",
+      properties: {
+        legal_issue_id: { type: "string" },
+        tenant_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24_find_related_authorities",
+    description: "REG24-KL-001 (LIB-07 & LIB-14): Traverse Knowledge Graph relationships (INTERPRETS, DISCUSSES_CASE, SUPPORTS_POSITION, DISPUTES_POSITION, CITES_SOURCE, SUPERSEDED_BY) with license checks",
+    inputSchema: {
+      type: "object",
+      required: ["entity_id"],
+      properties: {
+        entity_id: { type: "string" },
+        include_unverified: { type: "boolean", default: false },
+        tenant_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24_get_verified_citations",
+    description: "REG24-KL-001 (LIB-09 & LIB-14): Verify page-level citation provenance, printed vs PDF page index, SHA-256 content hash, and excerpt license permissions",
+    inputSchema: {
+      type: "object",
+      required: ["citation_id"],
+      properties: {
+        citation_id: { type: "string" },
+        tenant_id: { type: "string" },
+        consuming_app: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24_check_legal_freshness",
+    description: "REG24-KL-001 (LIB-08 & LIB-14): Validate temporal freshness (CURRENT_VERIFIED, POTENTIALLY_OUTDATED, HISTORICAL_ONLY, UNVERIFIED) of secondary commentary against statutory amendments",
+    inputSchema: {
+      type: "object",
+      properties: {
+        document_id: { type: "string" },
+        as_of_date: { type: "string" },
+      },
+    },
+  },
 ];
+
+const KNOWLEDGE_LIBRARY_MCP_TOOL_NAMES = new Set<string>([
+  "reg24_search_legal_commentary",
+  "reg24_get_legal_opinions",
+  "reg24_compare_legal_interpretations",
+  "reg24_find_related_authorities",
+  "reg24_get_verified_citations",
+  "reg24_check_legal_freshness",
+]);
+
+function executeKnowledgeLibraryMcpTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  tenantId: string
+): Record<string, unknown> {
+  const effectiveTenant = String(args.tenant_id || tenantId || "tenant.law24.prod");
+  const consumingApp = (args.consuming_app || "REG24") as ConsumingApplicationId;
+
+  switch (toolName) {
+    case "reg24_search_legal_commentary": {
+      const answer = reusableLegalKnowledgeLibrary.searchAndSynthesizeAuthorityAwareAnswer({
+        query: String(args.query || "Management fee deductibility under Section 65 ter"),
+        asOfDate: String(args.as_of_date || "2026-10-22"),
+        tenantId: effectiveTenant,
+        consumingApp,
+      });
+      return {
+        status: "ok",
+        specification_id: "REG24-KL-001",
+        tool: toolName,
+        answer,
+      };
+    }
+    case "reg24_get_legal_opinions": {
+      const snap = reusableLegalKnowledgeLibrary.getLibrarySnapshot(effectiveTenant, consumingApp);
+      const docId = args.document_id ? String(args.document_id) : undefined;
+      if (docId) {
+        const perm = reusableLegalKnowledgeLibrary.checkAccessPermission({
+          documentId: docId,
+          tenantId: effectiveTenant,
+          consumingApp,
+          requestedOperation: "SEARCH",
+        });
+        if (!perm.allowed) {
+          return {
+            status: "blocked_permission",
+            specification_id: "REG24-KL-001",
+            tool: toolName,
+            allowed: false,
+            reason: perm.reason,
+          };
+        }
+      }
+      const opinions = snap.opinions.filter((o) =>
+        docId ? o.documentId === docId : args.legal_issue_id ? o.legalIssueId === String(args.legal_issue_id) : true
+      );
+      return {
+        status: "ok",
+        specification_id: "REG24-KL-001",
+        tool: toolName,
+        authority_separation_notice: "All returned items are SECONDARY_OPINION (isBindingAuthority: false).",
+        opinions,
+      };
+    }
+    case "reg24_compare_legal_interpretations": {
+      const comparison = reusableLegalKnowledgeLibrary.compareLegalOpinions(
+        String(args.legal_issue_id || "issue.kl.tax.management_fee_deductibility")
+      );
+      return {
+        status: "ok",
+        specification_id: "REG24-KL-001",
+        tool: toolName,
+        comparison,
+      };
+    }
+    case "reg24_find_related_authorities": {
+      const graph = reusableLegalKnowledgeLibrary.getKnowledgeGraphForEntity({
+        entityId: String(args.entity_id || "prov.th.rev.65ter"),
+        tenantId: effectiveTenant,
+        consumingApp,
+        includeUnverifiedAiEdges: Boolean(args.include_unverified),
+      });
+      return {
+        status: "ok",
+        specification_id: "REG24-KL-001",
+        tool: toolName,
+        ...graph,
+      };
+    }
+    case "reg24_get_verified_citations": {
+      return reusableLegalKnowledgeLibrary.getVerifiedCitationById({
+        citationOrDocumentId: String(args.citation_id || "doc.kl.tax.treatise.2026.ed9"),
+        tenantId: effectiveTenant,
+        consumingApp,
+      });
+    }
+    case "reg24_check_legal_freshness": {
+      return {
+        status: "ok",
+        specification_id: "REG24-KL-001",
+        tool: toolName,
+        ...reusableLegalKnowledgeLibrary.checkLegalFreshness({
+          documentOrOpinionId: args.document_id ? String(args.document_id) : undefined,
+          asOfDate: args.as_of_date ? String(args.as_of_date) : "2026-10-22",
+        }),
+      };
+    }
+    default:
+      return { status: "error", error: `Unsupported Knowledge Library MCP tool: ${toolName}` };
+  }
+}
 
 const UNIVERSAL_10_TOOL_NAMES = new Set<string>(
   UNIVERSAL_MCP_10_TOOLS_CATALOG.map((t) => t.name)
@@ -870,6 +1061,28 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        if (KNOWLEDGE_LIBRARY_MCP_TOOL_NAMES.has(toolName)) {
+          const klOut = executeKnowledgeLibraryMcpTool(
+            toolName,
+            toolArgs as Record<string, unknown>,
+            tenantId
+          );
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(klOut, null, 2),
+                },
+              ],
+              structuredContent: klOut,
+              isError: klOut.status === "error" || klOut.status === "blocked_permission",
+            },
+          });
+        }
+
         const output = reg24Core.executeMCPTool(toolName, toolArgs);
         return NextResponse.json({
           jsonrpc: "2.0",
@@ -912,6 +1125,15 @@ export async function POST(req: NextRequest) {
         tenantId
       );
       return NextResponse.json(agOut);
+    }
+
+    if (KNOWLEDGE_LIBRARY_MCP_TOOL_NAMES.has(toolName)) {
+      const klOut = executeKnowledgeLibraryMcpTool(
+        toolName,
+        input as Record<string, unknown>,
+        tenantId
+      );
+      return NextResponse.json(klOut);
     }
 
     const output = reg24Core.executeMCPTool(toolName, input);

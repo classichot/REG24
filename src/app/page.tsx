@@ -149,6 +149,7 @@ import {
   type RequestedResearchModeInput,
   type DeliverableOutputFormat,
 } from "@/core/agentic-rag/agentic-legal-research-engine";
+import { LegalKnowledgeLibraryWorkspace } from "@/components/LegalKnowledgeLibraryWorkspace";
 
 interface SnapshotData {
   regulators: Regulator[];
@@ -2433,8 +2434,8 @@ export default function Reg24MetroConsole() {
                   },
                   {
                     id: "library" as const,
-                    labelEn: "Databases",
-                    labelTh: "ฐานข้อมูล",
+                    labelEn: "Legal Library",
+                    labelTh: "คลังความรู้กฎหมาย",
                     icon: Database,
                   },
                 ]
@@ -2906,7 +2907,7 @@ export default function Reg24MetroConsole() {
                 [
                   { id: "research" as const, labelEn: "Research", labelTh: "ค้นคว้า" },
                   { id: "workspace" as const, labelEn: "Workspace", labelTh: "พื้นที่งาน" },
-                  { id: "library" as const, labelEn: "Databases", labelTh: "ฐานข้อมูล" },
+                  { id: "library" as const, labelEn: "Legal Library", labelTh: "คลังความรู้กฎหมาย" },
                 ]
               ).map((dest) => {
                 const active =
@@ -4861,22 +4862,28 @@ export default function Reg24MetroConsole() {
               )}
 
               {/* ===============================================================
-                  DESTINATION 3: LEGAL DATABASE LIST MENU (Complete Directory of
-                  22 Authorities, 9 Completed Industry Databases, 16 Core Legal Modules,
-                  28 Statutes/Regulations, 50 Provisions, 11 Cases & 3 Tax Rulings)
+                  DESTINATION 3: LEGAL LIBRARY & LEGAL DATABASE DIRECTORY
+                  (REG24-KL-001 Secondary Opinion Library + Authoritative Directory)
                   =============================================================== */}
               {uxResearchDestination === "library" && (
                 <div className="py-6 space-y-6">
+                  {/* REG24-KL-001 Reusable Legal Knowledge Library & Secondary Opinion Intelligence */}
+                  <LegalKnowledgeLibraryWorkspace
+                    languageMode={languageMode === "th" ? "th" : "en"}
+                    isLightMinimal={isLightMinimal}
+                    activeTenant={activeTenant}
+                  />
+
                   {/* Minimal Editorial Header */}
-                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2">
+                  <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 pt-4 border-t border-slate-800/40">
                     <div>
                       <div className={`text-[11px] font-mono uppercase tracking-wider mb-1 ${mutedText}`}>
-                        REG24 Legal Directory &bull; 2,312 Regulations &bull; 3,643 Tax Rulings &bull; 9,242 Neo4j Nodes
+                        REG24 Authority Corpus Directory &bull; 2,312 Regulations &bull; 3,643 Tax Rulings &bull; 9,242 Neo4j Nodes
                       </div>
                       <h1 className="text-[18px] sm:text-[20px] font-semibold tracking-[-0.015em] leading-snug">
                         {languageMode === "th"
-                          ? "ฐานข้อมูลกฎหมายและข้อบังคับไทย (Legal Databases)"
-                          : "Legal Databases & Regulatory Directory"}
+                          ? "คลังกฎหมายและข้อบังคับที่มีผลผูกพัน (Authoritative Legal Databases)"
+                          : "Authoritative Legal Databases & Regulatory Directory"}
                       </h1>
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs">
