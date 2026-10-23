@@ -170,6 +170,10 @@ export async function syncLegalResourceMasterChunksToNeo4j(options?: {
     // 3. Upsert Structural Legal Chunks as :Provision nodes linked via [:CONTAINS] to their parent :LegalInstrument
     const chunkItems = targetChunks.map((c) => ({
       canonical_id: c.chunk_id,
+      canonical_provision_key: c.canonical_provision_key,
+      version_sequence: c.temporal_version_meta.version_sequence,
+      amendment_no: c.temporal_version_meta.amendment_no,
+      next_chunk_id: c.next_chunk_id,
       parent_inst_id: `inst.lrm.${c.parent_document_id.toLowerCase()}`,
       title_en: c.title_en.slice(0, 300),
       title_th: c.title_th.slice(0, 300),
@@ -201,7 +205,10 @@ export async function syncLegalResourceMasterChunksToNeo4j(options?: {
       await neo4jConnectionManager.executeCypher(
         `UNWIND $batch AS item
          MERGE (p:Provision {canonical_id: item.canonical_id})
-         SET p.title_en = item.title_en,
+         SET p.canonical_provision_key = item.canonical_provision_key,
+             p.version_sequence = item.version_sequence,
+             p.amendment_no = item.amendment_no,
+             p.title_en = item.title_en,
              p.title_th = item.title_th,
              p.citation_label = item.citation_label,
              p.summary_Text = item.summary_Text,
@@ -236,6 +243,66 @@ export async function syncLegalResourceMasterChunksToNeo4j(options?: {
       );
     }
 
+    // 4. Upsert ThLexGraph Sequential Provision Edges (:NEXT_PROVISION) & Outgoing Cross-References (:REFERS_TO_PROVISION)
+    const seqEdges = targetChunks
+      .filter((c) => Boolean(c.next_chunk_id))
+      .map((c) => ({
+        from_id: c.chunk_id,
+        to_id: c.next_chunk_id!,
+        rel_id: `rel.next.${c.chunk_id}`,
+        effective_from: c.effective_from,
+        migration_batch_id: batchId,
+      }));
+
+    for (let i = 0; i < seqEdges.length; i += batchSize) {
+      const slice = seqEdges.slice(i, i + batchSize);
+      await neo4jConnectionManager.executeCypher(
+        `UNWIND $batch AS item
+         MATCH (p1:Provision {canonical_id: item.from_id})
+         MATCH (p2:Provision {canonical_id: item.to_id})
+         MERGE (p1)-[r:NEXT_PROVISION {canonical_id: item.rel_id}]->(p2)
+         SET r.effective_from = item.effective_from,
+             r.verification_status = 'verified',
+             r.migration_batch_id = item.migration_batch_id`,
+        { batch: slice },
+        { write: true, timeoutMs: 25_000 }
+      );
+    }
+
+    const crossRefItems = targetChunks.flatMap((c) =>
+      c.outgoing_cross_references.map((ref, idx) => ({
+        from_id: c.chunk_id,
+        target_canonical_key: ref.target_canonical_key,
+        resolved_chunk_id: ref.resolved_chunk_id || null,
+        raw_citation: ref.raw_citation,
+        edge_type: ref.edge_type,
+        instrument_hint: ref.target_instrument_hint,
+        rel_id: `rel.xref.${c.chunk_id}.${idx + 1}`,
+        effective_from: c.effective_from,
+        migration_batch_id: batchId,
+      }))
+    );
+
+    for (let i = 0; i < crossRefItems.length; i += batchSize) {
+      const slice = crossRefItems.slice(i, i + batchSize);
+      await neo4jConnectionManager.executeCypher(
+        `UNWIND $batch AS item
+         MATCH (src:Provision {canonical_id: item.from_id})
+         MERGE (stub:CanonicalProvisionStub {canonical_id: item.target_canonical_key})
+         SET stub.instrument_hint = item.instrument_hint,
+             stub.resolved_chunk_id = item.resolved_chunk_id,
+             stub.migration_batch_id = item.migration_batch_id
+         MERGE (src)-[r:REFERS_TO_PROVISION {canonical_id: item.rel_id}]->(stub)
+         SET r.edge_type = item.edge_type,
+             r.raw_citation = item.raw_citation,
+             r.effective_from = item.effective_from,
+             r.verification_status = 'verified',
+             r.migration_batch_id = item.migration_batch_id`,
+        { batch: slice },
+        { write: true, timeoutMs: 30_000 }
+      );
+    }
+
     const health = await neo4jConnectionManager.checkHealth();
     return {
       status: "synced_to_neo4j",
@@ -244,7 +311,8 @@ export async function syncLegalResourceMasterChunksToNeo4j(options?: {
       regulators_upserted: regBatch.length,
       instruments_upserted: instItems.length,
       provision_chunks_upserted: chunkItems.length,
-      relationships_upserted: instItems.length + chunkItems.length,
+      relationships_upserted:
+        instItems.length + chunkItems.length + seqEdges.length + crossRefItems.length,
       live_node_count: health.live_node_count,
       live_relationship_count: health.live_relationship_count,
       error: health.sanitized_error,

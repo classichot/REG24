@@ -10,6 +10,10 @@ import {
 import {
   chunkLegalDocumentRecord,
   searchLegalStructuralChunks,
+  buildGlobalProvisionGraphIndex,
+  traverseProvisionGraph,
+  listStatutoryVersionChains,
+  compareStatutoryVersionsDiff,
   type LegalDocumentArchetype,
   type LegalStructuralUnitType,
 } from "@/core/ingestion/legal-structural-chunker";
@@ -46,6 +50,48 @@ export async function GET(req: NextRequest) {
     const authorityCode =
       searchParams.get("authority") || searchParams.get("authority_code") || "";
     const limitParam = searchParams.get("limit");
+
+    if (mode === "graph-traverse") {
+      const chunkId = searchParams.get("chunk_id") || undefined;
+      const canonicalKey = searchParams.get("canonical_key") || undefined;
+      const maxHopsParam = searchParams.get("max_hops");
+      const traversal = traverseProvisionGraph({
+        chunk_id: chunkId,
+        canonical_key: canonicalKey,
+        query: query || undefined,
+        max_hops: maxHopsParam ? parseInt(maxHopsParam, 10) : 2,
+      });
+      const graphIndex = buildGlobalProvisionGraphIndex();
+      return NextResponse.json({
+        status: "ok",
+        mode: "graph-traverse",
+        engine: "REG24 ThLexGraph-Grade Multi-Hop Provision Graph & Canonical Stub Linker v3.0",
+        traversal,
+        top_co_cited_provisions: graphIndex.top_co_cited_provisions.slice(0, 15),
+        edge_type_counts: graphIndex.edge_type_counts,
+      });
+    }
+
+    if (mode === "version-diff") {
+      const chainId = searchParams.get("chain_id") || undefined;
+      const canonicalKey = searchParams.get("canonical_key") || undefined;
+      const leftVersionId = searchParams.get("left_version_id") || undefined;
+      const rightVersionId = searchParams.get("right_version_id") || undefined;
+      const chains = listStatutoryVersionChains(authorityCode);
+      const comparison = compareStatutoryVersionsDiff({
+        chain_id: chainId || chains[0]?.chain_id,
+        canonical_key: canonicalKey,
+        left_version_id: leftVersionId,
+        right_version_id: rightVersionId,
+      });
+      return NextResponse.json({
+        status: "ok",
+        mode: "version-diff",
+        engine: "REG24 Bi-Temporal Statutory Version Diff Engine v3.0",
+        available_chains: chains,
+        comparison,
+      });
+    }
 
     if (mode === "chunks") {
       const archetype = (searchParams.get("archetype") || "ALL") as

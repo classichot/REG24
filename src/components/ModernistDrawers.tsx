@@ -1245,3 +1245,676 @@ export function ModernistMcpPlaygroundModal({
     </div>
   );
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   UPDATE #1 & #2: ThLexGraph Multi-Hop Provision Graph Explorer &
+   Interactive Side-by-Side Statutory Version Diff Viewer
+   ══════════════════════════════════════════════════════════════════════════ */
+interface VersionSnapshotUi {
+  version_id: string;
+  version_sequence: number;
+  version_label_th: string;
+  version_label_en: string;
+  amendment_instrument_th: string;
+  effective_from: string;
+  effective_to: string | null;
+  status: "HISTORICAL_SUPERSEDED" | "IN_FORCE_CURRENT";
+  text_th: string;
+  text_en_summary: string;
+  key_legal_rule: string;
+}
+
+interface VersionChainUi {
+  chain_id: string;
+  canonical_provision_key: string;
+  authority_code: string;
+  regulator: string;
+  instrument_title_th: string;
+  instrument_title_en: string;
+  provision_label: string;
+  practice_area: string;
+  amendment_rationale_th: string;
+  point_in_time_routing_rule: string;
+  versions: VersionSnapshotUi[];
+}
+
+interface DiffComparisonUi {
+  chain: VersionChainUi;
+  left_version: VersionSnapshotUi;
+  right_version: VersionSnapshotUi;
+  diff_segments: Array<{ type: "UNCHANGED" | "REMOVED" | "ADDED"; text: string }>;
+  stats: {
+    added_tokens: number;
+    removed_tokens: number;
+    unchanged_tokens: number;
+    change_ratio_pct: number;
+  };
+}
+
+interface GraphTraversalHopUi {
+  hop_distance: number;
+  traversal_type: string;
+  edge_label: string;
+  chunk: {
+    chunk_id: string;
+    canonical_provision_key: string;
+    parent_code: string;
+    authority_code: string;
+    section_or_clause_label: string;
+    title_th: string;
+    title_en: string;
+    raw_text: string;
+    effective_from: string;
+    is_binding_law: boolean;
+  } | null;
+  stub_node: {
+    canonical_key: string;
+    instrument_hint: string;
+    section_code: string | null;
+    status: string;
+    incoming_citation_count: number;
+    citing_deka_count: number;
+    citing_ruling_count: number;
+    citing_regulation_count: number;
+  } | null;
+}
+
+export function ModernistThLexGraphAndVersionDiffSection({
+  isTh,
+  onAskAi,
+}: {
+  isTh: boolean;
+  onAskAi: (q: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<"version-diff" | "graph-traverse">("version-diff");
+  const [chains, setChains] = useState<VersionChainUi[]>([]);
+  const [selectedChainId, setSelectedChainId] = useState<string>("chain.ccc.1097");
+  const [comparison, setComparison] = useState<DiffComparisonUi | null>(null);
+
+  const [graphQuery, setGraphQuery] = useState<string>("มาตรา 8");
+  const [maxHops, setMaxHops] = useState<number>(2);
+  const [graphData, setGraphData] = useState<{
+    anchor_chunk?: GraphTraversalHopUi["chunk"];
+    graph_stats?: {
+      total_provision_nodes: number;
+      total_sequential_edges: number;
+      total_cross_reference_edges: number;
+      resolved_cross_references_count: number;
+      stub_awaiting_ingestion_count: number;
+    };
+    co_citation_authority?: {
+      canonical_key: string;
+      incoming_citation_count: number;
+      citing_deka_count: number;
+      citing_ruling_count: number;
+      citing_regulation_count: number;
+    };
+    hops?: GraphTraversalHopUi[];
+    top_co_cited?: Array<{
+      canonical_key: string;
+      instrument_hint: string;
+      status: string;
+      incoming_citation_count: number;
+      citing_deka_count: number;
+      citing_ruling_count: number;
+    }>;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`/api/v1/legal/resource-master?mode=version-diff&chain_id=${encodeURIComponent(selectedChainId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        if (Array.isArray(data.available_chains)) {
+          setChains(data.available_chains);
+        }
+        if (data.comparison) {
+          setComparison(data.comparison);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedChainId]);
+
+  const runGraphTraverse = (qOverride?: string, hopsOverride?: number) => {
+    const q = qOverride ?? graphQuery;
+    const h = hopsOverride ?? maxHops;
+    fetch(
+      `/api/v1/legal/resource-master?mode=graph-traverse&q=${encodeURIComponent(q)}&max_hops=${h}`
+    )
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (!data?.traversal) return;
+        setGraphData({
+          anchor_chunk: data.traversal.anchor_chunk,
+          graph_stats: data.traversal.graph_stats,
+          co_citation_authority: data.traversal.co_citation_authority,
+          hops: data.traversal.hops,
+          top_co_cited: data.top_co_cited_provisions,
+        });
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    runGraphTraverse("มาตรา 8", 2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <section
+      style={{
+        marginTop: "24px",
+        paddingTop: "24px",
+        borderTop: "2px solid var(--color-divider)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "18px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: "16px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <span
+            style={{
+              font: "600 11px ui-monospace,Menlo,monospace",
+              letterSpacing: ".08em",
+              textTransform: "uppercase",
+              color: "var(--color-accent-700)",
+            }}
+          >
+            {isTh
+              ? "BI-TEMPORAL VERSION DIFF & THLEXGRAPH MULTI-HOP TRAVERSAL (REG-AI-01 / REG-AI-02)"
+              : "BI-TEMPORAL VERSION DIFF & THLEXGRAPH MULTI-HOP TRAVERSAL (REG-AI-01 / REG-AI-02)"}
+          </span>
+          <h2 style={{ fontSize: "20px", fontWeight: 700, margin: 0 }}>
+            {isTh
+              ? "เปรียบเทียบวิวัฒนาการตัวบทกฎหมายรายมาตรา & สำรวจกราฟอ้างอิงข้ามกฎหมาย (Multi-Hop Graph)"
+              : "Side-by-Side Statutory Version Diff & Multi-Hop Provision Graph Explorer"}
+          </h2>
+        </div>
+
+        <div style={{ display: "flex", gap: "6px" }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab("version-diff")}
+            style={{
+              padding: "8px 14px",
+              border: 0,
+              cursor: "pointer",
+              font: "600 13px var(--font-body)",
+              background:
+                activeTab === "version-diff"
+                  ? "var(--color-accent)"
+                  : "color-mix(in srgb,var(--color-text) 6%,transparent)",
+              color: activeTab === "version-diff" ? "var(--on-accent)" : "var(--color-text)",
+            }}
+          >
+            {isTh ? "1. เปรียบเทียบตัวบทเก่า-ใหม่ (Version Diff)" : "1. Statutory Version Diff"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("graph-traverse")}
+            style={{
+              padding: "8px 14px",
+              border: 0,
+              cursor: "pointer",
+              font: "600 13px var(--font-body)",
+              background:
+                activeTab === "graph-traverse"
+                  ? "var(--color-accent)"
+                  : "color-mix(in srgb,var(--color-text) 6%,transparent)",
+              color: activeTab === "graph-traverse" ? "var(--on-accent)" : "var(--color-text)",
+            }}
+          >
+            {isTh ? "2. กราฟเชื่อมโยงมาตรา (ThLexGraph Multi-Hop)" : "2. Multi-Hop Provision Graph"}
+          </button>
+        </div>
+      </div>
+
+      {activeTab === "version-diff" && comparison && (
+        <div
+          style={{
+            background: "var(--color-surface)",
+            padding: "20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}
+        >
+          {/* Chain selector pills */}
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {chains.map((ch) => {
+              const on = ch.chain_id === selectedChainId;
+              return (
+                <button
+                  key={ch.chain_id}
+                  type="button"
+                  onClick={() => setSelectedChainId(ch.chain_id)}
+                  style={{
+                    padding: "7px 12px",
+                    border: 0,
+                    cursor: "pointer",
+                    font: "600 12.5px var(--font-body)",
+                    background: on
+                      ? "var(--color-accent)"
+                      : "color-mix(in srgb,var(--color-text) 6%,transparent)",
+                    color: on ? "var(--on-accent)" : "var(--color-text)",
+                  }}
+                >
+                  [{ch.authority_code}] {ch.provision_label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Header metadata */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              gap: "12px",
+              flexWrap: "wrap",
+              paddingBottom: "12px",
+              borderBottom: "1px solid var(--color-divider)",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  font: "600 11.5px ui-monospace,Menlo,monospace",
+                  color: "var(--color-accent-700)",
+                }}
+              >
+                {comparison.chain.canonical_provision_key} · {comparison.chain.practice_area} · Δ{" "}
+                {comparison.stats.change_ratio_pct}% (+{comparison.stats.added_tokens} / -
+                {comparison.stats.removed_tokens} tokens)
+              </div>
+              <div style={{ fontWeight: 700, fontSize: "16px", marginTop: "4px" }}>
+                {isTh ? comparison.chain.instrument_title_th : comparison.chain.instrument_title_en} —{" "}
+                {comparison.chain.provision_label}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                onAskAi(
+                  isTh
+                    ? `เปรียบเทียบผลทางกฎหมายระหว่างฉบับเดิมและฉบับแก้ไขใหม่ของ ${comparison.chain.instrument_title_th} ${comparison.chain.provision_label}`
+                    : `Compare the legal impact of the historical vs. amended version of ${comparison.chain.instrument_title_en} ${comparison.chain.provision_label}`
+                )
+              }
+              style={{ padding: "7px 12px", fontSize: "12.5px" }}
+            >
+              {isTh ? "วิเคราะห์ผลกระทบด้วย AI →" : "Analyze Amendment in AI →"}
+            </button>
+          </div>
+
+          {/* Side-by-side comparison cards */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,300px),1fr))",
+              gap: "14px",
+            }}
+          >
+            {/* Left: Historical Version */}
+            <div
+              style={{
+                padding: "16px",
+                background: "var(--color-bg)",
+                borderLeft: "3px solid var(--color-neutral-500)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  font: "600 11px ui-monospace,Menlo,monospace",
+                  opacity: 0.75,
+                }}
+              >
+                <span>HISTORICAL / SUPERSEDED</span>
+                <span>
+                  {comparison.left_version.effective_from} →{" "}
+                  {comparison.left_version.effective_to || "PRESENT"}
+                </span>
+              </div>
+              <div style={{ fontWeight: 700, fontSize: "14px" }}>
+                {isTh
+                  ? comparison.left_version.version_label_th
+                  : comparison.left_version.version_label_en}
+              </div>
+              <div style={{ fontSize: "13.5px", lineHeight: 1.65 }}>
+                {comparison.left_version.text_th}
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  opacity: 0.75,
+                  paddingTop: "6px",
+                  borderTop: "1px solid var(--color-divider)",
+                }}
+              >
+                <strong>{isTh ? "เกณฑ์สำคัญ:" : "Key Rule:"}</strong>{" "}
+                {comparison.left_version.key_legal_rule}
+              </div>
+            </div>
+
+            {/* Right: Current In-Force Version */}
+            <div
+              style={{
+                padding: "16px",
+                background: "var(--color-bg)",
+                borderLeft: "3px solid var(--color-accent)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  font: "600 11px ui-monospace,Menlo,monospace",
+                  color: "var(--color-accent-700)",
+                }}
+              >
+                <span>IN FORCE / CURRENT</span>
+                <span>{comparison.right_version.effective_from} → PRESENT</span>
+              </div>
+              <div style={{ fontWeight: 700, fontSize: "14px" }}>
+                {isTh
+                  ? comparison.right_version.version_label_th
+                  : comparison.right_version.version_label_en}
+              </div>
+              <div style={{ fontSize: "13.5px", lineHeight: 1.65 }}>
+                {comparison.right_version.text_th}
+              </div>
+              <div
+                style={{
+                  fontSize: "12px",
+                  color: "var(--color-accent-700)",
+                  paddingTop: "6px",
+                  borderTop: "1px solid var(--color-divider)",
+                }}
+              >
+                <strong>{isTh ? "เกณฑ์ปัจจุบัน:" : "Current Rule:"}</strong>{" "}
+                {comparison.right_version.key_legal_rule}
+              </div>
+            </div>
+          </div>
+
+          {/* Inline Word-Level Redline Diff */}
+          <div
+            style={{
+              padding: "14px 16px",
+              background: "var(--color-bg)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            <div
+              style={{
+                font: "600 11px ui-monospace,Menlo,monospace",
+                letterSpacing: ".06em",
+                opacity: 0.7,
+              }}
+            >
+              {isTh
+                ? "REDLINE DIFF (ขีดฆ่า = ถ้อยคำเดิมที่ถูกยกเลิก · ไฮไลต์ = ถ้อยคำที่แก้ไขเพิ่มเติม)"
+                : "REDLINE STATUTORY DIFF (STRIKETHROUGH = REMOVED · HIGHLIGHT = ADDED)"}
+            </div>
+            <div style={{ fontSize: "14px", lineHeight: 1.75 }}>
+              {comparison.diff_segments.map((seg, i) => {
+                if (seg.type === "REMOVED") {
+                  return (
+                    <span
+                      key={i}
+                      style={{
+                        textDecoration: "line-through",
+                        opacity: 0.6,
+                        background: "rgba(220, 38, 38, 0.14)",
+                        padding: "1px 3px",
+                        marginRight: "2px",
+                      }}
+                    >
+                      {seg.text}
+                    </span>
+                  );
+                }
+                if (seg.type === "ADDED") {
+                  return (
+                    <span
+                      key={i}
+                      style={{
+                        fontWeight: 700,
+                        background: "color-mix(in srgb,var(--color-accent) 28%,transparent)",
+                        padding: "1px 4px",
+                        marginRight: "2px",
+                      }}
+                    >
+                      {seg.text}
+                    </span>
+                  );
+                }
+                return <span key={i}>{seg.text}</span>;
+              })}
+            </div>
+          </div>
+
+          {/* Bi-Temporal Point-in-Time Routing Rule */}
+          <div
+            style={{
+              fontSize: "12.5px",
+              lineHeight: 1.55,
+              padding: "10px 14px",
+              background: "color-mix(in srgb,var(--color-text) 5%,transparent)",
+            }}
+          >
+            <strong>{isTh ? "เหตุผลแห่งการแก้ไข & กฎการเลือกใช้ตามเวลา (as_of_date): " : "Temporal Routing Rule (as_of_date): "}</strong>
+            {comparison.chain.amendment_rationale_th} — {comparison.chain.point_in_time_routing_rule}
+          </div>
+        </div>
+      )}
+
+      {activeTab === "graph-traverse" && (
+        <div
+          style={{
+            background: "var(--color-surface)",
+            padding: "20px",
+            display: "flex",
+            flexDirection: "column",
+            gap: "16px",
+          }}
+        >
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+            <input
+              className="input"
+              value={graphQuery}
+              onChange={(e) => setGraphQuery(e.target.value)}
+              placeholder={
+                isTh
+                  ? "ค้นหามาตราเพื่อสำรวจกราฟ (เช่น มาตรา 8, มาตรา 65 ทวิ, ฎีกา, BOI)…"
+                  : "Enter section or provision (e.g. มาตรา 8, มาตรา 65 ทวิ, BOI)…"
+              }
+              style={{ flex: "1 1 240px", minHeight: "36px", fontSize: "13.5px" }}
+            />
+            {[1, 2, 3].map((h) => (
+              <button
+                key={h}
+                type="button"
+                onClick={() => {
+                  setMaxHops(h);
+                  runGraphTraverse(graphQuery, h);
+                }}
+                style={{
+                  padding: "7px 11px",
+                  border: 0,
+                  cursor: "pointer",
+                  font: "600 12px ui-monospace,Menlo,monospace",
+                  background:
+                    maxHops === h
+                      ? "var(--color-accent)"
+                      : "color-mix(in srgb,var(--color-text) 6%,transparent)",
+                  color: maxHops === h ? "var(--on-accent)" : "var(--color-text)",
+                }}
+              >
+                {h}-HOP
+              </button>
+            ))}
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => runGraphTraverse(graphQuery, maxHops)}
+              style={{ padding: "8px 14px", fontSize: "13px" }}
+            >
+              {isTh ? "สำรวจกราฟ →" : "Traverse Graph →"}
+            </button>
+          </div>
+
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+            {[
+              ["มาตรา 8", "พ.ร.บ. ธุรกิจคนต่างด้าว ม.8"],
+              ["มาตรา 65", "ประมวลรัษฎากร ม.65"],
+              ["มาตรา 31", "BOI สิทธิประโยชน์ ม.31"],
+              ["ฎีกา", "คำพิพากษาศาลฎีกา (Deka)"],
+            ].map(([qVal, label]) => (
+              <button
+                key={qVal}
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setGraphQuery(qVal);
+                  runGraphTraverse(qVal, maxHops);
+                }}
+                style={{ fontSize: "12px", padding: "4px 9px" }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {graphData?.graph_stats && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,170px),1fr))",
+                gap: "8px",
+              }}
+            >
+              <div style={{ padding: "12px", background: "var(--color-bg)" }}>
+                <div style={{ font: "600 10.5px ui-monospace,Menlo,monospace", opacity: 0.7 }}>
+                  PROVISION NODES
+                </div>
+                <div style={{ fontSize: "18px", fontWeight: 800 }}>
+                  {graphData.graph_stats.total_provision_nodes.toLocaleString()}
+                </div>
+              </div>
+              <div style={{ padding: "12px", background: "var(--color-bg)" }}>
+                <div style={{ font: "600 10.5px ui-monospace,Menlo,monospace", opacity: 0.7 }}>
+                  :NEXT_PROVISION EDGES
+                </div>
+                <div style={{ fontSize: "18px", fontWeight: 800 }}>
+                  {graphData.graph_stats.total_sequential_edges.toLocaleString()}
+                </div>
+              </div>
+              <div style={{ padding: "12px", background: "var(--color-bg)" }}>
+                <div style={{ font: "600 10.5px ui-monospace,Menlo,monospace", opacity: 0.7 }}>
+                  CROSS-REFERENCE EDGES
+                </div>
+                <div style={{ fontSize: "18px", fontWeight: 800 }}>
+                  {graphData.graph_stats.total_cross_reference_edges.toLocaleString()}
+                </div>
+              </div>
+              <div style={{ padding: "12px", background: "var(--color-bg)" }}>
+                <div style={{ font: "600 10.5px ui-monospace,Menlo,monospace", opacity: 0.7 }}>
+                  RESOLVED / STUB KEYS
+                </div>
+                <div style={{ fontSize: "18px", fontWeight: 800 }}>
+                  {graphData.graph_stats.resolved_cross_references_count.toLocaleString()} /{" "}
+                  {graphData.graph_stats.stub_awaiting_ingestion_count.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {graphData?.hops && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {graphData.hops.slice(0, 10).map((hop, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    padding: "12px 14px",
+                    background: "var(--color-bg)",
+                    borderLeft:
+                      hop.hop_distance === 0
+                        ? "3px solid var(--color-accent)"
+                        : "3px solid var(--color-divider)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        font: "600 11px ui-monospace,Menlo,monospace",
+                        color: "var(--color-accent-700)",
+                      }}
+                    >
+                      HOP {hop.hop_distance} · {hop.traversal_type} · {hop.edge_label}
+                    </div>
+                    {hop.chunk ? (
+                      <>
+                        <div style={{ fontWeight: 700, fontSize: "14px", marginTop: "2px" }}>
+                          [{hop.chunk.authority_code}] {hop.chunk.title_th}
+                        </div>
+                        <div style={{ fontSize: "12.5px", opacity: 0.75, marginTop: "2px" }}>
+                          Canonical Key: <code>{hop.chunk.canonical_provision_key}</code> ·{" "}
+                          {hop.chunk.raw_text.slice(0, 140)}…
+                        </div>
+                      </>
+                    ) : hop.stub_node ? (
+                      <>
+                        <div style={{ fontWeight: 700, fontSize: "14px", marginTop: "2px" }}>
+                          [CANONICAL STUB] {hop.stub_node.instrument_hint} (
+                          {hop.stub_node.section_code || hop.stub_node.canonical_key})
+                        </div>
+                        <div style={{ fontSize: "12px", opacity: 0.75 }}>
+                          Key: <code>{hop.stub_node.canonical_key}</code> · Status:{" "}
+                          {hop.stub_node.status} · Co-citations:{" "}
+                          {hop.stub_node.incoming_citation_count} (Deka:{" "}
+                          {hop.stub_node.citing_deka_count}, Rulings:{" "}
+                          {hop.stub_node.citing_ruling_count})
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

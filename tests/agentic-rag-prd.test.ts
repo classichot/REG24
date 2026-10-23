@@ -8,6 +8,12 @@ import {
   SPECIALIST_WORKER_PROFILES,
   agenticLegalResearchOrchestrator,
 } from '../src/core/agentic-rag/agentic-legal-research-engine';
+import {
+  buildGlobalProvisionGraphIndex,
+  traverseProvisionGraph,
+  listStatutoryVersionChains,
+  compareStatutoryVersionsDiff,
+} from '../src/core/ingestion/legal-structural-chunker';
 
 describe('REG24-PRD-AGENTRAG-001 — Agentic Legal Research Engine (AGR-001 through AGR-019)', () => {
   it('AGR-001: Intelligent Query Router routes Fast (Mode A), Advanced (Mode B), and Deep Agentic (Mode C) queries', () => {
@@ -145,5 +151,45 @@ describe('REG24-PRD-AGENTRAG-001 — Agentic Legal Research Engine (AGR-001 thro
       95
     );
     expect(suite.release_gate_metrics.fabricated_citations_in_release_eval).toBe(0);
+  });
+
+  it('Update #1 (ThLexGraph-Grade Schema): Extracts canonical provision keys, sequential edges, cross-reference edges, and canonical stub nodes for multi-hop traversal', () => {
+    const graphIndex = buildGlobalProvisionGraphIndex();
+    expect(graphIndex.total_provision_nodes).toBe(2918);
+    expect(graphIndex.total_sequential_edges).toBeGreaterThan(200);
+    expect(graphIndex.total_cross_reference_edges).toBeGreaterThan(500);
+    expect(
+      graphIndex.resolved_cross_references_count + graphIndex.stub_awaiting_ingestion_count
+    ).toBe(graphIndex.total_cross_reference_edges);
+    expect(graphIndex.top_co_cited_provisions.length).toBeGreaterThan(0);
+
+    const traversal = traverseProvisionGraph({
+      query: 'มาตรา 8',
+      max_hops: 2,
+    });
+    expect(traversal.anchor_chunk).toBeDefined();
+    expect(traversal.anchor_chunk.canonical_provision_key).toMatch(/^th:/);
+    expect(traversal.hops.length).toBeGreaterThanOrEqual(2);
+    expect(traversal.hops[0]?.traversal_type).toBe('ANCHOR_PROVISION');
+  });
+
+  it('Update #2 (Bi-Temporal Statutory Version Diff Engine): Computes token-level redline diffs and temporal routing rules across historical vs. amended provisions', () => {
+    const chains = listStatutoryVersionChains();
+    expect(chains.length).toBeGreaterThanOrEqual(5);
+
+    const ccc1097Diff = compareStatutoryVersionsDiff({
+      chain_id: 'chain.ccc.1097',
+    });
+    expect(ccc1097Diff.chain.canonical_provision_key).toBe('th:dbd:ccc#sec:1097');
+    expect(ccc1097Diff.left_version.status).toBe('HISTORICAL_SUPERSEDED');
+    expect(ccc1097Diff.right_version.status).toBe('IN_FORCE_CURRENT');
+    expect(ccc1097Diff.diff_segments.some((s) => s.type === 'REMOVED' && s.text.includes('สามคน'))).toBe(
+      true
+    );
+    expect(ccc1097Diff.diff_segments.some((s) => s.type === 'ADDED' && s.text.includes('สองคน'))).toBe(
+      true
+    );
+    expect(ccc1097Diff.stats.added_tokens).toBeGreaterThan(0);
+    expect(ccc1097Diff.stats.removed_tokens).toBeGreaterThan(0);
   });
 });
