@@ -35,6 +35,7 @@
  */
 
 import rawMasterCorpus from "./legal-resource-master-corpus.json";
+import rawLegalFormsCatalog from "./legal-forms-master-catalog.json";
 
 export type ResourceMasterCollectionId =
   | "DBD_Business_Development"
@@ -59,7 +60,39 @@ export type ResourceMasterCollectionId =
   | "OECD_Pillar_Two_TopUpTax_Regs"
   | "Legal_Docs_Database_7L_Master"
   | "Thailand_500_Contract_Legal_Sources"
-  | "ESG24_Regulatory_Source_Register";
+  | "ESG24_Regulatory_Source_Register"
+  | "Legal_Forms_Master_Catalog";
+
+export interface LegalFormsCatalogRecord {
+  id: string;
+  code: string;
+  category_code: string;
+  category_folder: string;
+  authority_th: string;
+  category_description_en: string;
+  title: string;
+  file_name: string;
+  file_extension: string;
+  mime_type: string;
+  file_size_bytes: number;
+  folder_path: string;
+  drive_stable_id: string;
+  drive_file_id: string;
+  drive_url: string;
+  is_court_or_agency_form: boolean;
+  strict_layout_lock: boolean;
+  version_package: string;
+  sha256: string;
+}
+
+export const LEGAL_FORMS_MASTER_CATALOG: LegalFormsCatalogRecord[] =
+  rawLegalFormsCatalog as LegalFormsCatalogRecord[];
+
+export const LEGAL_FORMS_DRIVE_FOLDER_URL =
+  "https://drive.google.com/drive/folders/1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or";
+
+export const LEGAL_FORMS_INDEX_SHEET_URL =
+  "https://docs.google.com/spreadsheets/d/14Ri-BTPefdCtqk1nFAJE9-MKOVqTataE_vvJm5ogvvg/edit";
 
 export interface LegalResourceMasterRecord {
   id: string;
@@ -537,7 +570,142 @@ export const RESOURCE_MASTER_COLLECTIONS: Record<
     count: 117,
     badge_color: "teal",
   },
+  Legal_Forms_Master_Catalog: {
+    id: "Legal_Forms_Master_Catalog",
+    label_th: "คลังแบบฟอร์มศาลและส่วนราชการมาตรฐาน (L FORM 2024 V.4.1 — 572 ไฟล์ .docx / .pdf / ฟอนต์ราชการ)",
+    label_en: "Legal Forms Master Catalog — L FORM 2024 V.4.1 (572 Official Court, Tribunal & Agency Forms + Index)",
+    drive_source: "Legal Database Resource Master / Legal Forms (1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or)",
+    drive_url: "https://drive.google.com/drive/folders/1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or",
+    count: 572,
+    badge_color: "amber",
+  },
 };
+
+function convertCatalogFormToResourceRecord(form: LegalFormsCatalogRecord): LegalResourceMasterRecord {
+  return {
+    id: form.id,
+    code: form.code,
+    collection: "Legal_Forms_Master_Catalog",
+    authority_code: form.category_code,
+    folder_path: form.folder_path,
+    drive_stable_id: form.drive_file_id,
+    drive_url: form.drive_url,
+    title_th: `[${form.category_folder}] ${form.title}`,
+    title_en: `[${form.category_code}] ${form.title} (${form.category_description_en})`,
+    regulator: form.authority_th,
+    instrument_type: form.is_court_or_agency_form
+      ? `Official Court/Agency Form (.${form.file_extension})`
+      : `L FORM Resource (.${form.file_extension})`,
+    year_be: 2567,
+    effective_date: "2024-01-01",
+    status: "IN_FORCE",
+    legal_provisions: `${form.category_description_en} — ${form.version_package} (Strict Layout Lock: ${form.strict_layout_lock ? "YES" : "NO"})`,
+    summary_th: `แบบฟอร์มราชการและศาลจากคลัง Legal Forms (${form.version_package}) หมวด ${form.category_folder} (${form.authority_th}): ${form.title} (${form.file_size_bytes.toLocaleString()} bytes).`,
+    verbatim_excerpt: `Source: ${form.folder_path} | Category: ${form.authority_th} (${form.category_description_en}) | Package: ${form.version_package} | Google Drive ID: ${form.drive_file_id} | URL: ${form.drive_url}`,
+    file_name: form.file_name,
+    file_size_bytes: form.file_size_bytes,
+    sha256: form.sha256,
+  };
+}
+
+export function searchLegalFormsMasterCatalog(options?: {
+  query?: string;
+  category_code?: string;
+  only_official_forms?: boolean;
+  limit?: number;
+  offset?: number;
+}): {
+  total_catalog_files: number;
+  official_forms_count: number;
+  matched_count: number;
+  drive_folder_url: string;
+  index_sheet_url: string;
+  categories: Array<{
+    category_code: string;
+    category_folder: string;
+    authority_th: string;
+    category_description_en: string;
+    count: number;
+  }>;
+  results: LegalFormsCatalogRecord[];
+} {
+  const queryRaw = (options?.query || "").trim().toLowerCase();
+  const terms = queryRaw
+    .split(/\s+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  const categoryFilter = (options?.category_code || "").trim().toUpperCase();
+  const onlyOfficial = options?.only_official_forms ?? false;
+  const limit = Math.min(Math.max(options?.limit ?? 60, 1), 600);
+  const offset = Math.max(options?.offset ?? 0, 0);
+
+  const catMap = new Map<
+    string,
+    {
+      category_code: string;
+      category_folder: string;
+      authority_th: string;
+      category_description_en: string;
+      count: number;
+    }
+  >();
+
+  for (const r of LEGAL_FORMS_MASTER_CATALOG) {
+    const existing = catMap.get(r.category_code);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      catMap.set(r.category_code, {
+        category_code: r.category_code,
+        category_folder: r.category_folder,
+        authority_th: r.authority_th,
+        category_description_en: r.category_description_en,
+        count: 1,
+      });
+    }
+  }
+
+  let filtered = LEGAL_FORMS_MASTER_CATALOG.filter((item) => {
+    if (onlyOfficial && !item.is_court_or_agency_form) return false;
+    if (
+      categoryFilter &&
+      categoryFilter !== "ALL" &&
+      item.category_code.toUpperCase() !== categoryFilter &&
+      item.category_folder.toUpperCase() !== categoryFilter
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (terms.length > 0) {
+    filtered = filtered.filter((item) => {
+      const hay = [
+        item.id,
+        item.code,
+        item.category_code,
+        item.category_folder,
+        item.authority_th,
+        item.category_description_en,
+        item.title,
+        item.folder_path,
+      ]
+        .join(" ")
+        .toLowerCase();
+      return terms.every((t) => hay.includes(t));
+    });
+  }
+
+  return {
+    total_catalog_files: LEGAL_FORMS_MASTER_CATALOG.length,
+    official_forms_count: LEGAL_FORMS_MASTER_CATALOG.filter((r) => r.is_court_or_agency_form).length,
+    matched_count: filtered.length,
+    drive_folder_url: LEGAL_FORMS_DRIVE_FOLDER_URL,
+    index_sheet_url: LEGAL_FORMS_INDEX_SHEET_URL,
+    categories: Array.from(catMap.values()).sort((a, b) => b.count - a.count),
+    results: filtered.slice(offset, offset + limit),
+  };
+}
 
 export function searchLegalResourceMaster(options?: {
   query?: string;
@@ -573,14 +741,21 @@ export function searchLegalResourceMaster(options?: {
   for (const item of LEGAL_RESOURCE_MASTER_CORPUS) {
     collectionBreakdown[item.collection] = (collectionBreakdown[item.collection] || 0) + 1;
   }
+  collectionBreakdown["Legal_Forms_Master_Catalog"] = LEGAL_FORMS_MASTER_CATALOG.length;
 
-  let filtered = LEGAL_RESOURCE_MASTER_CORPUS.filter((item) => {
+  const combinedSourcePool: LegalResourceMasterRecord[] =
+    collectionFilter === "Legal_Forms_Master_Catalog" || authorityCodeFilter === "LFORM"
+      ? LEGAL_FORMS_MASTER_CATALOG.map(convertCatalogFormToResourceRecord)
+      : LEGAL_RESOURCE_MASTER_CORPUS;
+
+  let filtered = combinedSourcePool.filter((item) => {
     if (collectionFilter && item.collection !== collectionFilter) {
       return false;
     }
     if (
       authorityCodeFilter &&
       authorityCodeFilter !== "ALL" &&
+      authorityCodeFilter !== "LFORM" &&
       (item.authority_code || "").toUpperCase() !== authorityCodeFilter
     ) {
       return false;
@@ -654,7 +829,12 @@ export function searchLegalResourceMaster(options?: {
 
 export function getLegalResourceMasterById(idOrCode: string): LegalResourceMasterRecord | undefined {
   const norm = idOrCode.trim().toLowerCase();
-  return LEGAL_RESOURCE_MASTER_CORPUS.find(
+  const primary = LEGAL_RESOURCE_MASTER_CORPUS.find(
     (r) => r.id.toLowerCase() === norm || r.code.toLowerCase() === norm
   );
+  if (primary) return primary;
+  const formMatch = LEGAL_FORMS_MASTER_CATALOG.find(
+    (f) => f.id.toLowerCase() === norm || f.code.toLowerCase() === norm
+  );
+  return formMatch ? convertCatalogFormToResourceRecord(formMatch) : undefined;
 }

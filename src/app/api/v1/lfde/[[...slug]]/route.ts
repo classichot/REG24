@@ -13,6 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { lfdeService } from "@/core/lfde/service";
 import { SEED_APPROVAL_GRANTS } from "@/core/lfde/fixtures";
+import { searchLegalFormsMasterCatalog } from "@/core/data/legal-resource-master-loader";
 import {
   LfdeException,
   type AgiAutomationLevel,
@@ -127,6 +128,7 @@ export async function GET(
       const clauses = lfdeService.listClauses(ctx);
       const curator = lfdeService.getCuratorOverview(ctx);
       const documents = lfdeService.listDocumentCases(ctx);
+      const officialFormsCatalog = searchLegalFormsMasterCatalog({ limit: 80 });
 
       return NextResponse.json({
         status: "ok",
@@ -137,7 +139,24 @@ export async function GET(
           filing_profiles: curator.filing_profiles,
           document_cases: documents,
           curator,
+          official_forms_catalog: officialFormsCatalog,
         },
+      });
+    }
+
+    // GET /api/v1/lfde/official-forms-catalog
+    if (slug.length === 1 && slug[0] === "official-forms-catalog") {
+      const catalog = searchLegalFormsMasterCatalog({
+        query: sp.get("q") || sp.get("query") || undefined,
+        category_code: sp.get("category_code") || sp.get("category") || undefined,
+        only_official_forms: sp.get("only_official") === "true",
+        limit: sp.get("limit") ? parseInt(sp.get("limit")!, 10) : 80,
+        offset: sp.get("offset") ? parseInt(sp.get("offset")!, 10) : 0,
+      });
+
+      return NextResponse.json({
+        status: "ok",
+        ...catalog,
       });
     }
 

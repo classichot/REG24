@@ -172,6 +172,32 @@ export function LfdeDocumentsScreen({
         defaultFacts["party_a.name"] = "บริษัท สาทร พร็อพเพอร์ตี้ จำกัด";
         defaultFacts["party_b.name"] = "บริษัท ลอว์24 โซลูชั่นส์ จำกัด";
         defaultFacts["signatory.evidence_ref"] = "TITLE-DEED-SATHORN-881";
+      } else if (selectedTemplateVersionId === "template_lform_dol_td15_v1") {
+        defaultFacts["party_a.name"] = "บริษัท อีอีซี คลีน เอนเนอร์จี จำกัด";
+        defaultFacts["party_b.name"] = "ธนาคารกรุงเทพ จำกัด (มหาชน)";
+        defaultFacts["land.title_deed_ref"] =
+          "โฉนดเลขที่ 88421 เลขที่ดิน 19 ตำบลมาบตาพุด อำเภอเมืองระยอง จังหวัดระยอง วงเงินจำนอง 120,000,000 บาท";
+        defaultFacts["signatory.evidence_ref"] = "DOL-TD21-POA-2569-014";
+      } else if (selectedTemplateVersionId === "template_lform_tax_court_ps1_v1") {
+        defaultFacts["party_a.name"] = "บริษัท สยาม โซลาร์ โฮลดิ้งส์ จำกัด";
+        defaultFacts["party_b.name"] = "กรมสรรพากร กับพวก";
+        defaultFacts["signatory.evidence_ref"] = "กอ.12/2569 และใบแต่งทนายความ ภษ.2569";
+      } else if (selectedTemplateVersionId === "template_lform_coj_plaint_a4_v1") {
+        defaultFacts["party_a.name"] = "บริษัท เร็ก24 เทคโนโลยี จำกัด";
+        defaultFacts["party_b.name"] = "บริษัท เอเชีย ซัพพลายเชน จำกัด";
+        defaultFacts["signatory.evidence_ref"] = "COJ-FORM7-COUNSEL-2569-099";
+      } else if (selectedTemplateVersionId === "template_lform_labour_rn1_v1") {
+        defaultFacts["party_a.name"] = "นายสมชาย รักงานดี";
+        defaultFacts["party_b.name"] = "บริษัท ไทย อินดัสเทรียล กรุ๊ป จำกัด";
+        defaultFacts["signatory.evidence_ref"] = "EMP-CONTRACT-2567-112";
+      } else if (selectedTemplateVersionId === "template_lform_led_rehab_f20_v1") {
+        defaultFacts["party_a.name"] = "ธนาคารกสิกรไทย จำกัด (มหาชน)";
+        defaultFacts["party_b.name"] = "บริษัท เมกะ พาวเวอร์ โฮลดิ้งส์ จำกัด (มหาชน)";
+        defaultFacts["signatory.evidence_ref"] = "LED-F20KOR-SCHEDULE-2569-01";
+      } else if (selectedTemplateVersionId === "template_lform_admin_court_k1_v1") {
+        defaultFacts["party_a.name"] = "บริษัท อีอีซี คลีน เอนเนอร์จี จำกัด";
+        defaultFacts["party_b.name"] = "คณะกรรมการกำกับกิจการพลังงาน (กกพ.)";
+        defaultFacts["signatory.evidence_ref"] = "ERC-APPEAL-ORDER-44/2569";
       }
 
       const res = await fetch("/api/v1/lfde/documents", {
@@ -1429,6 +1455,29 @@ export function LfdeDocumentsScreen({
   );
 }
 
+interface OfficialCatalogFormRecord {
+  id: string;
+  code: string;
+  category_code: string;
+  category_folder: string;
+  authority_th: string;
+  category_description_en: string;
+  title: string;
+  file_extension: string;
+  file_size_bytes: number;
+  drive_url: string;
+  is_court_or_agency_form: boolean;
+  strict_layout_lock: boolean;
+}
+
+interface OfficialCatalogCategory {
+  category_code: string;
+  category_folder: string;
+  authority_th: string;
+  category_description_en: string;
+  count: number;
+}
+
 export function LfdeFormLibrarySection({
   isTh,
   onOpenInDocuments,
@@ -1437,6 +1486,12 @@ export function LfdeFormLibrarySection({
   onOpenInDocuments: (templateId: string, title: string) => void;
 }) {
   const [items, setItems] = useState<TemplateSearchItem[]>([]);
+  const [catalogForms, setCatalogForms] = useState<OfficialCatalogFormRecord[]>([]);
+  const [catalogCategories, setCatalogCategories] = useState<OfficialCatalogCategory[]>([]);
+  const [catalogTotal, setCatalogTotal] = useState<number>(572);
+  const [catalogMatched, setCatalogMatched] = useState<number>(572);
+  const [catalogQuery, setCatalogQuery] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const MUT = "color-mix(in srgb,var(--color-text) 62%,transparent)";
 
   useEffect(() => {
@@ -1448,12 +1503,30 @@ export function LfdeFormLibrarySection({
       .catch(() => {});
   }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (catalogQuery.trim()) params.set("q", catalogQuery.trim());
+    if (selectedCategory !== "ALL") params.set("category_code", selectedCategory);
+    params.set("limit", "48");
+    fetch(`/api/v1/lfde/official-forms-catalog?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.results)) {
+          setCatalogForms(d.results);
+          setCatalogCategories(d.categories || []);
+          setCatalogTotal(d.total_catalog_files || 572);
+          setCatalogMatched(d.matched_count ?? d.results.length);
+        }
+      })
+      .catch(() => {});
+  }, [catalogQuery, selectedCategory]);
+
   return (
     <section
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: "16px",
+        gap: "20px",
         paddingTop: "20px",
         borderTop: "2px solid var(--color-text)",
       }}
@@ -1467,28 +1540,29 @@ export function LfdeFormLibrarySection({
               color: "var(--color-accent-700)",
             }}
           >
-            LFDE-TPL-001..002 · VERIFIED FORM &amp; CONTRACT TEMPLATE LIBRARY
+            LFDE-TPL-001..002 · VERIFIED INTERACTIVE FORM &amp; CONTRACT TEMPLATES
           </span>
           <h2 style={{ fontSize: "22px", margin: "4px 0 0" }}>
             {isTh
-              ? "คลังแบบฟอร์มราชการและแม่แบบสัญญามาตรฐาน (LFDE Form Library)"
-              : "LFDE Verified Form & Contract Template Library"}
+              ? "คลังแม่แบบสัญญาและแบบพิมพ์ราชการพร้อมประกอบร่างอัตโนมัติ (LFDE Interactive Templates)"
+              : "LFDE Interactive Contract & Official Form Templates"}
           </h2>
         </div>
         <span className="tag tag-accent">
-          {items.length} {isTh ? "แม่แบบที่ตรวจสอบสิทธิ์แล้ว" : "Licensed Templates"}
+          {items.length} {isTh ? "แม่แบบพร้อมประกอบร่างอัตโนมัติ" : "Interactive Templates"}
         </span>
       </div>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit,minmax(260px,1fr))",
+          gridTemplateColumns: "repeat(auto-fit,minmax(280px,1fr))",
           gap: "12px",
         }}
       >
         {items.map((it) => {
           const ver = it.version;
+          const isOfficial = it.template.is_court_or_agency_form || ver.strict_layout_lock;
           return (
             <div
               key={ver.id}
@@ -1498,12 +1572,16 @@ export function LfdeFormLibrarySection({
                 display: "flex",
                 flexDirection: "column",
                 gap: "8px",
-                borderLeft: "3px solid var(--color-accent)",
+                borderLeft: isOfficial
+                  ? "3px solid var(--color-text)"
+                  : "3px solid var(--color-accent)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", font: "600 11px ui-monospace,Menlo,monospace", color: "var(--color-accent-700)" }}>
-                <span>{ver.id}</span>
-                <span>v{ver.semver} · {ver.domain.toUpperCase()}</span>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", font: "600 11px ui-monospace,Menlo,monospace", color: "var(--color-accent-700)" }}>
+                <span>{ver.lform_catalog_id || ver.id}</span>
+                <span>
+                  {isOfficial ? "OFFICIAL FORM · LOCK" : "CONTRACT"} · v{ver.semver}
+                </span>
               </div>
               <div style={{ fontWeight: 700, fontSize: "15px" }}>
                 {isTh ? ver.title_th : ver.title_en}
@@ -1512,19 +1590,204 @@ export function LfdeFormLibrarySection({
                 {ver.fields.length} {isTh ? "ช่องข้อมูล" : "fields"} ·{" "}
                 {ver.blocks.length} {isTh ? "บล็อก" : "blocks"} · Risk: {ver.risk.toUpperCase()}
               </div>
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() =>
-                  onOpenInDocuments(ver.id, isTh ? ver.title_th : ver.title_en)
-                }
-                style={{ marginTop: "auto", alignSelf: "flex-start", fontSize: "12.5px", padding: "6px 0" }}
-              >
-                {isTh ? "ใช้แม่แบบนี้สร้างเอกสารกฎหมาย →" : "Draft document with this template →"}
-              </button>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "10px", marginTop: "auto", paddingTop: "6px" }}>
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={() =>
+                    onOpenInDocuments(ver.id, isTh ? ver.title_th : ver.title_en)
+                  }
+                  style={{ fontSize: "12.5px", padding: "6px 0" }}
+                >
+                  {isTh ? "ใช้แม่แบบนี้สร้างเอกสาร →" : "Draft with this template →"}
+                </button>
+                {ver.drive_url && (
+                  <a
+                    href={ver.drive_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      font: "600 11px ui-monospace,Menlo,monospace",
+                      color: "var(--color-text)",
+                      textDecoration: "underline",
+                    }}
+                  >
+                    {isTh ? "ไฟล์ต้นฉบับ .docx ↗" : "Source .docx ↗"}
+                  </a>
+                )}
+              </div>
             </div>
           );
         })}
+      </div>
+
+      {/* FULL 572-FILE OFFICIAL COURT & AGENCY FORMS CATALOG (L FORM 2024 V.4.1) */}
+      <div
+        style={{
+          marginTop: "12px",
+          padding: "22px",
+          background: "var(--color-surface)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "16px",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "12px" }}>
+          <div>
+            <span
+              style={{
+                font: "600 11px ui-monospace,Menlo,monospace",
+                letterSpacing: ".08em",
+                color: "var(--color-accent-700)",
+              }}
+            >
+              LEGAL DATABASE RESOURCE MASTER · L FORM 2024 V.4.1 ({catalogTotal} FILES · 22 COURTS &amp; AGENCIES)
+            </span>
+            <h3 style={{ fontSize: "19px", margin: "4px 0 0" }}>
+              {isTh
+                ? "คลังแบบฟอร์มศาลและส่วนราชการมาตรฐาน (Official Court & Government Agency Forms Catalog)"
+                : "Official Thai Court & Government Agency Forms Catalog (L FORM 2024 V.4.1)"}
+            </h3>
+            <p style={{ margin: "4px 0 0", fontSize: "13px", color: MUT }}>
+              {isTh
+                ? "ครอบคลุมแบบพิมพ์ศาลยุติธรรม (A4 TH/EN), ศาลภาษีอากรกลาง (ภษ.), กรมที่ดิน (ท.ด.), กรมบังคับคดี (ล./ว.), ฟื้นฟูกิจการ (ฟ.), ศาลแรงงาน (รง.), ศาลปกครอง (ค.), ศาลทรัพย์สินทางปัญญาฯ, คดีผู้บริโภค (ผบ./CB.) และอนุญาโตตุลาการ (คปภ./สถาบันอนุญาโตตุลาการ)"
+                : "Includes 545 editable .docx templates, 15 .pdf forms, and TH SarabunNew / TH SarabunIT9 judicial fonts across 22 Thai courts and agencies."}
+            </p>
+          </div>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            <a
+              href="https://drive.google.com/drive/folders/1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or"
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-ghost"
+              style={{ padding: "8px 12px", fontSize: "12px" }}
+            >
+              {isTh ? "เปิดโฟลเดอร์ Legal Forms บน Google Drive ↗" : "Open Legal Forms Drive Folder ↗"}
+            </a>
+            <a
+              href="https://docs.google.com/spreadsheets/d/14Ri-BTPefdCtqk1nFAJE9-MKOVqTataE_vvJm5ogvvg/edit"
+              target="_blank"
+              rel="noreferrer"
+              className="btn btn-primary"
+              style={{ padding: "8px 12px", fontSize: "12px" }}
+            >
+              {isTh ? "เปิดตารางสารบัญ Legal Forms Index ↗" : "Open Legal Forms Index Sheet ↗"}
+            </a>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            type="search"
+            value={catalogQuery}
+            onChange={(e) => setCatalogQuery(e.target.value)}
+            placeholder={
+              isTh
+                ? "ค้นหาชื่อแบบฟอร์ม เช่น ท.ด.๑๕, ภษ.๑, รง.๑, ล.๒๙, ฟ.๒๐, ค.๑, ผบ.๑, คำฟ้อง, มอบอำนาจ..."
+                : "Search 572 official forms (e.g., ท.ด.๑๕, ภษ.๑, รง.๑, ล.๒๙, ฟ.๒๐, Plaint, Summons)..."
+            }
+            style={{
+              flex: "1 1 300px",
+              padding: "10px 14px",
+              background: "var(--color-bg)",
+              color: "var(--color-text)",
+              border: "1px solid var(--color-divider)",
+              font: "400 13.5px var(--font-body)",
+            }}
+          />
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            style={{
+              padding: "10px 12px",
+              background: "var(--color-bg)",
+              color: "var(--color-text)",
+              border: "1px solid var(--color-divider)",
+              font: "600 13px var(--font-body)",
+            }}
+          >
+            <option value="ALL">
+              {isTh
+                ? `ทุกศาลและหน่วยงานราชการ (${catalogTotal} ไฟล์)`
+                : `All Courts & Government Agencies (${catalogTotal} files)`}
+            </option>
+            {catalogCategories.map((cat) => (
+              <option key={cat.category_code} value={cat.category_code}>
+                {cat.category_folder} — {cat.count} {isTh ? "ไฟล์" : "files"}
+              </option>
+            ))}
+          </select>
+          <span style={{ font: "600 12px ui-monospace,Menlo,monospace", color: MUT }}>
+            {isTh ? `พบ ${catalogMatched} รายการ` : `${catalogMatched} matched`}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill,minmax(270px,1fr))",
+            gap: "10px",
+            maxHeight: "420px",
+            overflowY: "auto",
+            paddingRight: "4px",
+          }}
+        >
+          {catalogForms.map((cf) => (
+            <div
+              key={cf.id}
+              style={{
+                padding: "12px 14px",
+                background: "var(--color-bg)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+                borderLeft: "2px solid var(--color-divider)",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  font: "600 10.5px ui-monospace,Menlo,monospace",
+                  color: "var(--color-accent-700)",
+                }}
+              >
+                <span>
+                  {cf.id} · {cf.category_folder}
+                </span>
+                <span>.{cf.file_extension.toUpperCase()}</span>
+              </div>
+              <div style={{ fontWeight: 600, fontSize: "13.5px", lineHeight: 1.35 }}>
+                {cf.title}
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: "auto",
+                  paddingTop: "4px",
+                  fontSize: "11.5px",
+                  color: MUT,
+                }}
+              >
+                <span>{(cf.file_size_bytes / 1024).toFixed(0)} KB</span>
+                <a
+                  href={cf.drive_url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{
+                    font: "600 11.5px ui-monospace,Menlo,monospace",
+                    color: "var(--color-text)",
+                    textDecoration: "underline",
+                  }}
+                >
+                  {isTh ? "เปิดไฟล์บน Drive ↗" : "Open in Drive ↗"}
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

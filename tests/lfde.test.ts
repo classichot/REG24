@@ -25,6 +25,10 @@ import {
 } from "../src/core/lfde/adapters";
 import { SEED_APPROVAL_GRANTS } from "../src/core/lfde/fixtures";
 import { LfdeException, type LfdeScope, type TenantContext } from "../src/core/lfde/types";
+import {
+  searchLegalFormsMasterCatalog,
+  searchLegalResourceMaster,
+} from "../src/core/data/legal-resource-master-loader";
 
 const ALL_SCOPES: LfdeScope[] = [
   "source:write",
@@ -585,5 +589,99 @@ describe("REG24 LFDE v2.0 — Legal Form and Document Execution Acceptance Suite
         budget_thb_cap: "0.00",
       })
     ).toThrowError(/budget cap is exhausted/);
+  });
+
+  it("LFDE-GOV-FORMS (Option A): Indexes all 572 files in L FORM 2024 V.4.1 and assembles Official Court & Government Agency Forms with strict layout lock", () => {
+    const catalog = searchLegalFormsMasterCatalog({});
+    expect(catalog.total_catalog_files).toBe(572);
+    expect(catalog.official_forms_count).toBeGreaterThanOrEqual(550);
+    expect(catalog.categories.length).toBeGreaterThanOrEqual(20);
+
+    // Search Department of Lands mortgage form ท.ด.๑๕
+    const dolSearch = searchLegalFormsMasterCatalog({ query: "ท.ด.๑๕" });
+    expect(dolSearch.matched_count).toBeGreaterThanOrEqual(1);
+    expect(dolSearch.results[0]?.category_code).toBe("DOL_LAND");
+    expect(dolSearch.results[0]?.strict_layout_lock).toBe(true);
+
+    // Search via Resource Master collection Legal_Forms_Master_Catalog
+    const rmForms = searchLegalResourceMaster({
+      collection: "Legal_Forms_Master_Catalog",
+      query: "ภษ.๑",
+    });
+    expect(rmForms.matched_count).toBeGreaterThanOrEqual(1);
+    expect(rmForms.results[0]?.collection).toBe("Legal_Forms_Master_Catalog");
+
+    // Verify all 10 published LFDE templates (4 commercial/corporate + 6 L FORM 2024 V.4.1 official forms)
+    const tplRes = lfde.searchTemplates(counselCtx, {});
+    expect(tplRes.items.length).toBe(10);
+    const officialTpls = tplRes.items.filter(
+      (i) => i.template.is_court_or_agency_form && i.version.strict_layout_lock
+    );
+    expect(officialTpls.length).toBe(7);
+
+    // Deterministically assemble Department of Lands Form Tor.Dor.15 (template_lform_dol_td15_v1)
+    const { document: dolCase } = lfde.createDocumentCase(counselCtx, "idem_dol_td15_1", {
+      matter_id: "matter.law24.ma.2026.01",
+      template_version_id: "template_lform_dol_td15_v1",
+      objective: "จดทะเบียนจำนองที่ดินตามแบบ ท.ด.๑๕ กรมที่ดิน",
+    });
+    const updatedDol = lfde.updateDocumentFacts(
+      counselCtx,
+      "idem_dol_td15_facts",
+      dolCase.id,
+      dolCase.etag,
+      {
+        changes: [
+          {
+            field_key: "party_a.name",
+            value: "บริษัท อีอีซี คลีน เอนเนอร์จี จำกัด",
+            action: "propose_candidate",
+            confidence: 0.99,
+          },
+          {
+            field_key: "party_b.name",
+            value: "ธนาคารกรุงเทพ จำกัด (มหาชน)",
+            action: "propose_candidate",
+            confidence: 0.99,
+          },
+          {
+            field_key: "land.title_deed_ref",
+            value: "โฉนดเลขที่ 88421 ต.มาบตาพุด จ.ระยอง วงเงินจำนอง 120,000,000 บาท",
+            action: "propose_candidate",
+            confidence: 0.99,
+          },
+          {
+            field_key: "signatory.evidence_ref",
+            value: "DOL-TD21-POA-2569-014",
+            action: "propose_candidate",
+            confidence: 0.99,
+          },
+        ],
+      }
+    );
+    let currentEtag = updatedDol.document.etag;
+    for (const cand of updatedDol.candidates) {
+      const conf = lfde.updateDocumentFacts(
+        counselCtx,
+        `idem_dol_confirm_${cand.id}`,
+        dolCase.id,
+        currentEtag,
+        {
+          changes: [
+            {
+              field_key: cand.field_key,
+              value: cand.original_representation,
+              action: "confirm_candidate",
+              candidate_id: cand.id,
+            },
+          ],
+        }
+      );
+      currentEtag = conf.document.etag;
+    }
+
+    const assembledDol = lfde.assembleDocument(counselCtx, "idem_dol_assemble", dolCase.id, {});
+    expect(assembledDol.revision.assembled_blocks[0]?.rendered_text_th).toContain("ท.ด.๑๕");
+    expect(assembledDol.validation.has_unresolved_blockers).toBe(false);
   });
 });

@@ -366,6 +366,9 @@ export interface TemplateVersion {
   published_by?: string;
   published_at?: string;
   withdrawn_reason?: string;
+  drive_url?: string;
+  lform_catalog_id?: string;
+  strict_layout_lock?: boolean;
 }
 
 export interface Template {
@@ -381,6 +384,9 @@ export interface Template {
   working_version_id?: string;
   entitled_tenants: string[];
   is_court_or_agency_form: boolean;
+  strict_layout_lock?: boolean;
+  drive_url?: string;
+  lform_catalog_id?: string;
   created_at: string;
   created_by: string;
 }
