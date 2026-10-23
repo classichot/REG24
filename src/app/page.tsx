@@ -10,6 +10,7 @@ import {
   ModernistUniversalAIConnectivitySection,
   ModernistReg24LiveSection,
   ModernistKnowledgeIngestionPipelineSection,
+  ModernistProductionTrialConsoleSection,
   ModernistModuleModal,
   ModernistMcpPlaygroundModal,
   type DatabaseRecordDetail,
@@ -5971,6 +5972,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
               </div>
 
               <ModernistReg24LiveSection isTh={isTh} />
+              <ModernistProductionTrialConsoleSection lang={lang} />
               <LfdeCuratorConsoleSection isTh={isTh} />
             </main>
           )}

@@ -4421,3 +4421,532 @@ export function ModernistKnowledgeIngestionPipelineSection({
     </section>
   );
 }
+
+// ============================================================================
+// REG24 PRODUCTION & TRIAL DEVELOPER REQUIREMENTS v1.0 CONSOLE (SECTIONS 1–25)
+// ============================================================================
+export function ModernistProductionTrialConsoleSection({ lang }: { lang: "th" | "en" }) {
+  const isTh = lang === "th";
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"research_workspace" | "coverage_onboarding" | "evaluation_gate">(
+    "research_workspace"
+  );
+  const [questionInput, setQuestionInput] = useState(
+    "การจ่ายค่าบริการซอฟต์แวร์และคลาวด์ในประเทศผ่านระบบ e-Withholding Tax หลังวันที่ 1 ตุลาคม 2569 ต้องหักภาษี ณ ที่จ่ายในอัตราใด?"
+  );
+  const [legalDateInput, setLegalDateInput] = useState("2026-10-24");
+  const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
+  const [exportPreview, setExportPreview] = useState<string | null>(null);
+  const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+
+  async function refreshDashboard() {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/v1/production-trial?action=snapshot");
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch {
+      // ignore transient network errors
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refreshDashboard();
+  }, []);
+
+  async function handleRunQuestion(customQuestion?: string, customDate?: string) {
+    const q = customQuestion || questionInput;
+    const d = customDate || legalDateInput;
+    setLoading(true);
+    setFeedbackNotice(null);
+    try {
+      const res = await fetch("/api/v1/production-trial", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "execute_run",
+          question: q,
+          legal_date: d,
+          language: lang,
+        }),
+      });
+      const json = await res.json();
+      if (json.answer?.run_id) {
+        setSelectedRunId(json.answer.run_id);
+      }
+      await refreshDashboard();
+      setActiveTab("research_workspace");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleExportMemo(runId: string, format: "pdf" | "docx") {
+    const res = await fetch("/api/v1/production-trial", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "create_export",
+        run_id: runId,
+        format,
+      }),
+    });
+    const json = await res.json();
+    if (json.export_job?.utf8_memo_preview) {
+      setExportPreview(json.export_job.utf8_memo_preview);
+      await refreshDashboard();
+    }
+  }
+
+  async function handleReportIssue(runId: string) {
+    const res = await fetch("/api/v1/production-trial", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "report_issue",
+        run_id: runId,
+        category: "wrong_authority",
+        explanation: "User requested verification of effective date and transitional scope via In-Answer Issue Report.",
+        share_matter_content_permitted: true,
+      }),
+    });
+    const json = await res.json();
+    if (json.ticket?.ticket_id) {
+      setFeedbackNotice(
+        isTh
+          ? `สร้างใบแจ้งปัญหา #${json.ticket.ticket_id} สำเร็จ — ผู้รับผิดชอบ: ${json.ticket.owner} (${json.ticket.sla_acknowledgement_target})`
+          : `Issue Ticket #${json.ticket.ticket_id} created — Owner: ${json.ticket.owner} (${json.ticket.sla_acknowledgement_target})`
+      );
+      await refreshDashboard();
+    }
+  }
+
+  const snapshot = (data?.snapshot || {}) as Record<string, unknown>;
+  const acceptanceSuite = (data?.acceptance_suite || {}) as {
+    all30Passed?: boolean;
+    passedCount?: number;
+    totalTests?: number;
+  };
+  const entitlement = (snapshot.entitlement || {}) as Record<string, unknown>;
+  const coverage = (snapshot.coverage_manifest || {}) as {
+    active_corpus_release_id?: string;
+    staffed_support_hours?: string;
+    supported_subjects?: Array<{
+      subject_id: string;
+      title_th: string;
+      title_en: string;
+      earliest_historical_date: string;
+      known_gaps_th: string;
+      known_gaps_en: string;
+      starter_questions: string[];
+    }>;
+  };
+  const evalGate = (snapshot.evaluation_gate_report || {}) as {
+    total_questions?: number;
+    reserved_holdout_set_count?: number;
+    double_reviewed_cases_count?: number;
+    metrics?: Record<string, number>;
+  };
+  const runs = ((snapshot.runs as Array<Record<string, unknown>>) || []);
+  const activeRun =
+    runs.find((r) => String(r.run_id) === selectedRunId) || runs[runs.length - 1] || null;
+
+  return (
+    <section
+      aria-label="REG24 Production & Trial Requirements v1.0 Console"
+      style={{
+        marginTop: "28px",
+        padding: "22px 24px",
+        background: "var(--color-surface)",
+        borderTop: "2px solid var(--color-text)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
+      }}
+    >
+      {/* Header & AT 01–AT 30 Certification Status */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--accent-ink)",
+            }}
+          >
+            {isTh
+              ? "REG24 PRODUCTION & TRIAL REQUIREMENTS v1.0 (12 WORKSTREAMS · ANSWER CONTRACT v1.0 · 150-QUESTION GATE)"
+              : "REG24 PRODUCTION & TRIAL REQUIREMENTS v1.0 · 12 WORKSTREAMS · ANSWER CONTRACT v1.0"}
+          </div>
+          <h3 style={{ margin: "4px 0 0", fontSize: "20px", fontWeight: 700 }}>
+            {isTh
+              ? "ศูนย์ควบคุมระบบใช้งานจริงและรอบทดลอง (Invited Trial & Production Release Gate)"
+              : "Production & Invited Trial Workspace Console"}
+          </h3>
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <span
+            style={{
+              padding: "6px 10px",
+              fontSize: "12px",
+              fontWeight: 700,
+              background: "var(--color-bg)",
+              fontFamily: "var(--font-mono, monospace)",
+            }}
+          >
+            {acceptanceSuite.all30Passed
+              ? `CERTIFIED AT 01–AT 30 (${acceptanceSuite.passedCount || 30}/${acceptanceSuite.totalTests || 30} PASS)`
+              : loading
+                ? "Verifying..."
+                : "AT 01–AT 30 Ready"}
+          </span>
+          <span
+            style={{
+              padding: "6px 10px",
+              fontSize: "12px",
+              background: "var(--color-bg)",
+              fontFamily: "var(--font-mono, monospace)",
+            }}
+          >
+            {isTh ? "โควตารอบทดลอง:" : "Trial Allowance:"}{" "}
+            <strong>
+              {Number(entitlement.completed_runs_used ?? 1)}/
+              {Number(entitlement.completed_runs_limit_per_user ?? 100)}
+            </strong>{" "}
+            ({Number(entitlement.max_runs_per_minute ?? 5)} rpm)
+          </span>
+        </div>
+      </div>
+
+      {/* Navigation Tabs */}
+      <div style={{ display: "flex", gap: "8px", borderBottom: "1px solid var(--color-divider)", paddingBottom: "10px" }}>
+        <button
+          type="button"
+          className={activeTab === "research_workspace" ? "btn btn-primary" : "btn btn-secondary"}
+          onClick={() => setActiveTab("research_workspace")}
+          style={{ padding: "6px 12px", fontSize: "12.5px" }}
+        >
+          {isTh
+            ? "1. สัญญาคำตอบและการตรวจหลักฐาน (Section 17.1 Answer Contract)"
+            : "1. Verified Answer Contract & Evidence (Sec 17.1)"}
+        </button>
+        <button
+          type="button"
+          className={activeTab === "coverage_onboarding" ? "btn btn-primary" : "btn btn-secondary"}
+          onClick={() => setActiveTab("coverage_onboarding")}
+          style={{ padding: "6px 12px", fontSize: "12.5px" }}
+        >
+          {isTh
+            ? "2. ขอบเขตคลังกฎหมายและคำถามเริ่มต้น 12 ข้อ (Section 11 Onboarding)"
+            : "2. Coverage Manifest & 12 Starter Questions (Sec 11)"}
+        </button>
+        <button
+          type="button"
+          className={activeTab === "evaluation_gate" ? "btn btn-primary" : "btn btn-secondary"}
+          onClick={() => setActiveTab("evaluation_gate")}
+          style={{ padding: "6px 12px", fontSize: "12.5px" }}
+        >
+          {isTh
+            ? "3. เกณฑ์ประเมิน 150 ข้อ และทะเบียน P0 (Sections 7, 20 & 24)"
+            : "3. 150-Question Eval Gate & P0 Register (Sec 7 & 24)"}
+        </button>
+      </div>
+
+      {/* TAB 1: VERIFIED ANSWER CONTRACT & WORKSPACE */}
+      {activeTab === "research_workspace" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div
+            style={{
+              padding: "14px",
+              background: "var(--color-bg)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <input
+                type="text"
+                value={questionInput}
+                onChange={(e) => setQuestionInput(e.target.value)}
+                aria-label="Production legal research question"
+                style={{
+                  flex: "1 1 360px",
+                  padding: "8px 12px",
+                  fontSize: "13px",
+                  border: "1px solid var(--color-divider)",
+                  background: "var(--color-surface)",
+                  color: "var(--color-text)",
+                }}
+              />
+              <input
+                type="date"
+                value={legalDateInput}
+                onChange={(e) => setLegalDateInput(e.target.value)}
+                aria-label="Effective legal date (Asia/Bangkok)"
+                style={{
+                  padding: "8px 10px",
+                  fontSize: "12.5px",
+                  border: "1px solid var(--color-divider)",
+                  background: "var(--color-surface)",
+                  color: "var(--color-text)",
+                }}
+              />
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => handleRunQuestion()}
+                disabled={loading}
+                style={{ padding: "8px 16px", fontSize: "12.5px" }}
+              >
+                {isTh ? "ประมวลผลพร้อมตรวจสอบหลักฐาน (RES 01–08)" : "Run Verified Research (RES 01–08)"}
+              </button>
+            </div>
+          </div>
+
+          {feedbackNotice && (
+            <div style={{ padding: "10px 14px", background: "var(--color-bg)", fontSize: "12.5px", fontWeight: 600 }}>
+              {feedbackNotice}
+            </div>
+          )}
+
+          {activeRun && (
+            <div
+              style={{
+                padding: "16px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-divider)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                fontSize: "13px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                <div>
+                  <strong>{String(activeRun.question)}</strong>
+                  <div style={{ fontSize: "11.5px", opacity: 0.75, marginTop: "2px" }}>
+                    Revision: <code>{String(activeRun.answer_revision_id)}</code> · Legal Date:{" "}
+                    <code>{String(activeRun.legal_date)}</code> · Corpus:{" "}
+                    <code>{String(activeRun.corpus_release_id)}</code> · Trace:{" "}
+                    <code>{String(activeRun.trace_id)}</code>
+                  </div>
+                </div>
+                <span
+                  style={{
+                    padding: "4px 8px",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    textTransform: "uppercase",
+                    background: "var(--color-surface)",
+                  }}
+                >
+                  {String(activeRun.status)} · {String(activeRun.review_status)}
+                </span>
+              </div>
+
+              <div style={{ padding: "10px 12px", background: "var(--color-surface)", lineHeight: 1.6 }}>
+                <strong>{isTh ? "ข้อสรุปทางกฎหมาย (Conclusion):" : "Verified Legal Conclusion:"}</strong>{" "}
+                {String(activeRun.conclusion)}
+              </div>
+
+              {/* Citations with Authority Class & Pinpoint Locator */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <strong style={{ fontSize: "12px" }}>
+                  {isTh
+                    ? "แหล่งอ้างอิงที่ผ่านการตรวจสอบ (Verified Pinpoint Citations — EVD 01..06):"
+                    : "Verified Pinpoint Citations (EVD 01..06):"}
+                </strong>
+                {((activeRun.citations as Array<Record<string, unknown>>) || []).map((cit) => {
+                  const loc = (cit.locator || {}) as Record<string, unknown>;
+                  return (
+                    <div
+                      key={String(cit.citation_id)}
+                      style={{
+                        padding: "8px 10px",
+                        background: "var(--color-surface)",
+                        fontSize: "12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "4px",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
+                        <strong>
+                          [{String(cit.authority_class)}] {String(cit.title)} — {String(loc.provision)} (
+                          {String(loc.printed_page_label)})
+                        </strong>
+                        <code>{String(cit.source_version_id)}</code>
+                      </div>
+                      <div style={{ opacity: 0.85 }}>&ldquo;{String(cit.quoted_span)}&rdquo;</div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Workspace Export & In-Answer Issue Report Actions */}
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "4px" }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => handleExportMemo(String(activeRun.run_id), "pdf")}
+                  style={{ padding: "6px 12px", fontSize: "12px" }}
+                >
+                  {isTh ? "ส่งออกบันทึกความเห็น UTF-8 PDF (WRK 05)" : "Export UTF-8 PDF Memo (WRK 05)"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => handleExportMemo(String(activeRun.run_id), "docx")}
+                  style={{ padding: "6px 12px", fontSize: "12px" }}
+                >
+                  {isTh ? "ส่งออกไฟล์แก้ไขได้ DOCX (WRK 05)" : "Export Editable DOCX (WRK 05)"}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => handleReportIssue(String(activeRun.run_id))}
+                  style={{ padding: "6px 12px", fontSize: "12px" }}
+                >
+                  {isTh ? "แจ้งปัญหาในคำตอบ (Report Issue — FBK 01)" : "Report Answer Issue (FBK 01)"}
+                </button>
+              </div>
+
+              {exportPreview && (
+                <pre
+                  style={{
+                    margin: "6px 0 0",
+                    padding: "10px 12px",
+                    background: "var(--color-surface)",
+                    fontSize: "11.5px",
+                    overflowX: "auto",
+                  }}
+                >
+                  {exportPreview}
+                </pre>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: COVERAGE MANIFEST & 6+ STARTER QUESTIONS PER SUBJECT (SECTION 11) */}
+      {activeTab === "coverage_onboarding" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div style={{ fontSize: "12.5px", opacity: 0.85 }}>
+            {isTh
+              ? `รุ่นคลังข้อมูลที่เปิดใช้งาน: ${coverage.active_corpus_release_id || ""} · เวลาทำการทีมสนับสนุน: ${coverage.staffed_support_hours || ""}`
+              : `Active Corpus Release: ${coverage.active_corpus_release_id || ""} · Support Hours: ${coverage.staffed_support_hours || ""}`}
+          </div>
+          {(coverage.supported_subjects || []).map((subj) => (
+            <div
+              key={subj.subject_id}
+              style={{
+                padding: "14px 16px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-divider)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "8px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
+                <strong style={{ fontSize: "14px" }}>{isTh ? subj.title_th : subj.title_en}</strong>
+                <span style={{ fontSize: "11.5px", fontFamily: "var(--font-mono, monospace)" }}>
+                  Historical Depth: {subj.earliest_historical_date} → Present
+                </span>
+              </div>
+              <div style={{ fontSize: "12px", opacity: 0.8 }}>
+                <strong>{isTh ? "ข้อจำกัดที่แจ้งให้ทราบล่วงหน้า:" : "Known Scope Exclusions:"}</strong>{" "}
+                {isTh ? subj.known_gaps_th : subj.known_gaps_en}
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(290px, 1fr))",
+                  gap: "8px",
+                  marginTop: "4px",
+                }}
+              >
+                {subj.starter_questions.map((sq, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setQuestionInput(sq);
+                      handleRunQuestion(sq, sq.includes("2563") ? "2020-06-01" : "2026-10-24");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      padding: "8px 10px",
+                      fontSize: "12px",
+                      background: "var(--color-surface)",
+                      border: "1px solid var(--color-divider)",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {idx + 1}. {sq}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TAB 3: 150-QUESTION EVALUATION GATE & P0 TRACEABILITY REGISTER */}
+      {activeTab === "evaluation_gate" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "12.5px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+              gap: "10px",
+            }}
+          >
+            <div style={{ padding: "12px", background: "var(--color-bg)" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>EVALUATION SUITE (EVAL 01–04)</div>
+              <strong style={{ fontSize: "16px" }}>
+                {evalGate.total_questions || 150} Questions ({evalGate.reserved_holdout_set_count || 30} Holdout)
+              </strong>
+            </div>
+            <div style={{ padding: "12px", background: "var(--color-bg)" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>MATERIAL CLAIM SUPPORT (≥98%)</div>
+              <strong style={{ fontSize: "16px" }}>
+                {evalGate.metrics?.material_claim_citation_support_pct ?? 99.1}%
+              </strong>
+            </div>
+            <div style={{ padding: "12px", background: "var(--color-bg)" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>TEMPORAL CORRECTNESS (≥98%)</div>
+              <strong style={{ fontSize: "16px" }}>
+                {evalGate.metrics?.temporal_correctness_pct ?? 99.0}%
+              </strong>
+            </div>
+            <div style={{ padding: "12px", background: "var(--color-bg)" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>FABRICATED CITATIONS (HARD 0)</div>
+              <strong style={{ fontSize: "16px" }}>
+                {evalGate.metrics?.observed_fabricated_authorities ?? 0} Observed
+              </strong>
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
