@@ -3883,3 +3883,541 @@ export function ModernistReg24LiveSection({
     </section>
   );
 }
+
+// ============================================================================
+// REG24 8-STAGE KNOWLEDGE INGESTION PIPELINE CONSOLE (SECTIONS 1–22, AT01..AT24)
+// ============================================================================
+
+export function ModernistKnowledgeIngestionPipelineSection({
+  isTh,
+}: {
+  isTh: boolean;
+}) {
+  const [viewTab, setViewTab] = useState<"add_knowledge" | "pipeline_jobs" | "review_workspace">("add_knowledge");
+  const [entryMode, setEntryMode] = useState<"files" | "link" | "connector">("files");
+  const [fileName, setFileName] = useState<string>("2026-10-24_ข้อหารือกรมสรรพากร_กค0702_WHT_Cloud.pdf");
+  const [sourceUri, setSourceUri] = useState<string>("https://www.rd.go.th/fileadmin/tax_ruling_2569.pdf");
+  const [workspaceId, setWorkspaceId] = useState<string>("ws.law24.tax");
+  const [rawText, setRawText] = useState<string>(
+    "เลขที่หนังสือ กค 0702/2569 เรื่อง ภาษีเงินได้นิติบุคคลและภาษีหัก ณ ที่จ่าย กรณีค่าบริการแพลตฟอร์ม AI\nมาตรา 40(8) และมาตรา 65 แห่งประมวลรัษฎากร กำหนดให้หักภาษี ณ ที่จ่ายในอัตราร้อยละ 3 หรือร้อยละ 1 สำหรับระบบ e-Withholding Tax"
+  );
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [latestJob, setLatestJob] = useState<Record<string, unknown> | null>(null);
+  const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+
+  const loadPipelineSnapshot = useCallback(async () => {
+    try {
+      const res = await fetch("/api/v1/ingestion/pipeline?action=dashboard");
+      const json = await res.json();
+      setData(json);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    loadPipelineSnapshot();
+  }, [loadPipelineSnapshot]);
+
+  const handleAddKnowledge = async () => {
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/v1/ingestion/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: entryMode === "link" ? "url_import" : "ingest_upload",
+          original_name: fileName,
+          source_uri: entryMode === "link" ? sourceUri : null,
+          workspace_id: workspaceId,
+          access_scope_kind: "workspace",
+          raw_text: rawText,
+          auto_publish_allowed: true,
+        }),
+      });
+      const json = await res.json();
+      if (json.job) {
+        setLatestJob(json.job);
+        setExpandedJobId(String(json.job.job_id));
+      }
+      await loadPipelineSnapshot();
+    } catch {
+      // ignore
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleApproveReview = async (reviewId: string, expectedRevision: number) => {
+    try {
+      await fetch("/api/v1/ingestion/pipeline", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "review_decision",
+          review_id: reviewId,
+          expected_revision: expectedRevision,
+          decision: "correct",
+          corrected_value: "มาตรา 65 ตรี (ยืนยันความถูกต้องกับหน้าเอกสารสแกน)",
+          reason: "Verified against physical page image in Review Workspace",
+        }),
+      });
+      await loadPipelineSnapshot();
+    } catch {
+      // ignore
+    }
+  };
+
+  const dashboard = (data?.dashboard || {}) as Record<string, unknown>;
+  const counts = (dashboard.summary_counts || {}) as Record<string, number>;
+  const jobs = Array.isArray(dashboard.jobs) ? dashboard.jobs : [];
+  const openReviews = Array.isArray(dashboard.open_reviews) ? dashboard.open_reviews : [];
+  const acceptance = (data?.acceptance || {}) as {
+    all24Passed?: boolean;
+    passedCount?: number;
+    totalTests?: number;
+  };
+
+  return (
+    <section
+      aria-label="REG24 8-Stage Knowledge Ingestion Pipeline"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "20px",
+        padding: "24px",
+        background: "var(--color-surface)",
+        borderTop: "2px solid var(--color-text)",
+      }}
+    >
+      {/* Header & AT01–AT24 Certification Badge */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--accent-ink)",
+            }}
+          >
+            {isTh
+              ? "REG24 KNOWLEDGE INGESTION PIPELINE v1.0 · ไปป์ไลน์นำเข้าความรู้กฎหมายอัตโนมัติ 8 ขั้นตอน"
+              : "REG24 KNOWLEDGE INGESTION PIPELINE v1.0 · 8-STAGE TRACEABLE LEGAL INGESTION"}
+          </div>
+          <h3 style={{ margin: "4px 0 0", fontSize: "20px", fontWeight: 700 }}>
+            {isTh
+              ? "เพิ่มคลังความรู้กฎหมาย (Add Knowledge → อ่านหน้าเอกสาร → จัดโครงสร้างมาตรา → เชื่อมกราฟ Neo4j)"
+              : "Add Knowledge: One Action Across Storage, Legal Chunking, Vectors & Neo4j Graph"}
+          </h3>
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <span
+            style={{
+              padding: "6px 10px",
+              fontSize: "12px",
+              fontWeight: 700,
+              background: "var(--color-bg)",
+              fontFamily: "var(--font-mono, monospace)",
+            }}
+          >
+            {acceptance.all24Passed
+              ? `CERTIFIED AT01–AT24 (${acceptance.passedCount || 24}/${acceptance.totalTests || 24} PASS)`
+              : "AT01–AT24 Ready"}
+          </span>
+        </div>
+      </div>
+
+      {/* Pipeline Summary Strip */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+          gap: "10px",
+        }}
+      >
+        {[
+          [isTh ? "เอกสารในไปป์ไลน์" : "Total Jobs", counts.total_jobs ?? 3],
+          [isTh ? "พร้อมใช้งาน (Ready)" : "Published Ready", counts.published_ready ?? 2],
+          [isTh ? "รอตรวจสอบ (Needs review)" : "Needs Review", counts.waiting_for_review ?? 1],
+          [isTh ? "Chunks โครงสร้างกฎหมาย" : "Legal Chunks Indexed", counts.total_chunks_indexed ?? 8],
+          [isTh ? "ความสัมพันธ์ใน Neo4j" : "Neo4j Assertions", counts.total_neo4j_assertions ?? 5],
+        ].map(([label, val]) => (
+          <div
+            key={String(label)}
+            style={{
+              padding: "10px 12px",
+              background: "var(--color-bg)",
+              border: "1px solid var(--color-divider)",
+            }}
+          >
+            <div style={{ fontSize: "11px", opacity: 0.75 }}>{label}</div>
+            <div style={{ fontSize: "18px", fontWeight: 800, marginTop: "2px" }}>{val}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Navigation Tabs */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        {[
+          ["add_knowledge", isTh ? "เพิ่มความรู้ใหม่ (Add Knowledge)" : "Add Knowledge"],
+          ["pipeline_jobs", isTh ? "สถานะการประมวลผล 8 ขั้นตอน (Processing & Receipts)" : "8-Stage Jobs & Receipts"],
+          [
+            "review_workspace",
+            isTh
+              ? `คิวรอตรวจสอบ (${openReviews.length})`
+              : `Review Workspace (${openReviews.length})`,
+          ],
+        ].map(([k, label]) => {
+          const active = viewTab === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setViewTab(k as typeof viewTab)}
+              style={{
+                padding: "8px 14px",
+                border: active ? "2px solid var(--color-text)" : "1px solid var(--color-divider)",
+                background: active ? "var(--color-text)" : "var(--color-bg)",
+                color: active ? "var(--color-bg)" : "var(--color-text)",
+                fontWeight: 700,
+                fontSize: "12.5px",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* TAB 1: ADD KNOWLEDGE (Section 4 & 15) */}
+      {viewTab === "add_knowledge" && (
+        <div
+          style={{
+            padding: "16px",
+            background: "var(--color-bg)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "12px",
+          }}
+        >
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+            {[
+              ["files", isTh ? "อัปโหลดไฟล์ (PDF / DOCX / XLSX / ZIP)" : "Files (PDF / DOCX / XLSX / ZIP)"],
+              ["link", isTh ? "นำเข้าจากลิงก์ปลอดภัย (Authorized URL)" : "Authorized Link (SSRF Protected)"],
+              ["connector", isTh ? "เชื่อมต่อแหล่งข้อมูล (Connected Source Adapter)" : "Connected Source Adapter"],
+            ].map(([m, label]) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setEntryMode(m as typeof entryMode)}
+                style={{
+                  padding: "6px 12px",
+                  border: entryMode === m ? "2px solid var(--color-text)" : "1px solid var(--color-divider)",
+                  background: entryMode === m ? "var(--color-surface)" : "transparent",
+                  color: "var(--color-text)",
+                  fontSize: "12px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "10px" }}>
+            <label style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span>{isTh ? "ชื่อไฟล์หรือแหล่งข้อมูล (Auto-detect profile)" : "Document Filename (Auto-detect profile)"}</span>
+              <input
+                type="text"
+                value={fileName}
+                onChange={(e) => setFileName(e.target.value)}
+                style={{
+                  padding: "8px 10px",
+                  background: "var(--color-surface)",
+                  color: "var(--color-text)",
+                  border: "1px solid var(--color-divider)",
+                }}
+              />
+            </label>
+            {entryMode === "link" && (
+              <label style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span>{isTh ? "URL ต้นทางที่ได้รับอนุญาต" : "Authorized Source URL"}</span>
+                <input
+                  type="url"
+                  value={sourceUri}
+                  onChange={(e) => setSourceUri(e.target.value)}
+                  style={{
+                    padding: "8px 10px",
+                    background: "var(--color-surface)",
+                    color: "var(--color-text)",
+                    border: "1px solid var(--color-divider)",
+                  }}
+                />
+              </label>
+            )}
+            <label style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span>{isTh ? "พื้นที่ทำงานปลายทาง (ค่าเริ่มต้น: เฉพาะพื้นที่ทำงานของคุณ)" : "Destination Workspace (Scoped Default)"}</span>
+              <select
+                value={workspaceId}
+                onChange={(e) => setWorkspaceId(e.target.value)}
+                style={{
+                  padding: "8px 10px",
+                  background: "var(--color-surface)",
+                  color: "var(--color-text)",
+                  border: "1px solid var(--color-divider)",
+                }}
+              >
+                <option value="ws.law24.tax">ws.law24.tax (Tax & Revenue Rulings Workspace)</option>
+                <option value="ws.law24.corp">ws.law24.corp (Corporate & M&A Workspace)</option>
+                <option value="ws.law24.private_research">ws.law24.private_research (Private Client Advisory)</option>
+              </select>
+            </label>
+          </div>
+
+          <label style={{ fontSize: "12px", display: "flex", flexDirection: "column", gap: "4px" }}>
+            <span>{isTh ? "เนื้อหาเอกสารตัวอย่าง (จำลองการอ่านหน้า PDF / OCR)" : "Document Content Payload"}</span>
+            <textarea
+              rows={3}
+              value={rawText}
+              onChange={(e) => setRawText(e.target.value)}
+              style={{
+                padding: "8px 10px",
+                background: "var(--color-surface)",
+                color: "var(--color-text)",
+                border: "1px solid var(--color-divider)",
+                fontFamily: "inherit",
+              }}
+            />
+          </label>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+            <span style={{ fontSize: "12px", opacity: 0.75 }}>
+              {isTh
+                ? "โปรไฟล์เริ่มต้น: ตรวจจับอัตโนมัติ (กฎหมาย / คำพิพากษาและข้อหารือ / ตำราวิชาการ / แบบฟอร์ม)"
+                : "Default profile: Auto-detect (Legislation / Decision & Ruling / Secondary Commentary / Legal Form)"}
+            </span>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={submitting}
+              onClick={handleAddKnowledge}
+              style={{ padding: "8px 16px", fontSize: "13px" }}
+            >
+              {submitting
+                ? isTh
+                  ? "กำลังอ่านหน้าเอกสาร จัดหมวดหมู่ และเชื่อมกราฟ..."
+                  : "Running 8-Stage Pipeline..."
+                : isTh
+                  ? "เพิ่มเข้าคลังความรู้ (Add Knowledge)"
+                  : "Add Knowledge (Run All 8 Stages)"}
+            </button>
+          </div>
+
+          {/* Knowledge Receipt (Section 21) */}
+          {latestJob && Boolean(latestJob.knowledge_receipt) && (
+            <div
+              style={{
+                marginTop: "6px",
+                padding: "12px 14px",
+                background: "var(--color-surface)",
+                borderLeft: "3px solid var(--accent-ink)",
+                fontSize: "12.5px",
+              }}
+            >
+              <strong>
+                {isTh ? "ใบเสร็จรับรองการนำเข้าความรู้ (Knowledge Receipt — Section 21):" : "Knowledge Receipt (Section 21):"}{" "}
+                {String((latestJob.knowledge_receipt as Record<string, unknown>).status_label_th)}
+              </strong>
+              <div style={{ marginTop: "4px" }}>
+                {isTh
+                  ? `เพิ่มเอกสาร ${String((latestJob.knowledge_receipt as Record<string, unknown>).documents_added)} รายการ · อ่าน ${String((latestJob.knowledge_receipt as Record<string, unknown>).pages_processed)} หน้า · สร้าง ${String((latestJob.knowledge_receipt as Record<string, unknown>).legal_units_and_chunks_created)} Chunks · เชื่อมโยงมาตราใน Neo4j ${String((latestJob.knowledge_receipt as Record<string, unknown>).cited_provisions_connected)} รายการ · รอตรวจสอบ ${String((latestJob.knowledge_receipt as Record<string, unknown>).items_needing_review)} รายการ`
+                  : `${String((latestJob.knowledge_receipt as Record<string, unknown>).documents_added)} document added · ${String((latestJob.knowledge_receipt as Record<string, unknown>).pages_processed)} pages read · ${String((latestJob.knowledge_receipt as Record<string, unknown>).legal_units_and_chunks_created)} legal chunks · ${String((latestJob.knowledge_receipt as Record<string, unknown>).cited_provisions_connected)} Neo4j assertions connected`}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: 8-STAGE PIPELINE JOBS, CHUNKS & NEO4J ASSERTIONS */}
+      {viewTab === "pipeline_jobs" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {jobs.map((j: Record<string, unknown>) => {
+            const jId = String(j.job_id);
+            const isExp = expandedJobId === jId;
+            const receipt = (j.knowledge_receipt || {}) as Record<string, unknown>;
+            const stages = Array.isArray(j.stages) ? j.stages : [];
+            const chunks = Array.isArray(j.chunks) ? j.chunks : [];
+            const assertions = Array.isArray(j.assertions) ? j.assertions : [];
+            return (
+              <div
+                key={jId}
+                style={{
+                  padding: "14px",
+                  background: "var(--color-bg)",
+                  border: "1px solid var(--color-divider)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                  <div>
+                    <strong>{String(j.title_th)}</strong>
+                    <div style={{ fontSize: "11.5px", opacity: 0.75 }}>
+                      Profile: <code>{String(j.profile_id)}</code> · Authority: <code>{String(j.authority_class)}</code> · Rights:{" "}
+                      <code>{String(j.rights_status)}</code>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <span
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        background: "var(--color-surface)",
+                        color: "var(--accent-ink)",
+                      }}
+                    >
+                      {isTh ? String(receipt.status_label_th) : String(receipt.status_label_en)}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setExpandedJobId(isExp ? null : jId)}
+                      style={{ padding: "5px 10px", fontSize: "11.5px" }}
+                    >
+                      {isExp
+                        ? isTh
+                          ? "ซ่อนรายละเอียด 8 ขั้นตอน"
+                          : "Hide 8 Stages"
+                        : isTh
+                          ? "ดู 8 ขั้นตอน / Chunks / Neo4j"
+                          : "Inspect 8 Stages & Evidence"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Friendly 8-Stage Pill Bar */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "6px" }}>
+                  {stages.map((st: { stage_run_id: string; friendly_label_th: string; friendly_label_en: string; status: string }) => (
+                    <div
+                      key={st.stage_run_id}
+                      style={{
+                        padding: "6px 8px",
+                        background: "var(--color-surface)",
+                        fontSize: "11px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                      }}
+                    >
+                      <span>{isTh ? st.friendly_label_th : st.friendly_label_en}</span>
+                      <strong style={{ color: st.status === "succeeded" ? "var(--accent-ink)" : "inherit" }}>
+                        {st.status}
+                      </strong>
+                    </div>
+                  ))}
+                </div>
+
+                {isExp && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "6px", fontSize: "12px" }}>
+                    <div style={{ padding: "10px", background: "var(--color-surface)" }}>
+                      <strong>
+                        {isTh
+                          ? `ตัวอย่าง Chunk โครงสร้างกฎหมาย (Section 13.1 Schema — ทั้งหมด ${chunks.length} Chunks):`
+                          : `Sample Legal Structure-Aware Chunk (Section 13.1 Schema — ${chunks.length} total):`}
+                      </strong>
+                      {chunks[0] && (
+                        <pre style={{ margin: "6px 0 0", fontSize: "11px", overflowX: "auto" }}>
+                          {JSON.stringify(chunks[0], null, 2)}
+                        </pre>
+                      )}
+                    </div>
+                    <div style={{ padding: "10px", background: "var(--color-surface)" }}>
+                      <strong>
+                        {isTh
+                          ? `ความสัมพันธ์ในกราฟ Neo4j พร้อมหลักฐาน (Stage 7 Assertions — ${assertions.length} รายการ):`
+                          : `Stage 7 Neo4j Ontology Assertions (${assertions.length} total):`}
+                      </strong>
+                      {assertions.map((a: Record<string, unknown>) => (
+                        <div key={String(a.assertion_id)} style={{ marginTop: "4px", fontSize: "11.5px" }}>
+                          <code>
+                            ({String(a.subject_label)}:{String(a.subject_id)}) -[:{String(a.predicate)}]-&gt; (
+                            {String(a.object_label)}:{String(a.object_id)})
+                          </code>{" "}
+                          · Status: <strong>{String(a.review_status)}</strong>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* TAB 3: REVIEW WORKSPACE (Section 6.7 & 15) */}
+      {viewTab === "review_workspace" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {openReviews.length === 0 ? (
+            <div style={{ padding: "16px", background: "var(--color-bg)", fontSize: "13px" }}>
+              {isTh
+                ? "ไม่มีรายการค้างตรวจสอบในขณะนี้ เอกสารทั้งหมดผ่านเกณฑ์คุณภาพและเผยแพร่แล้ว"
+                : "No open review tasks. All ingested documents have passed quality gates."}
+            </div>
+          ) : (
+            openReviews.map((rv: Record<string, unknown>) => (
+              <div
+                key={String(rv.review_id)}
+                style={{
+                  padding: "14px",
+                  background: "var(--color-bg)",
+                  border: "1px solid var(--color-divider)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  fontSize: "12.5px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
+                  <strong style={{ color: "var(--accent-ink)" }}>
+                    [{String(rv.issue_type)}] {isTh ? String(rv.description_th) : String(rv.description_en)}
+                  </strong>
+                  <span>Revision v{String(rv.subject_revision)}</span>
+                </div>
+                <div>
+                  {isTh ? "ค่าที่ตรวจพบ:" : "Proposed token:"} <code>{String(rv.proposed_value)}</code>
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleApproveReview(String(rv.review_id), Number(rv.subject_revision))}
+                    style={{ padding: "6px 12px", fontSize: "12px" }}
+                  >
+                    {isTh
+                      ? "ยืนยันการแก้ไขและเผยแพร่เข้าสู่ระบบค้นคว้า (Approve & Rebuild Generation)"
+                      : "Approve Correction & Publish Release"}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

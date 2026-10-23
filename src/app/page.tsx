@@ -9,6 +9,7 @@ import {
   ModernistA2AConnectionsConsole,
   ModernistUniversalAIConnectivitySection,
   ModernistReg24LiveSection,
+  ModernistKnowledgeIngestionPipelineSection,
   ModernistModuleModal,
   ModernistMcpPlaygroundModal,
   type DatabaseRecordDetail,
@@ -4656,6 +4657,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                 )}
               </div>
 
+              <ModernistKnowledgeIngestionPipelineSection isTh={isTh} />
               <ModernistReg24LiveSection isTh={isTh} />
               <ModernistThLexGraphAndVersionDiffSection isTh={isTh} onAskAi={askWith} />
               <ModernistKnowledgeLibrarySection isTh={isTh} onAskAi={askWith} />
@@ -4872,6 +4874,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                 <div style={{ padding: "24px 0", color: MUT }}>{P.dbEmpty[lang]}</div>
               )}
 
+              <ModernistKnowledgeIngestionPipelineSection isTh={isTh} />
               <ModernistReg24LiveSection isTh={isTh} />
               <ModernistThLexGraphAndVersionDiffSection isTh={isTh} onAskAi={askWith} />
               <ModernistKnowledgeLibrarySection isTh={isTh} onAskAi={askWith} />
@@ -5821,6 +5824,8 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                   </div>
                 </section>
               </div>
+
+              <ModernistKnowledgeIngestionPipelineSection isTh={isTh} />
             </main>
           )}
 
