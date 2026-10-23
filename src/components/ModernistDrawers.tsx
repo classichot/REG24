@@ -3254,3 +3254,632 @@ export function ModernistUniversalAIConnectivitySection({
     </section>
   );
 }
+
+// ============================================================================
+// REG24 LIVE v1.0 CONSOLE (UX 01..04: FOR YOU, ALL UPDATES, UPCOMING, WATCHLISTS & ADMIN OPS)
+// ============================================================================
+
+export function ModernistReg24LiveSection({
+  isTh,
+}: {
+  isTh: boolean;
+}) {
+  const [tab, setTab] = useState<"for_you" | "all_updates" | "upcoming" | "watchlists" | "admin_ops">("for_you");
+  const [entityId, setEntityId] = useState<string>("ent.siam_cloud_tech");
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>("upd.2026.10.rd_ewht_3pct");
+  const [acknowledgedIds, setAcknowledgedIds] = useState<Record<string, boolean>>({});
+  const [legalAsOf, setLegalAsOf] = useState<string>("2026-10-15");
+  const [knownAsOf, setKnownAsOf] = useState<string>("2026-10-24T00:00:00Z");
+  const [historicalResult, setHistoricalResult] = useState<Record<string, unknown> | null>(null);
+
+  const loadLiveSnapshot = useCallback(async (targetEntity: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/v1/live?action=dashboard&entity_id=${encodeURIComponent(targetEntity)}`);
+      const json = await res.json();
+      setData(json);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadLiveSnapshot(entityId);
+  }, [entityId, loadLiveSnapshot]);
+
+  const queryBiTemporalVersion = async () => {
+    try {
+      const res = await fetch(
+        `/api/v1/live?action=law_version&provision_id=prov.tp161.clause12_1&legal_as_of=${encodeURIComponent(legalAsOf)}&known_as_of=${encodeURIComponent(knownAsOf)}`
+      );
+      const json = await res.json();
+      setHistoricalResult(json.data || json);
+    } catch {
+      // ignore
+    }
+  };
+
+  const dashboard = (data?.dashboard || {}) as Record<string, unknown>;
+  const acceptance = (data?.acceptance || {}) as {
+    all30Passed?: boolean;
+    passedCount?: number;
+    totalTests?: number;
+  };
+  const sources = Array.isArray(dashboard.sources) ? dashboard.sources : [];
+  const updates = Array.isArray(dashboard.updates) ? dashboard.updates : [];
+  const forYouFeed = Array.isArray(dashboard.for_you_feed) ? dashboard.for_you_feed : [];
+  const upcomingItems = Array.isArray(dashboard.upcoming_items) ? dashboard.upcoming_items : [];
+  const watchlists = Array.isArray(dashboard.watchlists) ? dashboard.watchlists : [];
+  const dependencies = Array.isArray(dashboard.dependent_artifacts) ? dashboard.dependent_artifacts : [];
+  const packages = Array.isArray(dashboard.proposed_action_packages) ? dashboard.proposed_action_packages : [];
+  const digest = (dashboard.daily_digest_preview || {}) as Record<string, unknown>;
+
+  return (
+    <section
+      aria-label="REG24 Live Daily Law & Regulation Updates"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "20px",
+        padding: "24px",
+        background: "var(--color-surface)",
+        borderTop: "2px solid var(--color-text)",
+      }}
+    >
+      {/* Header & AT 01-AT 30 Status Badge */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--accent-ink)",
+            }}
+          >
+            {isTh
+              ? "REG24 LIVE v1.0 · อัปเดตกฎหมายและระเบียบรายวันพร้อมปัญญาวิเคราะห์การเปลี่ยนแปลง"
+              : "REG24 LIVE v1.0 · DAILY LAW & REGULATION UPDATES WITH VERIFIED CHANGE INTELLIGENCE"}
+          </div>
+          <h3 style={{ margin: "4px 0 0", fontSize: "20px", fontWeight: 700 }}>
+            {isTh
+              ? "REG24 Live: สำหรับคุณ · อัปเดตทั้งหมด · กำหนดการที่มีผล · รายการเฝ้าระวัง"
+              : "REG24 Live: For You · All Updates · Upcoming · Watchlists · Source Health"}
+          </h3>
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <select
+            aria-label={isTh ? "เลือกนิติบุคคล" : "Select customer entity"}
+            value={entityId}
+            onChange={(e) => setEntityId(e.target.value)}
+            style={{
+              padding: "6px 10px",
+              background: "var(--color-bg)",
+              color: "var(--color-text)",
+              border: "1px solid var(--color-divider)",
+              fontSize: "12.5px",
+              fontWeight: 600,
+            }}
+          >
+            <option value="ent.siam_cloud_tech">
+              {isTh
+                ? "บจก. สยาม คลาวด์ เทคโนโลยี (ข้อมูลโปรไฟล์ครบ)"
+                : "Siam Cloud Technologies Co., Ltd. (Complete Profile)"}
+            </option>
+            <option value="ent.eastern_incomplete_co">
+              {isTh
+                ? "บจก. อีสเทิร์น โลจิสติกส์ โฮลดิ้ง (โปรไฟล์ขาดข้อมูลบางส่วน)"
+                : "Eastern Logistics Holding Co., Ltd. (Incomplete Profile — AT 20)"}
+            </option>
+          </select>
+          <span
+            style={{
+              padding: "6px 10px",
+              fontSize: "12px",
+              fontWeight: 700,
+              background: "var(--color-bg)",
+              fontFamily: "var(--font-mono, monospace)",
+            }}
+          >
+            {acceptance.all30Passed
+              ? `CERTIFIED AT01–AT30 (${acceptance.passedCount || 30}/${acceptance.totalTests || 30} PASS)`
+              : loading
+                ? "Refreshing..."
+                : "AT01–AT30 Ready"}
+          </span>
+        </div>
+      </div>
+
+      {/* Degraded Source Coverage Banner (MON 04, UX 04, AT 22) */}
+      {Boolean(digest.coverage_limitation_banner) && (
+        <div
+          style={{
+            padding: "10px 14px",
+            background: "var(--color-bg)",
+            borderLeft: "3px solid var(--accent-ink)",
+            fontSize: "12.5px",
+          }}
+        >
+          <strong>{isTh ? "สถานะความครอบคลุมของแหล่งข้อมูล (07:00 Asia/Bangkok Digest):" : "Source Coverage Status:"}</strong>{" "}
+          {String(digest.coverage_limitation_banner)}
+        </div>
+      )}
+
+      {/* UX 01: 4 Primary Navigation Tabs + Admin & Bi-Temporal View */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        {[
+          ["for_you", isTh ? "สำหรับคุณ (For You)" : "For You"],
+          ["all_updates", isTh ? "อัปเดตทั้งหมด (All Updates)" : "All Updates"],
+          ["upcoming", isTh ? "กำหนดการและร่างรับฟังความคิดเห็น (Upcoming)" : "Upcoming & Consultations"],
+          ["watchlists", isTh ? "รายการเฝ้าระวังและรายงานผลกระทบ (Watchlists & Impact)" : "Watchlists & Dependencies"],
+          ["admin_ops", isTh ? "สถานะแหล่งข้อมูลและเวลาสองแกน (Source Health & Bi-Temporal)" : "Source Health & Bi-Temporal"],
+        ].map(([k, label]) => {
+          const active = tab === k;
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setTab(k as typeof tab)}
+              style={{
+                padding: "8px 14px",
+                border: active ? "2px solid var(--color-text)" : "1px solid var(--color-divider)",
+                background: active ? "var(--color-text)" : "var(--color-bg)",
+                color: active ? "var(--color-bg)" : "var(--color-text)",
+                fontWeight: 700,
+                fontSize: "12.5px",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* TAB 1: FOR YOU (IMP 01..05, UX 01..02) */}
+      {tab === "for_you" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {forYouFeed.map(
+            (item: {
+              update: Record<string, unknown>;
+              assessment: {
+                outcome: string;
+                matched_criteria: string[];
+                missing_facts: string[];
+                explanation_th: string;
+                explanation_en: string;
+                suggested_action_th: string;
+                suggested_action_en: string;
+              } | null;
+            }) => {
+              const u = item.update;
+              const a = item.assessment;
+              const uId = String(u.update_id);
+              const isExp = expandedId === uId;
+              const ack = Boolean(acknowledgedIds[uId]);
+              return (
+                <div
+                  key={uId}
+                  style={{
+                    padding: "16px",
+                    background: "var(--color-bg)",
+                    border: "1px solid var(--color-divider)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "10px",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "10px", flexWrap: "wrap" }}>
+                    <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                      <span
+                        style={{
+                          padding: "3px 8px",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          background: "var(--color-surface)",
+                          textTransform: "uppercase",
+                        }}
+                      >
+                        {String(u.publication_state)} · {String(u.legal_effect_state)}
+                      </span>
+                      {a && (
+                        <span
+                          style={{
+                            padding: "3px 8px",
+                            fontSize: "11px",
+                            fontWeight: 700,
+                            color: "var(--accent-ink)",
+                            background: "var(--color-surface)",
+                          }}
+                        >
+                          {a.outcome.toUpperCase()}
+                        </span>
+                      )}
+                      <span style={{ fontSize: "12px", opacity: 0.75 }}>
+                        {isTh ? String(u.authority_th) : String(u.authority_en)}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "11.5px", fontFamily: "var(--font-mono, monospace)", opacity: 0.75 }}>
+                      {isTh ? "วันประกาศ:" : "Published:"} {String(u.source_publication_date)} ·{" "}
+                      {isTh ? "ตรวจพบ:" : "Discovered:"} {String(u.reg24_discovered_at).slice(0, 16)}Z
+                    </span>
+                  </div>
+
+                  <strong style={{ fontSize: "15px", lineHeight: 1.4 }}>
+                    {isTh ? String(u.title_th) : String(u.title_en)}
+                  </strong>
+
+                  <p style={{ margin: 0, fontSize: "13px", opacity: 0.9 }}>
+                    {isTh ? String(u.summary_th) : String(u.summary_en)}
+                  </p>
+
+                  {a && (
+                    <div style={{ fontSize: "12.5px", padding: "8px 12px", background: "var(--color-surface)" }}>
+                      <div>
+                        <strong>{isTh ? "เหตุผลความเกี่ยวข้อง:" : "Why this matches your entity:"}</strong>{" "}
+                        {isTh ? a.explanation_th : a.explanation_en}
+                      </div>
+                      {a.missing_facts.length > 0 && (
+                        <div style={{ marginTop: "4px", color: "var(--accent-ink)", fontWeight: 600 }}>
+                          {isTh
+                            ? `ข้อมูลโปรไฟล์ที่ยังขาด (Three-Valued Check): ${a.missing_facts.join(", ")}`
+                            : `Missing entity profile facts: ${a.missing_facts.join(", ")}`}
+                        </div>
+                      )}
+                      <div style={{ marginTop: "4px" }}>
+                        <strong>{isTh ? "การดำเนินการที่แนะนำ:" : "Proposed Next Action:"}</strong>{" "}
+                        {isTh ? a.suggested_action_th : a.suggested_action_en}
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => setExpandedId(isExp ? null : uId)}
+                      style={{ padding: "6px 12px", fontSize: "12px" }}
+                    >
+                      {isExp
+                        ? isTh
+                          ? "ซ่อนตารางเปรียบเทียบรายมาตรา"
+                          : "Hide Provision Comparison"
+                        : isTh
+                          ? "ดูตารางเปรียบเทียบรายมาตราและหลักฐานอ้างอิง"
+                          : "View Side-by-Side Diff & Evidence"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() =>
+                        setAcknowledgedIds((prev) => ({
+                          ...prev,
+                          [uId]: !prev[uId],
+                        }))
+                      }
+                      style={{ padding: "6px 12px", fontSize: "12px" }}
+                    >
+                      {ack
+                        ? isTh
+                          ? "รับทราบแล้ว (Revision v" + String(u.revision) + ")"
+                          : `Acknowledged (v${String(u.revision)})`
+                        : isTh
+                          ? "รับทราบการแจ้งเตือน"
+                          : "Acknowledge Notice"}
+                    </button>
+                  </div>
+
+                  {isExp && Array.isArray(u.diffs) && u.diffs.length > 0 && (
+                    <div
+                      style={{
+                        padding: "12px",
+                        background: "var(--color-surface)",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "8px",
+                        fontSize: "12px",
+                      }}
+                    >
+                      <strong>
+                        {isTh
+                          ? "การเปรียบเทียบข้อความกฎหมาย (CHG 01 & CHG 05 Side-by-Side Diff)"
+                          : "Provision Comparison (CHG 01 & CHG 05 Side-by-Side Diff)"}
+                      </strong>
+                      {u.diffs.map(
+                        (d: {
+                          provision_id: string;
+                          section_label: string;
+                          diff_type: string;
+                          before_text: string | null;
+                          after_text: string;
+                          page_anchor: string;
+                        }) => (
+                          <div
+                            key={d.provision_id}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+                              gap: "10px",
+                            }}
+                          >
+                            <div style={{ padding: "8px", background: "var(--color-bg)" }}>
+                              <div style={{ fontWeight: 700, marginBottom: "4px" }}>
+                                {isTh ? "ข้อความเดิม (Before):" : "Prior Wording:"} {d.section_label}
+                              </div>
+                              <div>{d.before_text || "-"}</div>
+                            </div>
+                            <div style={{ padding: "8px", background: "var(--color-bg)" }}>
+                              <div style={{ fontWeight: 700, marginBottom: "4px", color: "var(--accent-ink)" }}>
+                                {isTh ? "ข้อความใหม่ (After):" : "Amended Wording:"} [{d.diff_type}] ({d.page_anchor})
+                              </div>
+                              <div>{d.after_text}</div>
+                            </div>
+                          </div>
+                        )
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+          )}
+        </div>
+      )}
+
+      {/* TAB 2: ALL UPDATES (INCLUDING DETECTED NOTICES AWAITING REVIEW — REV 01) */}
+      {tab === "all_updates" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {updates.map((u: Record<string, unknown>) => (
+            <div
+              key={String(u.update_id)}
+              style={{
+                padding: "14px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-divider)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                <span style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase" }}>
+                  [{String(u.publication_state)}] · Pipeline: {String(u.pipeline_state)} · Verification:{" "}
+                  {String(u.verification_state)} · Effect: {String(u.legal_effect_state)}
+                </span>
+                <span style={{ fontSize: "11.5px", fontFamily: "var(--font-mono, monospace)" }}>
+                  {String(u.source_publication_date)}
+                </span>
+              </div>
+              <strong>{isTh ? String(u.title_th) : String(u.title_en)}</strong>
+              <div style={{ fontSize: "12.5px", opacity: 0.85 }}>
+                {isTh ? String(u.effective_date_summary) : String(u.summary_en)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TAB 3: UPCOMING & CONSULTATIONS (LAW 04, AT 10, AT 14) */}
+      {tab === "upcoming" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {upcomingItems.map((u: Record<string, unknown>) => (
+            <div
+              key={String(u.update_id)}
+              style={{
+                padding: "14px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-divider)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap" }}>
+                <strong style={{ color: "var(--accent-ink)", fontSize: "12px" }}>
+                  {String(u.document_classification) === "consultation"
+                    ? isTh
+                      ? "ร่างรับฟังความคิดเห็น (ไม่มีผลผูกพันเป็นหน้าที่ตามกฎหมาย — AT 14)"
+                      : "PROSPECTIVE DRAFT CONSULTATION (NON-BINDING — AT 14)"
+                    : isTh
+                      ? "ประกาศแล้วรอวันมีผลใช้บังคับ (Published Pending Effect — AT 09/AT 10)"
+                      : "PUBLISHED PENDING COMMENCEMENT (AT 09 / AT 10)"}
+                </strong>
+                <span style={{ fontSize: "12px", fontFamily: "var(--font-mono, monospace)" }}>
+                  {String(u.effective_date_summary)}
+                </span>
+              </div>
+              <div style={{ fontWeight: 700 }}>{isTh ? String(u.title_th) : String(u.title_en)}</div>
+              <div style={{ fontSize: "12.5px", opacity: 0.85 }}>
+                {isTh ? String(u.proposed_next_action_th) : String(u.proposed_next_action_en)}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TAB 4: WATCHLISTS, DEPENDENCY FLAGS & LAW-AS-CODE PACKAGES (DEP 01..03, ACT 01..05) */}
+      {tab === "watchlists" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div style={{ padding: "14px", background: "var(--color-bg)" }}>
+            <strong style={{ fontSize: "14px" }}>
+              {isTh
+                ? "รายการเฝ้าระวังและการจัดส่ง Daily Digest (07:00 Asia/Bangkok)"
+                : "Active Watchlists & 07:00 Asia/Bangkok Digest Subscriptions"}
+            </strong>
+            {watchlists.map((w: Record<string, unknown>) => (
+              <div key={String(w.watchlist_id)} style={{ marginTop: "8px", fontSize: "12.5px" }}>
+                <strong>{String(w.name)}</strong> — {String(w.frequency)} @ {String(w.delivery_time_local)} (
+                {String(w.time_zone)}) · Channels:{" "}
+                {Array.isArray(w.channels) ? w.channels.join(", ") : ""}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ padding: "14px", background: "var(--color-bg)" }}>
+            <strong style={{ fontSize: "14px" }}>
+              {isTh
+                ? "งานวิจัยและคลังตำรากฎหมายที่ได้รับผลกระทบ (DEP 02 & DEP 03 Living Secondary Library — AT 19)"
+                : "Affected Saved Research & Living Secondary Library Flags (DEP 02 & DEP 03 — AT 19)"}
+            </strong>
+            {dependencies.map((d: Record<string, unknown>) => (
+              <div
+                key={String(d.artifact_id)}
+                style={{
+                  marginTop: "8px",
+                  padding: "10px",
+                  background: "var(--color-surface)",
+                  fontSize: "12.5px",
+                }}
+              >
+                <div>
+                  <strong>
+                    [{String(d.assessment_status).toUpperCase()}] {String(d.title)}
+                  </strong>{" "}
+                  ({String(d.author_or_owner)})
+                </div>
+                <div style={{ marginTop: "4px", opacity: 0.8 }}>{String(d.reg24_update_note)}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ padding: "14px", background: "var(--color-bg)" }}>
+            <strong style={{ fontSize: "14px" }}>
+              {isTh
+                ? "ข้อเสนอรายการหน้าที่ตามกฎหมายและกฎคำนวณอัตโนมัติ (ACT 01–04 Law-as-Code Release — AT 25)"
+                : "Proposed Compliance Obligations & Law-as-Code Release Packages (ACT 01–04 — AT 25)"}
+            </strong>
+            {packages.map((pkg: Record<string, unknown>) => {
+              const obl = (pkg.obligation || {}) as Record<string, unknown>;
+              const lac = (pkg.law_as_code_release || {}) as Record<string, unknown>;
+              return (
+                <div
+                  key={String(pkg.package_id)}
+                  style={{
+                    marginTop: "8px",
+                    padding: "10px",
+                    background: "var(--color-surface)",
+                    fontSize: "12.5px",
+                  }}
+                >
+                  <div>
+                    <strong>{String(obl.obligation_id)}:</strong>{" "}
+                    {isTh ? String(obl.description_th) : String(obl.description_en)} [
+                    {String(obl.lifecycle_status)}]
+                  </div>
+                  <div style={{ marginTop: "4px", fontFamily: "var(--font-mono, monospace)", fontSize: "11.5px" }}>
+                    Law-as-Code Rule: {String(lac.rule_id)} ({String(lac.prior_version)} →{" "}
+                    {String(lac.proposed_version)}) · State: {String(lac.activation_state)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: SOURCE HEALTH & BI-TEMPORAL RETRIEVAL (MON 04, LAW 03, AT 11) */}
+      {tab === "admin_ops" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
+              gap: "10px",
+            }}
+          >
+            {sources.map((s: Record<string, unknown>) => (
+              <div
+                key={String(s.source_id)}
+                style={{
+                  padding: "12px",
+                  background: "var(--color-bg)",
+                  border: "1px solid var(--color-divider)",
+                  fontSize: "12px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                  <span>{isTh ? String(s.authority_th) : String(s.authority)}</span>
+                  <span style={{ color: "var(--accent-ink)" }}>{String(s.health_state)}</span>
+                </div>
+                <div style={{ marginTop: "4px", opacity: 0.75 }}>
+                  Checkpoint: {String(s.discovery_checkpoint_cursor)} · Backlog:{" "}
+                  {String(s.review_backlog_count)}
+                </div>
+                {Boolean(s.active_incident) && (
+                  <div style={{ marginTop: "4px", fontWeight: 600 }}>
+                    {String(s.active_incident)}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Bi-Temporal Historical Query Tester (LAW 03, AT 11) */}
+          <div style={{ padding: "14px", background: "var(--color-bg)", fontSize: "12.5px" }}>
+            <strong>
+              {isTh
+                ? "ทดสอบการดึงข้อมูลกฎหมายสองแกนเวลา (Bi-Temporal Retrieval: legal_as_of vs known_as_of — AT 11)"
+                : "Bi-Temporal Historical Version Lookup (legal_as_of vs known_as_of — AT 11)"}
+            </strong>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "8px", alignItems: "center" }}>
+              <label>
+                legal_as_of:{" "}
+                <input
+                  type="date"
+                  value={legalAsOf}
+                  onChange={(e) => setLegalAsOf(e.target.value)}
+                  style={{ padding: "5px 8px", background: "var(--color-surface)", color: "var(--color-text)" }}
+                />
+              </label>
+              <label>
+                known_as_of:{" "}
+                <select
+                  value={knownAsOf}
+                  onChange={(e) => setKnownAsOf(e.target.value)}
+                  style={{ padding: "6px 8px", background: "var(--color-surface)", color: "var(--color-text)" }}
+                >
+                  <option value="2026-10-16T00:00:00Z">2026-10-16 (Before Paw. 432/2569 enacted)</option>
+                  <option value="2026-10-24T00:00:00Z">2026-10-24 (After retrospective Paw. 432/2569 enacted)</option>
+                </select>
+              </label>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={queryBiTemporalVersion}
+                style={{ padding: "6px 12px", fontSize: "12px" }}
+              >
+                {isTh ? "ตรวจสอบเวอร์ชันที่ใช้บังคับ" : "Resolve Bi-Temporal Version"}
+              </button>
+            </div>
+            {historicalResult && (
+              <pre
+                style={{
+                  marginTop: "8px",
+                  padding: "10px",
+                  background: "var(--color-surface)",
+                  fontSize: "11.5px",
+                  overflowX: "auto",
+                }}
+              >
+                {JSON.stringify(historicalResult, null, 2)}
+              </pre>
+            )}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

@@ -20,6 +20,12 @@ import {
   type UniversalProviderId,
 } from "@/core/mcp/universal-ai-connectivity-engine";
 import {
+  reg24LiveEngine,
+  type LivePublicationState,
+  type LiveLegalEffectState,
+  type LiveRole,
+} from "@/core/live/reg24-live-engine";
+import {
   agenticLegalResearchOrchestrator,
   verifyLegalCitationsAndClaims,
   type RequestedResearchModeInput,
@@ -766,7 +772,125 @@ export const MCP_TOOLS_CATALOG = [
     description: `[Universal AI Connectivity v1.0 · ${tool.effect_class} · scopes:${tool.required_scopes.join(",")}] ${tool.description_en}`,
     inputSchema: tool.input_schema,
   })),
+  // REG24 Live v1.0 (Section 16 EXT 01 — 5 Regulatory Update & Change Intelligence MCP Tools)
+  {
+    name: "reg24_search_updates",
+    description: "REG24 Live (EXT 01): Bounded regulatory update search with status, date, source, topic, and authorised entity filters",
+    inputSchema: {
+      type: "object",
+      properties: {
+        source_id: { type: "string" },
+        topic: { type: "string" },
+        publication_state: { type: "string", enum: ["verified_update", "detected_notice", "corrected", "withdrawn"] },
+        legal_effect_state: { type: "string", enum: ["in_force", "published_pending_effect", "draft", "unresolved"] },
+      },
+    },
+  },
+  {
+    name: "reg24_get_update",
+    description: "REG24 Live (EXT 01): Retrieve exact change revision with explanation, citations, effective dates, diffs, and provenance",
+    inputSchema: {
+      type: "object",
+      required: ["update_id"],
+      properties: {
+        update_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24_get_law_version",
+    description: "REG24 Live (EXT 01): Retrieve approved bi-temporal legal text for legal_as_of and optional known_as_of",
+    inputSchema: {
+      type: "object",
+      required: ["provision_id", "legal_as_of"],
+      properties: {
+        provision_id: { type: "string" },
+        legal_as_of: { type: "string" },
+        known_as_of: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24_get_coverage",
+    description: "REG24 Live (EXT 01): Inspect supported source scope and latest collection, processing, and verification status",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
+  {
+    name: "reg24_assess_change",
+    description: "REG24 Live (EXT 01): Tenant-authorised company impact job returning three-valued applicability and missing facts",
+    inputSchema: {
+      type: "object",
+      required: ["entity_id", "update_id"],
+      properties: {
+        entity_id: { type: "string" },
+        update_id: { type: "string" },
+        actor_id: { type: "string" },
+        actor_role: { type: "string" },
+      },
+    },
+  },
 ];
+
+const REG24_LIVE_MCP_TOOL_NAMES = new Set<string>([
+  "reg24_search_updates",
+  "reg24_get_update",
+  "reg24_get_law_version",
+  "reg24_get_coverage",
+  "reg24_assess_change",
+]);
+
+function executeReg24LiveMcpTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  tenantId: string
+): Record<string, unknown> {
+  if (toolName === "reg24_search_updates") {
+    return reg24LiveEngine.listUpdates({
+      source_id: args.source_id ? String(args.source_id) : undefined,
+      topic: args.topic ? String(args.topic) : undefined,
+      publication_state: args.publication_state as LivePublicationState | undefined,
+      legal_effect_state: args.legal_effect_state as LiveLegalEffectState | undefined,
+    });
+  }
+  if (toolName === "reg24_get_update") {
+    const updId = String(args.update_id || "upd.2026.10.rd_ewht_3pct");
+    const found = reg24LiveEngine.listUpdates().items.find((u) => u.update_id === updId);
+    return found ? { status: "ok", update: found } : { status: "error", error_code: "not_found" };
+  }
+  if (toolName === "reg24_get_law_version") {
+    return {
+      status: "ok",
+      ...reg24LiveEngine.getProvisionVersionAt({
+        provision_id: String(args.provision_id || "prov.tp161.clause12_1"),
+        legal_as_of: String(args.legal_as_of || "2026-10-24"),
+        known_as_of: args.known_as_of ? String(args.known_as_of) : undefined,
+      }),
+    };
+  }
+  if (toolName === "reg24_get_coverage") {
+    const snap = reg24LiveEngine.getLiveDashboardSnapshot(tenantId);
+    return {
+      status: "ok",
+      coverage_as_of: "2026-10-24T00:50:00Z",
+      active_index_release_id: snap.active_index_release_id,
+      sources: snap.sources,
+      service_targets: snap.service_targets,
+    };
+  }
+  if (toolName === "reg24_assess_change") {
+    return reg24LiveEngine.assessCompanyImpact({
+      tenant_id: tenantId || "tenant.law24.prod",
+      actor_id: String(args.actor_id || "counsel.somchai@law24.th"),
+      actor_role: (args.actor_role || "compliance_manager") as LiveRole,
+      entity_id: String(args.entity_id || "ent.siam_cloud_tech"),
+      update_id: String(args.update_id || "upd.2026.10.rd_ewht_3pct"),
+    });
+  }
+  return { status: "error", message: `Unknown REG24 Live tool: ${toolName}` };
+}
 
 const CANONICAL_11_TOOL_NAMES = new Set<string>(
   CANONICAL_11_TOOLS_CATALOG.map((t) => t.name)
@@ -1430,6 +1554,28 @@ export async function POST(req: NextRequest) {
         const toolName = String(params?.name || "");
         const toolArgs: MCPCommonInput = params?.arguments || {};
 
+        if (REG24_LIVE_MCP_TOOL_NAMES.has(toolName)) {
+          const liveOut = executeReg24LiveMcpTool(
+            toolName,
+            toolArgs as Record<string, unknown>,
+            tenantId
+          );
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(liveOut, null, 2),
+                },
+              ],
+              structuredContent: liveOut,
+              isError: liveOut.status === "error" || liveOut.status === "forbidden_403",
+            },
+          });
+        }
+
         if (CANONICAL_11_TOOL_NAMES.has(toolName)) {
           const connectionId = String(
             body.connection_id ||
@@ -1576,6 +1722,15 @@ export async function POST(req: NextRequest) {
     // Direct REST-style MCP tool call
     const toolName = String(body.tool || body.name || "reg24.list_modules");
     const input: MCPCommonInput = body.input || body.arguments || body;
+
+    if (REG24_LIVE_MCP_TOOL_NAMES.has(toolName)) {
+      const liveOut = executeReg24LiveMcpTool(
+        toolName,
+        input as Record<string, unknown>,
+        tenantId
+      );
+      return NextResponse.json(liveOut);
+    }
 
     if (CANONICAL_11_TOOL_NAMES.has(toolName)) {
       const connectionId = String(
