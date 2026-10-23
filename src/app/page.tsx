@@ -6,6 +6,7 @@ import {
   ModernistDatabaseDetailModal,
   ModernistKnowledgeLibrarySection,
   ModernistThLexGraphAndVersionDiffSection,
+  ModernistA2AConnectionsConsole,
   ModernistModuleModal,
   ModernistMcpPlaygroundModal,
   type DatabaseRecordDetail,
@@ -5433,6 +5434,8 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                   ))}
                 </aside>
               </div>
+
+              <ModernistA2AConnectionsConsole isTh={isTh} />
             </main>
           )}
 

@@ -1918,3 +1918,924 @@ export function ModernistThLexGraphAndVersionDiffSection({
     </section>
   );
 }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SECTION 13 & 14: Agent Connections (A2A v1.0) Console — 5 Views:
+   Overview, Connections, Missions, Approvals, Usage & Wow Features
+   ══════════════════════════════════════════════════════════════════════════ */
+export function ModernistA2AConnectionsConsole({ isTh }: { isTh: boolean }) {
+  const [view, setView] = useState<"overview" | "connections" | "missions" | "approvals" | "usage">(
+    "overview"
+  );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [data, setData] = useState<any>(null);
+  const [selectedSkill, setSelectedSkill] = useState<string>("reg24.legal.research.v1");
+  const [selectedConnId, setSelectedConnId] = useState<string>("conn.cfo24.prod.01");
+  const [missionQuestion, setMissionQuestion] = useState<string>(
+    "Which requirements may apply to this proposed transaction?"
+  );
+  const [includeTransactionFact, setIncludeTransactionFact] = useState<boolean>(false);
+  const [newOrgName, setNewOrgName] = useState<string>("24 Ecosystem Partner");
+  const [newDisplayName, setNewDisplayName] = useState<string>("ACC24 Accounting & Audit Agent");
+  const [newEnv, setNewEnv] = useState<"sandbox" | "production">("sandbox");
+  const [passportCheckMsg, setPassportCheckMsg] = useState<string>("");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [conformanceResult, setConformanceResult] = useState<any>(null);
+
+  const loadOverview = () => {
+    fetch("/api/a2a?view=overview")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((res) => {
+        if (res && res.status === "ok") setData(res);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    loadOverview();
+  }, []);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const postA2AAction = async (payload: Record<string, any>) => {
+    try {
+      const res = await fetch("/api/a2a", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "A2A-Version": "1.0" },
+        body: JSON.stringify(payload),
+      });
+      const json = await res.json();
+      if (json.overview) setData(json.overview);
+      return json;
+    } catch {
+      return null;
+    }
+  };
+
+  const connections = data?.connections || [];
+  const tasks = data?.tasks || [];
+  const approvals = data?.approvals || [];
+  const ledger = data?.ledger || [];
+  const skills = data?.skillsCatalog || [];
+  const matrix = data?.compatibilityMatrix || [];
+
+  return (
+    <section
+      style={{
+        marginTop: "24px",
+        paddingTop: "24px",
+        borderTop: "2px solid var(--color-divider)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "18px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-end",
+          gap: "16px",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <span
+            style={{
+              font: "600 11px ui-monospace,Menlo,monospace",
+              letterSpacing: ".08em",
+              textTransform: "uppercase",
+              color: "var(--color-accent-700)",
+            }}
+          >
+            AGENT CONNECTIONS · A2A PROTOCOL 1.0 · EVIDENCE PASSPORT (reg24.evidence.pack.v1)
+          </span>
+          <h2 style={{ fontSize: "20px", fontWeight: 700, margin: 0 }}>
+            {isTh
+              ? "ระบบเชื่อมต่อตัวแทนอัจฉริยะ (Agent-to-Agent 1.0) · 12 ทักษะกฎหมาย & ชุดหลักฐานตรวจสอบย้อนกลับ"
+              : "Agent Connections (A2A 1.0) — Missions, Evidence Passports, Approvals & Spend"}
+          </h2>
+        </div>
+
+        {/* 5 Required Views from Section 13.1 */}
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {(
+            [
+              ["overview", isTh ? "1. ภาพรวม (Overview)" : "1. Overview"],
+              ["connections", isTh ? "2. การเชื่อมต่อ (Connections)" : "2. Connections"],
+              ["missions", isTh ? "3. งานวิจัย A2A (Missions)" : "3. Missions"],
+              ["approvals", isTh ? "4. การอนุมัติ (Approvals)" : "4. Approvals"],
+              ["usage", isTh ? "5. งบประมาณ & นักพัฒนา (Usage)" : "5. Usage & Dev"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              type="button"
+              onClick={() => setView(k)}
+              style={{
+                padding: "8px 13px",
+                border: 0,
+                cursor: "pointer",
+                font: "600 12.5px var(--font-body)",
+                background:
+                  view === k
+                    ? "var(--color-accent)"
+                    : "color-mix(in srgb,var(--color-text) 6%,transparent)",
+                color: view === k ? "var(--on-accent)" : "var(--color-text)",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* VIEW 1: OVERVIEW */}
+      {view === "overview" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,180px),1fr))",
+              gap: "10px",
+            }}
+          >
+            <div style={{ padding: "16px", background: "var(--color-surface)" }}>
+              <div style={{ font: "600 11px ui-monospace,Menlo,monospace", opacity: 0.7 }}>
+                CONNECTED AGENTS
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, marginTop: "4px" }}>
+                {connections.filter((c: { status: string }) => c.status === "active").length} /{" "}
+                {connections.length}
+              </div>
+              <div style={{ fontSize: "12px", opacity: 0.7 }}>CFO24 · LAW24 · Sandbox SDK</div>
+            </div>
+            <div style={{ padding: "16px", background: "var(--color-surface)" }}>
+              <div style={{ font: "600 11px ui-monospace,Menlo,monospace", opacity: 0.7 }}>
+                DURABLE TASKS
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, marginTop: "4px" }}>
+                {tasks.length}
+              </div>
+              <div style={{ fontSize: "12px", opacity: 0.7 }}>
+                Evidence Schema: reg24.evidence.pack.v1
+              </div>
+            </div>
+            <div style={{ padding: "16px", background: "var(--color-surface)" }}>
+              <div style={{ font: "600 11px ui-monospace,Menlo,monospace", opacity: 0.7 }}>
+                PENDING APPROVALS
+              </div>
+              <div style={{ fontSize: "24px", fontWeight: 800, marginTop: "4px" }}>
+                {approvals.filter((a: { status: string }) => a.status === "pending").length}
+              </div>
+              <div style={{ fontSize: "12px", opacity: 0.7 }}>Scope-bound outbound review</div>
+            </div>
+            <div style={{ padding: "16px", background: "var(--color-surface)" }}>
+              <div style={{ font: "600 11px ui-monospace,Menlo,monospace", opacity: 0.7 }}>
+                OUTBOUND KILL SWITCH
+              </div>
+              <div style={{ fontSize: "16px", fontWeight: 700, marginTop: "6px" }}>
+                {data?.outboundKillSwitchActive ? "PAUSED (LOCAL ONLY)" : "ENABLED (ALLOWLISTED)"}
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() =>
+                  postA2AAction({
+                    action: "killswitch:toggle",
+                    disabled: !data?.outboundKillSwitchActive,
+                  })
+                }
+                style={{ fontSize: "11.5px", padding: "3px 8px", marginTop: "4px" }}
+              >
+                {data?.outboundKillSwitchActive
+                  ? isTh
+                    ? "เปิดการส่งต่อภายนอกอีกครั้ง"
+                    : "Re-enable Outbound"
+                  : isTh
+                  ? "ระงับการส่งต่อภายนอกทันที (Kill Switch)"
+                  : "Activate Kill Switch"}
+              </button>
+            </div>
+          </div>
+
+          {/* 26 End-to-End Acceptance Tests (A01-A26) Runner */}
+          <div
+            style={{
+              padding: "16px 20px",
+              background: "var(--color-surface)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                gap: "12px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700, fontSize: "15px" }}>
+                  {isTh
+                    ? "ชุดทดสอบมาตรฐาน A2A 1.0 (Section 17.3 — A01 ถึง A26 ครบ 26 ข้อ)"
+                    : "Section 17.3 End-to-End A2A 1.0 Conformance Gate (A01 through A26)"}
+                </div>
+                <div style={{ fontSize: "12.5px", opacity: 0.75 }}>
+                  Discovery, Version, Auth, Clarification, Secondary Separation, Isolation, Rights,
+                  Idempotency, Crash Recovery, SSRF, Injection, Delegation & Manifest Integrity
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={async () => {
+                  const res = await postA2AAction({ action: "conformance:run" });
+                  if (res?.conformance) setConformanceResult(res.conformance);
+                }}
+                style={{ padding: "8px 14px", fontSize: "13px" }}
+              >
+                {isTh ? "รันชุดทดสอบ A01–A26 →" : "Run All 26 Acceptance Tests (A01–A26) →"}
+              </button>
+            </div>
+
+            {conformanceResult && (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill,minmax(min(100%,240px),1fr))",
+                  gap: "6px",
+                }}
+              >
+                {conformanceResult.results.map(
+                  (r: {
+                    testId: string;
+                    name: string;
+                    releasePhase: string;
+                    passed: boolean;
+                    verificationDetail: string;
+                  }) => (
+                    <div
+                      key={r.testId}
+                      style={{
+                        padding: "8px 10px",
+                        background: "var(--color-bg)",
+                        fontSize: "12px",
+                        borderLeft: r.passed
+                          ? "3px solid var(--color-accent)"
+                          : "3px solid #dc2626",
+                      }}
+                    >
+                      <div style={{ fontWeight: 700 }}>
+                        {r.passed ? "✓" : "✗"} {r.testId} · {r.name} ({r.releasePhase})
+                      </div>
+                      <div style={{ opacity: 0.75, fontSize: "11px", marginTop: "2px" }}>
+                        {r.verificationDetail}
+                      </div>
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 2: CONNECTIONS */}
+      {view === "connections" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {connections.map(
+              (c: {
+                connectionId: string;
+                displayName: string;
+                organizationName: string;
+                environment: string;
+                status: string;
+                autonomyMode: string;
+                grantedScopes: string[];
+                spendLimitMinor: number;
+                spentMinor: number;
+                expiresAt: string;
+              }) => (
+                <div
+                  key={c.connectionId}
+                  style={{
+                    padding: "16px 20px",
+                    background: "var(--color-surface)",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "16px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div
+                      style={{
+                        font: "600 11px ui-monospace,Menlo,monospace",
+                        color: "var(--color-accent-700)",
+                      }}
+                    >
+                      {c.connectionId} · {c.environment.toUpperCase()} · STATUS:{" "}
+                      {c.status.toUpperCase()} · MODE: {c.autonomyMode.toUpperCase()}
+                    </div>
+                    <div style={{ fontWeight: 700, fontSize: "15px", marginTop: "2px" }}>
+                      {c.displayName} — {c.organizationName}
+                    </div>
+                    <div style={{ fontSize: "12px", opacity: 0.75, marginTop: "4px" }}>
+                      Scopes: {c.grantedScopes.join(", ")} · Spend: THB{" "}
+                      {(c.spentMinor / 100).toFixed(2)} / {(c.spendLimitMinor / 100).toFixed(2)} ·
+                      Expires: {c.expiresAt.slice(0, 10)}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() =>
+                        postA2AAction({
+                          action: "message:send",
+                          connectionId: c.connectionId,
+                          skillId: "reg24.authority.retrieve.v1",
+                          question: "Connection health test: retrieve CCC Section 1097",
+                        })
+                      }
+                      style={{ fontSize: "12px", padding: "6px 10px" }}
+                    >
+                      {isTh ? "ทดสอบ" : "Test"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() =>
+                        postA2AAction({
+                          action: "connections:status",
+                          connectionId: c.connectionId,
+                          status: c.status === "paused" ? "active" : "paused",
+                        })
+                      }
+                      style={{ fontSize: "12px", padding: "6px 10px" }}
+                    >
+                      {c.status === "paused"
+                        ? isTh
+                          ? "เปิดใช้งาน"
+                          : "Resume"
+                        : isTh
+                        ? "พักชั่วคราว"
+                        : "Pause"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() =>
+                        postA2AAction({
+                          action: "connections:status",
+                          connectionId: c.connectionId,
+                          status: "revoked",
+                        })
+                      }
+                      style={{ fontSize: "12px", padding: "6px 10px" }}
+                    >
+                      {isTh ? "เพิกถอนสิทธิ์ (Revoke)" : "Revoke"}
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+
+          {/* 3-Step Guided Connection Onboarding (REQ CON 01) */}
+          <div
+            style={{
+              padding: "16px 20px",
+              background: "var(--color-surface)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: "14px" }}>
+              {isTh
+                ? "+ สร้างการเชื่อมต่อตัวแทนใหม่ (REQ CON 01 — Sandbox / Production)"
+                : "+ Onboard New Agent Connection (REQ CON 01 — Sandbox / Production)"}
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <input
+                className="input"
+                value={newOrgName}
+                onChange={(e) => setNewOrgName(e.target.value)}
+                placeholder="Organization"
+                style={{ flex: "1 1 180px", minHeight: "34px", fontSize: "13px" }}
+              />
+              <input
+                className="input"
+                value={newDisplayName}
+                onChange={(e) => setNewDisplayName(e.target.value)}
+                placeholder="Agent Display Name"
+                style={{ flex: "1 1 200px", minHeight: "34px", fontSize: "13px" }}
+              />
+              <select
+                className="input"
+                value={newEnv}
+                onChange={(e) => setNewEnv(e.target.value as "sandbox" | "production")}
+                style={{ width: "140px", minHeight: "34px", fontSize: "13px" }}
+              >
+                <option value="sandbox">Sandbox</option>
+                <option value="production">Production</option>
+              </select>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() =>
+                  postA2AAction({
+                    action: "connections:create",
+                    organizationName: newOrgName,
+                    displayName: newDisplayName,
+                    environment: newEnv,
+                    spendLimitMinor: 100000,
+                  })
+                }
+                style={{ padding: "7px 14px", fontSize: "13px" }}
+              >
+                {isTh ? "สร้างการเชื่อมต่อ →" : "Create Connection →"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 3: MISSIONS & EVIDENCE PASSPORT */}
+      {view === "missions" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div
+            style={{
+              padding: "18px 20px",
+              background: "var(--color-surface)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "12px",
+            }}
+          >
+            <div style={{ fontWeight: 700, fontSize: "15px" }}>
+              {isTh
+                ? "ส่งคำสั่งงานวิจัย A2A 1.0 (12 Skills Catalog & Clarification Flow)"
+                : "Submit A2A 1.0 Mission (12 Versioned Skills & Clarification Flow)"}
+            </div>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <select
+                className="input"
+                value={selectedConnId}
+                onChange={(e) => setSelectedConnId(e.target.value)}
+                style={{ flex: "1 1 200px", minHeight: "36px", fontSize: "13px" }}
+              >
+                {connections.map((c: { connectionId: string; displayName: string }) => (
+                  <option key={c.connectionId} value={c.connectionId}>
+                    {c.displayName} ({c.connectionId})
+                  </option>
+                ))}
+              </select>
+              <select
+                className="input"
+                value={selectedSkill}
+                onChange={(e) => setSelectedSkill(e.target.value)}
+                style={{ flex: "1 1 260px", minHeight: "36px", fontSize: "13px" }}
+              >
+                {skills.map((s: { id: string; priority: string; name: string }) => (
+                  <option key={s.id} value={s.id}>
+                    [{s.priority}] {s.id} — {s.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+              <input
+                className="input"
+                value={missionQuestion}
+                onChange={(e) => setMissionQuestion(e.target.value)}
+                style={{ flex: "1 1 320px", minHeight: "36px", fontSize: "13.5px" }}
+              />
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12.5px" }}>
+                <input
+                  type="checkbox"
+                  checked={includeTransactionFact}
+                  onChange={(e) => setIncludeTransactionFact(e.target.checked)}
+                />
+                {isTh ? "แนบข้อเท็จจริง transactionType" : "Include transactionType fact"}
+              </label>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() =>
+                  postA2AAction({
+                    action: "message:send",
+                    connectionId: selectedConnId,
+                    skillId: selectedSkill,
+                    question: missionQuestion,
+                    facts: includeTransactionFact
+                      ? [
+                          {
+                            id: "f1",
+                            name: "entityType",
+                            value: "company",
+                            origin: "user_supplied",
+                            verified: true,
+                          },
+                          {
+                            id: "f2",
+                            name: "transactionType",
+                            value: "statutory_merger_ccc_1238_zero_boot",
+                            origin: "user_supplied",
+                            verified: true,
+                          },
+                        ]
+                      : [
+                          {
+                            id: "f1",
+                            name: "entityType",
+                            value: "company",
+                            origin: "user_supplied",
+                            verified: false,
+                          },
+                        ],
+                  })
+                }
+                style={{ padding: "8px 14px", fontSize: "13px" }}
+              >
+                {isTh ? "ส่งคำสั่ง A2A →" : "Send A2A Task →"}
+              </button>
+            </div>
+          </div>
+
+          {/* Task list & Evidence Pack inspector */}
+          {tasks.map(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            (tItem: any) => (
+              <div
+                key={tItem.taskId}
+                style={{
+                  padding: "18px 20px",
+                  background: "var(--color-surface)",
+                  borderLeft:
+                    tItem.state === "completed"
+                      ? "3px solid var(--color-accent)"
+                      : "3px solid var(--color-neutral-500)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "10px",
+                }}
+              >
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "12px",
+                    flexWrap: "wrap",
+                  }}
+                >
+                  <div
+                    style={{
+                      font: "600 11.5px ui-monospace,Menlo,monospace",
+                      color: "var(--color-accent-700)",
+                    }}
+                  >
+                    {tItem.taskId} · SKILL: {tItem.skillId} · STATE: {tItem.state.toUpperCase()} ·
+                    STAGE: {tItem.internalStage} · SPEND: THB{" "}
+                    {(tItem.budget.settledMinor / 100).toFixed(2)}
+                  </div>
+                  {tItem.state === "input-required" &&
+                    tItem.evidencePack?.missingFacts?.length > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-primary"
+                        onClick={() =>
+                          postA2AAction({
+                            action: "tasks:continue",
+                            taskId: tItem.taskId,
+                            connectionId: tItem.connectionId,
+                            transactionType: "statutory_merger_ccc_1238_zero_boot",
+                          })
+                        }
+                        style={{ padding: "6px 12px", fontSize: "12px" }}
+                      >
+                        {isTh
+                          ? "ตอบคำถามข้อเท็จจริงเพิ่มเติม (Resume Task) →"
+                          : "Supply Missing Fact & Resume Task →"}
+                      </button>
+                    )}
+                </div>
+
+                <div style={{ fontWeight: 700, fontSize: "15px" }}>{tItem.request.question}</div>
+
+                {tItem.evidencePack && (
+                  <div
+                    style={{
+                      padding: "12px 14px",
+                      background: "var(--color-bg)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: "8px",
+                      fontSize: "13px",
+                    }}
+                  >
+                    <div>
+                      <strong>1. Answer & Outcome ({tItem.evidencePack.outcome}):</strong>{" "}
+                      {tItem.evidencePack.summary}
+                    </div>
+                    {tItem.evidencePack.claims?.length > 0 && (
+                      <div>
+                        <strong>
+                          2. Verified Claims & Source Classes ({tItem.evidencePack.claims.length}):
+                        </strong>
+                        <ul style={{ margin: "4px 0 0 18px", padding: 0 }}>
+                          {tItem.evidencePack.claims.map(
+                            (cl: {
+                              claimId: string;
+                              sourceRole: string;
+                              proposition: string;
+                              supportAssessment: string;
+                            }) => (
+                              <li key={cl.claimId} style={{ marginBottom: "4px" }}>
+                                <code>[{cl.sourceRole}]</code> ({cl.supportAssessment}):{" "}
+                                {cl.proposition}
+                              </li>
+                            )
+                          )}
+                        </ul>
+                      </div>
+                    )}
+                    {tItem.evidencePack.missingFacts?.length > 0 && (
+                      <div style={{ color: "var(--color-accent-700)" }}>
+                        <strong>3. Missing Facts Required (Clarification):</strong>{" "}
+                        {tItem.evidencePack.missingFacts[0].questionText}
+                      </div>
+                    )}
+                    <div style={{ fontSize: "11.5px", opacity: 0.75 }}>
+                      Manifest: <code>{tItem.evidencePack.provenance.manifestRef}</code> · SHA-256:{" "}
+                      <code>{tItem.evidencePack.provenance.contentDigestSha256.slice(0, 24)}…</code>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {/* VIEW 4: APPROVALS */}
+      {view === "approvals" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ fontSize: "13.5px", opacity: 0.8 }}>
+              {isTh
+                ? "การส่งต่องานไปยังแอปในเครือ 24 (LAW24, CFO24, TP24) ในโหมด Supervised ต้องได้รับการอนุมัติขอบเขตข้อมูลและงบประมาณก่อนเสมอ"
+                : "Supervised outbound handoffs require explicit human approval bound to taskId, planRevision, recipient, and budget ceiling."}
+            </div>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() =>
+                postA2AAction({
+                  action: "message:send",
+                  connectionId: "conn.law24.prod.02",
+                  skillId: "reg24.workflow.handoff.v1",
+                  targetPartnerApp: "LAW24",
+                  question:
+                    "Prepare draft LAW24 corporate merger checklist from verified CCC Sec. 1238 & RD Ruling 462/2569 pack",
+                })
+              }
+              style={{ padding: "7px 12px", fontSize: "12.5px" }}
+            >
+              {isTh ? "+ สร้างคำขอส่งต่องานไปยัง LAW24" : "+ Queue New LAW24 Handoff Approval"}
+            </button>
+          </div>
+
+          {approvals.map(
+            (a: {
+              approvalId: string;
+              taskId: string;
+              planRevision: number;
+              recipientPartnerId: string;
+              permittedDataFields: string[];
+              budgetMinor: number;
+              status: string;
+            }) => (
+              <div
+                key={a.approvalId}
+                style={{
+                  padding: "16px 20px",
+                  background: "var(--color-surface)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: "14px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <div
+                    style={{
+                      font: "600 11px ui-monospace,Menlo,monospace",
+                      color: "var(--color-accent-700)",
+                    }}
+                  >
+                    {a.approvalId} · TASK: {a.taskId} · REV {a.planRevision} · STATUS:{" "}
+                    {a.status.toUpperCase()}
+                  </div>
+                  <div style={{ fontWeight: 700, fontSize: "14.5px", marginTop: "3px" }}>
+                    Recipient: {a.recipientPartnerId} · Ceiling: THB{" "}
+                    {(a.budgetMinor / 100).toFixed(2)}
+                  </div>
+                  <div style={{ fontSize: "12px", opacity: 0.75 }}>
+                    Disclosed Fields: {a.permittedDataFields.join(", ")}
+                  </div>
+                </div>
+                {a.status === "pending" && (
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() =>
+                        postA2AAction({
+                          action: "approvals:decide",
+                          approvalId: a.approvalId,
+                          decision: "approve",
+                        })
+                      }
+                      style={{ padding: "6px 12px", fontSize: "12px" }}
+                    >
+                      {isTh ? "อนุมัติและส่งต่อ" : "Approve & Dispatch"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() =>
+                        postA2AAction({
+                          action: "approvals:decide",
+                          approvalId: a.approvalId,
+                          decision: "reject",
+                        })
+                      }
+                      style={{ padding: "6px 12px", fontSize: "12px" }}
+                    >
+                      {isTh ? "ปฏิเสธ" : "Reject"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            )
+          )}
+        </div>
+      )}
+
+      {/* VIEW 5: USAGE LEDGER, WOW FEATURES & DEVELOPER ONBOARDING */}
+      {view === "usage" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          <div
+            style={{
+              padding: "16px 20px",
+              background: "var(--color-surface)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, fontSize: "14.5px" }}>
+                {isTh
+                  ? "Section 14.1 & 14.3 — ทดสอบการตรวจสอบ Evidence Passport & เรดาร์แจ้งเตือนแก้ไขกฎหมาย"
+                  : "Section 14.1 & 14.3 — Evidence Passport Tamper Check & Legal Change Radar"}
+              </div>
+              {passportCheckMsg && (
+                <div
+                  style={{
+                    font: "600 12px ui-monospace,Menlo,monospace",
+                    color: "var(--color-accent-700)",
+                    marginTop: "4px",
+                  }}
+                >
+                  {passportCheckMsg}
+                </div>
+              )}
+            </div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={async () => {
+                  const res = await postA2AAction({ action: "evidence:verify", tamperByte: false });
+                  if (res?.verification) {
+                    setPassportCheckMsg(res.verification.verificationNotice);
+                  }
+                }}
+                style={{ fontSize: "12px", padding: "6px 10px" }}
+              >
+                {isTh ? "ตรวจ Evidence Passport (ปกติ)" : "Verify Intact Pack"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={async () => {
+                  const res = await postA2AAction({ action: "evidence:verify", tamperByte: true });
+                  if (res?.verification) {
+                    setPassportCheckMsg(res.verification.verificationNotice);
+                  }
+                }}
+                style={{ fontSize: "12px", padding: "6px 10px" }}
+              >
+                {isTh ? "จำลองการแก้ไขไบต์ (Tamper Test)" : "Simulate Tampered Byte (A25)"}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => postA2AAction({ action: "watch:trigger" })}
+                style={{ fontSize: "12px", padding: "6px 10px" }}
+              >
+                {isTh ? "จำลองการแก้ไขกฎหมาย (Change Radar)" : "Trigger Legal Change Radar (A24)"}
+              </button>
+            </div>
+          </div>
+
+          {/* Minor-Unit Usage Ledger */}
+          <div style={{ padding: "16px 20px", background: "var(--color-surface)" }}>
+            <div style={{ fontWeight: 700, fontSize: "14.5px", marginBottom: "10px" }}>
+              {isTh
+                ? "สมุดบัญชีงบประมาณรายคำสั่ง (Integer Minor-Unit THB Usage Ledger — REQ COST 01..04)"
+                : "Idempotent Task Usage Ledger (Integer Minor Units — THB)"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              {ledger.slice(0, 8).map(
+                (l: {
+                  chargeKey: string;
+                  taskId: string;
+                  entryType: string;
+                  totalAmountMinor: number;
+                  currency: string;
+                }) => (
+                  <div
+                    key={l.chargeKey}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      padding: "6px 10px",
+                      background: "var(--color-bg)",
+                      font: "12px ui-monospace,Menlo,monospace",
+                    }}
+                  >
+                    <span>
+                      {l.chargeKey} · {l.entryType.toUpperCase()}
+                    </span>
+                    <span>
+                      {l.currency} {(l.totalAmountMinor / 100).toFixed(2)} ({l.totalAmountMinor}{" "}
+                      minor)
+                    </span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+
+          {/* Tested Client Compatibility Matrix (Section 3.4) */}
+          <div style={{ padding: "16px 20px", background: "var(--color-surface)" }}>
+            <div style={{ fontWeight: 700, fontSize: "14.5px", marginBottom: "10px" }}>
+              {isTh
+                ? "ตารางความเข้ากันได้ของไคลเอนต์ที่ผ่านการทดสอบจริง (Section 3.4 Compatibility Matrix)"
+                : "Section 3.4 Verified Client Compatibility Matrix"}
+            </div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              {matrix.map(
+                (m: {
+                  clientName: string;
+                  version: string;
+                  integrationMode: string;
+                  status: string;
+                  notes: string;
+                }) => (
+                  <div
+                    key={m.clientName}
+                    style={{
+                      padding: "8px 12px",
+                      background: "var(--color-bg)",
+                      fontSize: "12.5px",
+                    }}
+                  >
+                    <strong>
+                      [{m.status.toUpperCase()}] {m.clientName} ({m.version})
+                    </strong>{" "}
+                    — {m.integrationMode} · <span style={{ opacity: 0.75 }}>{m.notes}</span>
+                  </div>
+                )
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
