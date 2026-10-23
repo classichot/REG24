@@ -7,6 +7,7 @@ import {
   ModernistKnowledgeLibrarySection,
   ModernistThLexGraphAndVersionDiffSection,
   ModernistA2AConnectionsConsole,
+  ModernistUniversalAIConnectivitySection,
   ModernistModuleModal,
   ModernistMcpPlaygroundModal,
   type DatabaseRecordDetail,
@@ -32,7 +33,15 @@ type NavKey =
   | "control"
   | "modules";
 type ScopeMode = "all" | "rd" | "dika";
-type ProviderKey = "chatgpt" | "claude" | "gemini" | "qwen" | "deepseek";
+type ProviderKey =
+  | "chatgpt"
+  | "claude"
+  | "gemini"
+  | "grok"
+  | "qwen"
+  | "deepseek"
+  | "kimi"
+  | "other_mcp_client";
 type PriorityKey = "best" | "balanced" | "cost";
 type ModelKey = "auto" | "gemini" | "claude" | "gpt";
 
@@ -400,6 +409,13 @@ const PROV: Record<ProviderKey, [string, string, string, string, string]> = {
     MCP_URL,
     `mcp_servers: [\n  {\n    "name": "reg24",\n    "url": "${MCP_URL}"\n  }\n]`,
   ],
+  grok: [
+    "xAI Grok",
+    "xAI",
+    "Remote MCP & xAI Function-Calling Adapter Bridge",
+    `${MCP_URL}?format=provider_adapter&provider=grok`,
+    `{\n  "model": "grok-4",\n  "mcp_server": "${MCP_URL}",\n  "adapter_schema": "${MCP_URL}?format=provider_adapter&provider=grok"\n}`,
+  ],
   qwen: [
     "Qwen",
     "Alibaba Cloud",
@@ -413,6 +429,20 @@ const PROV: Record<ProviderKey, [string, string, string, string, string]> = {
     "Function calling through application orchestration",
     `${MCP_URL}?format=deepseek_tools`,
     `{\n  "model": "deepseek-reasoner",\n  "tools_schema_endpoint":\n    "${MCP_URL}?format=deepseek_tools"\n}`,
+  ],
+  kimi: [
+    "Moonshot Kimi",
+    "Moonshot AI",
+    "Kimi K2 Function-Calling & Long-Context Legal Adapter",
+    `${MCP_URL}?format=provider_adapter&provider=kimi`,
+    `{\n  "model": "kimi-k2-instruct",\n  "tools_schema_endpoint":\n    "${MCP_URL}?format=provider_adapter&provider=kimi"\n}`,
+  ],
+  other_mcp_client: [
+    "Other MCP Client",
+    "Standards-Compliant MCP Host",
+    "Streamable HTTP (2025-11-25 / 2025-06-18 / 2025-03-26) + OAuth 2.1 PKCE",
+    MCP_URL,
+    `{\n  "mcpServers": {\n    "reg24": {\n      "transport": "streamable-http",\n      "url": "${MCP_URL}"\n    }\n  }\n}`,
   ],
 };
 
@@ -5435,6 +5465,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                 </aside>
               </div>
 
+              <ModernistUniversalAIConnectivitySection isTh={isTh} />
               <ModernistA2AConnectionsConsole isTh={isTh} />
             </main>
           )}

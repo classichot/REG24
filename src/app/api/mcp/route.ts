@@ -13,6 +13,13 @@ import {
   UniversalAIProviderId,
 } from "@/core/mcp/universal-mcp-gateway";
 import {
+  universalAIConnectivityEngine,
+  CANONICAL_11_TOOLS_CATALOG,
+  UNIVERSAL_PROVIDER_PROFILES,
+  type CanonicalToolName,
+  type UniversalProviderId,
+} from "@/core/mcp/universal-ai-connectivity-engine";
+import {
   agenticLegalResearchOrchestrator,
   verifyLegalCitationsAndClaims,
   type RequestedResearchModeInput,
@@ -753,7 +760,17 @@ export const MCP_TOOLS_CATALOG = [
       },
     },
   },
+  // Universal AI Connectivity v1.0 (Section 6 — 11 Canonical Tools across all 7 Named Providers)
+  ...CANONICAL_11_TOOLS_CATALOG.map((tool) => ({
+    name: tool.name,
+    description: `[Universal AI Connectivity v1.0 · ${tool.effect_class} · scopes:${tool.required_scopes.join(",")}] ${tool.description_en}`,
+    inputSchema: tool.input_schema,
+  })),
 ];
+
+const CANONICAL_11_TOOL_NAMES = new Set<string>(
+  CANONICAL_11_TOOLS_CATALOG.map((t) => t.name)
+);
 
 const LFDE_MCP_TOOL_NAMES = new Set<string>([
   "reg24.search_legal_templates",
@@ -1307,23 +1324,46 @@ export async function GET(req: NextRequest) {
     });
   }
 
+  if (format === "provider_adapter") {
+    const targetProvider = (req.nextUrl.searchParams.get("provider") || "grok") as UniversalProviderId;
+    return NextResponse.json({
+      prd_id: "REG24-UNIVERSAL-AI-CONNECTIVITY-V1",
+      specification_date: "2026-10-24",
+      provider: targetProvider,
+      projected_tools: universalAIConnectivityEngine.projectToolsForProvider(targetProvider),
+    });
+  }
+
   return NextResponse.json({
     protocol: "Model Context Protocol (MCP)",
     prd_id: "REG24-UNIVERSAL-MCP-001",
+    universal_connectivity_spec: "REG24 Universal AI Connectivity v1.0 (2026-10-24)",
     positioning: "REG24 — The Legal Intelligence Layer for Every AI",
     specification_version: "2026-07-28",
-    transport: "Streamable HTTP (JSON-RPC 2.0) + SSE Compatibility (/api/mcp/sse)",
+    transport: "Streamable HTTP (JSON-RPC 2.0) + SSE Compatibility (/api/mcp/sse) + Provider Adapter Bridge",
     server_info: {
       name: "reg24-universal-mcp-gateway",
-      version: "3.0.0",
+      version: "3.1.0",
       jurisdiction: "TH",
-      supported_ai_providers: ["OpenAI ChatGPT", "Anthropic Claude", "Google Gemini", "Alibaba Qwen", "DeepSeek"],
+      supported_ai_providers: [
+        "OpenAI (ChatGPT / Responses API)",
+        "Anthropic Claude",
+        "Google Gemini",
+        "xAI Grok",
+        "Alibaba Qwen",
+        "DeepSeek",
+        "Moonshot Kimi",
+        "Other MCP Client (Extension Path)",
+      ],
+      named_provider_profiles: UNIVERSAL_PROVIDER_PROFILES,
       connected_consumers: [
         "ChatGPT",
         "Claude",
         "Gemini",
+        "Grok",
         "Qwen",
         "DeepSeek",
+        "Kimi",
         "LAW24",
         "CFO24",
         "ACC24",
@@ -1338,6 +1378,7 @@ export async function GET(req: NextRequest) {
       ],
     },
     universal_mcp_gateway: universalMcpGateway.getGatewaySnapshot(),
+    canonical_11_tools: CANONICAL_11_TOOLS_CATALOG,
     tools: MCP_TOOLS_CATALOG,
   });
 }
@@ -1388,6 +1429,42 @@ export async function POST(req: NextRequest) {
       if (method === "tools/call") {
         const toolName = String(params?.name || "");
         const toolArgs: MCPCommonInput = params?.arguments || {};
+
+        if (CANONICAL_11_TOOL_NAMES.has(toolName)) {
+          const connectionId = String(
+            body.connection_id ||
+              (toolArgs as Record<string, unknown>).connection_id ||
+              req.headers.get("x-reg24-connection-id") ||
+              "uconn.claude.law24.01"
+          );
+          const protocolProfile =
+            body.protocol_profile ||
+            req.headers.get("mcp-protocol-version") ||
+            undefined;
+          const envelope = universalAIConnectivityEngine.executeCanonicalTool({
+            connection_id: connectionId,
+            tool_name: toolName as CanonicalToolName,
+            arguments: toolArgs as Record<string, unknown>,
+            protocol_profile: protocolProfile ? String(protocolProfile) : undefined,
+            idempotency_key:
+              req.headers.get("idempotency-key") ||
+              ((toolArgs as Record<string, unknown>).request_key as string | undefined),
+          });
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(envelope, null, 2),
+                },
+              ],
+              structuredContent: envelope,
+              isError: envelope.status === "failed",
+            },
+          });
+        }
 
         if (UNIVERSAL_10_TOOL_NAMES.has(toolName)) {
           const evPkg = universalMcpGateway.executeUniversalTool(
@@ -1499,6 +1576,28 @@ export async function POST(req: NextRequest) {
     // Direct REST-style MCP tool call
     const toolName = String(body.tool || body.name || "reg24.list_modules");
     const input: MCPCommonInput = body.input || body.arguments || body;
+
+    if (CANONICAL_11_TOOL_NAMES.has(toolName)) {
+      const connectionId = String(
+        body.connection_id ||
+          (input as Record<string, unknown>).connection_id ||
+          req.headers.get("x-reg24-connection-id") ||
+          "uconn.claude.law24.01"
+      );
+      const envelope = universalAIConnectivityEngine.executeCanonicalTool({
+        connection_id: connectionId,
+        tool_name: toolName as CanonicalToolName,
+        arguments: input as Record<string, unknown>,
+        protocol_profile:
+          body.protocol_profile ||
+          req.headers.get("mcp-protocol-version") ||
+          undefined,
+        idempotency_key:
+          req.headers.get("idempotency-key") ||
+          ((input as Record<string, unknown>).request_key as string | undefined),
+      });
+      return NextResponse.json(envelope);
+    }
 
     if (UNIVERSAL_10_TOOL_NAMES.has(toolName)) {
       const evPkg = universalMcpGateway.executeUniversalTool(

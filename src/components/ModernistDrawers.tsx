@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 
 export interface DatabaseRecordDetail {
   code: string;
@@ -2836,6 +2836,421 @@ export function ModernistA2AConnectionsConsole({ isTh }: { isTh: boolean }) {
           </div>
         </div>
       )}
+    </section>
+  );
+}
+
+// ============================================================================
+// SECTION 13: UNIVERSAL AI CONNECTIVITY CONSOLE (7 NAMED PROVIDERS + 11 TOOLS + AT01..AT36)
+// ============================================================================
+
+export function ModernistUniversalAIConnectivitySection({
+  isTh,
+}: {
+  isTh: boolean;
+}) {
+  const [data, setData] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState<string>("claude");
+  const [selectedTool, setSelectedTool] = useState<string>("search");
+  const [queryInput, setQueryInput] = useState<string>("มาตรา 1097 จัดตั้งบริษัทจำกัด");
+  const [outputLang, setOutputLang] = useState<"th" | "en" | "zh-Hans">("th");
+  const [asOfDate, setAsOfDate] = useState<string>("2026-10-24");
+  const [toolResult, setToolResult] = useState<Record<string, unknown> | null>(null);
+  const [healthTestResult, setHealthTestResult] = useState<Record<string, unknown> | null>(null);
+  const [runningTool, setRunningTool] = useState(false);
+
+  const loadSnapshot = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/v1/universal-connectivity?action=dashboard");
+      const json = await res.json();
+      setData(json);
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSnapshot();
+  }, [loadSnapshot]);
+
+  const executeLiveCanonicalTool = async () => {
+    setRunningTool(true);
+    try {
+      const args: Record<string, unknown> =
+        selectedTool === "search"
+          ? { query: queryInput, as_of_date: asOfDate, output_language: outputLang, top_k: 5 }
+          : selectedTool === "fetch"
+            ? {
+                source_id: "src.th.ccc.sec1097",
+                version_id: "ver.2023.02.07",
+                passage_id: "psg.ccc.1097.1",
+                output_language: outputLang,
+              }
+            : selectedTool === "check_applicability"
+              ? {
+                  facts: { promoters: 2, foreign_shareholding_pct: 49, activity: "software" },
+                  question: queryInput,
+                  as_of_date: asOfDate,
+                  output_language: outputLang,
+                }
+              : selectedTool === "compare_interpretations"
+                ? {
+                    issue: queryInput,
+                    authority_scope: ["statute", "supreme_court", "revenue_ruling", "commentary"],
+                    as_of_date: asOfDate,
+                    output_language: outputLang,
+                  }
+                : selectedTool === "research_issue"
+                  ? {
+                      question: queryInput,
+                      facts: { promoters: 2, foreign_shareholding_pct: 49 },
+                      as_of_date: asOfDate,
+                      output_language: outputLang,
+                      budget: { max_minor_units: 2500, currency: "THB" },
+                      request_key: `ui_req_${Date.now()}`,
+                    }
+                  : { output_language: outputLang };
+
+      const res = await fetch("/api/v1/universal-connectivity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "execute_tool",
+          connection_id: "uconn.claude.law24.01",
+          tool_name: selectedTool,
+          arguments: args,
+        }),
+      });
+      const json = await res.json();
+      setToolResult(json);
+    } catch {
+      // ignore
+    } finally {
+      setRunningTool(false);
+    }
+  };
+
+  const run5StepHealthCheck = async (connectionId: string) => {
+    try {
+      const res = await fetch("/api/v1/universal-connectivity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test_connection",
+          connection_id: connectionId,
+        }),
+      });
+      const json = await res.json();
+      setHealthTestResult(json);
+    } catch {
+      // ignore
+    }
+  };
+
+  const dashboard = (data?.dashboard || {}) as Record<string, unknown>;
+  const providers = Array.isArray(dashboard.providers) ? dashboard.providers : [];
+  const tools = Array.isArray(dashboard.canonical_tools) ? dashboard.canonical_tools : [];
+  const cert = (data?.certification || {}) as {
+    all36Passed?: boolean;
+    passedCount?: number;
+    totalTests?: number;
+    results?: Array<{ testId: string; scenario: string; passed: boolean }>;
+  };
+  const activeProfile =
+    providers.find((p: { provider_id: string }) => p.provider_id === selectedProvider) || providers[0];
+
+  return (
+    <section
+      aria-label="Universal AI Connectivity v1.0 Console"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "20px",
+        padding: "24px",
+        background: "var(--color-surface)",
+        borderTop: "2px solid var(--color-text)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: "12px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "11.5px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              color: "var(--accent-ink)",
+            }}
+          >
+            {isTh
+              ? "REG24 UNIVERSAL AI CONNECTIVITY v1.0 (7 ผู้ให้บริการหลัก + 11 เครื่องมือมาตรฐาน)"
+              : "REG24 UNIVERSAL AI CONNECTIVITY v1.0 · 7 NAMED PROVIDERS + 11 CANONICAL TOOLS"}
+          </div>
+          <h3 style={{ margin: "4px 0 0", fontSize: "20px", fontWeight: 700 }}>
+            {isTh
+              ? "เชื่อมต่อ AI ของคุณ (OpenAI · Claude · Gemini · Grok · Qwen · DeepSeek · Kimi + Other MCP)"
+              : "Connect Your AI (OpenAI · Claude · Gemini · Grok · Qwen · DeepSeek · Kimi + Other MCP)"}
+          </h3>
+        </div>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+          <span
+            style={{
+              padding: "6px 10px",
+              fontSize: "12px",
+              fontWeight: 700,
+              background: "var(--color-bg)",
+              fontFamily: "var(--font-mono, monospace)",
+            }}
+          >
+            {cert.all36Passed
+              ? `CERTIFIED AT01–AT36 (${cert.passedCount || 36}/${cert.totalTests || 36} PASS)`
+              : loading
+                ? "Verifying..."
+                : "AT01–AT36 Ready"}
+          </span>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => run5StepHealthCheck("uconn.claude.law24.01")}
+            style={{ padding: "6px 12px", fontSize: "12px" }}
+          >
+            {isTh ? "ทดสอบสุขภาพการเชื่อมต่อ 5 ขั้นตอน" : "Run 5-Step Connection Test"}
+          </button>
+        </div>
+      </div>
+
+      {/* 7 Named Providers + Extension Path Card Grid (Section 3 & Section 13.1) */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+          gap: "10px",
+        }}
+      >
+        {providers.map(
+          (p: {
+            provider_id: string;
+            provider_display_name: string;
+            route: string;
+            transport: string;
+            status: string;
+            model_id: string;
+          }) => {
+            const isSel = p.provider_id === selectedProvider;
+            return (
+              <button
+                key={p.provider_id}
+                type="button"
+                onClick={() => setSelectedProvider(p.provider_id)}
+                style={{
+                  textAlign: "left",
+                  padding: "12px 14px",
+                  border: isSel ? "2px solid var(--color-text)" : "1px solid var(--color-divider)",
+                  background: isSel ? "var(--color-bg)" : "transparent",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <strong style={{ fontSize: "13.5px" }}>{p.provider_display_name}</strong>
+                  <span
+                    style={{
+                      fontSize: "10.5px",
+                      fontWeight: 700,
+                      textTransform: "uppercase",
+                      color: "var(--accent-ink)",
+                    }}
+                  >
+                    {p.status}
+                  </span>
+                </div>
+                <span style={{ fontSize: "11.5px", opacity: 0.75 }}>
+                  {p.route} · {p.transport}
+                </span>
+                <code style={{ fontSize: "11px", opacity: 0.65 }}>{p.model_id}</code>
+              </button>
+            );
+          }
+        )}
+      </div>
+
+      {/* Selected Provider Compatibility & 5-Step Guided Setup */}
+      {activeProfile && (
+        <div
+          style={{
+            padding: "14px 16px",
+            background: "var(--color-bg)",
+            display: "flex",
+            flexDirection: "column",
+            gap: "8px",
+            fontSize: "12.5px",
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+            <strong>
+              {(activeProfile as { provider_display_name: string }).provider_display_name} —{" "}
+              {(activeProfile as { transport: string }).transport}
+            </strong>
+            <span style={{ fontFamily: "var(--font-mono, monospace)" }}>
+              Max Payload: {Math.round((((activeProfile as { result_limits?: { maxResponseBytes?: number } }).result_limits?.maxResponseBytes) || 65536) / 1024)} KiB ·
+              Verified: {(activeProfile as { last_tested_at: string }).last_tested_at}
+            </span>
+          </div>
+          <div style={{ opacity: 0.85 }}>
+            {(activeProfile as { setup_guide_en?: string; setup_guide_th?: string })[
+              isTh ? "setup_guide_th" : "setup_guide_en"
+            ]}
+          </div>
+          <pre
+            style={{
+              margin: 0,
+              padding: "10px 12px",
+              background: "var(--color-surface)",
+              fontSize: "11.5px",
+              overflowX: "auto",
+            }}
+          >
+            {(activeProfile as { config_snippet: string }).config_snippet}
+          </pre>
+        </div>
+      )}
+
+      {/* 5-Step Connection Health Test Output */}
+      {healthTestResult && (
+        <div style={{ padding: "12px 16px", background: "var(--color-bg)", fontSize: "12.5px" }}>
+          <strong>
+            {isTh ? "ผลการทดสอบสุขภาพการเชื่อมต่อ 5 ขั้นตอน:" : "5-Step Connection Health Test:"}{" "}
+            {healthTestResult.overall_passed ? "PASSED" : "FAILED"}
+          </strong>
+          <div style={{ marginTop: "4px", opacity: 0.85 }}>
+            {String(healthTestResult.summary || "")}
+          </div>
+        </div>
+      )}
+
+      {/* Interactive 11 Canonical Tools & Multilingual Envelope Tester (Section 6 & 7) */}
+      <div
+        style={{
+          padding: "16px",
+          background: "var(--color-bg)",
+          display: "flex",
+          flexDirection: "column",
+          gap: "12px",
+        }}
+      >
+        <div style={{ fontWeight: 700, fontSize: "14px" }}>
+          {isTh
+            ? "ทดสอบ 11 เครื่องมือมาตรฐาน & ซองผลลัพธ์ 3 ภาษา (Thai / English / 简体中文)"
+            : "Interactive 11 Canonical Tools & Multilingual Result Envelope Tester (th / en / zh-Hans)"}
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+          <select
+            aria-label={isTh ? "เลือกเครื่องมือมาตรฐาน" : "Select canonical tool"}
+            value={selectedTool}
+            onChange={(e) => setSelectedTool(e.target.value)}
+            style={{
+              padding: "8px 10px",
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              border: "1px solid var(--color-divider)",
+              fontSize: "12.5px",
+            }}
+          >
+            {tools.map((tl: { name: string; effect_class: string }) => (
+              <option key={tl.name} value={tl.name}>
+                {tl.name} ({tl.effect_class})
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label={isTh ? "ภาษาผลลัพธ์" : "Output language"}
+            value={outputLang}
+            onChange={(e) => setOutputLang(e.target.value as "th" | "en" | "zh-Hans")}
+            style={{
+              padding: "8px 10px",
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              border: "1px solid var(--color-divider)",
+              fontSize: "12.5px",
+            }}
+          >
+            <option value="th">ภาษาไทย (th — Authoritative)</option>
+            <option value="en">English (en — Labeled Translation)</option>
+            <option value="zh-Hans">简体中文 (zh-Hans — Labeled Translation)</option>
+          </select>
+          <input
+            type="date"
+            aria-label={isTh ? "วันที่มีผลบังคับใช้" : "Effective date (as_of_date)"}
+            value={asOfDate}
+            onChange={(e) => setAsOfDate(e.target.value)}
+            style={{
+              padding: "7px 10px",
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              border: "1px solid var(--color-divider)",
+              fontSize: "12.5px",
+            }}
+          />
+          <input
+            type="text"
+            aria-label={isTh ? "คำค้นหาหรือประเด็นข้อกฎหมาย" : "Legal query or issue"}
+            value={queryInput}
+            onChange={(e) => setQueryInput(e.target.value)}
+            style={{
+              flex: "1 1 220px",
+              padding: "8px 10px",
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              border: "1px solid var(--color-divider)",
+              fontSize: "12.5px",
+            }}
+          />
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={runningTool}
+            onClick={executeLiveCanonicalTool}
+            style={{ padding: "8px 14px", fontSize: "12.5px" }}
+          >
+            {runningTool
+              ? isTh
+                ? "กำลังประมวลผล..."
+                : "Executing..."
+              : isTh
+                ? "เรียกใช้เครื่องมือ"
+                : "Invoke Canonical Tool"}
+          </button>
+        </div>
+
+        {toolResult && (
+          <pre
+            style={{
+              margin: 0,
+              padding: "12px",
+              background: "var(--color-surface)",
+              fontSize: "11.5px",
+              maxHeight: "260px",
+              overflow: "auto",
+            }}
+          >
+            {JSON.stringify(toolResult, null, 2)}
+          </pre>
+        )}
+      </div>
     </section>
   );
 }
