@@ -9,6 +9,11 @@ import {
   ModernistMcpPlaygroundModal,
   type DatabaseRecordDetail,
 } from "@/components/ModernistDrawers";
+import {
+  LfdeDocumentsScreen,
+  LfdeFormLibrarySection,
+  LfdeCuratorConsoleSection,
+} from "@/components/lfde/LfdeWorkspace";
 
 type ThemeMode = "dark" | "light";
 type AccentMode = "electric" | "chartreuse" | "highlighter" | "volt";
@@ -17,6 +22,7 @@ type LangMode = "th" | "en";
 type NavKey =
   | "research"
   | "workspace"
+  | "documents"
   | "databases"
   | "notebook"
   | "mcp"
@@ -46,6 +52,7 @@ const T = {
   th: {
     research: "ค้นคว้า",
     workspace: "พื้นที่ทำงาน",
+    documents: "เอกสารกฎหมาย",
     databases: "ฐานข้อมูล",
     mcp: "เชื่อมต่อ AI (MCP)",
     developer: "นักพัฒนา",
@@ -109,6 +116,7 @@ const T = {
   en: {
     research: "Research",
     workspace: "Workspace",
+    documents: "Documents",
     databases: "Databases",
     mcp: "Connect AI (MCP)",
     developer: "Developer",
@@ -686,6 +694,7 @@ export default function Reg24ModernistPage() {
 
   // G6: Live MCP JSON-RPC 2.0 Playground modal & live AuraDB health telemetry
   const [mcpPlaygroundOpen, setMcpPlaygroundOpen] = useState<boolean>(false);
+  const [lfdeInitialObjective, setLfdeInitialObjective] = useState<string>("");
   const [liveGraphStats, setLiveGraphStats] = useState<{
     nodes: string;
     orphans: string;
@@ -1346,22 +1355,23 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
       items: [
         sideItem("research", "01", ""),
         sideItem("workspace", "02", String(sessionsList.length)),
-        sideItem("databases", "03", "38"),
+        sideItem("documents", "03", "LFDE"),
+        sideItem("databases", "04", "38"),
       ],
     },
     {
       label: "AI",
       items: [
-        sideItem("notebook", "04", String(NB.length)),
-        sideItem("mcp", "05", String(Object.keys(PROV).length)),
+        sideItem("notebook", "05", String(NB.length)),
+        sideItem("mcp", "06", String(Object.keys(PROV).length)),
       ],
     },
     {
       label: t.gPlatform,
       items: [
-        sideItem("developer", "06", ""),
-        sideItem("control", "07", ""),
-        sideItem("modules", "08", "16"),
+        sideItem("developer", "07", ""),
+        sideItem("control", "08", ""),
+        sideItem("modules", "09", "16"),
       ],
     },
   ];
@@ -1369,6 +1379,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
   const PM: Record<NavKey, string> = {
     research: "WEB-001",
     workspace: "WS-15",
+    documents: "LFDE-V2",
     databases: "SCR-A",
     notebook: "NB-LM",
     mcp: "SCR-G",
@@ -1379,6 +1390,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
   const GRP: Record<NavKey, string> = {
     research: t.gResearch,
     workspace: t.gResearch,
+    documents: t.gResearch,
     databases: t.gResearch,
     notebook: "AI",
     mcp: "AI",
@@ -1666,6 +1678,46 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                     <path d="M18.4 2.6a2.1 2.1 0 1 1 3 3L12 15l-4 1 1-4Z" />
                   </svg>
                   {navItem("workspace").on && <span>{t.workspace}</span>}
+                </button>
+
+                {/* Documents (LFDE v2.0) */}
+                <button
+                  type="button"
+                  onClick={navItem("documents").go}
+                  title={t.documents}
+                  aria-label={t.documents}
+                  className="rg-hover-text"
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    height: "36px",
+                    padding: "0 10px",
+                    border: 0,
+                    cursor: "pointer",
+                    flex: "none",
+                    font: "600 13px var(--font-body)",
+                    background: navItem("documents").bg,
+                    color: navItem("documents").fg,
+                  }}
+                >
+                  <svg
+                    width="17"
+                    height="17"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.9"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+                    <path d="M14 2v6h6" />
+                    <path d="M16 13H8" />
+                    <path d="M16 17H8" />
+                    <path d="M10 9H8" />
+                  </svg>
+                  {navItem("documents").on && <span>{t.documents}</span>}
                 </button>
 
                 {/* Databases */}
@@ -2995,6 +3047,19 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                         >
                           {result.note}
                         </p>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", paddingTop: "4px" }}>
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => {
+                              setLfdeInitialObjective(result.q);
+                              goto("documents");
+                            }}
+                            style={{ padding: "8px 14px", fontSize: "13px" }}
+                          >
+                            {isTh ? "สร้างเอกสารกฎหมายจากผลการค้นคว้านี้ (LFDE) →" : "Create legal document from research (LFDE) →"}
+                          </button>
+                        </div>
                       </>
                     )}
                   </section>
@@ -3650,6 +3715,19 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                           </div>
                         </div>
                         <p style={{ margin: 0, fontSize: "12.5px", color: MUT }}>{result.note}</p>
+                        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", paddingTop: "4px" }}>
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => {
+                              setLfdeInitialObjective(result.q);
+                              goto("documents");
+                            }}
+                            style={{ padding: "8px 14px", fontSize: "13px" }}
+                          >
+                            {isTh ? "สร้างเอกสารกฎหมายจากผลการค้นคว้านี้ (LFDE) →" : "Create legal document from research (LFDE) →"}
+                          </button>
+                        </div>
                       </>
                     )}
                   </section>
@@ -4286,9 +4364,39 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                     {P.handoffBtn[lang]}
                     <span>→</span>
                   </button>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() => {
+                      setLfdeInitialObjective(isTh ? curSession[3] : curSession[4]);
+                      goto("documents");
+                    }}
+                    style={{
+                      padding: "10px 14px",
+                      justifyContent: "space-between",
+                      fontSize: "13px",
+                      background: tint,
+                    }}
+                  >
+                    {isTh ? "สร้างเอกสารกฎหมาย (LFDE Studio)" : "Create legal document (LFDE Studio)"}
+                    <span>→</span>
+                  </button>
                 </aside>
               </div>
             </main>
+          )}
+
+          {/* ════════════════════════════════════════════════════════════════
+              SCREEN 2B: DOCUMENTS (LFDE v2.0 STUDIO)
+              ════════════════════════════════════════════════════════════════ */}
+          {nav === "documents" && (
+            <LfdeDocumentsScreen
+              isTh={isTh}
+              isMax={isMax}
+              initialObjective={lfdeInitialObjective}
+              onClearInitialObjective={() => setLfdeInitialObjective("")}
+              onAskAi={askWith}
+            />
           )}
 
           {/* ════════════════════════════════════════════════════════════════
@@ -4516,6 +4624,13 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
               </div>
 
               <ModernistKnowledgeLibrarySection isTh={isTh} onAskAi={askWith} />
+              <LfdeFormLibrarySection
+                isTh={isTh}
+                onOpenInDocuments={(_tplId, title) => {
+                  setLfdeInitialObjective(title);
+                  goto("documents");
+                }}
+              />
             </main>
           )}
 
@@ -4723,6 +4838,13 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
               )}
 
               <ModernistKnowledgeLibrarySection isTh={isTh} onAskAi={askWith} />
+              <LfdeFormLibrarySection
+                isTh={isTh}
+                onOpenInDocuments={(_tplId, title) => {
+                  setLfdeInitialObjective(title);
+                  goto("documents");
+                }}
+              />
             </main>
           )}
 
@@ -5802,6 +5924,8 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                   </div>
                 ))}
               </div>
+
+              <LfdeCuratorConsoleSection isTh={isTh} />
             </main>
           )}
 

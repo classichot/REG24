@@ -22,6 +22,13 @@ import {
   reusableLegalKnowledgeLibrary,
   type ConsumingApplicationId,
 } from "@/core/library/legal-knowledge-library";
+import { lfdeService } from "@/core/lfde/service";
+import { SEED_APPROVAL_GRANTS } from "@/core/lfde/fixtures";
+import {
+  LfdeException,
+  type TenantContext,
+  type RiskLevel,
+} from "@/core/lfde/types";
 
 export const MCP_TOOLS_CATALOG = [
   {
@@ -617,7 +624,373 @@ export const MCP_TOOLS_CATALOG = [
       },
     },
   },
+  // REG24-LFDE-V2-001 (Section 11.7): 9 Legal Form and Document Execution (LFDE) MCP Tools
+  {
+    name: "reg24.search_legal_templates",
+    description: "LFDE v2.0 (LFDE-API-002): Search published legal form and contract templates with domain, document type, language mode, and rights/license filtering",
+    inputSchema: {
+      type: "object",
+      properties: {
+        domain: { type: "string" },
+        doc_type: { type: "string" },
+        query: { type: "string" },
+        language_mode: { type: "string", enum: ["th", "en", "bilingual"] },
+      },
+    },
+  },
+  {
+    name: "reg24.inspect_template_fields",
+    description: "LFDE v2.0 (LFDE-API-002): Inspect typed template fields, clause slots, declarative rules, and pinned statutory authority snapshot",
+    inputSchema: {
+      type: "object",
+      required: ["template_id"],
+      properties: {
+        template_id: { type: "string" },
+        version: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.create_document_draft",
+    description: "LFDE v2.0 (LFDE-API-002): Create a new Legal DocumentCase draft bound to a verified template version and statutory authority snapshot",
+    inputSchema: {
+      type: "object",
+      required: ["template_id"],
+      properties: {
+        title: { type: "string" },
+        objective: { type: "string" },
+        domain: { type: "string" },
+        doc_type: { type: "string" },
+        template_id: { type: "string" },
+        template_version: { type: "string" },
+        matter_id: { type: "string" },
+        as_of_date: { type: "string" },
+        initial_facts: { type: "object" },
+        idempotency_key: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.update_document_facts",
+    description: "LFDE v2.0 (LFDE-API-002): Update and normalize typed document facts in the Fact Confirmation Ledger with optimistic If-Match ETag concurrency",
+    inputSchema: {
+      type: "object",
+      required: ["document_case_id", "facts"],
+      properties: {
+        document_case_id: { type: "string" },
+        if_match: { type: "string" },
+        facts: { type: "object" },
+        confirm_field_keys: { type: "array", items: { type: "string" } },
+        resolve_conflicts: { type: "object" },
+        idempotency_key: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.assemble_document",
+    description: "LFDE v2.0 (LFDE-API-002): Deterministically assemble a legal document revision from confirmed facts and approved clause versions, running layered validation",
+    inputSchema: {
+      type: "object",
+      required: ["document_case_id"],
+      properties: {
+        document_case_id: { type: "string" },
+        clause_overrides: { type: "object" },
+        confirm_high_risk_clauses: { type: "boolean" },
+        confirm_unverified_facts: { type: "boolean" },
+        idempotency_key: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.validate_document",
+    description: "LFDE v2.0 (LFDE-API-002): Execute the 6-layer deterministic legal, statutory, tax, cross-field, and placeholder validation gate",
+    inputSchema: {
+      type: "object",
+      required: ["document_case_id"],
+      properties: {
+        document_case_id: { type: "string" },
+        revision_no: { type: "number" },
+      },
+    },
+  },
+  {
+    name: "reg24.request_document_review",
+    description: "LFDE v2.0 (LFDE-API-002): Request human legal reviewer approval pinned to a specific DraftRevision and FactSnapshot",
+    inputSchema: {
+      type: "object",
+      required: ["document_case_id"],
+      properties: {
+        document_case_id: { type: "string" },
+        revision_no: { type: "number" },
+        reason: { type: "string" },
+        idempotency_key: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.export_document",
+    description: "LFDE v2.0 (LFDE-API-002): Export a legal document as a watermarked DRAFT or human-approved FINAL artifact with SHA-256 lineage manifest",
+    inputSchema: {
+      type: "object",
+      required: ["document_case_id"],
+      properties: {
+        document_case_id: { type: "string" },
+        format: { type: "string", enum: ["docx", "pdf", "json_manifest", "zip_package"], default: "docx" },
+        export_mode: { type: "string", enum: ["DRAFT", "FINAL"], default: "DRAFT" },
+        revision_no: { type: "number" },
+        idempotency_key: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.get_document_job",
+    description: "LFDE v2.0 (LFDE-API-002): Retrieve asynchronous LFDE job status, progress percentage, and output reference",
+    inputSchema: {
+      type: "object",
+      required: ["job_id"],
+      properties: {
+        job_id: { type: "string" },
+      },
+    },
+  },
 ];
+
+const LFDE_MCP_TOOL_NAMES = new Set<string>([
+  "reg24.search_legal_templates",
+  "reg24.inspect_template_fields",
+  "reg24.create_document_draft",
+  "reg24.update_document_facts",
+  "reg24.assemble_document",
+  "reg24.validate_document",
+  "reg24.request_document_review",
+  "reg24.export_document",
+  "reg24.get_document_job",
+]);
+
+function executeLfdeMcpTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  tenantId: string
+): Record<string, unknown> {
+  const effectiveTenant = tenantId || "tenant.law24.prod";
+  const ctx: TenantContext = {
+    subject_id: String(args.actor_id || "mcp.agent.caller"),
+    tenant_id: effectiveTenant,
+    application_id: String(args.app_id || "REG24_MCP"),
+    role: "legal_reviewer",
+    is_service_account: args.actor_type === "service",
+    scopes: [
+      "template:read",
+      "clause:read",
+      "document:create",
+      "document:read",
+      "document:edit",
+      "document:validate",
+      "document:request_review",
+      "document:export",
+    ],
+    matter_grants: ["*", "matter.law24.ma.2026.01", "matter.law24.corp.2026.02", "matter.law24.lease.2026.03"],
+    approval_grants: SEED_APPROVAL_GRANTS.filter((g) => g.tenant_id === effectiveTenant),
+    correlation_id: `mcp_corr_${Date.now()}`,
+    delegated_user_id: String(args.delegated_user_id || "counsel.somchai@law24.th"),
+  };
+
+  try {
+    lfdeService.verifyContext(ctx, undefined, args);
+    const idempotencyKey =
+      typeof args.idempotency_key === "string"
+        ? args.idempotency_key
+        : `mcp_idem_${toolName}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+
+    switch (toolName) {
+      case "reg24.search_legal_templates": {
+        const res = lfdeService.searchTemplates(ctx, {
+          domain: args.domain ? String(args.domain) : undefined,
+          family: args.doc_type ? String(args.doc_type) : undefined,
+          objective: args.query ? String(args.query) : undefined,
+          risk: (args.risk as RiskLevel | undefined) || undefined,
+        });
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          total: res.items.length,
+          templates: res.items,
+          coverage_gap: res.coverage_gap,
+        };
+      }
+      case "reg24.inspect_template_fields": {
+        const tplId = String(args.template_id || "tpl_nda_mutual_th");
+        const verId = String(args.version || "template_demo_nda_v1");
+        const version = lfdeService.getTemplateVersion(ctx, tplId, verId);
+        const clauses = lfdeService.listClauses(ctx, version.id);
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          version,
+          clauses,
+        };
+      }
+      case "reg24.create_document_draft": {
+        const created = lfdeService.createDocumentCase(ctx, idempotencyKey, {
+          matter_id: String(args.matter_id || "matter.law24.ma.2026.01"),
+          template_version_id: String(
+            args.template_version || args.template_id || "template_demo_nda_v1"
+          ),
+          objective: String(args.objective || "Draft legal execution document via MCP"),
+          legal_as_of_date: args.as_of_date ? String(args.as_of_date) : undefined,
+          transaction_date: args.as_of_date ? String(args.as_of_date) : undefined,
+        });
+        if (args.initial_facts && typeof args.initial_facts === "object") {
+          const changes = Object.entries(args.initial_facts as Record<string, unknown>).map(
+            ([field_key, value]) => ({
+              field_key,
+              value,
+              action: "confirm_candidate" as const,
+              confidence: 1.0,
+              source_evidence_id: "mcp_initial_facts",
+            })
+          );
+          if (changes.length > 0) {
+            const updated = lfdeService.updateDocumentFacts(
+              ctx,
+              `${idempotencyKey}_init`,
+              created.document.id,
+              created.document.etag,
+              { changes }
+            );
+            created.document = updated.document;
+          }
+        }
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          ...created,
+        };
+      }
+      case "reg24.update_document_facts": {
+        const docId = String(args.document_case_id || "");
+        const doc = lfdeService.getDocumentCase(ctx, docId);
+        const ifMatch = args.if_match ? String(args.if_match) : doc.etag;
+        const factsObj =
+          args.facts && typeof args.facts === "object"
+            ? (args.facts as Record<string, unknown>)
+            : {};
+        const changes = Object.entries(factsObj).map(([field_key, value]) => ({
+          field_key,
+          value,
+          action: "confirm_candidate" as const,
+          confidence: 1.0,
+          source_evidence_id: "mcp_fact_update",
+        }));
+        const updated = lfdeService.updateDocumentFacts(
+          ctx,
+          idempotencyKey,
+          docId,
+          ifMatch,
+          { changes }
+        );
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          ...updated,
+        };
+      }
+      case "reg24.assemble_document": {
+        const assembled = lfdeService.assembleDocument(
+          ctx,
+          idempotencyKey,
+          String(args.document_case_id || ""),
+          {
+            mode: "deterministic",
+          }
+        );
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          ...assembled,
+        };
+      }
+      case "reg24.validate_document": {
+        const assembled = lfdeService.assembleDocument(
+          ctx,
+          idempotencyKey,
+          String(args.document_case_id || ""),
+          {
+            mode: "deterministic",
+          }
+        );
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          validation_run: assembled.validation,
+          revision: assembled.revision,
+        };
+      }
+      case "reg24.request_document_review": {
+        const docId = String(args.document_case_id || "");
+        const doc = lfdeService.getDocumentCase(ctx, docId);
+        const reviewReq = lfdeService.submitReviewRequest(ctx, idempotencyKey, docId, {
+          revision_id: String(doc.current_revision_id || ""),
+          assigned_reviewers: ["approver.partner@law24.th"],
+        });
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          review_request: reviewReq,
+        };
+      }
+      case "reg24.export_document": {
+        const docId = String(args.document_case_id || "");
+        const doc = lfdeService.getDocumentCase(ctx, docId);
+        const rawMode = String(args.export_mode || "DRAFT").toLowerCase();
+        const mode: "draft" | "final" = rawMode === "final" ? "final" : "draft";
+        const rawFmt = String(args.format || "docx").toLowerCase();
+        const format: "docx" | "pdf" = rawFmt === "pdf" ? "pdf" : "docx";
+        const exported = lfdeService.createExportArtifact(ctx, idempotencyKey, docId, {
+          draft_revision_id: String(doc.current_revision_id || ""),
+          format,
+          mode,
+        });
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          export_artifact: exported,
+        };
+      }
+      case "reg24.get_document_job": {
+        const job = lfdeService.getJob(ctx, String(args.job_id || ""));
+        return {
+          status: "ok",
+          specification_id: "REG24-LFDE-V2-001",
+          tool: toolName,
+          job,
+        };
+      }
+      default:
+        return { status: "error", error: `Unsupported LFDE MCP tool: ${toolName}` };
+    }
+  } catch (err) {
+    if (err instanceof LfdeException) {
+      return {
+        status: "error",
+        ...err.envelope,
+        error: err.envelope.safe_message,
+      };
+    }
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : "LFDE MCP execution failed",
+    };
+  }
+}
 
 const KNOWLEDGE_LIBRARY_MCP_TOOL_NAMES = new Set<string>([
   "reg24_search_legal_commentary",
@@ -1083,6 +1456,28 @@ export async function POST(req: NextRequest) {
           });
         }
 
+        if (LFDE_MCP_TOOL_NAMES.has(toolName)) {
+          const lfdeOut = executeLfdeMcpTool(
+            toolName,
+            toolArgs as Record<string, unknown>,
+            tenantId
+          );
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(lfdeOut, null, 2),
+                },
+              ],
+              structuredContent: lfdeOut,
+              isError: lfdeOut.status === "error",
+            },
+          });
+        }
+
         const output = reg24Core.executeMCPTool(toolName, toolArgs);
         return NextResponse.json({
           jsonrpc: "2.0",
@@ -1134,6 +1529,17 @@ export async function POST(req: NextRequest) {
         tenantId
       );
       return NextResponse.json(klOut);
+    }
+
+    if (LFDE_MCP_TOOL_NAMES.has(toolName)) {
+      const lfdeOut = executeLfdeMcpTool(
+        toolName,
+        input as Record<string, unknown>,
+        tenantId
+      );
+      return NextResponse.json(lfdeOut, {
+        status: typeof lfdeOut.httpStatus === "number" ? lfdeOut.httpStatus : 200,
+      });
     }
 
     const output = reg24Core.executeMCPTool(toolName, input);

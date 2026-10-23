@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
       legalTopics: body.legalTopics || body.legal_topics,
       citedProvisions: body.citedProvisions || body.cited_provisions,
       rightsHolder: body.rightsHolder || body.rights_holder,
-      rightsVerified: body.rightsVerified ?? body.rights_verified ?? true,
+      rightsVerified: Boolean(body.rightsVerified ?? body.rights_verified ?? false),
       sampleTextTh: body.sampleTextTh || body.sample_text_th,
       sampleTextEn: body.sampleTextEn || body.sample_text_en,
       pageStart: Number(body.pageStart || body.page_start || 1),
