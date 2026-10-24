@@ -683,5 +683,26 @@ describe("REG24 LFDE v2.0 — Legal Form and Document Execution Acceptance Suite
     const assembledDol = lfde.assembleDocument(counselCtx, "idem_dol_assemble", dolCase.id, {});
     expect(assembledDol.revision.assembled_blocks[0]?.rendered_text_th).toContain("ท.ด.๑๕");
     expect(assembledDol.validation.has_unresolved_blockers).toBe(false);
+
+    // Verify all 553 Canonical Google Drive Legal Forms (1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or / 14Ri-BTPefdCtqk1nFAJE9-MKOVqTataE_vvJm5ogvvg)
+    const search553 = searchLegalFormsMasterCatalog({ only_canonical_553: true, limit: 600 });
+    expect(search553.canonical_553_forms_count).toBe(553);
+    expect(search553.results.length).toBe(553);
+    expect(search553.license_policy.scope).toBe("INTERNAL_OWN_USE_ONLY");
+    expect(search553.license_policy.external_sharing_prohibited).toBe(true);
+    expect(
+      search553.results.every(
+        (f) => f.license_scope === "INTERNAL_OWN_USE_ONLY" && f.external_sharing_prohibited === true
+      )
+    ).toBe(true);
+
+    // Draft directly from any of the 553 forms (e.g. LFORM-553-002: ล.๒๙ คำขอรับชำระหนี้.docx)
+    const dynamicCase = lfde.createDocumentCase(counselCtx, "idem_lform_553_002", {
+      matter_id: "matter.law24.ma.2026.01",
+      template_version_id: "LFORM-553-002",
+      objective: "[LFORM-553-002] ล.๒๙ คำขอรับชำระหนี้.docx",
+      legal_as_of_date: "2026-10-25",
+    }).document;
+    expect(dynamicCase.template_version_id).toBe("LFORM-553-002");
   });
 });

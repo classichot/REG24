@@ -150,6 +150,7 @@ export async function GET(
         query: sp.get("q") || sp.get("query") || undefined,
         category_code: sp.get("category_code") || sp.get("category") || undefined,
         only_official_forms: sp.get("only_official") === "true",
+        only_canonical_553: sp.get("only_canonical_553") === "true",
         limit: sp.get("limit") ? parseInt(sp.get("limit")!, 10) : 80,
         offset: sp.get("offset") ? parseInt(sp.get("offset")!, 10) : 0,
       });

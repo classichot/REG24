@@ -83,10 +83,25 @@ export interface LegalFormsCatalogRecord {
   strict_layout_lock: boolean;
   version_package: string;
   sha256: string;
+  form_index_number?: number | null;
+  form_index_code?: string | null;
+  thai_form_code?: string;
+  is_canonical_553_form?: boolean;
+  license_scope?: "INTERNAL_OWN_USE_ONLY";
+  external_sharing_prohibited?: boolean;
+  license_notice_th?: string;
+  license_notice_en?: string;
+  extracted_form_text?: string;
+  fillable_fields?: string[];
+  pdf_companion_drive_id?: string;
+  pdf_companion_url?: string;
 }
 
 export const LEGAL_FORMS_MASTER_CATALOG: LegalFormsCatalogRecord[] =
   rawLegalFormsCatalog as LegalFormsCatalogRecord[];
+
+export const CANONICAL_553_LEGAL_FORMS: LegalFormsCatalogRecord[] =
+  LEGAL_FORMS_MASTER_CATALOG.filter((f) => f.is_canonical_553_form === true);
 
 export const LEGAL_FORMS_DRIVE_FOLDER_URL =
   "https://drive.google.com/drive/folders/1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or";
@@ -572,8 +587,8 @@ export const RESOURCE_MASTER_COLLECTIONS: Record<
   },
   Legal_Forms_Master_Catalog: {
     id: "Legal_Forms_Master_Catalog",
-    label_th: "คลังแบบฟอร์มศาลและส่วนราชการมาตรฐาน (L FORM 2024 V.4.1 — 572 ไฟล์ .docx / .pdf / ฟอนต์ราชการ)",
-    label_en: "Legal Forms Master Catalog — L FORM 2024 V.4.1 (572 Official Court, Tribunal & Agency Forms + Index)",
+    label_th: "คลังแบบฟอร์มศาลและส่วนราชการมาตรฐาน (553 แบบฟอร์มหลัก + 19 ไฟล์ประกอบ = 572 ไฟล์ | เฉพาะใช้ภายในองค์กร)",
+    label_en: "Legal Forms Master Catalog — 553 Canonical Forms (L FORM 2024 V.4.1 | Internal Own-Use Only)",
     drive_source: "Legal Database Resource Master / Legal Forms (1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or)",
     drive_url: "https://drive.google.com/drive/folders/1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or",
     count: 572,
@@ -582,26 +597,36 @@ export const RESOURCE_MASTER_COLLECTIONS: Record<
 };
 
 function convertCatalogFormToResourceRecord(form: LegalFormsCatalogRecord): LegalResourceMasterRecord {
+  const indexTag = form.form_index_code ? `[${form.form_index_code}] ` : "";
+  const fieldsStr =
+    form.fillable_fields && form.fillable_fields.length > 0
+      ? ` | ช่องกรอกข้อมูล: ${form.fillable_fields.join(", ")}`
+      : "";
+  const bodySnippet = form.extracted_form_text
+    ? ` | ข้อความในแบบฟอร์ม: ${form.extracted_form_text.slice(0, 360)}`
+    : "";
   return {
     id: form.id,
-    code: form.code,
+    code: form.form_index_code || form.code,
     collection: "Legal_Forms_Master_Catalog",
     authority_code: form.category_code,
     folder_path: form.folder_path,
     drive_stable_id: form.drive_file_id,
     drive_url: form.drive_url,
-    title_th: `[${form.category_folder}] ${form.title}`,
-    title_en: `[${form.category_code}] ${form.title} (${form.category_description_en})`,
+    title_th: `${indexTag}[${form.category_folder}] ${form.title}`,
+    title_en: `${indexTag}[${form.category_code}] ${form.title} (${form.category_description_en})`,
     regulator: form.authority_th,
-    instrument_type: form.is_court_or_agency_form
-      ? `Official Court/Agency Form (.${form.file_extension})`
-      : `L FORM Resource (.${form.file_extension})`,
+    instrument_type: form.is_canonical_553_form
+      ? `Canonical Legal Form #${form.form_index_number}/553 (.${form.file_extension} — Own-Use Only)`
+      : form.is_court_or_agency_form
+        ? `Official Court/Agency Form (.${form.file_extension})`
+        : `L FORM Resource (.${form.file_extension})`,
     year_be: 2567,
     effective_date: "2024-01-01",
     status: "IN_FORCE",
-    legal_provisions: `${form.category_description_en} — ${form.version_package} (Strict Layout Lock: ${form.strict_layout_lock ? "YES" : "NO"})`,
-    summary_th: `แบบฟอร์มราชการและศาลจากคลัง Legal Forms (${form.version_package}) หมวด ${form.category_folder} (${form.authority_th}): ${form.title} (${form.file_size_bytes.toLocaleString()} bytes).`,
-    verbatim_excerpt: `Source: ${form.folder_path} | Category: ${form.authority_th} (${form.category_description_en}) | Package: ${form.version_package} | Google Drive ID: ${form.drive_file_id} | URL: ${form.drive_url}`,
+    legal_provisions: `${form.category_description_en} — ${form.version_package} (Strict Layout Lock: ${form.strict_layout_lock ? "YES" : "NO"} | License: INTERNAL_OWN_USE_ONLY)`,
+    summary_th: `แบบฟอร์มราชการและศาล (${form.version_package}) หมวด ${form.category_folder} (${form.authority_th}): ${form.title}${fieldsStr}. [อนุญาตให้ใช้งานเฉพาะภายในองค์กร ห้ามเผยแพร่ภายนอก]`,
+    verbatim_excerpt: `Source: ${form.folder_path} | Index: ${form.form_index_code || "AUX"} | Category: ${form.authority_th} | License: INTERNAL_OWN_USE_ONLY (External Sharing Prohibited)${bodySnippet} | Google Drive ID: ${form.drive_file_id}`,
     file_name: form.file_name,
     file_size_bytes: form.file_size_bytes,
     sha256: form.sha256,
@@ -612,14 +637,22 @@ export function searchLegalFormsMasterCatalog(options?: {
   query?: string;
   category_code?: string;
   only_official_forms?: boolean;
+  only_canonical_553?: boolean;
   limit?: number;
   offset?: number;
 }): {
   total_catalog_files: number;
+  canonical_553_forms_count: number;
   official_forms_count: number;
   matched_count: number;
   drive_folder_url: string;
   index_sheet_url: string;
+  license_policy: {
+    scope: "INTERNAL_OWN_USE_ONLY";
+    external_sharing_prohibited: true;
+    notice_th: string;
+    notice_en: string;
+  };
   categories: Array<{
     category_code: string;
     category_folder: string;
@@ -636,8 +669,11 @@ export function searchLegalFormsMasterCatalog(options?: {
     .filter((t) => t.length > 0);
   const categoryFilter = (options?.category_code || "").trim().toUpperCase();
   const onlyOfficial = options?.only_official_forms ?? false;
+  const onlyCanonical553 = options?.only_canonical_553 ?? false;
   const limit = Math.min(Math.max(options?.limit ?? 60, 1), 600);
   const offset = Math.max(options?.offset ?? 0, 0);
+
+  const pool = onlyCanonical553 ? CANONICAL_553_LEGAL_FORMS : LEGAL_FORMS_MASTER_CATALOG;
 
   const catMap = new Map<
     string,
@@ -650,7 +686,7 @@ export function searchLegalFormsMasterCatalog(options?: {
     }
   >();
 
-  for (const r of LEGAL_FORMS_MASTER_CATALOG) {
+  for (const r of pool) {
     const existing = catMap.get(r.category_code);
     if (existing) {
       existing.count += 1;
@@ -665,7 +701,7 @@ export function searchLegalFormsMasterCatalog(options?: {
     }
   }
 
-  let filtered = LEGAL_FORMS_MASTER_CATALOG.filter((item) => {
+  let filtered = pool.filter((item) => {
     if (onlyOfficial && !item.is_court_or_agency_form) return false;
     if (
       categoryFilter &&
@@ -683,12 +719,16 @@ export function searchLegalFormsMasterCatalog(options?: {
       const hay = [
         item.id,
         item.code,
+        item.form_index_code || "",
+        item.thai_form_code || "",
         item.category_code,
         item.category_folder,
         item.authority_th,
         item.category_description_en,
         item.title,
         item.folder_path,
+        item.extracted_form_text || "",
+        (item.fillable_fields || []).join(" "),
       ]
         .join(" ")
         .toLowerCase();
@@ -698,10 +738,19 @@ export function searchLegalFormsMasterCatalog(options?: {
 
   return {
     total_catalog_files: LEGAL_FORMS_MASTER_CATALOG.length,
+    canonical_553_forms_count: CANONICAL_553_LEGAL_FORMS.length,
     official_forms_count: LEGAL_FORMS_MASTER_CATALOG.filter((r) => r.is_court_or_agency_form).length,
     matched_count: filtered.length,
     drive_folder_url: LEGAL_FORMS_DRIVE_FOLDER_URL,
     index_sheet_url: LEGAL_FORMS_INDEX_SHEET_URL,
+    license_policy: {
+      scope: "INTERNAL_OWN_USE_ONLY",
+      external_sharing_prohibited: true,
+      notice_th:
+        "แบบฟอร์มทั้ง 553 รายการได้รับอนุญาตให้ใช้งานเฉพาะภายในองค์กรของผู้ถือสิทธิ์เท่านั้น ห้ามเผยแพร่หรือส่งต่อภายนอก",
+      notice_en:
+        "All 553 legal forms are licensed for your internal own-use only. External sharing or redistribution is prohibited.",
+    },
     categories: Array.from(catMap.values()).sort((a, b) => b.count - a.count),
     results: filtered.slice(offset, offset + limit),
   };
@@ -834,7 +883,10 @@ export function getLegalResourceMasterById(idOrCode: string): LegalResourceMaste
   );
   if (primary) return primary;
   const formMatch = LEGAL_FORMS_MASTER_CATALOG.find(
-    (f) => f.id.toLowerCase() === norm || f.code.toLowerCase() === norm
+    (f) =>
+      f.id.toLowerCase() === norm ||
+      f.code.toLowerCase() === norm ||
+      (f.form_index_code || "").toLowerCase() === norm
   );
   return formMatch ? convertCatalogFormToResourceRecord(formMatch) : undefined;
 }

@@ -64,6 +64,10 @@ import {
   SEED_TEMPLATE_VERSIONS,
   SEED_TEMPLATES,
 } from "./fixtures";
+import {
+  LEGAL_FORMS_MASTER_CATALOG,
+  type LegalFormsCatalogRecord,
+} from "../data/legal-resource-master-loader";
 
 interface UploadSessionRecord {
   id: string;
@@ -934,14 +938,176 @@ export class LfdeService {
     return { items: items.slice(0, 20) };
   }
 
+  public ensureCatalogFormTemplateVersion(
+    catalogIdOrVersionId: string,
+    tenantId = "tenant.law24.prod"
+  ): TemplateVersion | undefined {
+    const existing = this.templateVersions.get(catalogIdOrVersionId);
+    if (existing) return existing;
+
+    const norm = catalogIdOrVersionId.trim().toLowerCase();
+    const form: LegalFormsCatalogRecord | undefined = LEGAL_FORMS_MASTER_CATALOG.find(
+      (f) =>
+        f.id.toLowerCase() === norm ||
+        f.code.toLowerCase() === norm ||
+        (f.form_index_code || "").toLowerCase() === norm ||
+        `template_${f.id.toLowerCase()}_v1` === norm ||
+        (f.form_index_code && `template_${f.form_index_code.toLowerCase()}_v1` === norm)
+    );
+    if (!form) return undefined;
+
+    const verId = form.form_index_code || form.id;
+    if (this.templateVersions.has(verId)) {
+      return this.templateVersions.get(verId);
+    }
+
+    const srcId = "src_asset_lform_master_2024_v41";
+    const tplId = `tpl_${verId.toLowerCase()}`;
+
+    const rawFields =
+      form.fillable_fields && form.fillable_fields.length > 0
+        ? form.fillable_fields.slice(0, 6)
+        : ["โจทก์/ผู้ยื่น", "จำเลย/ผู้คัดค้าน", "รายละเอียดคำขอ"];
+
+    const fields: TemplateField[] = [
+      {
+        version_id: verId,
+        field_key: "party_a.name",
+        label_th: rawFields[0] || "ชื่อผู้ยื่นคำร้อง / โจทก์",
+        label_en: "Primary Party / Applicant Name",
+        group: "parties",
+        datatype: "text",
+        required_when: true,
+        evidence_policy: "human_confirmed",
+        privacy_class: "confidential",
+        format_profile: "plain_text",
+        confirmation_policy: "always",
+        why_needed_th: "ระบุตัวตนผู้ยื่นคำร้องหรือโจทก์ตามแบบพิมพ์",
+        why_needed_en: "Identifies the applicant or plaintiff in the official form.",
+      },
+      {
+        version_id: verId,
+        field_key: "party_b.name",
+        label_th: rawFields[1] || "ชื่อคู่กรณี / จำเลย / หน่วยงาน",
+        label_en: "Counterparty / Respondent / Authority",
+        group: "parties",
+        datatype: "text",
+        required_when: true,
+        evidence_policy: "human_confirmed",
+        privacy_class: "confidential",
+        format_profile: "plain_text",
+        confirmation_policy: "always",
+        why_needed_th: "ระบุตัวตนคู่กรณีหรือจำเลยตามแบบพิมพ์",
+        why_needed_en: "Identifies the respondent or counterparty in the official form.",
+      },
+      {
+        version_id: verId,
+        field_key: "signatory.evidence_ref",
+        label_th: "เอกสารอ้างอิงอำนาจลงนาม / ใบแต่งทนายความ / ทะเบียนนิติบุคคล",
+        label_en: "Signatory Authority / Counsel Appointment Reference",
+        group: "signatures",
+        datatype: "text",
+        required_when: true,
+        evidence_policy: "human_confirmed",
+        privacy_class: "confidential",
+        format_profile: "plain_text",
+        confirmation_policy: "always",
+        why_needed_th: "ระบุหลักฐานอำนาจลงนามหรือใบแต่งทนายความ",
+        why_needed_en: "References signatory authority or counsel appointment.",
+      },
+    ];
+
+    const bodyText =
+      form.extracted_form_text ||
+      `แบบฟอร์มมาตรฐาน ${form.title} (${form.authority_th})`;
+
+    const version: TemplateVersion = {
+      id: verId,
+      template_id: tplId,
+      semver: "4.1.0",
+      title_th: `[${form.form_index_code || form.id}] ${form.title} (${form.category_folder})`,
+      title_en: `[${form.form_index_code || form.id}] ${form.title} (${form.category_description_en})`,
+      domain: form.category_code.toLowerCase(),
+      family: "official_court_agency_form",
+      intended_task_th: `กรอกและประกอบร่างแบบฟอร์ม ${form.title} (${form.authority_th}) สำหรับใช้งานภายในองค์กร`,
+      intended_task_en: `Draft official form ${form.title} (${form.category_description_en}) — Internal Own-Use Only`,
+      source_classification: "official_form",
+      source_id: srcId,
+      jurisdiction: "TH",
+      language: "th",
+      risk: "medium",
+      effective_from: "2024-01-01",
+      state: "published",
+      strict_layout_lock: true,
+      lform_catalog_id: form.form_index_code || form.id,
+      drive_url: form.drive_url,
+      fields,
+      blocks: [
+        {
+          block_id: `blk_${verId.toLowerCase()}_header`,
+          type: "heading",
+          title_th: `${form.title} — ${form.authority_th}`,
+          title_en: `${form.title} — ${form.category_description_en}`,
+          template_text_th: `[แบบพิมพ์มาตรฐาน L FORM 2024 V.4.1 | รหัสสารบัญ ${form.form_index_code || form.id} | อนุญาตให้ใช้เฉพาะภายในองค์กร ห้ามเผยแพร่ภายนอก]\nหน่วยงาน/ศาล: ${form.authority_th}\nคู่ความฝ่ายที่ 1: {{party_a.name}} | คู่ความฝ่ายที่ 2: {{party_b.name}}\nหลักฐานผู้ลงนาม: {{signatory.evidence_ref}}`,
+          template_text_en: `[Official Form ${form.form_index_code || form.id} — Internal Own-Use Only]\nAuthority: ${form.category_description_en}\nParty A: {{party_a.name}} | Party B: {{party_b.name}}\nSignatory Ref: {{signatory.evidence_ref}}`,
+          field_refs: ["party_a.name", "party_b.name", "signatory.evidence_ref"],
+          origin: "source_span",
+          mandatory_by_rule: true,
+        },
+        {
+          block_id: `blk_${verId.toLowerCase()}_body`,
+          type: "heading",
+          title_th: "ข้อความและช่องกรอกตามแบบพิมพ์ต้นฉบับ (Extracted Form Structure)",
+          title_en: "Extracted Official Form Structure & Clauses",
+          template_text_th: bodyText,
+          template_text_en: bodyText,
+          field_refs: [],
+          origin: "source_span",
+          mandatory_by_rule: true,
+        },
+      ],
+      allowed_clause_ids: [],
+      authority_refs: ["th-ccc-sec-1097"],
+      renderer_profile_id: "render_th_sarabun_a4_v1",
+      content_hash: form.sha256,
+      certification_checklist_passed: true,
+      published_by: "curator.legal@reg24.th",
+      published_at: "2026-10-25T00:00:00Z",
+    };
+
+    const template: Template = {
+      id: tplId,
+      owner_type: "tenant_private",
+      tenant_id: tenantId,
+      domain: form.category_code.toLowerCase(),
+      family: "official_court_agency_form",
+      title_th: version.title_th,
+      title_en: version.title_en,
+      catalog_state: "published",
+      published_version_id: verId,
+      working_version_id: verId,
+      entitled_tenants: [tenantId],
+      is_court_or_agency_form: true,
+      created_at: "2026-10-25T00:00:00Z",
+      created_by: "curator.legal@reg24.th",
+    };
+
+    this.templates.set(tplId, template);
+    this.templateVersions.set(verId, version);
+    return version;
+  }
+
   public getTemplateVersion(
     ctx: TenantContext,
     templateId: string,
     versionId: string
   ): TemplateVersion {
     this.verifyContext(ctx, "template:read");
-    const tpl = this.templates.get(templateId);
+    if (!this.templateVersions.has(versionId)) {
+      this.ensureCatalogFormTemplateVersion(versionId, ctx.tenant_id);
+    }
     const ver = this.templateVersions.get(versionId);
+    const tpl = ver ? this.templates.get(ver.template_id) || this.templates.get(templateId) : undefined;
     if (
       !tpl ||
       !ver ||
@@ -1005,7 +1171,9 @@ export class LfdeService {
         });
       }
 
-      const ver = this.templateVersions.get(input.template_version_id);
+      const ver =
+        this.templateVersions.get(input.template_version_id) ||
+        this.ensureCatalogFormTemplateVersion(input.template_version_id, ctx.tenant_id);
       if (!ver) {
         throw new LfdeException({
           code: "NOT_FOUND",
