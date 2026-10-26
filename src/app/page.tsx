@@ -20,6 +20,7 @@ import {
   LfdeFormLibrarySection,
   LfdeCuratorConsoleSection,
 } from "@/components/lfde/LfdeWorkspace";
+import { Reg24LandingPage } from "@/components/Reg24LandingPage";
 
 type ThemeMode = "dark" | "light";
 type AccentMode = "electric" | "chartreuse" | "highlighter" | "volt";
@@ -672,6 +673,7 @@ const REC_DETAILS: Record<
 };
 
 export default function Reg24ModernistPage() {
+  const [showLanding, setShowLanding] = useState<boolean>(true);
   const [theme, setTheme] = useState<ThemeMode>("dark");
   const [accent] = useState<AccentMode>("electric");
   const [lang, setLang] = useState<LangMode>("th");
@@ -1555,6 +1557,34 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
 
   const catCount = (c: string) => (c === "all" ? RECS.length : RECS.filter((r) => r[1] === c).length);
 
+  if (showLanding) {
+    return (
+      <Reg24LandingPage
+        defaultLang={lang}
+        onLangChange={(nextLang) => setLang(nextLang)}
+        defaultVariant="v3-paper"
+        onOpenWorkspace={(opts) => {
+          setShowLanding(false);
+          const targetNav = opts?.nav ?? "research";
+          setNav(targetNav);
+          if (opts?.query) {
+            if (targetNav === "databases") {
+              setDbQuery(opts.query);
+            } else {
+              setQuery(opts.query);
+              setTimeout(() => {
+                runAsk(opts.query!);
+              }, 60);
+            }
+          }
+          if (typeof window !== "undefined") {
+            window.scrollTo(0, 0);
+          }
+        }}
+      />
+    );
+  }
+
   return (
     <div
       data-theme={theme}
@@ -1593,7 +1623,22 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
               gap: "16px",
             }}
           >
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", flex: "none" }}>
+            <button
+              type="button"
+              onClick={() => setShowLanding(true)}
+              title={isTh ? "กลับไปหน้าแรก (Landing Page)" : "Back to Landing Page"}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                flex: "none",
+                background: "transparent",
+                border: 0,
+                padding: 0,
+                cursor: "pointer",
+                color: "inherit",
+              }}
+            >
               <span
                 style={{
                   width: "30px",
@@ -1629,7 +1674,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                   animation: "rgPulse 1.6s ease-in-out infinite",
                 }}
               />
-            </div>
+            </button>
 
             <nav
               style={{
@@ -1997,6 +2042,27 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
             >
               <button
                 type="button"
+                onClick={() => setShowLanding(true)}
+                title={isTh ? "หน้าแรก (Landing Page)" : "Landing Page"}
+                className="rg-hover-text"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  height: "32px",
+                  padding: "0 10px",
+                  border: "1px solid color-mix(in srgb,var(--color-text) 18%,transparent)",
+                  cursor: "pointer",
+                  background: "transparent",
+                  color: "color-mix(in srgb,var(--color-text) 85%,transparent)",
+                  font: "600 12px var(--font-body)",
+                }}
+              >
+                {isTh ? "หน้าแรก" : "Landing"}
+              </button>
+
+              <button
+                type="button"
                 onClick={() => setLang((prev) => (prev === "th" ? "en" : "th"))}
                 title="TH / EN"
                 className="rg-hover-text"
@@ -2152,13 +2218,21 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
             minHeight: "56px",
           }}
         >
-          <div
+          <button
+            type="button"
+            onClick={() => setShowLanding(true)}
+            title={isTh ? "กลับไปหน้าแรก (Landing Page)" : "Back to Landing Page"}
             style={{
               flex: "0 0 232px",
               display: "flex",
               alignItems: "center",
               gap: "10px",
               padding: "0 18px",
+              background: "transparent",
+              border: 0,
+              cursor: "pointer",
+              color: "inherit",
+              textAlign: "left",
             }}
           >
             <span
@@ -2197,7 +2271,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
             >
               MAX
             </span>
-          </div>
+          </button>
 
           <div
             style={{
