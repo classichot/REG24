@@ -1,0 +1,40 @@
+# REG24 Infrastructure Developer Requirements v1.0 (ARC07, ARC08, ARC12, STACK01)
+# Portable Multi-Process Topology: Core API, MCP Server, Mission Worker, Ingestion Worker, PostgreSQL 17 + pgvector
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: reg24_canonical
+      POSTGRES_USER: reg24_owner
+      POSTGRES_PASSWORD: reg24_local_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./prisma/migrations/0001_reg24_canonical_rls.sql:/docker-entrypoint-initdb.d/0001_reg24_canonical_rls.sql:ro
+
+  reg24-core-api:
+    build: .
+    environment:
+      REG24_PROCESS_ROLE: "core-api-and-mcp"
+      DATABASE_URL: "postgresql://reg24_app_runtime:reg24_local_dev_password@postgres:5432/reg24_canonical"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+
+  reg24-mission-worker:
+    build: .
+    environment:
+      REG24_PROCESS_ROLE: "mission-worker"
+      DATABASE_URL: "postgresql://reg24_app_runtime:reg24_local_dev_password@postgres:5432/reg24_canonical"
+    depends_on:
+      - postgres
+
+  reg24-ingestion-worker:
+    build: .
+    environment:
+      REG24_PROCESS_ROLE: "ingestion-worker"
+      DATABASE_URL: "postgresql://reg24_owner:reg24_local_dev_password@postgres:5432/reg24_canonical"
+    depends_on:
+      - postgres

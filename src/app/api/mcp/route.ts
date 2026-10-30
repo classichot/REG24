@@ -42,6 +42,12 @@ import {
   type TenantContext,
   type RiskLevel,
 } from "@/core/lfde/types";
+import { SECTION_10_SERVICE_CATALOGUE } from "@/packages/contracts";
+import { reg24ApplicationService } from "@/packages/application";
+import {
+  resolveAuthFromNextRequest,
+  normalizeCanonicalRequest,
+} from "@/packages/application/http-helper";
 
 export const MCP_TOOLS_CATALOG = [
   {
@@ -832,7 +838,147 @@ export const MCP_TOOLS_CATALOG = [
       },
     },
   },
+  // REG24 Infrastructure Developer Requirements v1.0 (Section 10 — Canonical Service Catalogue MCP Tools)
+  ...SECTION_10_SERVICE_CATALOGUE.filter((cap) => Boolean(cap.mcp_tool_name)).map((cap) => ({
+    name: cap.mcp_tool_name,
+    description: `[Section 10 · ${cap.capability_id} · scopes:${cap.required_scopes.join(",")}] ${cap.description} (${cap.api_method} ${cap.api_path})`,
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string" },
+        provision_id: { type: "string" },
+        issue: { type: "string" },
+        legal_as_of: { type: "string" },
+        known_as_of: { type: "string" },
+        jurisdiction: { type: "string", default: "TH" },
+        tenant_id: { type: "string" },
+        matter_id: { type: "string" },
+        entity_facts: { type: "object" },
+        citations: { type: "array", items: { type: "object" } },
+        mission_id: { type: "string" },
+        evidence_id: { type: "string" },
+        mission_class: { type: "string" },
+      },
+    },
+  })),
 ];
+
+const SECTION_10_MCP_TOOL_NAMES = new Set<string>(
+  SECTION_10_SERVICE_CATALOGUE.filter((c) => Boolean(c.mcp_tool_name)).map((c) => c.mcp_tool_name)
+);
+
+async function executeSection10LegalMcpTool(
+  req: NextRequest,
+  toolName: string,
+  args: Record<string, unknown>
+) {
+  const auth = await resolveAuthFromNextRequest(
+    req,
+    typeof args.tenant_id === "string" ? args.tenant_id : undefined
+  );
+  switch (toolName) {
+    case "legal_discover_capabilities":
+      return reg24ApplicationService.discoverCapabilities(
+        normalizeCanonicalRequest(args, {}),
+        auth
+      );
+    case "legal_search":
+      return reg24ApplicationService.searchAuthority(
+        normalizeCanonicalRequest(args, { query: String(args.query || "Section 1097") }),
+        auth
+      );
+    case "legal_get_provision":
+      return reg24ApplicationService.resolveProvisionVersion(
+        normalizeCanonicalRequest(args, {
+          provision_id: String(args.provision_id || "PROV-TH-CCC-1097"),
+        }),
+        auth
+      );
+    case "legal_get_history":
+      return reg24ApplicationService.explainAmendmentHistory(
+        normalizeCanonicalRequest(args, {
+          provision_id: String(args.provision_id || "PROV-TH-CCC-1097"),
+        }),
+        auth
+      );
+    case "legal_query_relationships":
+      return reg24ApplicationService.traverseLegalRelationships(
+        normalizeCanonicalRequest(args, {
+          subject_id: String(args.subject_id || args.provision_id || "PROV-TH-CCC-1097"),
+        }),
+        auth
+      );
+    case "legal_research":
+      return reg24ApplicationService.researchIssue(
+        normalizeCanonicalRequest(args, {
+          issue: String(args.issue || args.question || args.query || "Entire Business Transfer"),
+        }),
+        auth
+      );
+    case "legal_verify":
+      return reg24ApplicationService.verifyCitationsAndClaims(
+        normalizeCanonicalRequest(args, {
+          citations: Array.isArray(args.citations)
+            ? (args.citations as Array<{ provision_id: string }>)
+            : [{ provision_id: "PROV-TH-CCC-1097" }],
+        }),
+        auth
+      );
+    case "legal_evaluate_obligations":
+      return reg24ApplicationService.evaluateObligations(
+        normalizeCanonicalRequest(args, {
+          entity_facts: (args.entity_facts as Record<string, string | number | boolean | undefined>) || {},
+        }),
+        auth
+      );
+    case "legal_create_draft":
+      return reg24ApplicationService.generateOrReviewDraft(
+        normalizeCanonicalRequest(
+          {
+            ...args,
+            idempotency_key: String(args.idempotency_key || `idem-draft-${Date.now()}`),
+            matter_id: String(args.matter_id || "MATTER-TH-001"),
+          },
+          {
+            template_id: String(args.template_id || "LFORM-553-001"),
+            fields: (args.fields as Record<string, string>) || { company_name: "Siam Cloud Co., Ltd." },
+          }
+        ),
+        auth
+      );
+    case "legal_create_mission":
+      return reg24ApplicationService.createMission(
+        normalizeCanonicalRequest(
+          {
+            ...args,
+            idempotency_key: String(args.idempotency_key || `idem-msn-${Date.now()}`),
+            matter_id: String(args.matter_id || "MATTER-TH-001"),
+          },
+          {
+            mission_class: "corporate_issue_research" as const,
+            inputs: (args.inputs as Record<string, unknown>) || { query: args.objective || "Section 1097" },
+          }
+        ),
+        auth
+      );
+    case "legal_get_mission":
+      return reg24ApplicationService.getMission(String(args.mission_id || "MSN-001"), auth);
+    case "legal_cancel_mission":
+      return reg24ApplicationService.cancelMission(String(args.mission_id || "MSN-001"), auth);
+    case "legal_get_evidence":
+      return reg24ApplicationService.getAuthorizedEvidence(
+        normalizeCanonicalRequest(args, {
+          evidence_id: String(args.evidence_id || "EV-001"),
+        }),
+        auth
+      );
+    default:
+      return reg24ApplicationService.searchAuthority(
+        normalizeCanonicalRequest(args, { query: String(args.query || "Section 1097") }),
+        auth
+      );
+  }
+}
 
 const REG24_LIVE_MCP_TOOL_NAMES = new Set<string>([
   "reg24_search_updates",
@@ -1554,6 +1700,29 @@ export async function POST(req: NextRequest) {
         const toolName = String(params?.name || "");
         const toolArgs: MCPCommonInput = params?.arguments || {};
 
+        if (SECTION_10_MCP_TOOL_NAMES.has(toolName)) {
+          const sec10Out = await executeSection10LegalMcpTool(
+            req,
+            toolName,
+            toolArgs as Record<string, unknown>
+          );
+          const payload = sec10Out.body;
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(payload, null, 2),
+                },
+              ],
+              structuredContent: payload,
+              isError: sec10Out.status >= 400,
+            },
+          });
+        }
+
         if (REG24_LIVE_MCP_TOOL_NAMES.has(toolName)) {
           const liveOut = executeReg24LiveMcpTool(
             toolName,
@@ -1722,6 +1891,15 @@ export async function POST(req: NextRequest) {
     // Direct REST-style MCP tool call
     const toolName = String(body.tool || body.name || "reg24.list_modules");
     const input: MCPCommonInput = body.input || body.arguments || body;
+
+    if (SECTION_10_MCP_TOOL_NAMES.has(toolName)) {
+      const sec10Out = await executeSection10LegalMcpTool(
+        req,
+        toolName,
+        input as Record<string, unknown>
+      );
+      return NextResponse.json(sec10Out.body, { status: sec10Out.status });
+    }
 
     if (REG24_LIVE_MCP_TOOL_NAMES.has(toolName)) {
       const liveOut = executeReg24LiveMcpTool(
