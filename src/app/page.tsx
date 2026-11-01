@@ -12,6 +12,7 @@ import {
   ModernistKnowledgeIngestionPipelineSection,
   ModernistProductionTrialConsoleSection,
   Reg24InfrastructureV1ConsoleSection,
+  Reg24CaseIntelligenceWorkspaceSection,
   ModernistModuleModal,
   ModernistMcpPlaygroundModal,
   type DatabaseRecordDetail,
@@ -4493,6 +4494,9 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                   </button>
                 </aside>
               </div>
+
+              {/* REG24 Case Intelligence Workspace (Specification REG24-CII-001 v1.1 — Section 18) */}
+              <Reg24CaseIntelligenceWorkspaceSection isTh={isTh} />
             </main>
           )}
 

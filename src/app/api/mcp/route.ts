@@ -48,6 +48,7 @@ import {
   resolveAuthFromNextRequest,
   normalizeCanonicalRequest,
 } from "@/packages/application/http-helper";
+import { reg24CaseIntelligenceService } from "@/packages/case-intelligence";
 
 export const MCP_TOOLS_CATALOG = [
   {
@@ -861,7 +862,401 @@ export const MCP_TOOLS_CATALOG = [
       },
     },
   })),
+  // REG24 Case Intelligence v1.1 (REG24-CII-001 Section 12 — 11 Case Intelligence MCP Tools)
+  {
+    name: "reg24.case.get",
+    description: "REG24-CII-001 (CII-064): Read-only summary of a matter, coverage, and current analysis status",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.case.facts.list",
+    description: "REG24-CII-001 (CII-064): Read-only paginated list of extracted assertions, review status, and source citations",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.case.conflicts.list",
+    description: "REG24-CII-001 (CII-064): Read-only Evidence Conflict Radar list of contradictions, gaps, and review state",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.case.graph.query",
+    description: "REG24-CII-001 (CII-064): Read-only bounded query over the matter's entity, event, claim, and evidence graph (default <= 200 nodes / 400 edges)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+        node_limit: { type: "number", default: 200 },
+        edge_limit: { type: "number", default: 400 },
+      },
+    },
+  },
+  {
+    name: "reg24.authorities.search",
+    description: "REG24-CII-001 (CII-064): Read-only authority search with effective-date filtering and jurisdiction parameters",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        query: { type: "string" },
+        event_date: { type: "string" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.citations.verify",
+    description: "REG24-CII-001 (CII-025 / CII-064): Read-only verification of statutory, regulatory, or case citations against corpus records and effective-date validity",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        event_date: { type: "string" },
+        citations: { type: "array", items: { type: "object" } },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.case.analysis.start",
+    description: "REG24-CII-001 (CII-064): Asynchronous mutating tool — starts an analysis job with idempotency key and returns job_id",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        idempotency_key: { type: "string" },
+        mode: { type: "string", enum: ["rag24_standard", "beast24_deep_sweep"], default: "rag24_standard" },
+        requested_credits: { type: "number" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.case.analysis.status",
+    description: "REG24-CII-001 (CII-064): Read-only check of job progress, failures, and output pointers",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        job_id: { type: "string" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.case.dossier.create",
+    description: "REG24-CII-001 (CII-064): Asynchronous mutating tool — creates a draft dossier requiring human review before external export",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        template_kind: {
+          type: "string",
+          enum: ["case_chronology", "issue_element_matrix", "evidence_conflict_memo", "witness_prep_pack"],
+          default: "evidence_conflict_memo",
+        },
+        language_mode: { type: "string", enum: ["TH", "EN", "BILINGUAL"], default: "BILINGUAL" },
+        export_format: { type: "string", enum: ["DOCX", "PDF", "MARKDOWN", "JSON"], default: "DOCX" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.case.interview.create",
+    description: "REG24-CII-001 (CII-064): Asynchronous mutating tool (P1) — creates a draft witness or client interview plan with coaching guardrails",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        examinee_name: { type: "string" },
+        examinee_role: { type: "string", enum: ["client", "friendly_witness", "counterparty_witness", "neutral_third_party"] },
+        user_prompt_instructions: { type: "string" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
+  {
+    name: "reg24.case.strategy.review",
+    description: "REG24-CII-001 (CII-064): Asynchronous mutating tool (P1) — runs an adversarial review and returns draft risk findings without win-probability forecasts",
+    inputSchema: {
+      type: "object",
+      properties: {
+        case_id: { type: "string", default: "case_demo" },
+        mode: { type: "string", enum: ["rag24_deterministic", "beast24_autonomous"], default: "rag24_deterministic" },
+        tenant_id: { type: "string", default: "tenant_default" },
+        actor_id: { type: "string", default: "usr_lead_01" },
+      },
+    },
+  },
 ];
+
+const CII_MCP_TOOL_NAMES = new Set<string>([
+  "reg24.case.get",
+  "reg24.case.facts.list",
+  "reg24.case.conflicts.list",
+  "reg24.case.graph.query",
+  "reg24.authorities.search",
+  "reg24.citations.verify",
+  "reg24.case.analysis.start",
+  "reg24.case.analysis.status",
+  "reg24.case.dossier.create",
+  "reg24.case.interview.create",
+  "reg24.case.strategy.review",
+]);
+
+function executeCiiMcpTool(
+  toolName: string,
+  args: Record<string, unknown>,
+  fallbackTenantId: string
+): Record<string, unknown> {
+  const caseId = String(args.case_id || "case_demo");
+  const tenantId = String(args.tenant_id || fallbackTenantId || "tenant.law24.prod");
+  const principalId = String(args.principal_id || args.actor_id || "counsel.somchai@law24.th");
+
+  switch (toolName) {
+    case "reg24.case.get": {
+      const res = reg24CaseIntelligenceService.getCaseWorkspaceBundle({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+      });
+      if (res.status !== 200 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body.error };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        matter: res.body.matter,
+        coverage_summary: res.body.coverage_summary,
+        counts: {
+          documents: res.body.documents.length,
+          facts: res.body.facts.length,
+          conflicts: res.body.conflicts.length,
+          dossiers: res.body.dossiers.length,
+        },
+      };
+    }
+    case "reg24.case.facts.list": {
+      const res = reg24CaseIntelligenceService.getCaseWorkspaceBundle({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+      });
+      if (res.status !== 200 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body.error };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        case_id: caseId,
+        facts: res.body.facts,
+        issues: res.body.issues,
+      };
+    }
+    case "reg24.case.conflicts.list": {
+      const res = reg24CaseIntelligenceService.getCaseWorkspaceBundle({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+      });
+      if (res.status !== 200 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body.error };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        case_id: caseId,
+        conflicts: res.body.conflicts,
+      };
+    }
+    case "reg24.case.graph.query": {
+      const res = reg24CaseIntelligenceService.getCaseGraph({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+      });
+      if (res.status !== 200 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        ...res.body,
+      };
+    }
+    case "reg24.authorities.search": {
+      const res = reg24CaseIntelligenceService.getCaseWorkspaceBundle({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+      });
+      if (res.status !== 200 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body.error };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        case_id: caseId,
+        authorities: res.body.authorities,
+      };
+    }
+    case "reg24.citations.verify": {
+      const citations = Array.isArray(args.citations)
+        ? (args.citations as Array<{
+            citation_string: string;
+            claimed_proposition: string;
+            event_date_iso?: string;
+            only_secondary_summary_accessible?: boolean;
+          }>)
+        : [
+            {
+              citation_string: "ประมวลกฎหมายแพ่งและพาณิชย์ มาตรา 204 วรรคสอง",
+              claimed_proposition: "Debtor is in default without warning when calendar date passes",
+            },
+          ];
+      const res = reg24CaseIntelligenceService.verifyCaseCitations({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+        citations,
+      });
+      if (res.status !== 200 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        verifications: res.body.verifications,
+      };
+    }
+    case "reg24.case.analysis.start": {
+      const res = reg24CaseIntelligenceService.startAnalysisJob({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+        idempotency_key: String(args.idempotency_key || `mcp_idem_${caseId}_${Date.now()}`),
+        document_version_ids: Array.isArray(args.document_version_ids)
+          ? (args.document_version_ids as string[])
+          : ["docv_demo_1", "docv_demo_2", "docv_demo_3", "docv_demo_4"],
+        modules: Array.isArray(args.modules) ? (args.modules as string[]) : undefined,
+      });
+      if (res.status !== 202 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        httpStatus: 202,
+        job: res.body,
+      };
+    }
+    case "reg24.case.analysis.status": {
+      const res = reg24CaseIntelligenceService.getCaseWorkspaceBundle({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+      });
+      if (res.status !== 200 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body.error };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        case_id: caseId,
+        matter_status: res.body.matter.status,
+      };
+    }
+    case "reg24.case.dossier.create": {
+      const res = reg24CaseIntelligenceService.generateDossier({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+        language: args.language === "en" ? "en" : "th",
+        format: (args.format as "JSON" | "DOCX_FIXED_TEMPLATE" | "PDF_P1") || "DOCX_FIXED_TEMPLATE",
+      });
+      if (res.status !== 201 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        dossier: res.body,
+      };
+    }
+    case "reg24.case.interview.create": {
+      const res = reg24CaseIntelligenceService.generateInterviewPlan({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+        interviewee_ref: String(args.interviewee_ref || args.examinee_name || "Khun Anan (Eastern Logistics PM)"),
+        interviewee_role:
+          (args.interviewee_role as "client_representative" | "fact_witness" | "counterparty_witness") ||
+          "counterparty_witness",
+        purpose: String(args.purpose || args.user_prompt_instructions || "Clarify Milestone 2 delivery and payment discrepancy"),
+      });
+      if (res.status !== 201 || "error" in res.body) {
+        return {
+          status: "error",
+          httpStatus: res.status,
+          body: res.body,
+        };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        ...res.body,
+      };
+    }
+    case "reg24.case.strategy.review": {
+      const res = reg24CaseIntelligenceService.runStrategyReview({
+        tenant_id: tenantId,
+        case_id: caseId,
+        principal_id: principalId,
+        scenario_assumptions: Array.isArray(args.scenario_assumptions)
+          ? (args.scenario_assumptions as string[])
+          : undefined,
+      });
+      if (res.status !== 201 || "error" in res.body) {
+        return { status: "error", httpStatus: res.status, error: res.body };
+      }
+      return {
+        status: "ok",
+        spec: "REG24-CII-001",
+        review: res.body,
+      };
+    }
+    default:
+      return { status: "error", error: `Unknown Case Intelligence MCP tool: ${toolName}` };
+  }
+}
 
 const SECTION_10_MCP_TOOL_NAMES = new Set<string>(
   SECTION_10_SERVICE_CATALOGUE.filter((c) => Boolean(c.mcp_tool_name)).map((c) => c.mcp_tool_name)
@@ -1700,6 +2095,28 @@ export async function POST(req: NextRequest) {
         const toolName = String(params?.name || "");
         const toolArgs: MCPCommonInput = params?.arguments || {};
 
+        if (CII_MCP_TOOL_NAMES.has(toolName)) {
+          const ciiOut = executeCiiMcpTool(
+            toolName,
+            toolArgs as Record<string, unknown>,
+            tenantId
+          );
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(ciiOut, null, 2),
+                },
+              ],
+              structuredContent: ciiOut,
+              isError: ciiOut.status === "error",
+            },
+          });
+        }
+
         if (SECTION_10_MCP_TOOL_NAMES.has(toolName)) {
           const sec10Out = await executeSection10LegalMcpTool(
             req,
@@ -1891,6 +2308,17 @@ export async function POST(req: NextRequest) {
     // Direct REST-style MCP tool call
     const toolName = String(body.tool || body.name || "reg24.list_modules");
     const input: MCPCommonInput = body.input || body.arguments || body;
+
+    if (CII_MCP_TOOL_NAMES.has(toolName)) {
+      const ciiOut = executeCiiMcpTool(
+        toolName,
+        input as Record<string, unknown>,
+        tenantId
+      );
+      return NextResponse.json(ciiOut, {
+        status: typeof ciiOut.httpStatus === "number" ? ciiOut.httpStatus : 200,
+      });
+    }
 
     if (SECTION_10_MCP_TOOL_NAMES.has(toolName)) {
       const sec10Out = await executeSection10LegalMcpTool(

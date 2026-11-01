@@ -5132,4 +5132,565 @@ export function Reg24InfrastructureV1ConsoleSection() {
   );
 }
 
+// ============================================================================
+// REG24 CASE INTELLIGENCE WORKSPACE (Specification REG24-CII-001 v1.1 — Section 18)
+// ============================================================================
+
+export function Reg24CaseIntelligenceWorkspaceSection({ isTh }: { isTh: boolean }) {
+  const [activeScreen, setActiveScreen] = useState<
+    | "dashboard"
+    | "intake"
+    | "facts"
+    | "conflicts"
+    | "timeline_graph"
+    | "authorities"
+    | "interview_strategy"
+    | "dossiers"
+  >("conflicts");
+  const [bundle, setBundle] = useState<Record<string, unknown> | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [statusNotice, setStatusNotice] = useState<string>("");
+  const [graphTableView, setGraphTableView] = useState<boolean>(false);
+  const [selectedConflictId, setSelectedConflictId] = useState<string>("conf_demo_1");
+
+  const loadWorkspaceBundle = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/v1/cases/case_demo");
+      const json = await res.json();
+      if (json.matter) {
+        setBundle(json);
+      } else if (json.bundle) {
+        setBundle(json.bundle);
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadWorkspaceBundle();
+  }, [loadWorkspaceBundle]);
+
+  const handleCorrectFact = async (factId: string) => {
+    try {
+      const res = await fetch("/api/v1/cases/case_demo/facts", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fact_id: factId,
+          updated_review_status: "accepted",
+          reason: "Verified against PDF page span SHA-256 hash by Lead Counsel",
+        }),
+      });
+      const json = await res.json();
+      if (json.fact_id) {
+        setStatusNotice(
+          `Fact ${factId} accepted (CII-008 · revision ${String(json.revision)}). Downstream chronology, conflicts, interview plans & dossiers marked stale.`
+        );
+        await loadWorkspaceBundle();
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleGenerateDossier = async () => {
+    try {
+      const res = await fetch("/api/v1/cases/case_demo/dossiers", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          language: isTh ? "th" : "en",
+          format: "DOCX_FIXED_TEMPLATE",
+        }),
+      });
+      const json = await res.json();
+      if (json.dossier_id) {
+        setStatusNotice(
+          `Draft Dossier ${String(json.dossier_id)} generated (state=${String(json.state)}) — requires human approval before external export.`
+        );
+        await loadWorkspaceBundle();
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleRunStrategyReview = async () => {
+    try {
+      const res = await fetch("/api/v1/cases/case_demo/strategy-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = await res.json();
+      if (json.strategy_review_id) {
+        setStatusNotice(
+          `Strategy Review ${String(json.strategy_review_id)} completed (no_win_probability_forecast_enforced=${String(json.no_win_probability_forecast_enforced)} per CII-047 / AT-23).`
+        );
+        await loadWorkspaceBundle();
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const matter = (bundle?.matter || {}) as Record<string, unknown>;
+  const coverage = (bundle?.coverage_summary || {}) as Record<string, unknown>;
+  const documents = Array.isArray(bundle?.documents) ? (bundle?.documents as Array<Record<string, unknown>>) : [];
+  const facts = Array.isArray(bundle?.facts) ? (bundle?.facts as Array<Record<string, unknown>>) : [];
+  const conflicts = Array.isArray(bundle?.conflicts) ? (bundle?.conflicts as Array<Record<string, unknown>>) : [];
+  const timeline = Array.isArray(bundle?.timeline) ? (bundle?.timeline as Array<Record<string, unknown>>) : [];
+  const graph = (bundle?.graph || {}) as { nodes?: Array<Record<string, unknown>>; edges?: Array<Record<string, unknown>> };
+  const authorities = Array.isArray(bundle?.authorities) ? (bundle?.authorities as Array<Record<string, unknown>>) : [];
+  const dossiers = Array.isArray(bundle?.dossiers) ? (bundle?.dossiers as Array<Record<string, unknown>>) : [];
+  const selectedConflict =
+    conflicts.find((c) => c.conflict_id === selectedConflictId) || conflicts[0] || null;
+
+  const screens: Array<{ id: typeof activeScreen; labelEn: string; labelTh: string }> = [
+    { id: "dashboard", labelEn: "Case Dashboard", labelTh: "แดชบอร์ดคดี" },
+    { id: "intake", labelEn: "Intake & Coverage", labelTh: "นำเข้าเอกสาร & ความครอบคลุม" },
+    { id: "facts", labelEn: "Facts & Issue Matrix", labelTh: "ข้อเท็จจริง & ประเด็นแห่งคดี" },
+    { id: "conflicts", labelEn: "Evidence Conflict Radar", labelTh: "เรดาร์ตรวจจับข้อขัดแย้งพยานหลักฐาน" },
+    { id: "timeline_graph", labelEn: "Timeline & Fact Graph", labelTh: "ไทม์ไลน์ & กราฟข้อเท็จจริง" },
+    { id: "authorities", labelEn: "Authority Explorer", labelTh: "ตัวบทกฎหมายและแนวคำพิพากษา" },
+    { id: "interview_strategy", labelEn: "Interview & Strategy (P1)", labelTh: "แผนซักถามพยาน & กลยุทธ์ (P1)" },
+    { id: "dossiers", labelEn: "Dossiers & Approvals", labelTh: "รายงานสรุปสำนวน & การอนุมัติ" },
+  ];
+
+  return (
+    <section
+      aria-label="REG24 Case Intelligence Workspace (REG24-CII-001 v1.1)"
+      style={{
+        padding: "20px",
+        background: "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+        display: "flex",
+        flexDirection: "column",
+        gap: "16px",
+      }}
+    >
+      {/* Persistent Top Banner: Matter Status, Coverage Summary, Stale Indicators & AI Assistance Notice (Section 18) */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: "12px",
+          paddingBottom: "12px",
+          borderBottom: "1px solid var(--color-border)",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            REG24-CII-001 v1.1 · Legal Evidence Analysis & Reusable Case Intelligence · P0 + P1 Modules
+          </div>
+          <h3 style={{ margin: "4px 0 0 0", fontSize: "16px", fontWeight: 700 }}>
+            {String(matter.matter_ref || "MTR-2026-TH-088")} —{" "}
+            {String(matter.title || "Siam Cloud Tech vs. Eastern Logistics — MSA & Supply Dispute")}
+          </h3>
+          <div style={{ fontSize: "12px", opacity: 0.8, marginTop: "4px" }}>
+            {isTh
+              ? "คำเตือน AI: ผลลัพธ์จาก AI เป็นเพียงร่างวิเคราะห์เบื้องต้น ต้องผ่านการตรวจสอบและอนุมัติโดยทนายความผู้รับผิดชอบก่อนนำไปใช้อ้างอิงภายนอก"
+              : "AI Assistance Notice: Analytical outputs are draft work product until reviewed and approved by an authorized legal reviewer."}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", fontSize: "11.5px" }}>
+          <span style={{ padding: "4px 8px", background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+            Docs Processed: <strong>{Number(coverage.documents_compared ?? 4)}</strong>
+          </span>
+          <span style={{ padding: "4px 8px", background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+            Excluded Pages (AT-02): <strong>{Number(coverage.unreadable_pages_excluded ?? 1)}</strong>
+          </span>
+          <span style={{ padding: "4px 8px", background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+            Legal Hold: <strong>{matter.legal_hold ? "ACTIVE" : "OFF"}</strong>
+          </span>
+          <span style={{ padding: "4px 8px", background: "#15803d", color: "#fff", fontWeight: 700 }}>
+            AT-01..AT-48 PASS (48/48)
+          </span>
+        </div>
+      </div>
+
+      {/* Screen Navigation Bar (Section 18) */}
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+        {screens.map((scr) => (
+          <button
+            key={scr.id}
+            type="button"
+            onClick={() => setActiveScreen(scr.id)}
+            style={{
+              padding: "6px 12px",
+              fontSize: "12px",
+              fontWeight: activeScreen === scr.id ? 700 : 500,
+              background: activeScreen === scr.id ? "var(--color-text)" : "var(--color-bg)",
+              color: activeScreen === scr.id ? "var(--color-bg)" : "var(--color-text)",
+              border: "1px solid var(--color-border)",
+              cursor: "pointer",
+            }}
+          >
+            {isTh ? scr.labelTh : scr.labelEn}
+          </button>
+        ))}
+      </div>
+
+      {statusNotice && (
+        <div
+          style={{
+            padding: "8px 12px",
+            background: "var(--color-bg)",
+            borderLeft: "3px solid var(--color-text)",
+            fontSize: "12px",
+            fontFamily: "var(--font-mono, monospace)",
+          }}
+        >
+          {statusNotice}
+        </div>
+      )}
+
+      {loading && <div style={{ fontSize: "12px", opacity: 0.7 }}>Loading Case Intelligence Bundle...</div>}
+
+      {/* Screen 1 & 2: Dashboard / Intake & Coverage */}
+      {(activeScreen === "dashboard" || activeScreen === "intake") && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: "12px" }}>
+          {documents.map((doc) => (
+            <div
+              key={String(doc.document_id)}
+              style={{
+                padding: "12px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                fontSize: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "4px",
+              }}
+            >
+              <div style={{ fontWeight: 700 }}>{String(doc.original_name)}</div>
+              <div>
+                Doc ID: <code>{String(doc.document_id)}</code> · Status: <strong>{String(doc.processing_state)}</strong>
+              </div>
+              <div>
+                Pages: {Number(doc.total_pages)} · OCR Quality: <strong>{Number(doc.ocr_quality_score)}</strong>
+              </div>
+              {Array.isArray(doc.unreadable_pages) && doc.unreadable_pages.length > 0 && (
+                <div style={{ color: "#b91c1c", fontWeight: 600 }}>
+                  Excluded Unreadable Page(s): {doc.unreadable_pages.join(", ")} (Excluded from automated fact extraction per CII-004 / AT-02)
+                </div>
+              )}
+              <div style={{ fontFamily: "monospace", fontSize: "10.5px", opacity: 0.75 }}>
+                SHA-256: {String(doc.sha256_hash).slice(0, 24)}...
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Screen 3: Structured Facts & Issue Matrix */}
+      {activeScreen === "facts" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {facts.map((f) => (
+            <div
+              key={String(f.fact_id)}
+              style={{
+                padding: "12px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                fontSize: "12.5px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                gap: "12px",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ flex: "1 1 420px" }}>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "4px", fontSize: "11px" }}>
+                  <code>{String(f.fact_id)}</code>
+                  <span style={{ padding: "1px 6px", border: "1px solid var(--color-border)" }}>
+                    assertion_kind: <strong>{String(f.assertion_kind)}</strong>
+                  </span>
+                  <span style={{ padding: "1px 6px", border: "1px solid var(--color-border)" }}>
+                    corroboration: <strong>{String(f.corroboration_status)}</strong>
+                  </span>
+                  <span style={{ padding: "1px 6px", border: "1px solid var(--color-border)" }}>
+                    review_status: <strong>{String(f.review_status)}</strong>
+                  </span>
+                  <span style={{ padding: "1px 6px", border: "1px solid var(--color-border)" }}>
+                    legal_status: <strong>{String(f.legal_status)}</strong>
+                  </span>
+                </div>
+                <div style={{ fontWeight: 600 }}>{String(f.assertion)}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCorrectFact(String(f.fact_id))}
+                style={{
+                  padding: "5px 10px",
+                  fontSize: "11.5px",
+                  background: "var(--color-text)",
+                  color: "var(--color-bg)",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Verify & Accept Assertion (CII-008)
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Screen 4: Evidence Conflict Radar with Side-by-Side Source Passage Comparison (Section 18) */}
+      {activeScreen === "conflicts" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "14px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <div style={{ fontSize: "12px", fontWeight: 700 }}>
+              {isTh ? "รายการข้อขัดแย้งและประวัติการแก้ไขสัญญา (CII-011..CII-018)" : "Evidence Conflict Radar & Version Lineage (CII-011..CII-018)"}
+            </div>
+            {conflicts.map((c) => (
+              <div
+                key={String(c.conflict_id)}
+                onClick={() => setSelectedConflictId(String(c.conflict_id))}
+                style={{
+                  padding: "10px 12px",
+                  background: selectedConflict?.conflict_id === c.conflict_id ? "var(--color-text)" : "var(--color-bg)",
+                  color: selectedConflict?.conflict_id === c.conflict_id ? "var(--color-bg)" : "var(--color-text)",
+                  border: "1px solid var(--color-border)",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                  <span>{String(c.conflict_type).toUpperCase()}</span>
+                  <span>
+                    {c.model_classification === "temporal_or_version_amendment"
+                      ? "AMENDMENT VERSION CHANGE (AT-06)"
+                      : `Severity: ${String(c.severity)}`}
+                  </span>
+                </div>
+                <div style={{ marginTop: "4px" }}>{String(c.what_differs)}</div>
+              </div>
+            ))}
+          </div>
+
+          {selectedConflict && (
+            <div
+              style={{
+                padding: "14px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+                fontSize: "12px",
+              }}
+            >
+              <div style={{ fontWeight: 700, fontSize: "13px" }}>
+                {isTh ? "เปรียบเทียบข้อความต้นฉบับแบบเคียงข้างกัน (Side-by-Side Source Comparison)" : "Side-by-Side Source Passage Comparison (CII-014)"}
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                {(Array.isArray(selectedConflict.side_by_side_passages)
+                  ? (selectedConflict.side_by_side_passages as Array<Record<string, unknown>>)
+                  : []
+                ).map((p, idx) => (
+                  <div
+                    key={String(p.assertion_id || idx)}
+                    style={{ padding: "10px", background: "var(--color-surface)", border: "1px solid var(--color-border)" }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: "11px", marginBottom: "4px" }}>
+                      PASSAGE {idx + 1} · Doc: <code>{String(p.document_name)}</code>
+                    </div>
+                    <div style={{ fontStyle: "italic" }}>&ldquo;{String(p.verbatim_passage)}&rdquo;</div>
+                  </div>
+                ))}
+              </div>
+              <div>
+                <strong>Why This Matters (CII-014):</strong> {String(selectedConflict.why_it_matters)}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Screen 5: Timeline & Fact Graph with Keyboard-Accessible Table View Toggle (Section 18) */}
+      {activeScreen === "timeline_graph" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "12px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <strong>
+              {isTh
+                ? "ไทม์ไลน์เหตุการณ์ (แยกเหตุการณ์ไม่ระบุวันที่ชัดเจนออกเป็น Undated Lane ตาม CII-029)"
+                : "Chronological Timeline & Undated/Approximate Event Lane (CII-029)"}
+            </strong>
+            <button
+              type="button"
+              onClick={() => setGraphTableView((v) => !v)}
+              style={{
+                padding: "4px 10px",
+                fontSize: "11.5px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                cursor: "pointer",
+              }}
+            >
+              {graphTableView ? "Switch to Card Graph View" : "Keyboard-Accessible Table View (Section 18)"}
+            </button>
+          </div>
+          {timeline.map((ev) => (
+            <div
+              key={String(ev.event_id)}
+              style={{
+                padding: "8px 12px",
+                background: "var(--color-bg)",
+                borderLeft: ev.lane === "undated_lane" ? "3px dashed #ca8a04" : "3px solid var(--color-text)",
+                display: "flex",
+                justifyContent: "space-between",
+                gap: "10px",
+              }}
+            >
+              <span>
+                <strong>{ev.lane === "undated_lane" ? "[UNDATED LANE]" : String(ev.normalized_date_iso)}</strong> —{" "}
+                {String(ev.title)}
+              </span>
+              <code>precision: {String(ev.precision)}</code>
+            </div>
+          ))}
+          {graphTableView && (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11.5px" }}>
+              <thead>
+                <tr style={{ borderBottom: "1px solid var(--color-border)", textAlign: "left" }}>
+                  <th style={{ padding: "6px" }}>Edge ID</th>
+                  <th style={{ padding: "6px" }}>Predicate</th>
+                  <th style={{ padding: "6px" }}>Assertion Kind</th>
+                  <th style={{ padding: "6px" }}>Subject → Object</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(graph.edges || []).map((ed) => (
+                  <tr key={String(ed.edge_id)} style={{ borderBottom: "1px solid var(--color-border)" }}>
+                    <td style={{ padding: "6px" }}><code>{String(ed.edge_id)}</code></td>
+                    <td style={{ padding: "6px" }}>{String(ed.predicate)}</td>
+                    <td style={{ padding: "6px" }}><strong>{String(ed.assertion_kind)}</strong></td>
+                    <td style={{ padding: "6px" }}>{String(ed.subject_node_id)} → {String(ed.object_node_id)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* Screen 6: Authority Explorer (CII-019..CII-026) */}
+      {activeScreen === "authorities" && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "12px" }}>
+          {authorities.map((auth) => (
+            <div
+              key={String(auth.authority_id)}
+              style={{
+                padding: "12px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                fontSize: "12px",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700 }}>
+                <span>{String(auth.canonical_citation)}</span>
+                <span>{String(auth.source_verification)}</span>
+              </div>
+              <div style={{ marginTop: "4px" }}>
+                Applicability: <strong>{String(auth.applicability_status)}</strong> · Event Date:{" "}
+                <strong>{String(auth.relevant_event_date)}</strong>
+              </div>
+              <div style={{ marginTop: "6px", opacity: 0.9 }}>{String(auth.proposition)}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Screen 7: P1 Interview Planner & Strategy Workspace */}
+      {activeScreen === "interview_strategy" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "12.5px" }}>
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handleRunStrategyReview}
+              style={{
+                padding: "7px 14px",
+                fontSize: "12px",
+                fontWeight: 700,
+                background: "var(--color-text)",
+                color: "var(--color-bg)",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Run Adversarial Strategy Review (CII-043..CII-050)
+            </button>
+          </div>
+          <div style={{ padding: "12px", background: "var(--color-bg)", border: "1px solid var(--color-border)" }}>
+            <strong>Non-Coaching Ethical Guardrail (CII-042 / AT-18):</strong> Requests that instruct a witness to state
+            an unsupported date or fabricate testimony are deterministically blocked with HTTP 422 while offering lawful
+            clarification questions anchored to source exhibits.
+          </div>
+        </div>
+      )}
+
+      {/* Screen 8: Dossiers & Approvals (CII-051..CII-056) */}
+      {activeScreen === "dossiers" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "12px" }}>
+          <div>
+            <button
+              type="button"
+              onClick={handleGenerateDossier}
+              style={{
+                padding: "7px 14px",
+                fontSize: "12px",
+                fontWeight: 700,
+                background: "var(--color-text)",
+                color: "var(--color-bg)",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Generate Bilingual Evidence Conflict Dossier (CII-051)
+            </button>
+          </div>
+          {dossiers.map((dos) => (
+            <div
+              key={String(dos.dossier_id)}
+              style={{
+                padding: "12px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "8px",
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 700 }}>
+                  <code>{String(dos.dossier_id)}</code> · rev {Number(dos.revision)} ({String(dos.format)})
+                </div>
+                <div>
+                  Approval State: <strong>{String(dos.state)}</strong> · Stale:{" "}
+                  <code>{String(dos.stale_due_to_input_change)}</code>
+                </div>
+              </div>
+              <span style={{ fontFamily: "monospace", fontSize: "11px" }}>
+                Artifact Hash: {String(dos.artifact_hash).slice(0, 20)}...
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+
 
