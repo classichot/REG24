@@ -5694,3 +5694,848 @@ export function Reg24CaseIntelligenceWorkspaceSection({ isTh }: { isTh: boolean 
 
 
 
+
+// ============================================================================
+// REG24 THAI LEGAL OCR v2.0, DUAL-CONTROL REVIEW & SOURCE-LINKED PUBLICATION
+// Specification Version 2.0 (Astra Rewrite · 13 November 2026) — Sections 7, 8, 9, 10
+// ============================================================================
+
+export function Reg24ThaiLegalOcrV2WorkspaceSection({ isTh }: { isTh: boolean }) {
+  const [activeTab, setActiveTab] = useState<
+    "queue" | "inspector" | "issues_correction" | "approval_publish" | "providers_benchmark"
+  >("queue");
+  const [overview, setOverview] = useState<Record<string, unknown> | null>(null);
+  const [providersInfo, setProvidersInfo] = useState<Record<string, unknown> | null>(null);
+  const [selectedDocId, setSelectedDocId] = useState<string>("doc.th.rd.0702_9184");
+  const [selectedPageIdx, setSelectedPageIdx] = useState<number>(0);
+  const [textLayerView, setTextLayerView] = useState<"raw" | "normalized">("raw");
+  const [showGlyphDiag, setShowGlyphDiag] = useState<boolean>(false);
+  const [corrBefore, setCorrBefore] = useState<string>("มาตรา 874");
+  const [corrAfter, setCorrAfter] = useState<string>("มาตรา 74");
+  const [corrReason, setCorrReason] = useState<string>(
+    "Verified against original Revenue Department scan: OCR misread 'มาตรา 74' as 'มาตรา 874'"
+  );
+  const [statusBanner, setStatusBanner] = useState<string>("");
+
+  const loadWorkspace = useCallback(async () => {
+    try {
+      const [ovRes, provRes] = await Promise.all([
+        fetch("/api/v1/documents"),
+        fetch("/api/v1/ocr/providers"),
+      ]);
+      if (ovRes.ok) {
+        setOverview((await ovRes.json()) as Record<string, unknown>);
+      }
+      if (provRes.ok) {
+        setProvidersInfo((await provRes.json()) as Record<string, unknown>);
+      }
+    } catch {
+      // Non-blocking fallback
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadWorkspace();
+  }, [loadWorkspace]);
+
+  const docs = ((overview?.documents as Array<Record<string, unknown>>) || []);
+  const selectedDoc =
+    docs.find((d) => String(d.document_id) === selectedDocId) || docs[0] || null;
+  const versionObj = (selectedDoc?.version as Record<string, unknown>) || null;
+  const manifestObj = (selectedDoc?.manifest as Record<string, unknown>) || null;
+  const pagesPreview =
+    ((selectedDoc?.pages_preview as Array<Record<string, unknown>>) || []);
+  const currentPage = pagesPreview[selectedPageIdx] || pagesPreview[0] || null;
+  const issuesList =
+    ((manifestObj?.issues as Array<Record<string, unknown>>) || []);
+  const annotationsList =
+    ((selectedDoc?.annotations as Array<Record<string, unknown>>) || []);
+  const benchReport = (overview?.benchmark_report as Record<string, unknown>) || null;
+  const macroMetrics =
+    (benchReport?.macro_metrics as Record<string, unknown>) || null;
+
+  const handleSubmitCriticalCorrection = async () => {
+    if (!selectedDoc || !versionObj || !currentPage) return;
+    const rawTxt = String(currentPage.raw_text || "");
+    const rawCps = Array.from(rawTxt);
+    const beforeCps = Array.from(corrBefore);
+    let startCp = -1;
+    for (let i = 0; i <= rawCps.length - beforeCps.length; i++) {
+      if (rawCps.slice(i, i + beforeCps.length).join("") === corrBefore) {
+        startCp = i;
+        break;
+      }
+    }
+    if (startCp < 0) {
+      setStatusBanner(`Span '${corrBefore}' not found in current page raw_text.`);
+      return;
+    }
+
+    const openIssueIds = issuesList
+      .filter((iss) => iss.resolution === "open")
+      .map((iss) => String(iss.issue_id));
+
+    const res = await fetch(
+      `/api/v1/legal/documents/${String(selectedDoc.document_id)}/corrections`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": `ui-corr-${Date.now()}`,
+          "if-match": String(versionObj.workflow_revision),
+          "x-principal-id": "principal.legal_ops.01",
+          "x-roles": "reviewer,legal_editor",
+        },
+        body: JSON.stringify({
+          extraction_version_id: String(versionObj.extraction_version_id),
+          source_spans: [
+            {
+              page_number: Number(currentPage.page_number),
+              block_id: null,
+              raw_start: startCp,
+              raw_end: startCp + beforeCps.length,
+              polygon: null,
+            },
+          ],
+          before_text: corrBefore,
+          after_text: corrAfter,
+          issue_ids: openIssueIds,
+          reason: corrReason,
+        }),
+      }
+    );
+    const data = (await res.json()) as Record<string, unknown>;
+    if (res.ok) {
+      setStatusBanner(
+        `Created immutable successor extraction ${String(
+          data.successor_extraction_version_id
+        )} (provider_id=human). Dual-control second approver now required for publication.`
+      );
+      await loadWorkspace();
+    } else {
+      setStatusBanner(`Correction rejected (${res.status}): ${String(data.code)} — ${String(data.message)}`);
+    }
+  };
+
+  const handleResolveBlockingIssues = async () => {
+    if (!selectedDoc || !versionObj) return;
+    const blockingIds = issuesList
+      .filter((i) => i.resolution === "open")
+      .map((i) => String(i.issue_id));
+    const res = await fetch(
+      `/api/v1/legal/documents/${String(selectedDoc.document_id)}/review-decisions`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": `ui-dec-${Date.now()}`,
+          "if-match": String(versionObj.workflow_revision),
+          "x-principal-id": "principal.legal_ops.01",
+          "x-roles": "reviewer,legal_editor",
+        },
+        body: JSON.stringify({
+          extraction_version_id: String(versionObj.extraction_version_id),
+          annotation_version: String(versionObj.annotation_version),
+          issue_ids: blockingIds,
+          disposition: "resolve_blocking",
+          evidence: "Verified physical document date & section text against Gazette/RD scan",
+          rationale: "Adjudicated by legal editor under rule revision thai-ocr-qa/2.0.0",
+        }),
+      }
+    );
+    const data = (await res.json()) as Record<string, unknown>;
+    if (res.ok) {
+      setStatusBanner("Blocking issues resolved with audit rationale; ready for second-person approval.");
+      await loadWorkspace();
+    } else {
+      setStatusBanner(`Decision error (${res.status}): ${String(data.code)} — ${String(data.message)}`);
+    }
+  };
+
+  const handleSecondPersonApproveAndPublish = async () => {
+    if (!selectedDoc || !versionObj) return;
+    const docId = String(selectedDoc.document_id);
+    const apprRes = await fetch(`/api/v1/legal/documents/${docId}/approvals`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `ui-appr2-${Date.now()}`,
+        "if-match": String(versionObj.workflow_revision),
+        "x-principal-id": "principal.senior_counsel.02",
+        "x-roles": "reviewer,legal_editor,publisher",
+      },
+      body: JSON.stringify({
+        source_version_id: String(versionObj.source_version_id),
+        extraction_version_id: String(versionObj.extraction_version_id),
+        annotation_version: String(versionObj.annotation_version),
+        scopes: ["transcription_checked", "references_resolved", "ready_to_publish"],
+      }),
+    });
+    const apprData = (await apprRes.json()) as Record<string, unknown>;
+    if (!apprRes.ok) {
+      setStatusBanner(
+        `Approval blocked (${apprRes.status}): ${String(apprData.code)} — ${String(apprData.message)}`
+      );
+      return;
+    }
+
+    const nextRev = Number(versionObj.workflow_revision) + 1;
+    const pubRes = await fetch(`/api/v1/legal/documents/${docId}/publications`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `ui-pub-${Date.now()}`,
+        "if-match": String(nextRev),
+        "x-principal-id": "principal.senior_counsel.02",
+        "x-roles": "publisher",
+      },
+      body: JSON.stringify({
+        source_version_id: String(versionObj.source_version_id),
+        extraction_version_id: String(versionObj.extraction_version_id),
+        annotation_version: String(versionObj.annotation_version),
+        approval_ids: [String(apprData.approval_id)],
+        expected_previous_publication_id:
+          (versionObj.active_publication_id as string | null) ?? null,
+      }),
+    });
+    const pubData = (await pubRes.json()) as Record<string, unknown>;
+    if (pubRes.ok) {
+      setStatusBanner(
+        `Atomically published ${String(
+          pubData.publication_id
+        )} across Keyword, Vector & GraphRAG pointer snapshot!`
+      );
+      await loadWorkspace();
+    } else {
+      setStatusBanner(
+        `Publication blocked (${pubRes.status}): ${String(pubData.code)} — ${String(pubData.message)}`
+      );
+    }
+  };
+
+  const handleWithdrawActivePublication = async () => {
+    if (!selectedDoc || !versionObj || !versionObj.active_publication_id) return;
+    const docId = String(selectedDoc.document_id);
+    const res = await fetch(`/api/v1/legal/documents/${docId}/withdrawals`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": `ui-wd-${Date.now()}`,
+        "if-match": String(versionObj.workflow_revision),
+        "x-principal-id": "principal.senior_counsel.02",
+        "x-roles": "publisher",
+      },
+      body: JSON.stringify({
+        active_publication_id: String(versionObj.active_publication_id),
+        reason: "Administrative withdrawal test — revoke active search/GraphRAG visibility",
+      }),
+    });
+    const data = (await res.json()) as Record<string, unknown>;
+    if (res.ok) {
+      setStatusBanner(
+        `Withdrew ${String(data.publication_id)} — active pointer cleared & answer caches invalidated.`
+      );
+      await loadWorkspace();
+    } else {
+      setStatusBanner(`Withdrawal error (${res.status}): ${String(data.message)}`);
+    }
+  };
+
+  return (
+    <section
+      style={{
+        marginTop: "28px",
+        padding: "20px",
+        border: "1px solid var(--color-border)",
+        background: "var(--color-surface)",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          flexWrap: "wrap",
+          gap: "12px",
+          marginBottom: "14px",
+        }}
+      >
+        <div>
+          <div
+            style={{
+              fontSize: "11px",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+              textTransform: "uppercase",
+              opacity: 0.75,
+            }}
+          >
+            ocr-contract/2.0.0 · Thai Legal OCR, Dual-Control Verification & Source-Linked GraphRAG
+          </div>
+          <h3 style={{ margin: "4px 0", fontSize: "18px", fontWeight: 700 }}>
+            {isTh
+              ? "ระบบ OCR กฎหมายไทย v2.0 การตรวจทานสองชั้น และการเผยแพร่เชื่อมโยงต้นฉบับสำหรับ GraphRAG"
+              : "Thai Legal OCR v2.0, Dual-Control Review & Source-Linked GraphRAG Publication"}
+          </h3>
+          <p style={{ margin: 0, fontSize: "12.5px", opacity: 0.82 }}>
+            {isTh
+              ? "แยกสถานะความถูกต้องของตัวอักษร (ocr_verified) ออกจากความเห็นทางกฎหมายและผลบังคับใช้ปัจจุบัน พร้อมเลขหน้าและตำแหน่ง Unicode Code-Point ย้อนกลับหาต้นฉบับได้ทุกประโยค"
+              : "Separates OCR transcription verification from reference resolution, curated applicability, and atomic CAS GraphRAG publication."}
+          </p>
+        </div>
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+          {(
+            [
+              ["queue", isTh ? "คิวเอกสาร (Queue)" : "1. Ingestion Queue"],
+              ["inspector", isTh ? "เทียบหน้า & อักขระไทย" : "2. Page & Thai Glyph Inspector"],
+              ["issues_correction", isTh ? "ประเด็นติดขัด & แก้ไข" : "3. Issues & Correction"],
+              ["approval_publish", isTh ? "อนุมัติ 2 ชั้น & เผยแพร่" : "4. Dual-Control & Publish"],
+              ["providers_benchmark", isTh ? "โมเดล OCR & เกณฑ์วัดผล" : "5. Providers & CER/TEDS"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveTab(key)}
+              style={{
+                padding: "6px 11px",
+                fontSize: "12px",
+                fontWeight: activeTab === key ? 700 : 500,
+                background: activeTab === key ? "var(--color-text)" : "var(--color-bg)",
+                color: activeTab === key ? "var(--color-bg)" : "var(--color-text)",
+                border: "1px solid var(--color-border)",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {statusBanner && (
+        <div
+          style={{
+            padding: "9px 12px",
+            marginBottom: "12px",
+            fontSize: "12px",
+            background: "var(--color-bg)",
+            border: "1px solid var(--color-text)",
+          }}
+        >
+          <strong>OCR v2 Audit Notice:</strong> {statusBanner}
+        </div>
+      )}
+
+      {/* Tab 1: Ingestion Queue & 4 Orthogonal States */}
+      {activeTab === "queue" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", fontSize: "12.5px" }}>
+          <div
+            style={{
+              padding: "10px 12px",
+              background: "var(--color-bg)",
+              border: "1px solid var(--color-border)",
+              fontSize: "12px",
+            }}
+          >
+            <strong>Legacy Corpus Migration Safeguard (Section 12):</strong>{" "}
+            <code>legacy_unverified</code> tag preserved on{" "}
+            <strong>2,312</strong> Resource Master statutes &amp; <strong>3,643</strong> RD rulings
+            (never falsely promoted to <code>ocr_verified</code> without rendered page-hash evidence).
+          </div>
+          {docs.map((doc) => {
+            const ver = (doc.version as Record<string, unknown>) || {};
+            const man = (doc.manifest as Record<string, unknown>) || {};
+            const isSelected = String(doc.document_id) === String(selectedDoc?.document_id);
+            return (
+              <div
+                key={String(doc.document_id)}
+                onClick={() => {
+                  setSelectedDocId(String(doc.document_id));
+                  setSelectedPageIdx(0);
+                }}
+                style={{
+                  padding: "12px",
+                  background: "var(--color-bg)",
+                  border: isSelected
+                    ? "2px solid var(--color-text)"
+                    : "1px solid var(--color-border)",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "6px",
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+                  <strong>{String(doc.title_th)}</strong>
+                  <code>
+                    {String(doc.document_id)} · privacy={String(doc.privacy_class)} · pages=
+                    {String(man.returned_page_count)}/{String(man.expected_page_count)}
+                  </code>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", fontSize: "11.5px" }}>
+                  <span>
+                    Transcription: <strong>{String(ver.transcription_status)}</strong>
+                  </span>
+                  <span>·</span>
+                  <span>
+                    References: <strong>{String(ver.reference_status)}</strong>
+                  </span>
+                  <span>·</span>
+                  <span>
+                    Applicability (Legal Force): <strong>{String(ver.applicability_status)}</strong>
+                  </span>
+                  <span>·</span>
+                  <span>
+                    Publication: <strong>{String(ver.publication_status)}</strong>
+                  </span>
+                  <span>·</span>
+                  <span>
+                    Open Blocking Issues: <strong>{String(doc.open_blocking_issues)}</strong>
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tab 2: Page Comparison (Raw vs Normalized + Thai Combining-Mark & Partial Table Diagnostics) */}
+      {activeTab === "inspector" && selectedDoc && currentPage && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "12.5px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: "8px" }}>
+            <div>
+              <strong>{String(selectedDoc.title_th)}</strong> · Extraction{" "}
+              <code>{String(versionObj?.extraction_version_id)}</code> · Digest{" "}
+              <code>{String(manifestObj?.content_digest || "").slice(0, 16)}…</code>
+            </div>
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+              {pagesPreview.map((p, idx) => (
+                <button
+                  key={Number(p.page_number)}
+                  type="button"
+                  onClick={() => setSelectedPageIdx(idx)}
+                  style={{
+                    padding: "4px 9px",
+                    fontSize: "11.5px",
+                    background: idx === selectedPageIdx ? "var(--color-text)" : "var(--color-bg)",
+                    color: idx === selectedPageIdx ? "var(--color-bg)" : "var(--color-text)",
+                    border: "1px solid var(--color-border)",
+                    cursor: "pointer",
+                  }}
+                >
+                  Page {Number(p.page_number)} ({String(p.state)})
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={() =>
+                  setTextLayerView(textLayerView === "raw" ? "normalized" : "raw")
+                }
+                style={{
+                  padding: "4px 10px",
+                  fontSize: "11.5px",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-bg)",
+                  cursor: "pointer",
+                }}
+              >
+                Layer:{" "}
+                <strong>
+                  {textLayerView === "raw"
+                    ? "RAW (๒๕๖๙ / ๆ preserved)"
+                    : "NORMALIZED (thai-legal-norm/2.0.0)"}
+                </strong>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowGlyphDiag(!showGlyphDiag)}
+                style={{
+                  padding: "4px 10px",
+                  fontSize: "11.5px",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-bg)",
+                  cursor: "pointer",
+                }}
+              >
+                {showGlyphDiag ? "Hide Thai Code-Points" : "Inspect Thai Combining Marks"}
+              </button>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+              gap: "12px",
+            }}
+          >
+            <div
+              style={{
+                padding: "12px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: "6px" }}>
+                Rendered Source Page #{Number(currentPage.page_number)} Evidence
+              </div>
+              <div style={{ fontSize: "11.5px", lineHeight: 1.6 }}>
+                <div>
+                  Provider: <code>{String(currentPage.provider_id)}</code> (
+                  <code>{String(currentPage.model_revision)}</code>)
+                </div>
+                <div>
+                  Page State: <strong>{String(currentPage.state)}</strong> · Structured Blocks:{" "}
+                  <strong>{String(currentPage.blocks_count)}</strong>
+                </div>
+                <div>
+                  Note: Overlays rendered only when authentic provider polygons exist; absent polygons remain{" "}
+                  <code>null</code>.
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                padding: "12px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              <div style={{ fontWeight: 700, marginBottom: "6px" }}>
+                {textLayerView === "raw"
+                  ? "Immutable Raw Extraction (page.raw_text)"
+                  : "Deterministic Normalized Layer (page.normalized_text)"}
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  whiteSpace: "pre-wrap",
+                  fontFamily: "inherit",
+                  fontSize: showGlyphDiag ? "16px" : "13px",
+                  lineHeight: 1.65,
+                }}
+              >
+                {textLayerView === "raw"
+                  ? String(currentPage.raw_text)
+                  : String(currentPage.normalized_text)}
+              </pre>
+            </div>
+          </div>
+
+          {showGlyphDiag && (
+            <div
+              style={{
+                padding: "10px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+                fontSize: "11.5px",
+              }}
+            >
+              <strong>Thai Unicode Code-Point &amp; Combining-Mark Diagnostics (First 32 Code Points):</strong>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "6px" }}>
+                {(
+                  ((currentPage.combining_diagnostics as Record<string, unknown>)
+                    ?.diagnostics as Array<Record<string, unknown>>) || []
+                )
+                  .slice(0, 32)
+                  .map((d) => (
+                    <span
+                      key={Number(d.code_point_index)}
+                      style={{
+                        padding: "3px 6px",
+                        border: "1px solid var(--color-border)",
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      [{Number(d.code_point_index)}] {String(d.char)} ({String(d.hex_code)})
+                    </span>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {((currentPage.tables as Array<Record<string, unknown>>) || []).length > 0 && (
+            <div
+              style={{
+                padding: "10px 12px",
+                background: "var(--color-bg)",
+                border: "1px solid var(--color-border)",
+              }}
+            >
+              <strong>Extracted Tables on Page {Number(currentPage.page_number)}:</strong>
+              {((currentPage.tables as Array<Record<string, unknown>>) || []).map((tbl) => (
+                <div key={String(tbl.table_id)} style={{ marginTop: "6px", fontSize: "12px" }}>
+                  <code>{String(tbl.table_id)}</code> · structure_status=
+                  <strong>{String(tbl.structure_status)}</strong>
+                  {Boolean(tbl.continuation_to_table_id) && (
+                    <span>
+                      {" "}
+                      · continues to <code>{String(tbl.continuation_to_table_id)}</code>
+                    </span>
+                  )}
+                  {Boolean(tbl.continuation_from_table_id) && (
+                    <span>
+                      {" "}
+                      · continued from <code>{String(tbl.continuation_from_table_id)}</code>
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab 3: Blocking Issues, Semantic Annotations & Optimistic-Locked Correction Editor */}
+      {activeTab === "issues_correction" && selectedDoc && versionObj && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "12.5px" }}>
+          <div
+            style={{
+              padding: "12px",
+              background: "var(--color-bg)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <strong>
+              Issues for {String(selectedDoc.document_id)} (workflow_revision=
+              {String(versionObj.workflow_revision)}):
+            </strong>
+            {issuesList.length === 0 ? (
+              <div style={{ marginTop: "6px" }}>Zero issues detected on this extraction version.</div>
+            ) : (
+              issuesList.map((iss) => (
+                <div
+                  key={String(iss.issue_id)}
+                  style={{
+                    marginTop: "6px",
+                    padding: "8px",
+                    border: "1px solid var(--color-border)",
+                  }}
+                >
+                  <code>{String(iss.code)}</code> · severity=<strong>{String(iss.severity)}</strong> ·
+                  resolution=<strong>{String(iss.resolution)}</strong> — {String(iss.message)}
+                </div>
+              ))
+            )}
+          </div>
+
+          <div
+            style={{
+              padding: "12px",
+              background: "var(--color-bg)",
+              border: "1px solid var(--color-border)",
+            }}
+          >
+            <strong>Semantic Citations &amp; Unresolved-Instrument Safeguard (Section 6):</strong>
+            {annotationsList.map((ann) => (
+              <div key={String(ann.annotation_id)} style={{ marginTop: "5px", fontSize: "12px" }}>
+                <code>{String(ann.entity_type)}</code>: <strong>{String(ann.raw_value)}</strong> →{" "}
+                <code>{String(ann.resolution_status)}</code> (target:{" "}
+                <code>{String(ann.resolved_target_id ?? "null — not promoted to verified graph edge")}</code>)
+              </div>
+            ))}
+          </div>
+
+          <div
+            style={{
+              padding: "12px",
+              background: "var(--color-bg)",
+              border: "1px solid var(--color-border)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "8px",
+            }}
+          >
+            <strong>Submit Source-Linked Correction (If-Match Optimistic Locking):</strong>
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+              <input
+                value={corrBefore}
+                onChange={(e) => setCorrBefore(e.target.value)}
+                placeholder="Before text in page.raw_text"
+                style={{ padding: "6px 8px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" }}
+              />
+              <input
+                value={corrAfter}
+                onChange={(e) => setCorrAfter(e.target.value)}
+                placeholder="Corrected text"
+                style={{ padding: "6px 8px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" }}
+              />
+              <input
+                value={corrReason}
+                onChange={(e) => setCorrReason(e.target.value)}
+                placeholder="Audit reason"
+                style={{ flex: 1, minWidth: "220px", padding: "6px 8px", border: "1px solid var(--color-border)", background: "var(--color-surface)", color: "var(--color-text)" }}
+              />
+              <button
+                type="button"
+                onClick={handleSubmitCriticalCorrection}
+                style={{
+                  padding: "6px 12px",
+                  fontWeight: 700,
+                  background: "var(--color-text)",
+                  color: "var(--color-bg)",
+                  border: "none",
+                  cursor: "pointer",
+                }}
+              >
+                Create Successor Extraction
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: 4-State Approval Screen, Dual-Control & Atomic CAS Publication/Withdrawal */}
+      {activeTab === "approval_publish" && selectedDoc && versionObj && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "12.5px" }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+              gap: "10px",
+            }}
+          >
+            <div style={{ padding: "10px", border: "1px solid var(--color-border)", background: "var(--color-bg)" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>1. Transcription Checked</div>
+              <strong>{String(versionObj.transcription_status)}</strong>
+              <div style={{ fontSize: "11px", marginTop: "4px" }}>Evidence check only — never implies legal force.</div>
+            </div>
+            <div style={{ padding: "10px", border: "1px solid var(--color-border)", background: "var(--color-bg)" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>2. References Resolved</div>
+              <strong>{String(versionObj.reference_status)}</strong>
+              <div style={{ fontSize: "11px", marginTop: "4px" }}>Unqualified sections stay candidate-only.</div>
+            </div>
+            <div style={{ padding: "10px", border: "1px solid var(--color-border)", background: "var(--color-bg)" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>3. Applicability Curated</div>
+              <strong>{String(versionObj.applicability_status)}</strong>
+              <div style={{ fontSize: "11px", marginTop: "4px" }}>Must be disclosed in search &amp; GraphRAG if not_assessed.</div>
+            </div>
+            <div style={{ padding: "10px", border: "1px solid var(--color-border)", background: "var(--color-bg)" }}>
+              <div style={{ fontSize: "11px", opacity: 0.75 }}>4. Ready to Publish</div>
+              <strong>{String(versionObj.publication_status)}</strong>
+              <div style={{ fontSize: "11px", marginTop: "4px" }}>
+                Active Pointer: <code>{String(versionObj.active_publication_id ?? "none")}</code>
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              onClick={handleResolveBlockingIssues}
+              style={{
+                padding: "7px 13px",
+                fontSize: "12px",
+                fontWeight: 700,
+                background: "var(--color-bg)",
+                color: "var(--color-text)",
+                border: "1px solid var(--color-border)",
+                cursor: "pointer",
+              }}
+            >
+              Step A: Adjudicate Open Issues (Reviewer #1)
+            </button>
+            <button
+              type="button"
+              onClick={handleSecondPersonApproveAndPublish}
+              style={{
+                padding: "7px 13px",
+                fontSize: "12px",
+                fontWeight: 700,
+                background: "var(--color-text)",
+                color: "var(--color-bg)",
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Step B: Second-Person Approve &amp; CAS Publish (Counsel #2)
+            </button>
+            {Boolean(versionObj.active_publication_id) && (
+              <button
+                type="button"
+                onClick={handleWithdrawActivePublication}
+                style={{
+                  padding: "7px 13px",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  background: "var(--color-bg)",
+                  color: "var(--color-text)",
+                  border: "1px solid var(--color-text)",
+                  cursor: "pointer",
+                }}
+              >
+                Withdraw Active Publication (Revoke Search &amp; GraphRAG)
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Tab 5: Pinned Thai OCR Providers & Honest CER/TEDS Benchmark Report */}
+      {activeTab === "providers_benchmark" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "12.5px" }}>
+          <div
+            style={{
+              padding: "10px 12px",
+              background: "var(--color-bg)",
+              border: "1px solid var(--color-text)",
+            }}
+          >
+            <strong>Benchmark Honesty Gate ({String(benchReport?.release_gate_decision || "")}):</strong>{" "}
+            {String(benchReport?.honesty_notice || "")}
+          </div>
+
+          {macroMetrics && (
+            <div style={{ display: "flex", gap: "14px", flexWrap: "wrap", fontSize: "12px" }}>
+              <span>
+                Fixture Raw CER: <strong>{Number(macroMetrics.clean_printed_raw_cer) * 100}%</strong>
+              </span>
+              <span>·</span>
+              <span>
+                Normalized CER: <strong>{Number(macroMetrics.clean_printed_normalized_cer) * 100}%</strong>
+              </span>
+              <span>·</span>
+              <span>
+                Citation Span F1: <strong>{String(macroMetrics.citation_f1)}</strong>
+              </span>
+              <span>·</span>
+              <span>
+                Table Structure-Only TEDS: <strong>{String(macroMetrics.table_structure_only_teds)}</strong>
+              </span>
+              <span>·</span>
+              <span>
+                Hallucinated Critical Tokens: <strong>{String(macroMetrics.hallucinated_critical_tokens)}</strong>
+              </span>
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {(((providersInfo?.providers as Array<Record<string, unknown>>) || [])).map((prov) => (
+              <div
+                key={String(prov.provider_id)}
+                style={{
+                  padding: "10px 12px",
+                  background: "var(--color-bg)",
+                  border: "1px solid var(--color-border)",
+                }}
+              >
+                <div>
+                  <strong>{String(prov.display_name)}</strong> · <code>{String(prov.provider_id)}</code> ·
+                  revision=<code>{String(prov.model_revision)}</code> · boundary=
+                  <strong>{String(prov.execution_boundary)}</strong>
+                </div>
+                <div style={{ fontSize: "11.5px", opacity: 0.85, marginTop: "3px" }}>
+                  Allowed Privacy:{" "}
+                  <code>{((prov.allowed_privacy_classes as string[]) || []).join(", ")}</code> · Cost:{" "}
+                  <code>{String(prov.cost_micros_per_page)}</code> micro-THB/page
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}

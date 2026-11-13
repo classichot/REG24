@@ -13,6 +13,7 @@ import {
   ModernistProductionTrialConsoleSection,
   Reg24InfrastructureV1ConsoleSection,
   Reg24CaseIntelligenceWorkspaceSection,
+  Reg24ThaiLegalOcrV2WorkspaceSection,
   ModernistModuleModal,
   ModernistMcpPlaygroundModal,
   type DatabaseRecordDetail,
@@ -4497,6 +4498,9 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
 
               {/* REG24 Case Intelligence Workspace (Specification REG24-CII-001 v1.1 — Section 18) */}
               <Reg24CaseIntelligenceWorkspaceSection isTh={isTh} />
+
+              {/* REG24 Thai Legal OCR v2.0, Dual-Control Review & Source-Linked GraphRAG Publication */}
+              <Reg24ThaiLegalOcrV2WorkspaceSection isTh={isTh} />
             </main>
           )}
 
@@ -5905,6 +5909,7 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                 </section>
               </div>
 
+              <Reg24ThaiLegalOcrV2WorkspaceSection isTh={isTh} />
               <ModernistKnowledgeIngestionPipelineSection isTh={isTh} />
             </main>
           )}

@@ -212,6 +212,8 @@ import {
   LegalResourceMasterRecord,
 } from "../data/legal-resource-master-loader";
 
+import { reg24OcrV2Service } from "../../packages/ocr-v2";
+
 export interface MCPCommonInput {
   jurisdiction?: string;
   module_ids?: string[];
@@ -4131,7 +4133,14 @@ export class Reg24PlatformCore {
 
     // --------------------------------------------------------------------------
     // R1: RETRIEVAL — HYBRID GRAPHRAG (RAG24 Vector/Keyword + Multi-Hop Graph Traversal)
+    //     + OCR v2.0 Atomic Publication Pointer Snapshot Gate (REG-005)
     // --------------------------------------------------------------------------
+    const ocrV2Snapshot = reg24OcrV2Service.capturePublicationSnapshot();
+    const ocrV2Search = reg24OcrV2Service.searchPublishedOcrKnowledge({
+      query,
+      snapshot: ocrV2Snapshot,
+    });
+
     const ragOutput = this.searchLaw({
       ...input,
       query,
@@ -4429,6 +4438,38 @@ export class Reg24PlatformCore {
 
     const citations: MCPCommonOutput["citations"] = [];
     const sourcesMap = new Map<string, MCPCommonOutput["sources"][0]>();
+
+    // Attach verified OCR v2.0 source-linked GraphRAG hits from the atomic publication pointer snapshot
+    for (const ocrHit of ocrV2Search.hits) {
+      if (!visitedNodeIds.has(ocrHit.document_id)) {
+        visitedNodeIds.add(ocrHit.document_id);
+        multiHopNodes.push({
+          hop_depth: 0,
+          node_id: ocrHit.document_id,
+          node_type: "CourtDecision",
+          module_id: "reg24.ocr_v2.th",
+          label: `${ocrHit.title_th} [pub=${ocrHit.publication_id}]`,
+          via_relationship: "DIRECT_VECTOR_KEYWORD_HIT",
+          from_node_id: `OCR_V2_SNAPSHOT:${ocrV2Snapshot.snapshot_id}`,
+          version_id: ocrHit.extraction_version_id,
+          verified_edge: true,
+          citation_locator: ocrHit.citation_locator,
+        });
+      }
+      citations.push({
+        provision_id: ocrHit.document_id,
+        instrument_short_code: "OCR-V2-VERIFIED",
+        section_number: `Page ${ocrHit.page_number} [${ocrHit.source_span.raw_start}..${ocrHit.source_span.raw_end}]`,
+        version_id: ocrHit.extraction_version_id,
+        citation_locator: ocrHit.citation_locator,
+        official_url: `/api/v1/documents/${ocrHit.document_id}/extractions/${ocrHit.extraction_version_id}/pages`,
+      });
+      if (ocrHit.applicability_status !== "curated") {
+        uncertaintyFlags.push(
+          `OCR_VERIFIED_APPLICABILITY_UNASSESSED (${ocrHit.document_id}): ${ocrHit.applicability_disclosure}`
+        );
+      }
+    }
 
     for (const node of multiHopNodes) {
       if (node.node_type === "Provision") {

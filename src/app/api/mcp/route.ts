@@ -49,6 +49,10 @@ import {
   normalizeCanonicalRequest,
 } from "@/packages/application/http-helper";
 import { reg24CaseIntelligenceService } from "@/packages/case-intelligence";
+import {
+  reg24OcrV2Service,
+  resolveOcrPrincipalFromHeaders,
+} from "@/packages/ocr-v2";
 
 export const MCP_TOOLS_CATALOG = [
   {
@@ -1016,7 +1020,107 @@ export const MCP_TOOLS_CATALOG = [
       },
     },
   },
+  {
+    name: "reg24.ocr_v2.search_published",
+    description:
+      "Search source-linked Thai Legal OCR v2.0 published knowledge through the atomic publication pointer snapshot (separates ocr_verified transcription from applicability_status)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", default: "ฎีกาที่ 2451/2568" },
+      },
+    },
+  },
+  {
+    name: "reg24.ocr_v2.get_extraction",
+    description:
+      "Retrieve an immutable ocr-contract/2.0.0 ExtractionManifest by document_id and mandatory extraction_version_id",
+    inputSchema: {
+      type: "object",
+      required: ["document_id"],
+      properties: {
+        document_id: { type: "string" },
+        extraction_version_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.ocr_v2.list_providers",
+    description:
+      "List policy-filtered Thai Legal OCR v2.0 providers, pinned model revisions, and privacy boundaries (zero secret disclosure)",
+    inputSchema: {
+      type: "object",
+      properties: {
+        privacy_class: {
+          type: "string",
+          enum: ["public", "internal", "confidential", "restricted"],
+        },
+      },
+    },
+  },
+  {
+    name: "reg24.ocr_v2.get_benchmark_report",
+    description:
+      "Run reproducible Thai Legal OCR v2.0 CER, Grapheme-Cluster, WER, Citation F1, and Table TEDS benchmark report with explicit corpus honesty gates",
+    inputSchema: {
+      type: "object",
+      properties: {},
+    },
+  },
 ];
+
+const OCR_V2_MCP_TOOL_NAMES = new Set<string>([
+  "reg24.ocr_v2.search_published",
+  "reg24.ocr_v2.get_extraction",
+  "reg24.ocr_v2.list_providers",
+  "reg24.ocr_v2.get_benchmark_report",
+]);
+
+function executeOcrV2McpTool(
+  req: NextRequest,
+  toolName: string,
+  args: Record<string, unknown>
+): { status: number; body: unknown } {
+  const principal = resolveOcrPrincipalFromHeaders(req.headers);
+  switch (toolName) {
+    case "reg24.ocr_v2.search_published":
+      return {
+        status: 200,
+        body: reg24OcrV2Service.searchPublishedOcrKnowledge({
+          query: String(args.query || ""),
+          principal,
+        }),
+      };
+    case "reg24.ocr_v2.get_extraction": {
+      const res = reg24OcrV2Service.getExtractionCompatibility({
+        principal,
+        document_id: String(args.document_id || ""),
+        extraction_version_id: args.extraction_version_id
+          ? String(args.extraction_version_id)
+          : undefined,
+      });
+      return { status: res.status, body: res.body };
+    }
+    case "reg24.ocr_v2.list_providers": {
+      const res = reg24OcrV2Service.listProviders({
+        principal,
+        privacy_class: args.privacy_class as
+          | "public"
+          | "internal"
+          | "confidential"
+          | "restricted"
+          | undefined,
+      });
+      return { status: res.status, body: res.body };
+    }
+    case "reg24.ocr_v2.get_benchmark_report":
+    default:
+      return {
+        status: 200,
+        body: reg24OcrV2Service.runGoldenFixtureBenchmark(),
+      };
+  }
+}
 
 const CII_MCP_TOOL_NAMES = new Set<string>([
   "reg24.case.get",
@@ -2095,6 +2199,28 @@ export async function POST(req: NextRequest) {
         const toolName = String(params?.name || "");
         const toolArgs: MCPCommonInput = params?.arguments || {};
 
+        if (OCR_V2_MCP_TOOL_NAMES.has(toolName)) {
+          const ocrOut = executeOcrV2McpTool(
+            req,
+            toolName,
+            toolArgs as Record<string, unknown>
+          );
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(ocrOut.body, null, 2),
+                },
+              ],
+              structuredContent: ocrOut.body,
+              isError: ocrOut.status >= 400,
+            },
+          });
+        }
+
         if (CII_MCP_TOOL_NAMES.has(toolName)) {
           const ciiOut = executeCiiMcpTool(
             toolName,
@@ -2308,6 +2434,15 @@ export async function POST(req: NextRequest) {
     // Direct REST-style MCP tool call
     const toolName = String(body.tool || body.name || "reg24.list_modules");
     const input: MCPCommonInput = body.input || body.arguments || body;
+
+    if (OCR_V2_MCP_TOOL_NAMES.has(toolName)) {
+      const ocrOut = executeOcrV2McpTool(
+        req,
+        toolName,
+        input as Record<string, unknown>
+      );
+      return NextResponse.json(ocrOut.body, { status: ocrOut.status });
+    }
 
     if (CII_MCP_TOOL_NAMES.has(toolName)) {
       const ciiOut = executeCiiMcpTool(
