@@ -45,7 +45,8 @@ describe("Batch B01 — Revenue Department Tax Rulings End-to-End Suite (B01-EX,
     const plan = await planReconciliation(frozen.manifest.manifest_id, ENG_ACTOR, { store });
     expect(plan.accounting_matches_total).toBe(true);
     expect(plan.silent_drops).toBe(0);
-    expect(plan.by_disposition.REJECTED_OUT_OF_SCOPE).toBe(81); // 81 B02-owned LRM non-ruling RD instruments
+    expect(plan.by_disposition.DEFERRED_WITH_REASON).toBe(0);
+    expect(plan.by_disposition.REJECTED_OUT_OF_SCOPE).toBe(572); // 570 B02-owned RD tax regulations + 2 root RD Index sheets
     expect(plan.by_disposition.ATTACHED_REPRESENTATION).toBeGreaterThanOrEqual(7);
 
     // 2. Run 100-ruling stratified B01 pilot & stage candidate `rel.B01.rc1`

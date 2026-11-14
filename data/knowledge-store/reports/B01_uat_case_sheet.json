@@ -30,8 +30,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.f9d481d3eae4b1",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.c1ee617645fd7b",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -66,8 +66,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.00f1140d624d51",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.2d075ac7a4ca99",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -101,8 +101,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.5a39a828a9b0d2",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.67fb3da60bd6e3",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -136,8 +136,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.d1305113a6986b",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.da7ff865b166de",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -176,8 +176,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.6bdb7dbd6820d7",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.605535b946b280",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -216,8 +216,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.0e25af67be38c1",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.48157a93185b74",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -250,8 +250,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.450b1d28498176",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.60568c27670b01",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -283,8 +283,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.10cd80ed6c2285",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.099a574b2e298b",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -315,8 +315,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.559d78196a8bdf",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.82cd235924bf7e",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -348,8 +348,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.c55569bcd19536",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.0af7528655cb03",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -381,8 +381,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.bf4fc9c87fefab",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.a516864d8ad7c2",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -414,8 +414,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.0ce9c8a7b3ed38",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.c6a94daaaf096e",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -427,26 +427,26 @@
     "category": "duplicate_provenance",
     "exercises_source_fidelity": true,
     "fixture_ids": [
-      "work.th.rd.gk_0702_636_2026_ec1b79d8"
+      "work.th.rd.gk_0706_2901_2004_11456594"
     ],
-    "question": "ค้นหาแนววินิจฉัย กค 0702/636 และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน",
+    "question": "ค้นหาแนววินิจฉัย กค 0706/2901 และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน",
     "applicable_date": null,
     "expected_status": [
       "ANSWERED"
     ],
     "expected_claims": [
-      "กค 0702/636"
+      "กค 0706/2901"
     ],
     "required_evidence": [
-      "work.th.rd.gk_0702_636_2026_ec1b79d8"
+      "work.th.rd.gk_0706_2901_2004_11456594"
     ],
     "forbidden_claims": [],
     "severity": "P0",
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.72475b42fef1a0",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.4e43ae196964b2",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -477,8 +477,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.b9307e96952cc3",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.48e6119dbbc40a",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -509,8 +509,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.09757e66282b03",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.a199e7e75c18c6",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -544,8 +544,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.4bd5195433bd42",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.8a5f8d09a482fc",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -576,8 +576,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.65420bf50163dd",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.6326c3539dd9d3",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -591,7 +591,7 @@
     "fixture_ids": [
       "ruling.th.rd.68482"
     ],
-    "question": "บริษัทนำเข้าสารเคมีแร่ธาตุสำหรับสัตว์เลี้ยง จะได้รับยกเว้นภาษีมูลค่าเพิ่มตามมาตรา 81 (2) (ก) ทันทีหรือไม่ โดยไม่ทราบว่าสินค้าดังกล่าวได้รับการขึ้นทะเบียนหรือรับรองจากกรมปศุสัตว์ว่าเป็นอาหารสัตว์หรือไม่",
+    "question": "บริษัทนำเข้าสินค้าโซเดียม ไบซัลเฟต เพ็ท (SODIUM BISULFATE, PET) ใช้เป็นอาหารเสริมสำหรับสัตว์เลี้ยง ชนิดอาหารเสริมแร่ธาตุ จะได้รับยกเว้นภาษีมูลค่าเพิ่มตามมาตรา 81 (2) (ก) ทันทีหรือไม่ โดยไม่ทราบว่าสินค้าดังกล่าวได้รับการขึ้นทะเบียนหรือรับรองจากกรมปศุสัตว์ว่าเป็นอาหารสัตว์หรือไม่",
     "applicable_date": null,
     "expected_status": [
       "NEEDS_CLARIFICATION",
@@ -606,10 +606,10 @@
     "forbidden_claims": [],
     "severity": "P0",
     "evaluator_results": {
-      "automated_precheck_passed": false,
+      "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.4cd1c47766c820",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.cefefb3e262780",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -637,8 +637,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.d2308452355d56",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.427ca573a0464f",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   },
@@ -666,8 +666,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.6d30c6ef382717",
-      "verified_at": "2026-11-14T13:53:45.846Z"
+      "trace_id": "trc.6ff5a18a2a5be2",
+      "verified_at": "2026-11-14T15:04:50.616Z"
     },
     "owner_result": null
   }

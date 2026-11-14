@@ -14,6 +14,7 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as os from "node:os";
+import * as zlib from "node:zlib";
 import { sha256Bytes } from "./identity";
 import type {
   Acceptance,
@@ -194,17 +195,21 @@ function createEmptyState(): CanonicalPersistedState {
 export class DurableKnowledgeStore {
   public readonly dataDir: string;
   private readonly stateFilePath: string;
+  private readonly stateGzFilePath: string;
   private readonly walFilePath: string;
   private readonly artifactsDir: string;
   private readonly reportsDir: string;
   private state: CanonicalPersistedState;
   private cachedMtimeMs = -1;
   private cachedFileSize = -1;
+  private releasePassagesCache = new Map<string, Passage[]>();
+  private releaseAssertionsCache = new Map<string, Assertion[]>();
   private writeChain: Promise<void> = Promise.resolve();
 
   constructor(customDataDir?: string) {
     this.dataDir = this.resolveWritableDataDir(customDataDir);
     this.stateFilePath = path.join(this.dataDir, "canonical-state.json");
+    this.stateGzFilePath = path.join(this.dataDir, "canonical-state.json.gz");
     this.walFilePath = path.join(this.dataDir, "wal.jsonl");
     this.artifactsDir = path.join(this.dataDir, "artifacts");
     this.reportsDir = path.join(this.dataDir, "reports");
@@ -236,7 +241,10 @@ export class DurableKnowledgeStore {
     } catch {
       // Read-only serverless deployment (e.g. Vercel /var/task): seed /tmp from committed data/knowledge-store
       const tmpFallback = path.join(os.tmpdir(), "reg24-knowledge-store");
-      if (!fs.existsSync(path.join(tmpFallback, "canonical-state.json")) && fs.existsSync(repoDir)) {
+      const hasTmpState =
+        fs.existsSync(path.join(tmpFallback, "canonical-state.json")) ||
+        fs.existsSync(path.join(tmpFallback, "canonical-state.json.gz"));
+      if (!hasTmpState && fs.existsSync(repoDir)) {
         fs.cpSync(repoDir, tmpFallback, { recursive: true, force: true });
       } else {
         fs.mkdirSync(tmpFallback, { recursive: true });
@@ -248,13 +256,31 @@ export class DurableKnowledgeStore {
   public reloadFromDisk(): CanonicalPersistedState {
     this.cachedMtimeMs = -1;
     this.cachedFileSize = -1;
+    this.releasePassagesCache.clear();
+    this.releaseAssertionsCache.clear();
     this.state = this.loadFromDisk(true);
     return this.state;
   }
 
+  private resolveActiveStateDiskPath(): { filePath: string; gzipped: boolean } | null {
+    const hasGz = fs.existsSync(this.stateGzFilePath);
+    const hasPlain = fs.existsSync(this.stateFilePath);
+    if (hasGz && hasPlain) {
+      const stGz = fs.statSync(this.stateGzFilePath);
+      const stPlain = fs.statSync(this.stateFilePath);
+      return stGz.mtimeMs >= stPlain.mtimeMs
+        ? { filePath: this.stateGzFilePath, gzipped: true }
+        : { filePath: this.stateFilePath, gzipped: false };
+    }
+    if (hasGz) return { filePath: this.stateGzFilePath, gzipped: true };
+    if (hasPlain) return { filePath: this.stateFilePath, gzipped: false };
+    return null;
+  }
+
   private loadFromDisk(forceReload = false): CanonicalPersistedState {
-    if (fs.existsSync(this.stateFilePath)) {
-      const st = fs.statSync(this.stateFilePath);
+    const active = this.resolveActiveStateDiskPath();
+    if (active) {
+      const st = fs.statSync(active.filePath);
       if (
         !forceReload &&
         this.state &&
@@ -263,10 +289,14 @@ export class DurableKnowledgeStore {
       ) {
         return this.state;
       }
-      const raw = fs.readFileSync(this.stateFilePath, "utf8");
+      const raw = active.gzipped
+        ? zlib.gunzipSync(fs.readFileSync(active.filePath)).toString("utf8")
+        : fs.readFileSync(active.filePath, "utf8");
       const parsed = JSON.parse(raw) as CanonicalPersistedState;
       this.cachedMtimeMs = st.mtimeMs;
       this.cachedFileSize = st.size;
+      this.releasePassagesCache.clear();
+      this.releaseAssertionsCache.clear();
       this.state = parsed;
       return parsed;
     }
@@ -289,12 +319,26 @@ export class DurableKnowledgeStore {
     });
     fs.appendFileSync(this.walFilePath, `${walEntry}\n`, "utf8");
 
-    const tmpFile = `${this.stateFilePath}.tmp.${process.pid}.${nextState.store_revision}.${Math.random().toString(36).slice(2, 7)}`;
-    fs.writeFileSync(tmpFile, JSON.stringify(nextState), "utf8");
-    fs.renameSync(tmpFile, this.stateFilePath);
-    const st = fs.statSync(this.stateFilePath);
+    const serialized = JSON.stringify(nextState);
+    const useGzip = serialized.length > 12_000_000;
+    const targetPath = useGzip ? this.stateGzFilePath : this.stateFilePath;
+    const stalePath = useGzip ? this.stateFilePath : this.stateGzFilePath;
+
+    const tmpFile = `${targetPath}.tmp.${process.pid}.${nextState.store_revision}.${Math.random().toString(36).slice(2, 7)}`;
+    if (useGzip) {
+      fs.writeFileSync(tmpFile, zlib.gzipSync(Buffer.from(serialized, "utf8"), { level: 6 }));
+    } else {
+      fs.writeFileSync(tmpFile, serialized, "utf8");
+    }
+    fs.renameSync(tmpFile, targetPath);
+    if (fs.existsSync(stalePath)) {
+      fs.unlinkSync(stalePath);
+    }
+    const st = fs.statSync(targetPath);
     this.cachedMtimeMs = st.mtimeMs;
     this.cachedFileSize = st.size;
+    this.releasePassagesCache.clear();
+    this.releaseAssertionsCache.clear();
   }
 
   /**
@@ -329,21 +373,27 @@ export class DurableKnowledgeStore {
     return res;
   }
 
-  public storeImmutableArtifactBytes(bytes: Buffer | Uint8Array): {
+  public storeImmutableArtifactBytes(
+    bytes: Buffer | Uint8Array,
+    opts?: { skipRawDiskBlob?: boolean; precomputedSha256?: string; precomputedSize?: number }
+  ): {
     sha256: string;
     immutable_uri: string;
     size: number;
   } {
     const buf = Buffer.from(bytes);
-    const sha256 = sha256Bytes(buf);
-    const blobPath = path.join(this.artifactsDir, `${sha256}.bin`);
-    if (!fs.existsSync(blobPath)) {
-      fs.writeFileSync(blobPath, buf);
+    const sha256 = opts?.precomputedSha256 || sha256Bytes(buf);
+    const size = opts?.precomputedSize ?? buf.byteLength;
+    if (!opts?.skipRawDiskBlob) {
+      const blobPath = path.join(this.artifactsDir, `${sha256}.bin`);
+      if (!fs.existsSync(blobPath)) {
+        fs.writeFileSync(blobPath, buf);
+      }
     }
     return {
       sha256,
       immutable_uri: `artifact://sha256/${sha256}`,
-      size: buf.byteLength,
+      size,
     };
   }
 
@@ -410,23 +460,35 @@ export class DurableKnowledgeStore {
 
   public getPassagesForRelease(releaseId: string): Passage[] {
     const st = this.getState();
+    const cacheKey = `${st.store_revision}:${releaseId}`;
+    const hit = this.releasePassagesCache.get(cacheKey);
+    if (hit) return hit;
+
     // Cumulative: include passages from prior accepted releases + this release
     const allowedReleases = new Set<string>([releaseId]);
     for (const acc of Object.values(st.accepted_batch_releases)) {
       if (acc?.release_id) allowedReleases.add(acc.release_id);
     }
-    return Object.values(st.passages).filter((p) => allowedReleases.has(p.release_id));
+    const res = Object.values(st.passages).filter((p) => allowedReleases.has(p.release_id));
+    this.releasePassagesCache.set(cacheKey, res);
+    return res;
   }
 
   public getAcceptedAssertionsForRelease(releaseId: string): Assertion[] {
     const st = this.getState();
+    const cacheKey = `${st.store_revision}:${releaseId}`;
+    const hit = this.releaseAssertionsCache.get(cacheKey);
+    if (hit) return hit;
+
     const allowedReleases = new Set<string>([releaseId]);
     for (const acc of Object.values(st.accepted_batch_releases)) {
       if (acc?.release_id) allowedReleases.add(acc.release_id);
     }
-    return Object.values(st.assertions).filter(
+    const res = Object.values(st.assertions).filter(
       (a) => a.state === "ACCEPTED" && allowedReleases.has(a.release_id)
     );
+    this.releaseAssertionsCache.set(cacheKey, res);
+    return res;
   }
 
   public getAcceptedCounts(): {

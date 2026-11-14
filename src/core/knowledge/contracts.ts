@@ -838,7 +838,12 @@ export interface ReleaseReport {
   page_quality_report_uri: string | null;
   page_accounting: PageEquationAccounting;
   forecast_basis: {
-    measurement_status: "measured_pilot_and_in_repo_scope" | "estimated" | "unknown" | null;
+    measurement_status:
+      | "measured_full_batch_scope"
+      | "measured_pilot_and_in_repo_scope"
+      | "estimated"
+      | "unknown"
+      | null;
     measured_throughput_report_uri: string | null;
     review_capacity_report_uri: string | null;
   };

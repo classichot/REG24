@@ -5,8 +5,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { THAI_TAX_RULINGS_CORPUS } from "../data/thai-tax-rulings-loader";
-import { LEGAL_RESOURCE_MASTER_CORPUS } from "../data/legal-resource-master-loader";
+import { RD_DRIVE_MANIFEST } from "../data/rd-drive-manifest-loader";
 import { TAX_EXPANSION_SOURCES } from "../data/tax-ruling-subreg-corpus";
 import type { KnowledgeEntityType } from "../graph/graph-schema";
 import {
@@ -204,20 +203,35 @@ export async function freezeInventory(
       }
     }
   } else if (batchId === "B01") {
-    // Real B01 inventory reconciliation over the 5,150-file RD audit pool:
-    // 1) 3,643 in-repo RD rulings (3,636 unique rulings + 7 duplicate representations)
-    // 2) 2 existing expansion rulings in REG24 seed corpus (`REUSED_EXISTING`)
-    // 3) 81 LRM RD non-ruling regulations (`REJECTED_OUT_OF_SCOPE` for B01; owned by B02)
-    // 4) Remaining 1,424 physical Drive files from the 5,150 RD parent pool (`DEFERRED_WITH_REASON` — unauthenticated Drive binary or B02-owned non-ruling pool)
+    // Full zero-gap B01 physical inventory reconciliation over all 5,150 files in `RD - Revenue Department`
+    // (`1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6`):
+    // 1) 4,578 physical files in `Rulings/` (4,574 PDFs + 4 official HTML snapshots; zero deferred gaps)
+    //    - Primary official HTML snapshots ordered ahead of HTML-rendered PDF derivatives so duplicate pairs
+    //      attach cleanly via `ATTACHED_REPRESENTATION` without duplicating canonical LegalWorks.
+    //    - Existing REG24 seed expansion rulings marked `REUSED_EXISTING`.
+    // 2) 572 physical non-ruling files (570 B02-owned RD tax regulations across CIT/PIT/VAT/WHT/SBT/Stamp/Pillar Two/TP/General + 2 RD Index `.gsheet` descriptors) -> `REJECTED_OUT_OF_SCOPE`.
     const seenKey = new Map<string, string>();
+    const seenCorpusId = new Map<string, string>();
     const existingExpansionUrls = new Set(TAX_EXPANSION_SOURCES.map((s) => s.official_url));
 
-    for (const r of THAI_TAX_RULINGS_CORPUS) {
-      const normNo = normalizeOfficialRulingIdentifier(r.ruling_no);
-      const dedupKey = `${normNo}|${r.date}`;
-      const isDupRep = seenKey.has(dedupKey);
-      const isAlreadyInSeed = existingExpansionUrls.has(r.source_url);
-      if (!isDupRep) seenKey.set(dedupKey, r.id);
+    const orderedRulingFiles = [...RD_DRIVE_MANIFEST.ruling_files].sort((a, b) => {
+      if (a.authenticity_status === "official_html" && b.authenticity_status !== "official_html") return -1;
+      if (b.authenticity_status === "official_html" && a.authenticity_status !== "official_html") return 1;
+      return a.rel_path.localeCompare(b.rel_path);
+    });
+
+    for (let idx = 0; idx < orderedRulingFiles.length; idx++) {
+      const rf = orderedRulingFiles[idx];
+      const normNo = normalizeOfficialRulingIdentifier(rf.ruling_no);
+      const dedupKey = `${normNo}|${rf.date}`;
+      const existingPrimaryId = seenKey.get(dedupKey) || seenCorpusId.get(rf.corpus_id);
+      const isDupRep = Boolean(existingPrimaryId);
+      const isAlreadyInSeed = !isDupRep && existingExpansionUrls.has(rf.source_url);
+
+      if (!isDupRep) {
+        seenKey.set(dedupKey, rf.corpus_id);
+        seenCorpusId.set(rf.corpus_id, rf.corpus_id);
+      }
 
       const disposition: CandidateDisposition = isAlreadyInSeed
         ? "REUSED_EXISTING"
@@ -230,70 +244,50 @@ export async function freezeInventory(
           ? "ATTACH_REPRESENTATION"
           : "CREATE_NEW_WORK";
 
+      const shortCode = rf.corpus_id.replace(/^ruling\.th\.rd\./, "");
+      const padIdx = String(idx + 1).padStart(4, "0");
+
       candidates.push({
-        candidate_id: `cand.b01.${r.id}`,
+        candidate_id: `cand.b01.drv.${padIdx}.${shortCode}`,
         manifest_id: manifestId,
-        source_file_id: r.id,
-        source_revision: `be_${r.year_be}`,
-        path: r.file.replace(/\\/g, "/"),
+        source_file_id: rf.corpus_id,
+        source_revision: rf.sha256.slice(0, 16),
+        path: rf.rel_path,
         owner_batch_id: "B01",
-        source_uri: r.source_url,
+        source_uri: rf.source_url,
         artifact_id: null,
         canonical_work_id: null,
         processing_state: "DISCOVERED",
         identity_action: idAction,
         disposition,
         reasons: isDupRep
-          ? [`Duplicate representation of ${normNo} (${r.date}); attached to ${seenKey.get(dedupKey)}`]
-          : ["Verified RD Tax Ruling admitted in B01 scope"],
+          ? [`Duplicate representation (${rf.authenticity_status}) of ${normNo} (${rf.date}); attached to ${existingPrimaryId}`]
+          : ["Verified physical RD Tax Ruling file in Rulings/ subtree admitted in B01 scope"],
         review_ids: [],
       });
     }
 
-    const rdLrm = LEGAL_RESOURCE_MASTER_CORPUS.filter(
-      (d) => d.collection === "RD_Revenue_Department" || d.authority_code === "RD"
-    );
-    for (const d of rdLrm) {
+    for (let idx = 0; idx < RD_DRIVE_MANIFEST.non_ruling_files.length; idx++) {
+      const nrf = RD_DRIVE_MANIFEST.non_ruling_files[idx];
+      const padIdx = String(idx + 1).padStart(3, "0");
+      const isRootIndex = nrf.folder === "ROOT_INDEX";
       candidates.push({
-        candidate_id: `cand.b01.lrm.${d.id.toLowerCase()}`,
+        candidate_id: `cand.b01.oos.${padIdx}.${nrf.sha256.slice(0, 10)}`,
         manifest_id: manifestId,
-        source_file_id: d.drive_stable_id || d.id,
-        source_revision: "lrm_v1",
-        path: d.folder_path,
+        source_file_id: `rd_oos_${nrf.sha256.slice(0, 16)}`,
+        source_revision: nrf.sha256.slice(0, 16),
+        path: nrf.rel_path,
         owner_batch_id: "B02",
-        source_uri: d.drive_url || `lrm://${d.id}`,
+        source_uri: `https://drive.google.com/drive/folders/${RD_DRIVE_MANIFEST.drive_folder_id}#${encodeURIComponent(nrf.rel_path)}`,
         artifact_id: null,
         canonical_work_id: null,
         processing_state: "VALIDATED",
         identity_action: "SKIP_UNCHANGED",
         disposition: "REJECTED_OUT_OF_SCOPE",
         reasons: [
-          `Non-ruling RD instrument (${d.instrument_type}: ${d.code}) belongs to B02 per source_batch_map.json`,
-        ],
-        review_ids: [],
-      });
-    }
-
-    // Reconcile exact 5,150 RD parent pool total from 2026-11-14 OCR audit
-    const auditPoolTotal = cfg.audit_source_pool?.files ?? 5150;
-    const remainingPoolCount = Math.max(0, auditPoolTotal - candidates.length);
-    for (let i = 1; i <= remainingPoolCount; i++) {
-      const pad = String(i).padStart(4, "0");
-      candidates.push({
-        candidate_id: `cand.b01.drive_unfetched.${pad}`,
-        manifest_id: manifestId,
-        source_file_id: `drive_rd_pool_unfetched_${pad}`,
-        source_revision: "audit_2026_11_14",
-        path: `RD - Revenue Department/unfetched_drive_pool/item_${pad}.pdf`,
-        owner_batch_id: "B01",
-        source_uri: "https://drive.google.com/drive/folders/1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6",
-        artifact_id: null,
-        canonical_work_id: null,
-        processing_state: "DEFERRED",
-        identity_action: null,
-        disposition: "DEFERRED_WITH_REASON",
-        reasons: [
-          "EXTERNAL_DRIVE_BINARY_NOT_MOUNTED_LOCALLY: Recorded in 2026-11-14 Drive metadata audit (5,150 RD parent pool) but binary PDF not locally mirrored in repository; explicitly deferred with visible coverage gap rather than fabricated or dropped.",
+          isRootIndex
+            ? `Root spreadsheet index descriptor (${nrf.rel_path}) reconciled during inventory; not a legal ruling work`
+            : `Non-ruling RD tax regulation in '${nrf.folder}' belongs to Batch B02 per source_batch_map.json`,
         ],
         review_ids: [],
       });

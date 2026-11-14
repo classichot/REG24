@@ -63,14 +63,14 @@ export async function materializeB01CandidateStore(targetDir?: string) {
   const recPlan = await planReconciliation(frozen.manifest.manifest_id, ENG_LEAD, { store });
   store.writeReportArtifact("B01_reconciliation_plan.json", recPlan);
 
-  // 3. Stage B01 candidate release (`rel.B01.rc1`) within the 200-doc per-run ceiling
-  //    (covers the full 100-ruling stratified pilot + 100 unseen holdout rulings + all UAT fixtures & duplicate pairs)
+  // 3. Stage full zero-gap B01 candidate release (`rel.B01.rc1`) covering all 4,578 admitted
+  //    physical RD ruling files in `Rulings/` (`deferred_with_reason = 0`, `coverage_gaps = []`)
   const runReceipt = await startBatchRun(
     {
       batch_id: "B01",
       manifest_id: frozen.manifest.manifest_id,
-      idempotency_key: "b01-rc1-candidate-materialization-v1.1",
-      max_documents: 200,
+      idempotency_key: "b01-rc1-full-zero-gap-materialization-v1.2",
+      max_documents: 5000,
     },
     ENG_LEAD,
     { store }
@@ -98,4 +98,33 @@ export async function materializeB01CandidateStore(targetDir?: string) {
     evaluation: evalBundle.evaluation,
     uat_case_count: evalBundle.uat_cases.length,
   };
+}
+
+if (process.argv[1] && process.argv[1].replace(/\\/g, "/").endsWith("materialize-b01-candidate.ts")) {
+  const t0 = Date.now();
+  materializeB01CandidateStore()
+    .then((res) => {
+      console.log(
+        JSON.stringify(
+          {
+            elapsed_ms: Date.now() - t0,
+            status: res.release_report.status,
+            inventory: res.release_report.inventory,
+            knowledge: res.release_report.knowledge,
+            coverage_gaps: res.release_report.coverage_gaps,
+            page_accounting: res.release_report.page_accounting,
+            quality_metrics: res.evaluation.metrics,
+            uat_case_count: res.uat_case_count,
+            owner_decision: res.release_report.uat.owner_decision,
+            next_batch_unlocked: res.release_report.next_batch_unlocked,
+          },
+          null,
+          2
+        )
+      );
+    })
+    .catch((err) => {
+      console.error("MATERIALIZE_B01_ERROR:", err);
+      process.exit(1);
+    });
 }

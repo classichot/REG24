@@ -8,6 +8,7 @@
  */
 
 import { THAI_TAX_RULINGS_CORPUS } from "../data/thai-tax-rulings-loader";
+import { RD_DRIVE_RULING_BY_PATH } from "../data/rd-drive-manifest-loader";
 
 type RawTaxRuling = (typeof THAI_TAX_RULINGS_CORPUS)[number];
 import { getDeployedGitCommit, buildLegacyIdCrosswalk } from "./baseline";
@@ -413,7 +414,12 @@ export function selectStratifiedB01AdmittedCandidates(
   }
 
   const chosen = new Map<string, Candidate>();
-  const candBySourceId = new Map(admitted.map((c) => [c.source_file_id, c]));
+  const candBySourceId = new Map<string, Candidate>();
+  for (const c of admitted) {
+    if (c.disposition !== "ATTACHED_REPRESENTATION" && !candBySourceId.has(c.source_file_id)) {
+      candBySourceId.set(c.source_file_id, c);
+    }
+  }
 
   // 1. Always include priority UAT fixtures present in manifest
   for (const fid of B01_PRIORITY_FIXTURE_IDS) {
@@ -620,9 +626,12 @@ export async function startBatchRun(
 
     // Synchronously prepare B01 / generic extraction for each selected candidate
     const primaryWorkByRulingKey = new Map<string, string>();
+    const primaryWorkBySourceId = new Map<string, string>();
+    const skipDiskBlobs = selectedCands.length > 300;
 
     for (const cand of selectedCands) {
       const rawRuling = RULINGS_BY_ID.get(cand.source_file_id);
+      const driveEntry = RD_DRIVE_RULING_BY_PATH.get(cand.path);
       const rawPayloadText = rawRuling
         ? [
             `เลขที่หนังสือ: ${rawRuling.ruling_no}`,
@@ -635,8 +644,24 @@ export async function startBatchRun(
         : `เอกสารจากคลังข้อมูล ${cand.path} (${cand.source_file_id})`;
 
       const payloadBytes = Buffer.from(rawPayloadText, "utf8");
-      const storedBlob = store.storeImmutableArtifactBytes(payloadBytes);
-      const artifactId = `art.${sha256Bytes(`${cand.source_file_id}:${storedBlob.sha256}`).slice(0, 14)}`;
+      const storedBlob = store.storeImmutableArtifactBytes(payloadBytes, {
+        skipRawDiskBlob: skipDiskBlobs,
+        precomputedSha256: driveEntry?.sha256,
+        precomputedSize: driveEntry?.size,
+      });
+      const artifactId = `art.${sha256Bytes(`${cand.candidate_id}:${storedBlob.sha256}`).slice(0, 14)}`;
+
+      const artAuthStatus: Artifact["authenticity_status"] =
+        driveEntry?.authenticity_status === "official_html"
+          ? "official_html_snapshot"
+          : driveEntry?.authenticity_status === "html_rendered_pdf"
+            ? "html_derived_pdf_derivative"
+            : driveEntry?.authenticity_status === "verified_pdf"
+              ? "official_original"
+              : rawRuling
+                ? "official_html_snapshot"
+                : "official_original";
+      const isDerivative = driveEntry?.authenticity_status === "html_rendered_pdf";
 
       const art: Artifact = {
         artifact_id: artifactId,
@@ -646,10 +671,10 @@ export async function startBatchRun(
         immutable_uri: storedBlob.immutable_uri,
         fetched_at: nowIso,
         origin_uri: cand.source_uri,
-        authenticity_status: rawRuling ? "official_html_snapshot" : "official_original",
+        authenticity_status: artAuthStatus,
         access_scope: "scope.platform.public",
         rights_status: "approved_public",
-        is_derivative: false,
+        is_derivative: isDerivative,
       };
       draft.artifacts[artifactId] = art;
 
@@ -658,18 +683,21 @@ export async function startBatchRun(
       const dedupKey = `${normLetter}|${rawRuling?.date || ""}`;
 
       // Handle ATTACHED_REPRESENTATION cleanly: attach artifact to primary work without duplicating canonical work/passages!
-      if (cand.disposition === "ATTACHED_REPRESENTATION" && primaryWorkByRulingKey.has(dedupKey)) {
-        const targetWorkId = primaryWorkByRulingKey.get(dedupKey)!;
-        const targetWork = draft.works[targetWorkId];
+      const attachedTargetWorkId =
+        primaryWorkByRulingKey.get(dedupKey) || primaryWorkBySourceId.get(cand.source_file_id);
+      if (cand.disposition === "ATTACHED_REPRESENTATION" && attachedTargetWorkId) {
+        const targetWork = draft.works[attachedTargetWorkId];
         if (targetWork && !targetWork.identity_evidence.includes(artifactId)) {
           targetWork.identity_evidence.push(artifactId);
-          targetWork.aliases.push(cand.source_file_id);
+          if (!targetWork.aliases.includes(cand.path)) {
+            targetWork.aliases.push(cand.path);
+          }
         }
         cand.artifact_id = artifactId;
-        cand.canonical_work_id = targetWorkId;
+        cand.canonical_work_id = attachedTargetWorkId;
         cand.processing_state = "STAGED";
         draft.candidates[cand.candidate_id] = cand;
-        if (!reusedWorkIds.includes(targetWorkId)) reusedWorkIds.push(targetWorkId);
+        if (!reusedWorkIds.includes(attachedTargetWorkId)) reusedWorkIds.push(attachedTargetWorkId);
         continue;
       }
 
@@ -683,6 +711,7 @@ export async function startBatchRun(
           access_scope: "scope.platform.public",
         });
       primaryWorkByRulingKey.set(dedupKey, workId);
+      primaryWorkBySourceId.set(cand.source_file_id, workId);
 
       const versionId = `ver.${workId.replace(/^work\./, "")}.v1`;
       const extractionId = `ext.${artifactId.slice(4)}.r1`;
@@ -722,22 +751,36 @@ export async function startBatchRun(
   const profileOutputs: Array<{ candId: string; res: Awaited<ReturnType<typeof extractB01>> }> = [];
   const postPrepState = store.getState();
   const seenPrimaryKeys = new Map<string, string>();
+  const seenPrimarySourceIds = new Map<string, string>();
+  const pendingAttachedRepresentations: Array<{ candId: string; targetWorkId: string; artifactId: string; path: string }> = [];
 
   for (const cand of selectedCands) {
     const rawRuling = RULINGS_BY_ID.get(cand.source_file_id);
     const normLetter = rawRuling ? normalizeOfficialRulingIdentifier(rawRuling.ruling_no) : cand.source_file_id;
     const dedupKey = `${normLetter}|${rawRuling?.date || ""}`;
-    if (cand.disposition === "ATTACHED_REPRESENTATION" && seenPrimaryKeys.has(dedupKey)) {
-      continue;
-    }
     const storedCand = postPrepState.candidates[cand.candidate_id];
     if (!storedCand?.artifact_id || !storedCand?.canonical_work_id) continue;
+
+    const existingPrimaryWorkId =
+      seenPrimaryKeys.get(dedupKey) || seenPrimarySourceIds.get(cand.source_file_id);
+    if (cand.disposition === "ATTACHED_REPRESENTATION" && existingPrimaryWorkId) {
+      pendingAttachedRepresentations.push({
+        candId: cand.candidate_id,
+        targetWorkId: existingPrimaryWorkId,
+        artifactId: storedCand.artifact_id,
+        path: cand.path,
+      });
+      continue;
+    }
     seenPrimaryKeys.set(dedupKey, storedCand.canonical_work_id);
+    seenPrimarySourceIds.set(cand.source_file_id, storedCand.canonical_work_id);
 
     const art = postPrepState.artifacts[storedCand.artifact_id];
-    const ext = Object.values(postPrepState.extractions).find(
-      (e) => e.artifact_id === art.artifact_id && e.work_id === storedCand.canonical_work_id
-    )!;
+    const ext =
+      postPrepState.extractions[`ext.${art.artifact_id.slice(4)}.r1`] ||
+      Object.values(postPrepState.extractions).find(
+        (e) => e.artifact_id === art.artifact_id && e.work_id === storedCand.canonical_work_id
+      )!;
 
     const profRes = await extractB01({
       batch_id: req.batch_id,
@@ -770,7 +813,8 @@ export async function startBatchRun(
     const createdVersionIds: string[] = [];
     const createdPassageIds: string[] = [];
     const createdAssertionIds: string[] = [];
-    const reusedWorkIds: string[] = [];
+    const reusedWorkSet = new Set<string>();
+    const compactExtractions = selectedCands.length > 300;
 
     const tempStore = {
       getState: () => draft,
@@ -783,8 +827,16 @@ export async function startBatchRun(
       draft.works[res.work.work_id] = res.work;
       draft.versions[res.version.version_id] = res.version;
 
+      if (compactExtractions && cand?.artifact_id) {
+        const extObj = draft.extractions[`ext.${cand.artifact_id.slice(4)}.r1`];
+        if (extObj) {
+          extObj.raw_text = `[verbatim_stored_in_${res.passages.length}_passages:${extObj.raw_text_uri}]`;
+          extObj.normalized_text = res.work.title_th;
+        }
+      }
+
       if (existedBefore || cand.disposition === "REUSED_EXISTING") {
-        if (!reusedWorkIds.includes(res.work.work_id)) reusedWorkIds.push(res.work.work_id);
+        reusedWorkSet.add(res.work.work_id);
       } else {
         createdWorkIds.push(res.work.work_id);
       }
@@ -792,9 +844,7 @@ export async function startBatchRun(
 
       for (const dep of res.dependency_requests) {
         ensureDynamicB02DependencyMaterialized(draft, dep, releaseId, nowIso);
-        if (!reusedWorkIds.includes(dep.normalized_key)) {
-          reusedWorkIds.push(dep.normalized_key);
-        }
+        reusedWorkSet.add(dep.normalized_key);
       }
 
       for (const p of res.passages) {
@@ -823,6 +873,22 @@ export async function startBatchRun(
       cand.processing_state = "STAGED";
       draft.candidates[candId] = cand;
     }
+
+    // Ensure all ATTACHED_REPRESENTATION artifacts are appended onto `draft.works[targetWorkId].identity_evidence`
+    // AFTER `res.work` was written in the loop above!
+    for (const att of pendingAttachedRepresentations) {
+      const targetWork = draft.works[att.targetWorkId];
+      if (targetWork) {
+        if (!targetWork.identity_evidence.includes(att.artifactId)) {
+          targetWork.identity_evidence.push(att.artifactId);
+        }
+        if (!targetWork.aliases.includes(att.path)) {
+          targetWork.aliases.push(att.path);
+        }
+        reusedWorkSet.add(att.targetWorkId);
+      }
+    }
+    const reusedWorkIds = Array.from(reusedWorkSet);
 
     // Stratified 5% (min 20) human audit sample generation (adjudicated for clean B01 rulings)
     const sampleDocs = profileOutputs.map(({ candId, res }) => ({

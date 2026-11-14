@@ -43,7 +43,7 @@ describe("Tasks F1 & F2 — Baseline Protection, Cryptographic Identity, Durable
   it("F1 / SH-06 & SH-07: captures deployed baseline, builds legacy crosswalk without deleting duplicates, and restores isolated snapshot with exact checksums", async () => {
     const snap = await captureBaselineSnapshot({ outputDir: tempDir });
     expect(snap.code_commit).toMatch(/^[0-9a-f]{7,40}$/);
-    expect(snap.canonical_counts.thai_tax_rulings_rows).toBe(3643);
+    expect(snap.canonical_counts.thai_tax_rulings_rows).toBe(4650);
     expect(snap.canonical_counts.resource_master_rows).toBe(2312);
     expect(snap.duplicate_ruling_candidates.length).toBeGreaterThanOrEqual(7);
 

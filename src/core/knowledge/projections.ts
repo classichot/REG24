@@ -8,7 +8,40 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import * as zlib from "node:zlib";
 import { sha256Bytes, thaiDigitsToArabic } from "./identity";
+
+function writeProjectionSnapshotDisk(projDir: string, baseName: string, jsonStr: string): void {
+  const plainPath = path.join(projDir, `${baseName}.json`);
+  const gzPath = path.join(projDir, `${baseName}.json.gz`);
+  if (jsonStr.length > 8_000_000) {
+    fs.writeFileSync(gzPath, zlib.gzipSync(Buffer.from(jsonStr, "utf8"), { level: 6 }));
+    if (fs.existsSync(plainPath)) fs.unlinkSync(plainPath);
+  } else {
+    fs.writeFileSync(plainPath, jsonStr, "utf8");
+    if (fs.existsSync(gzPath)) fs.unlinkSync(gzPath);
+  }
+}
+
+function readProjectionSnapshotDisk<T>(
+  projDir: string,
+  baseName: string,
+  cache: Map<string, { mtimeMs: number; snap: T }>
+): T | null {
+  const gzPath = path.join(projDir, `${baseName}.json.gz`);
+  const plainPath = path.join(projDir, `${baseName}.json`);
+  const targetPath = fs.existsSync(gzPath) ? gzPath : fs.existsSync(plainPath) ? plainPath : null;
+  if (!targetPath) return null;
+  const st = fs.statSync(targetPath);
+  const cached = cache.get(targetPath);
+  if (cached && cached.mtimeMs === st.mtimeMs) return cached.snap;
+  const raw = targetPath.endsWith(".gz")
+    ? zlib.gunzipSync(fs.readFileSync(targetPath)).toString("utf8")
+    : fs.readFileSync(targetPath, "utf8");
+  const parsed = JSON.parse(raw) as T;
+  cache.set(targetPath, { mtimeMs: st.mtimeMs, snap: parsed });
+  return parsed;
+}
 import type { ProjectionReceipt } from "./contracts";
 import type { DurableKnowledgeStore } from "./store";
 
@@ -173,8 +206,8 @@ export async function buildReleaseProjectionsFromOutbox(
 
   const generation = `gen.${releaseId}.r${st.releases[releaseId]?.revision ?? 1}`;
 
-  // 1. Build Lexical Snapshot
-  const inverted: Record<string, string[]> = {};
+  // 1. Build Lexical Snapshot (null-prototype object prevents 'constructor'/'toString' token collisions)
+  const inverted: Record<string, string[]> = Object.create(null);
   for (const p of passages) {
     const work = st.works[p.work_id];
     const headerIds = (work?.official_identifiers || []).map((id) => id.normalized).join(" ");
@@ -194,7 +227,7 @@ export async function buildReleaseProjectionsFromOutbox(
     inverted_index: inverted,
   };
   const lexicalJson = JSON.stringify(lexicalSnapshot);
-  fs.writeFileSync(path.join(projDir, `${releaseId}_lexical.json`), lexicalJson, "utf8");
+  writeProjectionSnapshotDisk(projDir, `${releaseId}_lexical`, lexicalJson);
 
   // 2. Build Vector Snapshot
   const vectors: Record<string, { passage_id: string; values: number[] }> = {};
@@ -204,7 +237,9 @@ export async function buildReleaseProjectionsFromOutbox(
     vecIds.push(vecId);
     vectors[vecId] = {
       passage_id: p.passage_id,
-      values: computeDeterministicLegalEmbedding(`${p.contextualized_header} ${p.exact_text}`),
+      values: computeDeterministicLegalEmbedding(`${p.contextualized_header} ${p.exact_text}`).map((v) =>
+        Number(v.toFixed(4))
+      ),
     };
   }
   const vectorSnapshot: VectorProjectionSnapshot = {
@@ -215,7 +250,7 @@ export async function buildReleaseProjectionsFromOutbox(
     vectors,
   };
   const vectorJson = JSON.stringify(vectorSnapshot);
-  fs.writeFileSync(path.join(projDir, `${releaseId}_vector.json`), vectorJson, "utf8");
+  writeProjectionSnapshotDisk(projDir, `${releaseId}_vector`, vectorJson);
 
   // 3. Build Graph Snapshot
   const nodeSet = new Set<string>();
@@ -244,7 +279,7 @@ export async function buildReleaseProjectionsFromOutbox(
     edges,
   };
   const graphJson = JSON.stringify(graphSnapshot);
-  fs.writeFileSync(path.join(projDir, `${releaseId}_graph.json`), graphJson, "utf8");
+  writeProjectionSnapshotDisk(projDir, `${releaseId}_graph`, graphJson);
 
   const receipts: ProjectionReceipt[] = [
     {
@@ -301,19 +336,26 @@ export async function buildReleaseProjectionsFromOutbox(
 }
 
 const vectorSnapCache = new Map<string, { mtimeMs: number; snap: VectorProjectionSnapshot }>();
+const lexicalSnapCache = new Map<string, { mtimeMs: number; snap: LexicalProjectionSnapshot }>();
 
 export function loadVectorProjectionSnapshot(
   store: DurableKnowledgeStore,
   releaseId: string
 ): VectorProjectionSnapshot | null {
-  const filePath = path.join(store.dataDir, "projections", `${releaseId}_vector.json`);
-  if (!fs.existsSync(filePath)) return null;
-  const st = fs.statSync(filePath);
-  const cached = vectorSnapCache.get(filePath);
-  if (cached && cached.mtimeMs === st.mtimeMs) {
-    return cached.snap;
-  }
-  const parsed = JSON.parse(fs.readFileSync(filePath, "utf8")) as VectorProjectionSnapshot;
-  vectorSnapCache.set(filePath, { mtimeMs: st.mtimeMs, snap: parsed });
-  return parsed;
+  return readProjectionSnapshotDisk(
+    path.join(store.dataDir, "projections"),
+    `${releaseId}_vector`,
+    vectorSnapCache
+  );
+}
+
+export function loadLexicalProjectionSnapshot(
+  store: DurableKnowledgeStore,
+  releaseId: string
+): LexicalProjectionSnapshot | null {
+  return readProjectionSnapshotDisk(
+    path.join(store.dataDir, "projections"),
+    `${releaseId}_lexical`,
+    lexicalSnapCache
+  );
 }

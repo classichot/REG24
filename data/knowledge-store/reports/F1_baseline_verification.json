@@ -1,13 +1,13 @@
 {
   "baseline": {
-    "snapshot_id": "baseline_55f9ca0_d57155ff",
-    "captured_at": "2026-11-14T13:53:35.692Z",
-    "code_commit": "55f9ca069181e32ba8a7077852c3fe1c61c350a6",
+    "snapshot_id": "baseline_3f1da6e_c08f9820",
+    "captured_at": "2026-11-14T14:54:20.834Z",
+    "code_commit": "3f1da6e243625f551d658a17d0c786c13dc74562",
     "schema_version": "reg24.neo4j.schema.v2.1.0",
-    "snapshot_uri": "D:\\Code\\REG24\\data\\knowledge-store\\baseline\\baseline_55f9ca0_d57155ff.json",
-    "snapshot_sha256": "d57155ffb082bb33abe72e4d7b3f5a83b626df9a28ddfd42484e7cd92b956431",
+    "snapshot_uri": "D:\\Code\\REG24\\data\\knowledge-store\\baseline\\baseline_3f1da6e_c08f9820.json",
+    "snapshot_sha256": "c08f9820da7319282e29761d0f8e43ef709f3a9787cecc3e6e480809af40c37f",
     "canonical_counts": {
-      "thai_tax_rulings_rows": 3643,
+      "thai_tax_rulings_rows": 4650,
       "resource_master_rows": 2312,
       "seed_graph_nodes": 352,
       "seed_graph_relationships": 501,
@@ -27,6 +27,14 @@
         "legacy_ids": [
           "ruling.th.rd.27748",
           "ruling.th.rd.27761"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0702/2107",
+        "date_raw": "12 มีนาคม 2555",
+        "legacy_ids": [
+          "ruling.th.rd.46409",
+          "ruling.th.rd.48423"
         ]
       },
       {
@@ -76,16 +84,24 @@
           "ruling.th.rd.24641",
           "ruling.th.rd.24643"
         ]
+      },
+      {
+        "normalized_ruling_no": "กค 0811/2827",
+        "date_raw": "10 เมษายน 2543",
+        "legacy_ids": [
+          "ruling.th.rd.23888",
+          "ruling.th.rd.23890"
+        ]
       }
     ],
     "constraint_conflicts": []
   },
   "isolated_restore_verification": {
     "checksum_matches": true,
-    "expected_sha256": "d57155ffb082bb33abe72e4d7b3f5a83b626df9a28ddfd42484e7cd92b956431",
-    "actual_sha256": "d57155ffb082bb33abe72e4d7b3f5a83b626df9a28ddfd42484e7cd92b956431",
+    "expected_sha256": "c08f9820da7319282e29761d0f8e43ef709f3a9787cecc3e6e480809af40c37f",
+    "actual_sha256": "c08f9820da7319282e29761d0f8e43ef709f3a9787cecc3e6e480809af40c37f",
     "restored_counts": {
-      "thai_tax_rulings_rows": 3643,
+      "thai_tax_rulings_rows": 4650,
       "resource_master_rows": 2312,
       "seed_graph_nodes": 352,
       "seed_graph_relationships": 501,

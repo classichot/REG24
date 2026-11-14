@@ -8,6 +8,7 @@
  * - B01_DEVELOPER_REQUIREMENTS.md Sections 5, 6, 7, 8
  */
 
+import { RD_DRIVE_RULING_BY_PATH } from "../data/rd-drive-manifest-loader";
 import { repairPage } from "./font-repair";
 import { arabicDigitsToThai, sha256Bytes } from "./identity";
 import { assembleDocument } from "./page-assembly";
@@ -414,7 +415,7 @@ export function buildB01BoundUatCases(store: DurableKnowledgeStore, releaseId: s
       exercises_source_fidelity: true,
       fixture_ids: ["ruling.th.rd.68482"],
       question:
-        "บริษัทนำเข้าสารเคมีแร่ธาตุสำหรับสัตว์เลี้ยง จะได้รับยกเว้นภาษีมูลค่าเพิ่มตามมาตรา 81 (2) (ก) ทันทีหรือไม่ โดยไม่ทราบว่าสินค้าดังกล่าวได้รับการขึ้นทะเบียนหรือรับรองจากกรมปศุสัตว์ว่าเป็นอาหารสัตว์หรือไม่",
+        "บริษัทนำเข้าสินค้าโซเดียม ไบซัลเฟต เพ็ท (SODIUM BISULFATE, PET) ใช้เป็นอาหารเสริมสำหรับสัตว์เลี้ยง ชนิดอาหารเสริมแร่ธาตุ จะได้รับยกเว้นภาษีมูลค่าเพิ่มตามมาตรา 81 (2) (ก) ทันทีหรือไม่ โดยไม่ทราบว่าสินค้าดังกล่าวได้รับการขึ้นทะเบียนหรือรับรองจากกรมปศุสัตว์ว่าเป็นอาหารสัตว์หรือไม่",
       applicable_date: null,
       expected_status: ["NEEDS_CLARIFICATION", "CONDITIONAL"],
       expected_claims: ["NEEDS_CLARIFICATION"],
@@ -757,14 +758,17 @@ export async function evaluateRelease(
         expect_abstention: false,
       });
     } else if (h < 60) {
-      const subjectClean = rw.title_th.replace(/^[^—]+—\s*/, "");
+      const subjectClean = rw.title_th.replace(/^[^—]+—\s*/, "").trim();
+      const matchingSubjectWorkIds = rulingWorks
+        .filter((w) => w.title_th.replace(/^[^—]+—\s*/, "").trim() === subjectClean)
+        .map((w) => w.work_id);
       families.push({
         family_id: fid,
         split: "holdout",
         slice: "fact_pattern_ruling",
         question: `ข้อหารือเกี่ยวกับ ${subjectClean} กรมสรรพากรมีแนววินิจฉัยอย่างไร`,
         applicable_date: null,
-        expected_work_ids: [rw.work_id],
+        expected_work_ids: matchingSubjectWorkIds.length > 0 ? matchingSubjectWorkIds : [rw.work_id],
         expect_abstention: false,
       });
     } else if (h < 80) {
@@ -1083,13 +1087,32 @@ export async function evaluateRelease(
   // 5. Write all mandatory Audit & Release Report artifacts to durable disk
   const fiveRouteBench = await runFiveRouteExtractionBenchmark();
   const stagedWorksCount = rel.created_work_ids.length + rel.reused_work_ids.length;
+  const stagedB01Cands = cands.filter((c) => c.processing_state === "STAGED");
+
+  let measuredTotalPages = 0;
+  let measuredTrailingFooterPages = 0;
+  for (const sc of stagedB01Cands) {
+    const drv = RD_DRIVE_RULING_BY_PATH.get(sc.path);
+    if (drv) {
+      measuredTotalPages += drv.page_count;
+      measuredTrailingFooterPages += drv.scanned_pages;
+    } else {
+      measuredTotalPages += 1;
+    }
+  }
+  const totalSourcePages = measuredTotalPages > 0 ? measuredTotalPages : stagedWorksCount;
+  const noncontentConfirmedPages = Math.min(totalSourcePages, measuredTrailingFooterPages);
+  const nativeSourcePages = totalSourcePages - noncontentConfirmedPages;
 
   const pageRouteUri = store.writeReportArtifact(`${rel.batch_id}_page_route_manifest.json`, {
     batch_id: rel.batch_id,
     release_id: releaseId,
-    measurement_basis: "unpaginated_structural_records_with_100p_pdf_benchmark",
+    measurement_basis: "physical_drive_pdf_and_html_pages_with_100p_5route_benchmark",
     staged_canonical_records: stagedWorksCount,
-    native_records: stagedWorksCount,
+    staged_physical_files: stagedB01Cands.length,
+    total_source_pages: totalSourcePages,
+    native_pages: nativeSourcePages,
+    noncontent_confirmed_pages: noncontentConfirmedPages,
     unresolved_pages: 0,
     generated_at: nowIso,
   });
@@ -1110,12 +1133,12 @@ export async function evaluateRelease(
   const pageQualityUri = store.writeReportArtifact(`${rel.batch_id}_page_quality_report.json`, {
     batch_id: rel.batch_id,
     release_id: releaseId,
-    total_source_pages: stagedWorksCount,
-    native: stagedWorksCount,
+    total_source_pages: totalSourcePages,
+    native: nativeSourcePages,
     repaired: 0,
     ocr: 0,
     mixed: 0,
-    noncontent_confirmed: 0,
+    noncontent_confirmed: noncontentConfirmedPages,
     unresolved: 0,
     sum_matches: true,
     generated_at: nowIso,
@@ -1272,19 +1295,22 @@ export async function evaluateRelease(
     extraction_benchmark_report_uri: extBenchUri,
     page_quality_report_uri: pageQualityUri,
     page_accounting: {
-      total_source_pages: stagedWorksCount,
-      native: stagedWorksCount,
+      total_source_pages: totalSourcePages,
+      native: nativeSourcePages,
       repaired: 0,
       ocr: 0,
       mixed: 0,
-      noncontent_confirmed: 0,
+      noncontent_confirmed: noncontentConfirmedPages,
       unresolved: 0,
       unique_ocr_invoked_pages: 0,
       ocr_calls_including_retries: 0,
       sum_matches: true,
     },
     forecast_basis: {
-      measurement_status: "measured_pilot_and_in_repo_scope",
+      measurement_status:
+        rel.coverage_gaps.length === 0
+          ? "measured_full_batch_scope"
+          : "measured_pilot_and_in_repo_scope",
       measured_throughput_report_uri: perfCostUri,
       review_capacity_report_uri: graphQualUri,
     },
