@@ -111,9 +111,18 @@ export async function queryKnowledge(
 
   // 2. Final pre-delivery live authorization/withdrawal recheck (SH-16, AT08)
   const freshState = store.getState();
-  const liveVerifiedHits = bundle.top_hits.filter((h) =>
+  let liveVerifiedHits = bundle.top_hits.filter((h) =>
     isPassageCurrentlyAuthorizedAndActive(freshState, h.passage, actor)
   );
+  // In exact_lookup mode with an explicit ruling identifier, scope citations strictly to the matched canonical ruling(s) + direct statutory hops (B01-U01)
+  if (req.mode === "exact_lookup" && bundle.explicit_ruling_ids_in_query.length > 0) {
+    const exactScoped = liveVerifiedHits.filter(
+      (h) => h.match_sources.includes("exact_id") || h.match_sources.includes("graph_hop")
+    );
+    if (exactScoped.length > 0) {
+      liveVerifiedHits = exactScoped;
+    }
+  }
   const liveEvidenceCards = bundle.evidence_cards.filter((ec) =>
     liveVerifiedHits.some((h) => h.passage.passage_id === ec.passage_id)
   );

@@ -712,6 +712,35 @@ export default function KnowledgeBatchesUatPage() {
                 </button>
               </div>
 
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", fontSize: "12px" }}>
+                <span style={{ color: "#9ca3af" }}>Quick Thai/Arabic Digit Parity Check:</span>
+                {[
+                  ["กค 0702/636 (Arabic — U01A)", "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636"],
+                  ["กค ๐๗๐๒ / ๖๓๖ (Same 0702/636 in Thai Digits)", "ค้นหาหนังสือตอบข้อหารือเลขไทย กค ๐๗๐๒ / ๖๓๖"],
+                  ["กค ๐๗๐๒ / ๑๒๔๘ (0702/1248 in Thai Digits — U01B)", "ค้นหาหนังสือตอบข้อหารือเลขไทย กค ๐๗๐๒ / ๑๒๔๘"],
+                ].map(([label, qStr]) => (
+                  <button
+                    key={label}
+                    onClick={() => {
+                      setQuestion(qStr);
+                      setApplicableDate("");
+                      setQueryMode("exact_lookup");
+                      void runLiveQuery({ q: qStr, date: null, mode: "exact_lookup", cmp: [] });
+                    }}
+                    style={{
+                      background: "#1e293b",
+                      color: "#e2e8f0",
+                      border: "1px solid #334155",
+                      padding: "4px 10px",
+                      fontSize: "12px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
               {answerResult && (
                 <div
                   style={{
