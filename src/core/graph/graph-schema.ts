@@ -48,6 +48,16 @@ export const ALLOWED_RELATIONSHIP_TYPES = [
   "PENALTY_UNDER",
   "PROMOTED_BY",
   "SUPERSEDES",
+  // Knowledge GraphRAG 10-Batch typed legal predicates (SH-17 & B01-GR)
+  "ISSUED_BY",
+  "REPEALS",
+  "HAS_CONDITION",
+  "HAS_EXCEPTION",
+  "APPLIES_TO",
+  "SUPPORTED_BY",
+  "REPRESENTED_BY",
+  "ADDRESSES_ISSUE",
+  "CONSIDERS_FACT_PATTERN",
 ] as const;
 
 export type CanonicalRelationshipType = (typeof ALLOWED_RELATIONSHIP_TYPES)[number];
@@ -142,3 +152,113 @@ export const NEO4J_SCHEMA_CONSTRAINTS_CYPHER: string[] = [
   `CREATE INDEX idx_node_tenant_isolation IF NOT EXISTS FOR (p:Provision) ON (p.tenant_id)`,
   `CREATE FULLTEXT INDEX ft_legal_provisions IF NOT EXISTS FOR (n:Provision|ProvisionVersion|CourtDecision|TaxRuling|SubRegulation|LegalInstrument) ON EACH [n.title_en, n.title_th, n.citation_label, n.summary_Text]`,
 ];
+
+
+// ============================================================================
+// KNOWLEDGE GRAPHRAG VERSIONED ONTOLOGY & DOMAIN/RANGE CERTIFICATION (SH-17)
+// ============================================================================
+
+export const KNOWLEDGE_ONTOLOGY_VERSION = "reg24.knowledge.ontology.v1.1.0";
+
+export const KNOWLEDGE_ENTITY_TYPES = [
+  "LegalWork",
+  "TaxRuling",
+  "CouncilOfStateOpinion",
+  "CourtDecision",
+  "Statute",
+  "SubordinateLegislation",
+  "LegalVersion",
+  "Provision",
+  "ProvisionVersion",
+  "Passage",
+  "Artifact",
+  "Agency",
+  "Court",
+  "Issue",
+  "FactPattern",
+  "Condition",
+  "Exception",
+] as const;
+
+export type KnowledgeEntityType = (typeof KNOWLEDGE_ENTITY_TYPES)[number];
+
+export const KNOWLEDGE_TYPED_PREDICATES = [
+  "ISSUED_BY",
+  "HAS_VERSION",
+  "REPRESENTED_BY",
+  "CONTAINS",
+  "CITES",
+  "INTERPRETS",
+  "AMENDS",
+  "REPEALS",
+  "HAS_CONDITION",
+  "HAS_EXCEPTION",
+  "APPLIES_TO",
+  "SUPPORTED_BY",
+  "ADDRESSES_ISSUE",
+  "CONSIDERS_FACT_PATTERN",
+] as const;
+
+export type KnowledgeTypedPredicate = (typeof KNOWLEDGE_TYPED_PREDICATES)[number];
+
+export const KNOWLEDGE_PREDICATE_DOMAIN_RANGE: Record<
+  KnowledgeTypedPredicate,
+  { allowedSubjects: readonly KnowledgeEntityType[]; allowedObjects: readonly KnowledgeEntityType[] }
+> = {
+  ISSUED_BY: {
+    allowedSubjects: ["LegalWork", "TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "Statute", "SubordinateLegislation"],
+    allowedObjects: ["Agency", "Court"],
+  },
+  HAS_VERSION: {
+    allowedSubjects: ["LegalWork", "TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "Statute", "SubordinateLegislation", "Provision"],
+    allowedObjects: ["LegalVersion", "ProvisionVersion"],
+  },
+  REPRESENTED_BY: {
+    allowedSubjects: ["LegalWork", "TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "Statute", "SubordinateLegislation", "LegalVersion"],
+    allowedObjects: ["Artifact"],
+  },
+  CONTAINS: {
+    allowedSubjects: ["LegalWork", "Statute", "SubordinateLegislation", "LegalVersion", "ProvisionVersion"],
+    allowedObjects: ["Provision", "ProvisionVersion", "Passage"],
+  },
+  CITES: {
+    allowedSubjects: ["LegalWork", "TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "Statute", "SubordinateLegislation", "LegalVersion", "ProvisionVersion"],
+    allowedObjects: ["LegalWork", "TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
+  },
+  INTERPRETS: {
+    allowedSubjects: ["TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "LegalVersion"],
+    allowedObjects: ["Provision", "ProvisionVersion", "Statute", "SubordinateLegislation", "LegalVersion"],
+  },
+  AMENDS: {
+    allowedSubjects: ["Statute", "SubordinateLegislation", "LegalVersion", "ProvisionVersion"],
+    allowedObjects: ["Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
+  },
+  REPEALS: {
+    allowedSubjects: ["Statute", "SubordinateLegislation", "LegalVersion", "ProvisionVersion"],
+    allowedObjects: ["Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
+  },
+  HAS_CONDITION: {
+    allowedSubjects: ["TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "LegalVersion", "Provision", "ProvisionVersion"],
+    allowedObjects: ["Condition", "Passage"],
+  },
+  HAS_EXCEPTION: {
+    allowedSubjects: ["TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "LegalVersion", "Provision", "ProvisionVersion"],
+    allowedObjects: ["Exception", "Passage"],
+  },
+  APPLIES_TO: {
+    allowedSubjects: ["TaxRuling", "CouncilOfStateOpinion", "Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
+    allowedObjects: ["FactPattern", "Issue"],
+  },
+  SUPPORTED_BY: {
+    allowedSubjects: ["LegalWork", "TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "Statute", "SubordinateLegislation", "LegalVersion", "ProvisionVersion"],
+    allowedObjects: ["Passage", "Artifact"],
+  },
+  ADDRESSES_ISSUE: {
+    allowedSubjects: ["TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "LegalVersion"],
+    allowedObjects: ["Issue"],
+  },
+  CONSIDERS_FACT_PATTERN: {
+    allowedSubjects: ["TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "LegalVersion"],
+    allowedObjects: ["FactPattern"],
+  },
+};

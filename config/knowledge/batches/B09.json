@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.1",
+  "batch_id": "B09",
+  "sequence_index": 9,
+  "name": "Public administration, procurement and oversight",
+  "predecessor_batch_id": "B08",
+  "original_previous_batch_id": "B08",
+  "owned_source_folders": [
+    {
+      "folder_id": "1VdYhbjOUbpuczjVt59XphoBGa4fRkl-w",
+      "title": "NHRC Regulations",
+      "url": "https://drive.google.com/drive/folders/1VdYhbjOUbpuczjVt59XphoBGa4fRkl-w",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1O-4_4KkBm8YaoysXSWotoa8tD9ZcI_WL",
+      "title": "Ombudsman Regulations",
+      "url": "https://drive.google.com/drive/folders/1O-4_4KkBm8YaoysXSWotoa8tD9ZcI_WL",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1CUdnikGHMdiFwOsPwDacrWD2OXaHH_cw",
+      "title": "Cabinet Resolutions",
+      "url": "https://drive.google.com/drive/folders/1CUdnikGHMdiFwOsPwDacrWD2OXaHH_cw",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1uk6jSBWD7l9wPVFfDYk0sJ3B5PG_K4qI",
+      "title": "ECT Regulations",
+      "url": "https://drive.google.com/drive/folders/1uk6jSBWD7l9wPVFfDYk0sJ3B5PG_K4qI",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1allqQw8wAHpisRXFtW98xsMYDNCAGClw",
+      "title": "DOPA & DDPM Regulations",
+      "url": "https://drive.google.com/drive/folders/1allqQw8wAHpisRXFtW98xsMYDNCAGClw",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1gcYYEIwKms7QYnmxIqaPoyWQzn0p8Nov",
+      "title": "Treasury & SEPO Regulations",
+      "url": "https://drive.google.com/drive/folders/1gcYYEIwKms7QYnmxIqaPoyWQzn0p8Nov",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1cAtWIoKn-h415LxFednyAzccldQutU4C",
+      "title": "CGD Regulations",
+      "url": "https://drive.google.com/drive/folders/1cAtWIoKn-h415LxFednyAzccldQutU4C",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1--dYD_19dgs9EebIFjIUbBtScIgPXgWi",
+      "title": "State Audit Office (OAG)",
+      "url": "https://drive.google.com/drive/folders/1--dYD_19dgs9EebIFjIUbBtScIgPXgWi",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1BAh1gfX47RHHyM-fqgy_1f1vWYHKMjnV",
+      "title": "NACC Regulations",
+      "url": "https://drive.google.com/drive/folders/1BAh1gfX47RHHyM-fqgy_1f1vWYHKMjnV",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1oXjU8ITJR7twJpR1ncZhLFccd3M1T5WR",
+      "title": "Security & Foreign Affairs Regulations",
+      "url": "https://drive.google.com/drive/folders/1oXjU8ITJR7twJpR1ncZhLFccd3M1T5WR",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1yyHc3I-Q8jZw4t_LeB4YwdomRpE4x5tY",
+      "title": "Public Administration Regulations",
+      "url": "https://drive.google.com/drive/folders/1yyHc3I-Q8jZw4t_LeB4YwdomRpE4x5tY",
+      "scope": "recursive candidates; classify content before admission"
+    }
+  ],
+  "additional_source_folders": [],
+  "audit_source_pool": {
+    "files": 2866,
+    "gb": 2.8356,
+    "pdfs": 2805,
+    "pdf_gb": 2.7591,
+    "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+    "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+  },
+  "pilot_quota": {
+    "total_unique_works": 50
+  },
+  "run_limits": {
+    "max_documents_per_run": 200,
+    "max_source_pages_per_run": 1000,
+    "max_ocr_task_pages": 50,
+    "max_ocr_dispatch_pages_per_run": 250,
+    "stratified_audit_fraction": 0.05,
+    "stratified_audit_min_docs": 20
+  },
+  "performance_cost_budget": {
+    "exact_lookup_p95_ms": 2000,
+    "standard_answer_p95_ms": 15000,
+    "max_cost_usd_per_run": 50,
+    "pause_on_budget_exhaustion": true
+  },
+  "evaluation_targets": {
+    "min_question_families": 100,
+    "development_families": 50,
+    "holdout_families": 50,
+    "mandatory_owner_uat_cases": 20,
+    "min_fidelity_owner_uat_cases": 5
+  }
+}

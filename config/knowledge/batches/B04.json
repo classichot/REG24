@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.1",
+  "batch_id": "B04",
+  "sequence_index": 4,
+  "name": "Financial services and capital markets",
+  "predecessor_batch_id": "B03",
+  "original_previous_batch_id": "B05",
+  "owned_source_folders": [
+    {
+      "folder_id": "1yF23vdy_4tYvQqSpBOblJTBBjjJRmrFe",
+      "title": "Bond Default Forensics",
+      "url": "https://drive.google.com/drive/folders/1yF23vdy_4tYvQqSpBOblJTBBjjJRmrFe",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1C1HDDoj0hi-cfZtvSS84CmirJsJwcUOy",
+      "title": "DPA Regulations",
+      "url": "https://drive.google.com/drive/folders/1C1HDDoj0hi-cfZtvSS84CmirJsJwcUOy",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1q-tch29kVfa25sVC4ZNj0j2E1J_YXhM_",
+      "title": "FPO Regulations",
+      "url": "https://drive.google.com/drive/folders/1q-tch29kVfa25sVC4ZNj0j2E1J_YXhM_",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1ctRzKWIsiGnjxL5FbpHKAnK4YJbm409P",
+      "title": "OIC - Office of Insurance Commission",
+      "url": "https://drive.google.com/drive/folders/1ctRzKWIsiGnjxL5FbpHKAnK4YJbm409P",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1kJK_a1NU-gRoo7t54S5kkIrZvoi35e6M",
+      "title": "PDMO Regulations",
+      "url": "https://drive.google.com/drive/folders/1kJK_a1NU-gRoo7t54S5kkIrZvoi35e6M",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1v0A2tcjqs_xPnaff2FDy3hQQfbA01P3v",
+      "title": "AMLO - Anti-Money Laundering Office",
+      "url": "https://drive.google.com/drive/folders/1v0A2tcjqs_xPnaff2FDy3hQQfbA01P3v",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1ogA-OJLKZZP4BQDGxzrZ2f_JDwwwNNQF",
+      "title": "BOT - Bank of Thailand",
+      "url": "https://drive.google.com/drive/folders/1ogA-OJLKZZP4BQDGxzrZ2f_JDwwwNNQF",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "14GpOTTS7h8Fx9SyEOn8TYOTwNYhXbvJB",
+      "title": "SEC - Securities and Exchange Commission Thailand",
+      "url": "https://drive.google.com/drive/folders/14GpOTTS7h8Fx9SyEOn8TYOTwNYhXbvJB",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1gQhTyb9Sa3vRoCl7ybyW3pilfnT6jjH_",
+      "title": "SET - Stock Exchange of Thailand",
+      "url": "https://drive.google.com/drive/folders/1gQhTyb9Sa3vRoCl7ybyW3pilfnT6jjH_",
+      "scope": "recursive candidates; classify content before admission"
+    }
+  ],
+  "additional_source_folders": [],
+  "audit_source_pool": {
+    "files": 11228,
+    "gb": 7.8979,
+    "pdfs": 11174,
+    "pdf_gb": 7.8727,
+    "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+    "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+  },
+  "pilot_quota": {
+    "total_unique_works": 50
+  },
+  "run_limits": {
+    "max_documents_per_run": 200,
+    "max_source_pages_per_run": 1000,
+    "max_ocr_task_pages": 50,
+    "max_ocr_dispatch_pages_per_run": 250,
+    "stratified_audit_fraction": 0.05,
+    "stratified_audit_min_docs": 20
+  },
+  "performance_cost_budget": {
+    "exact_lookup_p95_ms": 2000,
+    "standard_answer_p95_ms": 15000,
+    "max_cost_usd_per_run": 50,
+    "pause_on_budget_exhaustion": true
+  },
+  "evaluation_targets": {
+    "min_question_families": 100,
+    "development_families": 50,
+    "holdout_families": 50,
+    "mandatory_owner_uat_cases": 20,
+    "min_fidelity_owner_uat_cases": 5
+  }
+}

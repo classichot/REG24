@@ -1,0 +1,131 @@
+{
+  "schema_version": "1.1",
+  "batch_id": "B02",
+  "sequence_index": 2,
+  "name": "Statutes and tax framework",
+  "predecessor_batch_id": "B01",
+  "original_previous_batch_id": "B03",
+  "owned_source_folders": [
+    {
+      "folder_id": "1d44FTBu5a4P63fcvRdTgWwqX8fFZmuz5",
+      "title": "Primary Law",
+      "url": "https://drive.google.com/drive/folders/1d44FTBu5a4P63fcvRdTgWwqX8fFZmuz5",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1RqAoj8tudRfYEwLjXTc4ZN2mXWUj88ed",
+      "title": "Misc Gazette",
+      "url": "https://drive.google.com/drive/folders/1RqAoj8tudRfYEwLjXTc4ZN2mXWUj88ed",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1uPd5YxGWZbSyl4y5ffl4bUUExeNn3mDE",
+      "title": "Parliament",
+      "url": "https://drive.google.com/drive/folders/1uPd5YxGWZbSyl4y5ffl4bUUExeNn3mDE",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "15Khrg59kGxNjt3rxqiTTxjIOV8Gp9_84",
+      "title": "Council of State (กฤษฎีกา)",
+      "url": "https://drive.google.com/drive/folders/15Khrg59kGxNjt3rxqiTTxjIOV8Gp9_84",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1mM9Urykv0oTRzer4bE12vTdrdVzgJPFq",
+      "title": "Misc Royal Decrees",
+      "url": "https://drive.google.com/drive/folders/1mM9Urykv0oTRzer4bE12vTdrdVzgJPFq",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1r9buiqHavK-pOVDw3lnjuX-y5Gex_YAA",
+      "title": "Excise - Excise Department",
+      "url": "https://drive.google.com/drive/folders/1r9buiqHavK-pOVDw3lnjuX-y5Gex_YAA",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1BaWRZgpQbEl7hl8Xsh3vPXMZsDjXkgxv",
+      "title": "Customs - Customs Department",
+      "url": "https://drive.google.com/drive/folders/1BaWRZgpQbEl7hl8Xsh3vPXMZsDjXkgxv",
+      "scope": "recursive candidates; classify content before admission"
+    }
+  ],
+  "additional_source_folders": [
+    {
+      "folder_id": "1hRiPdjpakfyLnJ5fXmHpuNxkdLCDYkKk",
+      "title": "General & Other Taxes",
+      "url": "https://drive.google.com/drive/folders/1hRiPdjpakfyLnJ5fXmHpuNxkdLCDYkKk"
+    },
+    {
+      "folder_id": "1BfXhNRUFzI642Vn7o2JYvIltflzElpiS",
+      "title": "Transfer Pricing",
+      "url": "https://drive.google.com/drive/folders/1BfXhNRUFzI642Vn7o2JYvIltflzElpiS"
+    },
+    {
+      "folder_id": "1QJkIIauD-dObZyxzK8ImZyhh_Wa0mrnU",
+      "title": "Top-up Tax (Pillar Two)",
+      "url": "https://drive.google.com/drive/folders/1QJkIIauD-dObZyxzK8ImZyhh_Wa0mrnU"
+    },
+    {
+      "folder_id": "1R_JtsFimaUUlnLm3aLtpt8MWuSUeStGh",
+      "title": "Stamp",
+      "url": "https://drive.google.com/drive/folders/1R_JtsFimaUUlnLm3aLtpt8MWuSUeStGh"
+    },
+    {
+      "folder_id": "1UJOk0u5ds2VKqw03XpyUrc3ZhE-phizw",
+      "title": "SBT",
+      "url": "https://drive.google.com/drive/folders/1UJOk0u5ds2VKqw03XpyUrc3ZhE-phizw"
+    },
+    {
+      "folder_id": "1_0MeWeIYASBTmcKatjVqHcXYosJ8i3Ki",
+      "title": "WHT",
+      "url": "https://drive.google.com/drive/folders/1_0MeWeIYASBTmcKatjVqHcXYosJ8i3Ki"
+    },
+    {
+      "folder_id": "1rI8SUWMoZGMTsmY04Xc8QbAJW10HV5qf",
+      "title": "VAT",
+      "url": "https://drive.google.com/drive/folders/1rI8SUWMoZGMTsmY04Xc8QbAJW10HV5qf"
+    },
+    {
+      "folder_id": "1C0usBLcY-Gqm9nJciXH-a2gamIAlLcyP",
+      "title": "PIT",
+      "url": "https://drive.google.com/drive/folders/1C0usBLcY-Gqm9nJciXH-a2gamIAlLcyP"
+    },
+    {
+      "folder_id": "1hePa724n_u1559rnyv-rce4TXO5YRAGL",
+      "title": "CIT",
+      "url": "https://drive.google.com/drive/folders/1hePa724n_u1559rnyv-rce4TXO5YRAGL"
+    }
+  ],
+  "audit_source_pool": {
+    "files": 6753,
+    "gb": 3.1764,
+    "pdfs": 6724,
+    "pdf_gb": 3.1585,
+    "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+    "ownership_caveat": "Non-RD sources only; add B02-classified RD records without double-counting B01 pool."
+  },
+  "pilot_quota": {
+    "total_unique_works": 50
+  },
+  "run_limits": {
+    "max_documents_per_run": 200,
+    "max_source_pages_per_run": 1000,
+    "max_ocr_task_pages": 50,
+    "max_ocr_dispatch_pages_per_run": 250,
+    "stratified_audit_fraction": 0.05,
+    "stratified_audit_min_docs": 20
+  },
+  "performance_cost_budget": {
+    "exact_lookup_p95_ms": 2000,
+    "standard_answer_p95_ms": 15000,
+    "max_cost_usd_per_run": 50,
+    "pause_on_budget_exhaustion": true
+  },
+  "evaluation_targets": {
+    "min_question_families": 100,
+    "development_families": 50,
+    "holdout_families": 50,
+    "mandatory_owner_uat_cases": 20,
+    "min_fidelity_owner_uat_cases": 5
+  }
+}

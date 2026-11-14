@@ -12,11 +12,37 @@ import {
 import { neo4jConnectionManager, sanitizeGraphError } from "../graph/neo4j-client";
 import { getOrBuildMasterChunkCorpus } from "./legal-structural-chunker";
 
+export function classifyInstrumentAuthorityTier(instrumentType: string): {
+  tier:
+    | "PRIMARY_STATUTE"
+    | "SUBORDINATE_REGULATION"
+    | "SUPREME_COURT_PRECEDENT"
+    | "ADMINISTRATIVE_TAX_RULING"
+    | "REGULATORY_GUIDANCE";
+  isBinding: boolean;
+} {
+  const t = (instrumentType || "").toLowerCase();
+  if (/(^act$|emergencydecree|code|constitution|พ\.ร\.บ\.|พระราชบัญญัติ|พระราชกำหนด|ประมวล)/.test(t)) {
+    return { tier: "PRIMARY_STATUTE", isBinding: true };
+  }
+  if (/(deka|judgment|court|คำพิพากษา|ฎีกา)/.test(t)) {
+    return { tier: "SUPREME_COURT_PRECEDENT", isBinding: false };
+  }
+  if (/(ruling|ข้อหารือ|แนววินิจฉัย)/.test(t)) {
+    return { tier: "ADMINISTRATIVE_TAX_RULING", isBinding: false };
+  }
+  if (/(royaldecree|ministerial|notif|order|regulation|rule|พระราชกฤษฎีกา|กฎกระทรวง|ประกาศ|คำสั่ง|ระเบียบ)/.test(t)) {
+    return { tier: "SUBORDINATE_REGULATION", isBinding: true };
+  }
+  return { tier: "REGULATORY_GUIDANCE", isBinding: false };
+}
+
 export async function syncLegalResourceMasterChunksToNeo4j(options?: {
   authority_code?: string;
   batchSize?: number;
 }): Promise<{
-  status: "synced_to_neo4j" | "verified_in_memory_only";
+  status: "synced_to_neo4j" | "verified_in_memory_only" | "incomplete_neo4j_unconfigured_or_unreachable";
+  published: boolean;
   neo4j_connected: boolean;
   batch_id: string;
   regulators_upserted: number;
@@ -48,16 +74,17 @@ export async function syncLegalResourceMasterChunksToNeo4j(options?: {
   const cfg = neo4jConnectionManager.getEnvConfig();
   if (!cfg.configured) {
     return {
-      status: "verified_in_memory_only",
+      status: "incomplete_neo4j_unconfigured_or_unreachable",
+      published: false,
       neo4j_connected: false,
       batch_id: batchId,
-      regulators_upserted: MASTER_AUTHORITY_FOLDERS.length,
-      instruments_upserted: targetDocs.length,
-      provision_chunks_upserted: targetChunks.length,
-      relationships_upserted: targetDocs.length + targetChunks.length * 2,
+      regulators_upserted: 0,
+      instruments_upserted: 0,
+      provision_chunks_upserted: 0,
+      relationships_upserted: 0,
       live_node_count: null,
       live_relationship_count: null,
-      error: null,
+      error: "NEO4J_NOT_CONFIGURED: Disconnected or memory-only state cannot be marked published (SH-10).",
     };
   }
 
@@ -108,29 +135,33 @@ export async function syncLegalResourceMasterChunksToNeo4j(options?: {
       { write: true, timeoutMs: 20_000 }
     );
 
-    // 2. Upsert Parent LegalInstrument nodes in batches
-    const instItems = targetDocs.map((doc) => ({
-      canonical_id: `inst.lrm.${doc.id.toLowerCase()}`,
-      title_en: doc.title_en.slice(0, 300),
-      title_th: doc.title_th.slice(0, 300),
-      citation_label: doc.code,
-      summary_Text: doc.summary_th.slice(0, 800),
-      source_document_id: doc.id,
-      official_source_url:
-        doc.drive_url || "https://drive.google.com/drive/folders/1Q81SV8sXWFrt9ASLf8uBsezFMd1d1Ltm",
-      source_content_hash: doc.sha256,
-      verification_status: "verified",
-      verified_at: "2026-10-21T00:00:00Z",
-      effective_from: doc.effective_date,
-      effective_to: doc.status === "SUPERSEDED" ? "2026-10-20" : null,
-      ingested_at: "2026-10-21T00:00:00Z",
-      module_id: `reg24.${(doc.authority_code || "lrm").toLowerCase()}.th`,
-      tenant_id: "PUBLIC",
-      legal_authority_tier: "PRIMARY_STATUTE",
-      is_binding_law: doc.status === "IN_FORCE",
-      regulator_canonical_id: `reg.th.lrm.${(doc.authority_code || "dbd").toLowerCase()}`,
-      migration_batch_id: batchId,
-    }));
+    // 2. Upsert Parent LegalInstrument nodes in batches (SH-10: derive actual authority tier & verification state)
+    const instItems = targetDocs.map((doc) => {
+      const authClass = classifyInstrumentAuthorityTier(doc.instrument_type);
+      const hasVerifiedMetadata = Boolean(doc.sha256 && doc.effective_date);
+      return {
+        canonical_id: `inst.lrm.${doc.id.toLowerCase()}`,
+        title_en: doc.title_en.slice(0, 300),
+        title_th: doc.title_th.slice(0, 300),
+        citation_label: doc.code,
+        summary_Text: doc.summary_th.slice(0, 800),
+        source_document_id: doc.id,
+        official_source_url:
+          doc.drive_url || "https://drive.google.com/drive/folders/1Q81SV8sXWFrt9ASLf8uBsezFMd1d1Ltm",
+        source_content_hash: doc.sha256,
+        verification_status: hasVerifiedMetadata ? "verified" : "pending_review",
+        verified_at: hasVerifiedMetadata ? doc.effective_date : null,
+        effective_from: doc.effective_date || null,
+        effective_to: doc.status === "SUPERSEDED" ? "2026-10-20" : null,
+        ingested_at: new Date().toISOString(),
+        module_id: `reg24.${(doc.authority_code || "lrm").toLowerCase()}.th`,
+        tenant_id: "PUBLIC",
+        legal_authority_tier: authClass.tier,
+        is_binding_law: authClass.isBinding && doc.status === "IN_FORCE",
+        regulator_canonical_id: `reg.th.lrm.${(doc.authority_code || "dbd").toLowerCase()}`,
+        migration_batch_id: batchId,
+      };
+    });
 
     for (let i = 0; i < instItems.length; i += batchSize) {
       const slice = instItems.slice(i, i + batchSize);
@@ -305,27 +336,30 @@ export async function syncLegalResourceMasterChunksToNeo4j(options?: {
 
     const health = await neo4jConnectionManager.checkHealth();
     return {
-      status: "synced_to_neo4j",
+      status: health.connected ? "synced_to_neo4j" : "incomplete_neo4j_unconfigured_or_unreachable",
+      published: health.connected,
       neo4j_connected: health.connected,
       batch_id: batchId,
-      regulators_upserted: regBatch.length,
-      instruments_upserted: instItems.length,
-      provision_chunks_upserted: chunkItems.length,
-      relationships_upserted:
-        instItems.length + chunkItems.length + seqEdges.length + crossRefItems.length,
+      regulators_upserted: health.connected ? regBatch.length : 0,
+      instruments_upserted: health.connected ? instItems.length : 0,
+      provision_chunks_upserted: health.connected ? chunkItems.length : 0,
+      relationships_upserted: health.connected
+        ? instItems.length + chunkItems.length + seqEdges.length + crossRefItems.length
+        : 0,
       live_node_count: health.live_node_count,
       live_relationship_count: health.live_relationship_count,
       error: health.sanitized_error,
     };
   } catch (err) {
     return {
-      status: "verified_in_memory_only",
+      status: "incomplete_neo4j_unconfigured_or_unreachable",
+      published: false,
       neo4j_connected: false,
       batch_id: batchId,
-      regulators_upserted: MASTER_AUTHORITY_FOLDERS.length,
-      instruments_upserted: targetDocs.length,
-      provision_chunks_upserted: targetChunks.length,
-      relationships_upserted: targetDocs.length + targetChunks.length,
+      regulators_upserted: 0,
+      instruments_upserted: 0,
+      provision_chunks_upserted: 0,
+      relationships_upserted: 0,
       live_node_count: null,
       live_relationship_count: null,
       error: sanitizeGraphError(err),

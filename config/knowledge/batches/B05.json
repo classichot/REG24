@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.1",
+  "batch_id": "B05",
+  "sequence_index": 5,
+  "name": "Employment, data and digital business",
+  "predecessor_batch_id": "B04",
+  "original_previous_batch_id": "B06",
+  "owned_source_folders": [
+    {
+      "folder_id": "1F_Xsq_k-r5HFBQI4hKOHQbL88i6ySCf5",
+      "title": "Cross-Border Data & Cloud",
+      "url": "https://drive.google.com/drive/folders/1F_Xsq_k-r5HFBQI4hKOHQbL88i6ySCf5",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "16Wrzsbd3U27CxqOjBXPfLVcgzKvodwOa",
+      "title": "AI & Platform Law",
+      "url": "https://drive.google.com/drive/folders/16Wrzsbd3U27CxqOjBXPfLVcgzKvodwOa",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1zjfgUKmMQMnmq7rAx5XYRPoVh0LsKuc2",
+      "title": "DOE - Department of Employment",
+      "url": "https://drive.google.com/drive/folders/1zjfgUKmMQMnmq7rAx5XYRPoVh0LsKuc2",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1h6x4StDW71BKxuKrIkbV1-kfF2ieFX6d",
+      "title": "ETDA Regulations",
+      "url": "https://drive.google.com/drive/folders/1h6x4StDW71BKxuKrIkbV1-kfF2ieFX6d",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1H_E-dXoC7Lyz95qUXAxK6xLnDz01ry84",
+      "title": "PDPC Regulations",
+      "url": "https://drive.google.com/drive/folders/1H_E-dXoC7Lyz95qUXAxK6xLnDz01ry84",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1BqNSQ-IK5QJOdVd-xdEKyKxNGkxIWpDH",
+      "title": "NCSA",
+      "url": "https://drive.google.com/drive/folders/1BqNSQ-IK5QJOdVd-xdEKyKxNGkxIWpDH",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1fLYQuOVWCHxtTHhlD3zeWkY9YXEtXX2O",
+      "title": "Labor & Social Regulations",
+      "url": "https://drive.google.com/drive/folders/1fLYQuOVWCHxtTHhlD3zeWkY9YXEtXX2O",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1pGZ5d5vIl3acWHn9hrA3xw1bQ4yqmNWe",
+      "title": "NBTC",
+      "url": "https://drive.google.com/drive/folders/1pGZ5d5vIl3acWHn9hrA3xw1bQ4yqmNWe",
+      "scope": "recursive candidates; classify content before admission"
+    }
+  ],
+  "additional_source_folders": [],
+  "audit_source_pool": {
+    "files": 2746,
+    "gb": 1.6658,
+    "pdfs": 2690,
+    "pdf_gb": 1.655,
+    "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+    "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+  },
+  "pilot_quota": {
+    "total_unique_works": 50
+  },
+  "run_limits": {
+    "max_documents_per_run": 200,
+    "max_source_pages_per_run": 1000,
+    "max_ocr_task_pages": 50,
+    "max_ocr_dispatch_pages_per_run": 250,
+    "stratified_audit_fraction": 0.05,
+    "stratified_audit_min_docs": 20
+  },
+  "performance_cost_budget": {
+    "exact_lookup_p95_ms": 2000,
+    "standard_answer_p95_ms": 15000,
+    "max_cost_usd_per_run": 50,
+    "pause_on_budget_exhaustion": true
+  },
+  "evaluation_targets": {
+    "min_question_families": 100,
+    "development_families": 50,
+    "holdout_families": 50,
+    "mandatory_owner_uat_cases": 20,
+    "min_fidelity_owner_uat_cases": 5
+  }
+}

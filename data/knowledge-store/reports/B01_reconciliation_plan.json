@@ -1,0 +1,27 @@
+{
+  "plan_id": "plan.mfst.b01.mwgepc5v",
+  "manifest_id": "mfst.b01.mwgepc5v",
+  "batch_id": "B01",
+  "total_candidates": 5150,
+  "by_identity_action": {
+    "SKIP_UNCHANGED": 83,
+    "ATTACH_REPRESENTATION": 7,
+    "NEW_EXTRACTION_REVISION": 0,
+    "NEW_LEGAL_VERSION": 0,
+    "CREATE_NEW_WORK": 3634,
+    "REVIEW_IDENTITY_CONFLICT": 0
+  },
+  "by_disposition": {
+    "PUBLISHED_NEW": 3634,
+    "REUSED_EXISTING": 2,
+    "ATTACHED_REPRESENTATION": 7,
+    "REJECTED_OUT_OF_SCOPE": 81,
+    "DEFERRED_WITH_REASON": 1426,
+    "FAILED": 0
+  },
+  "planned_new_works": 3634,
+  "planned_reused_works": 9,
+  "accounting_matches_total": true,
+  "silent_drops": 0,
+  "generated_at": "2026-11-14T12:53:20.563Z"
+}

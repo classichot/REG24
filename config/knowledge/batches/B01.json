@@ -1,0 +1,64 @@
+{
+  "schema_version": "1.1",
+  "batch_id": "B01",
+  "sequence_index": 1,
+  "name": "RD rulings",
+  "predecessor_batch_id": null,
+  "original_previous_batch_id": "B01",
+  "owned_source_folders": [
+    {
+      "folder_id": "1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6",
+      "title": "RD - Revenue Department",
+      "url": "https://drive.google.com/drive/folders/1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6",
+      "scope": "Rulings subtree only; remaining RD content belongs to B02"
+    }
+  ],
+  "additional_source_folders": [],
+  "audit_source_pool": {
+    "files": 5150,
+    "gb": 0.4381,
+    "pdfs": 5143,
+    "pdf_gb": 0.4374,
+    "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+    "ownership_caveat": "RD parent pool shared with B02; exact B01 physical ownership not established."
+  },
+  "rd_execution_entrypoints": {
+    "rulings_subtree_folder_id": "1cgVt2LJgeLK2KQXLBuDGIK1PAXcZKW_I",
+    "rulings_subtree_url": "https://drive.google.com/drive/folders/1cgVt2LJgeLK2KQXLBuDGIK1PAXcZKW_I",
+    "rd_index_sheet_id": "1ZJAUx7mYQR5yvdSdZoM8gvtDloGiqc0WAWyGNSHlW9U",
+    "rd_index_tab": "RD Index"
+  },
+  "pilot_quota": {
+    "total_unique_works": 100,
+    "strata": {
+      "CIT": 30,
+      "VAT": 25,
+      "WHT": 15,
+      "PIT": 10,
+      "Stamp": 5,
+      "SBT": 5,
+      "General": 10
+    }
+  },
+  "run_limits": {
+    "max_documents_per_run": 200,
+    "max_source_pages_per_run": 1000,
+    "max_ocr_task_pages": 50,
+    "max_ocr_dispatch_pages_per_run": 250,
+    "stratified_audit_fraction": 0.05,
+    "stratified_audit_min_docs": 20
+  },
+  "performance_cost_budget": {
+    "exact_lookup_p95_ms": 2000,
+    "standard_answer_p95_ms": 15000,
+    "max_cost_usd_per_run": 50,
+    "pause_on_budget_exhaustion": true
+  },
+  "evaluation_targets": {
+    "min_question_families": 300,
+    "development_families": 200,
+    "holdout_families": 100,
+    "mandatory_owner_uat_cases": 20,
+    "min_fidelity_owner_uat_cases": 5
+  }
+}

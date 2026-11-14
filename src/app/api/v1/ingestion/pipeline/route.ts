@@ -1,13 +1,10 @@
 /**
- * REG24 — 8-Stage Knowledge Ingestion Pipeline REST API (Section 14)
+ * REG24 — 8-Stage Knowledge Ingestion Pipeline REST API (Cleaned per SH-10 & Section 8)
  *
- * Implements:
- * - GET ?action=dashboard (8-stage jobs, review queue, tombstones, embedding config, AT01-AT24 certification)
- * - GET ?action=job&job_id=... (Detailed job status, 8 stages, chunks, Neo4j assertions, release manifest, Knowledge Receipt)
- * - GET ?action=reviews (Open review queue filtered by scope)
- * - GET ?action=citation&document_id=...&version_id=... (Resolve citation with ACL & WithdrawalTombstone enforcement)
- * - GET ?action=acceptance_tests (Run all 24 mandatory acceptance tests AT01..AT24)
- * - POST (action=ingest_upload | url_import | review_decision | cancel_job | withdraw_document)
+ * Security & Integrity Rules (SH-10):
+ * - GET requests are strictly read-only and NEVER execute mutations or "certify" production via demo tests.
+ * - POST requests validate all required inputs and NEVER fabricate fallback legal text, dates,
+ *   submitter identities, or default reviewer approvals.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -21,10 +18,30 @@ import {
 export async function GET(req: NextRequest) {
   const action = req.nextUrl.searchParams.get("action") || "dashboard";
   const tenantId = req.headers.get("x-reg24-tenant") || "tenant.law24.prod";
+
+  // SH-10 & Section 8: GET must not run mutations or certify production by executing demo tests
+  if (action === "acceptance_tests") {
+    return NextResponse.json(
+      {
+        code: "METHOD_NOT_ALLOWED",
+        message:
+          "GET requests cannot execute simulated acceptance suites or certify production state (SH-10 / Section 8). Run automated Vitest suites or POST /api/v1/knowledge/releases/{id}/evaluate against a pinned candidate release.",
+        retryable: false,
+      },
+      { status: 405 }
+    );
+  }
+
   const snap = knowledgeIngestionPipeline.getPipelineDashboardSnapshot(tenantId);
 
   if (action === "job") {
     const jobId = req.nextUrl.searchParams.get("job_id") || "";
+    if (!jobId) {
+      return NextResponse.json(
+        { code: "BAD_REQUEST", message: "Missing required query parameter 'job_id'", retryable: false },
+        { status: 400 }
+      );
+    }
     const found = snap.jobs.find((j) => j.job_id === jobId);
     if (!found) {
       return NextResponse.json(
@@ -48,6 +65,12 @@ export async function GET(req: NextRequest) {
   if (action === "citation") {
     const documentId = req.nextUrl.searchParams.get("document_id") || "";
     const versionId = req.nextUrl.searchParams.get("version_id") || "";
+    if (!documentId || !versionId) {
+      return NextResponse.json(
+        { code: "BAD_REQUEST", message: "Both 'document_id' and 'version_id' are required", retryable: false },
+        { status: 400 }
+      );
+    }
     const scopeId = req.nextUrl.searchParams.get("scope_id") || `scope.${tenantId}.ws.law24.tax`;
     const res = knowledgeIngestionPipeline.resolveCitationWithAccessAndWithdrawalCheck({
       document_id: documentId,
@@ -57,46 +80,74 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(res, { status: res.http_status });
   }
 
-  if (action === "acceptance_tests") {
-    return NextResponse.json(knowledgeIngestionPipeline.runAll24AcceptanceTests());
-  }
-
   return NextResponse.json({
     status: "ok",
-    specification: "REG24 Knowledge Ingestion Pipeline v1.0 (24 October 2026)",
+    specification: "REG24 Knowledge Ingestion Pipeline v1.1 (SH-10 Hardened)",
+    persistence_mode: "in_memory_staging_service",
+    production_certified: false,
     dashboard: snap,
-    acceptance: knowledgeIngestionPipeline.runAll24AcceptanceTests(),
   });
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const action = String(body.action || "ingest_upload");
-    const tenantId = String(req.headers.get("x-reg24-tenant") || body.tenant_id || "tenant.law24.prod");
+    if (!body || typeof body !== "object") {
+      return NextResponse.json(
+        { code: "BAD_REQUEST", message: "Request body must be a JSON object" },
+        { status: 400 }
+      );
+    }
+
+    const action = String(body.action || "");
+    const authenticatedActor = req.headers.get("x-reg24-actor") || body.submitted_by || body.reviewer_id || body.withdrawn_by;
+    const tenantId = String(req.headers.get("x-reg24-tenant") || body.tenant_id || "").trim();
     const idempotencyKey =
       req.headers.get("idempotency-key") || (body.idempotency_key as string | undefined);
 
+    if (!action) {
+      return NextResponse.json(
+        { code: "BAD_REQUEST", message: "Missing required 'action' field" },
+        { status: 400 }
+      );
+    }
+
     if (action === "ingest_upload" || action === "url_import") {
+      const submittedBy = typeof body.submitted_by === "string" ? body.submitted_by.trim() : "";
+      const originalName = typeof body.original_name === "string" ? body.original_name.trim() : "";
+      const rawText = typeof body.raw_text === "string" ? body.raw_text : "";
+      const byteCount = Number(body.byte_count);
+
+      // SH-10: Never invent fallback text, fallback dates, or default actor identities!
+      if (!submittedBy || !tenantId || !originalName || !rawText.trim() || !Number.isFinite(byteCount) || byteCount <= 0) {
+        return NextResponse.json(
+          {
+            code: "VALIDATION_FAILED",
+            message:
+              "SH-10 validation failed: 'submitted_by', 'tenant_id', 'original_name', non-empty 'raw_text', and positive 'byte_count' are mandatory. Fabricated fallback text and dates are prohibited.",
+          },
+          { status: 400 }
+        );
+      }
+
       const res = knowledgeIngestionPipeline.ingestSource({
-        submitted_by: String(body.submitted_by || "counsel.somchai@law24.th"),
+        submitted_by: submittedBy,
         tenant_id: tenantId,
-        workspace_id: String(body.workspace_id || "ws.law24.tax"),
+        workspace_id: String(body.workspace_id || "ws.default").trim(),
         access_scope_kind: (body.access_scope_kind || "workspace") as AccessScopeKind,
-        original_name: String(body.original_name || "uploaded_legal_document.pdf"),
+        original_name: originalName,
         media_type: String(body.media_type || "application/pdf"),
-        byte_count: Number(body.byte_count ?? 45000),
-        page_count: Number(body.page_count ?? 4),
+        byte_count: byteCount,
+        page_count: typeof body.page_count === "number" ? body.page_count : undefined,
         source_uri: body.source_uri ? String(body.source_uri) : null,
-        source_authenticity: (body.source_authenticity || "user_supplied") as SourceAuthenticity,
-        rights_status: (body.rights_status || "approved_internal_use") as RightsStatus,
-        raw_text: String(
-          body.raw_text ||
-            "มาตรา 1 เอกสารกฎหมายที่นำเข้าผ่านระบบ REG24 Knowledge Ingestion Pipeline\nมาตรา 65 การคำนวณกำไรสุทธิเพื่อเสียภาษีเงินได้นิติบุคคล"
-        ),
-        published_on: body.published_on ? String(body.published_on) : "2026-10-24",
-        effective_from: body.effective_from ? String(body.effective_from) : "2026-10-24",
-        auto_publish_allowed: body.auto_publish_allowed !== false,
+        source_authenticity: (body.source_authenticity || "unverified") as SourceAuthenticity,
+        rights_status: (body.rights_status || "pending_review") as RightsStatus,
+        raw_text: rawText,
+        // SH-10: Absent dates stay explicitly null (unknown), never replaced with upload/current date!
+        published_on: typeof body.published_on === "string" && body.published_on.trim() ? body.published_on.trim() : null,
+        effective_from: typeof body.effective_from === "string" && body.effective_from.trim() ? body.effective_from.trim() : null,
+        effective_to: typeof body.effective_to === "string" && body.effective_to.trim() ? body.effective_to.trim() : null,
+        auto_publish_allowed: body.auto_publish_allowed === true,
         has_mixed_scan_pages: Boolean(body.has_mixed_scan_pages),
         simulate_critical_ocr_token_uncertainty: Boolean(body.simulate_critical_ocr_token_uncertainty),
         simulate_corrupt_or_encrypted: Boolean(body.simulate_corrupt_or_encrypted),
@@ -109,13 +160,37 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "review_decision") {
+      const reviewId = typeof body.review_id === "string" ? body.review_id.trim() : "";
+      const reviewerId = typeof body.reviewer_id === "string" ? body.reviewer_id.trim() : "";
+      const decision = body.decision;
+      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+      const expectedRevision = Number(body.expected_revision);
+
+      // SH-10: Never supply a default reviewer identity or default "approve" decision!
+      if (
+        !reviewId ||
+        !reviewerId ||
+        !reason ||
+        !Number.isInteger(expectedRevision) ||
+        (decision !== "approve" && decision !== "correct" && decision !== "reject")
+      ) {
+        return NextResponse.json(
+          {
+            code: "VALIDATION_FAILED",
+            message:
+              "SH-10 validation failed: explicit 'review_id', authenticated 'reviewer_id', 'expected_revision', valid 'decision' (approve|correct|reject), and 'reason' are required.",
+          },
+          { status: 400 }
+        );
+      }
+
       const res = knowledgeIngestionPipeline.submitReviewTaskDecision({
-        review_id: String(body.review_id || ""),
-        expected_revision: Number(body.expected_revision ?? 1),
-        reviewer_id: String(body.reviewer_id || "reviewer.legal@reg24.th"),
-        decision: (body.decision || "approve") as "approve" | "correct" | "reject",
-        corrected_value: body.corrected_value ? String(body.corrected_value) : undefined,
-        reason: String(body.reason || "Reviewed and verified against original source page"),
+        review_id: reviewId,
+        expected_revision: expectedRevision,
+        reviewer_id: reviewerId,
+        decision,
+        corrected_value: typeof body.corrected_value === "string" ? body.corrected_value : undefined,
+        reason,
       });
 
       const status =
@@ -124,8 +199,15 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "cancel_job") {
+      const jobId = typeof body.job_id === "string" ? body.job_id.trim() : "";
+      if (!jobId || !authenticatedActor) {
+        return NextResponse.json(
+          { code: "VALIDATION_FAILED", message: "'job_id' and actor identity are required" },
+          { status: 400 }
+        );
+      }
       const res = knowledgeIngestionPipeline.cancelOrPauseJob({
-        job_id: String(body.job_id || ""),
+        job_id: jobId,
         mode: (body.mode || "cancel") as "cancel" | "budget_pause",
         stale_worker_fencing_token:
           typeof body.stale_worker_fencing_token === "number"
@@ -136,15 +218,30 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "withdraw_document") {
+      const docId = typeof body.document_id === "string" ? body.document_id.trim() : "";
+      const withdrawnBy = typeof body.withdrawn_by === "string" ? body.withdrawn_by.trim() : "";
+      const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+      if (!docId || !withdrawnBy || !reason) {
+        return NextResponse.json(
+          {
+            code: "VALIDATION_FAILED",
+            message: "SH-10 validation failed: 'document_id', 'withdrawn_by', and 'reason' are required.",
+          },
+          { status: 400 }
+        );
+      }
       const tomb = knowledgeIngestionPipeline.withdrawDocument({
-        document_id: String(body.document_id || ""),
-        withdrawn_by: String(body.withdrawn_by || "admin.platform@reg24.th"),
-        reason: String(body.reason || "Authoritative withdrawal requested"),
+        document_id: docId,
+        withdrawn_by: withdrawnBy,
+        reason,
       });
-      return NextResponse.json({
-        status: tomb ? "withdrawn" : "not_found",
-        tombstone: tomb,
-      });
+      return NextResponse.json(
+        {
+          status: tomb ? "withdrawn" : "not_found",
+          tombstone: tomb,
+        },
+        { status: tomb ? 200 : 404 }
+      );
     }
 
     return NextResponse.json(

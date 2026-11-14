@@ -6185,7 +6185,19 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                   color: "color-mix(in srgb,var(--color-text) 70%,transparent)",
                 }}
               >
-                <span>{t.footer}</span>
+                <span>
+                  {t.footer} ·{" "}
+                  <a
+                    href="/admin/knowledge/batches"
+                    style={{
+                      color: "var(--accent-ink)",
+                      fontWeight: 700,
+                      textDecoration: "underline",
+                    }}
+                  >
+                    10-Batch GraphRAG UAT Console (B01 Ready) →
+                  </a>
+                </span>
                 <span
                   style={{
                     display: "flex",

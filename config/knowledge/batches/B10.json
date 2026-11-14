@@ -1,0 +1,115 @@
+{
+  "schema_version": "1.1",
+  "batch_id": "B10",
+  "sequence_index": 10,
+  "name": "Courts, enforcement and research",
+  "predecessor_batch_id": "B09",
+  "original_previous_batch_id": "B10",
+  "owned_source_folders": [
+    {
+      "folder_id": "1dS128D3yrWhtEjQxvBOJUvkdezFA6Hjy",
+      "title": "Thai Bar - เนติบัณฑิตยสภา",
+      "url": "https://drive.google.com/drive/folders/1dS128D3yrWhtEjQxvBOJUvkdezFA6Hjy",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1d0hFX1ie8X0dfJG6KNJC89N_C0Lp-6v4",
+      "title": "Law Books",
+      "url": "https://drive.google.com/drive/folders/1d0hFX1ie8X0dfJG6KNJC89N_C0Lp-6v4",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "17_UZynLH99oY93v3dbFp-TOXvnRHLNOs",
+      "title": "Constitutional Court",
+      "url": "https://drive.google.com/drive/folders/17_UZynLH99oY93v3dbFp-TOXvnRHLNOs",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1oXvGFWDci7nsuc9gjKb6H-I82tDpsrTm",
+      "title": "Attorney General Regulations",
+      "url": "https://drive.google.com/drive/folders/1oXvGFWDci7nsuc9gjKb6H-I82tDpsrTm",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or",
+      "title": "Legal Forms",
+      "url": "https://drive.google.com/drive/folders/1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1kPB1flCbQiNKN-kKbWh0ct4JSE8pcemG",
+      "title": "LED Regulations",
+      "url": "https://drive.google.com/drive/folders/1kPB1flCbQiNKN-kKbWh0ct4JSE8pcemG",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "10u8pUbF0CmyLKWEkMdNfnS2Authk6GxD",
+      "title": "Advisory Back Up Doc",
+      "url": "https://drive.google.com/drive/folders/10u8pUbF0CmyLKWEkMdNfnS2Authk6GxD",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1f6Gm_tDpsYLpFHakziawg4MEAfZZo7w3",
+      "title": "Thai law book",
+      "url": "https://drive.google.com/drive/folders/1f6Gm_tDpsYLpFHakziawg4MEAfZZo7w3",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1FKdnmnguYbPl_XxUpeJ0lHTBBdA7ws61",
+      "title": "Justice & Courts Regulations",
+      "url": "https://drive.google.com/drive/folders/1FKdnmnguYbPl_XxUpeJ0lHTBBdA7ws61",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1RCd9CJBb_xclKVSXk-suMKeo5FL9AGjk",
+      "title": "Legal Articles Library",
+      "url": "https://drive.google.com/drive/folders/1RCd9CJBb_xclKVSXk-suMKeo5FL9AGjk",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1WC2nzehdVVEkGkGxpXaJ0dSqCpIhONqw",
+      "title": "Law Thesis Library",
+      "url": "https://drive.google.com/drive/folders/1WC2nzehdVVEkGkGxpXaJ0dSqCpIhONqw",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1BpwNu1FmibYUDLtQ6PnEnt6OeogXAvDc",
+      "title": "Deka Database",
+      "url": "https://drive.google.com/drive/folders/1BpwNu1FmibYUDLtQ6PnEnt6OeogXAvDc",
+      "scope": "recursive candidates; classify content before admission"
+    }
+  ],
+  "additional_source_folders": [],
+  "audit_source_pool": {
+    "files": 4252,
+    "gb": 12.1401,
+    "pdfs": 2599,
+    "pdf_gb": 4.8605,
+    "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+    "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+  },
+  "pilot_quota": {
+    "total_unique_works": 50
+  },
+  "run_limits": {
+    "max_documents_per_run": 100,
+    "max_source_pages_per_run": 1000,
+    "max_ocr_task_pages": 50,
+    "max_ocr_dispatch_pages_per_run": 250,
+    "stratified_audit_fraction": 0.05,
+    "stratified_audit_min_docs": 20
+  },
+  "performance_cost_budget": {
+    "exact_lookup_p95_ms": 2000,
+    "standard_answer_p95_ms": 15000,
+    "max_cost_usd_per_run": 50,
+    "pause_on_budget_exhaustion": true
+  },
+  "evaluation_targets": {
+    "min_question_families": 100,
+    "development_families": 50,
+    "holdout_families": 50,
+    "mandatory_owner_uat_cases": 20,
+    "min_fidelity_owner_uat_cases": 5
+  }
+}

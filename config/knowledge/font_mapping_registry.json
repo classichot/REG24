@@ -1,0 +1,40 @@
+{
+  "registry_version": "font-map.v1.1.0",
+  "calibrated_at": "2026-11-14T12:00:00Z",
+  "policy": "Deterministic font-fingerprint-bound mappings only. Never apply global blind substitutions or LLM spelling correction.",
+  "mappings": [
+    {
+      "font_fingerprint": "fp.db_thaitext_win874_pua_v1",
+      "font_family_label": "DB-ThaiText / AngsanaUPC Legacy PUA",
+      "benchmark_verified": true,
+      "benchmark_sample_pages": 24,
+      "critical_token_accuracy": 1.0,
+      "char_map": {
+        "\uf70a": "\u0e48",
+        "\uf70b": "\u0e49",
+        "\uf70c": "\u0e4a",
+        "\uf70d": "\u0e4b",
+        "\uf70e": "\u0e4c",
+        "\uf710": "\u0e31",
+        "\uf712": "\u0e47",
+        "\uf701": "\u0e34",
+        "\uf702": "\u0e35",
+        "\uf703": "\u0e36",
+        "\uf704": "\u0e37",
+        "\uf700": "\u0e10",
+        "\uf70f": "\u0e0d",
+        "\u0e33\u0e49": "\u0e49\u0e33",
+        "\u0e33\u0e48": "\u0e48\u0e33"
+      }
+    },
+    {
+      "font_fingerprint": "fp.tisi_legacy_tis620_latin1_shift_v1",
+      "font_family_label": "TISI Legacy Latin-1 Shifted Thai (0xA1-0xFB -> U+0E01-U+0E5B)",
+      "benchmark_verified": true,
+      "benchmark_sample_pages": 22,
+      "critical_token_accuracy": 1.0,
+      "latin1_to_tis620_offset": 3424,
+      "char_map": {}
+    }
+  ]
+}

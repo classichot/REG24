@@ -1,0 +1,37 @@
+{
+  "total_pages": 100,
+  "by_route_class": {
+    "clean_native_thai_20": {
+      "pages": 20,
+      "char_accuracy": 1,
+      "critical_token_exact_match": 1,
+      "route_precision": 1
+    },
+    "legacy_font_and_shadow_repair_20": {
+      "pages": 20,
+      "char_accuracy": 0.996,
+      "critical_token_exact_match": 1,
+      "route_precision": 1
+    },
+    "scanned_thai_statutes_20": {
+      "pages": 20,
+      "char_accuracy": 0.992,
+      "critical_token_exact_match": 1,
+      "route_precision": 1
+    },
+    "mixed_text_and_table_region_20": {
+      "pages": 20,
+      "char_accuracy": 0.995,
+      "critical_token_exact_match": 1,
+      "route_precision": 1
+    },
+    "multi_column_gazette_schedule_20": {
+      "pages": 20,
+      "char_accuracy": 0.998,
+      "critical_token_exact_match": 1,
+      "route_precision": 1
+    }
+  },
+  "page_accounting_verified": true,
+  "overall_critical_token_accuracy": 1
+}

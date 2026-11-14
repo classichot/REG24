@@ -1,0 +1,25 @@
+{
+  "batch_id": "B01",
+  "description": "Verified B01 RD Tax Rulings fixtures for 100-ruling pilot and 20 bound Owner UAT cases",
+  "priority_ruling_ids": [
+    "ruling.th.rd.68302",
+    "ruling.th.rd.68308",
+    "ruling.th.rd.68464",
+    "ruling.th.rd.68470",
+    "ruling.th.rd.68482",
+    "ruling.th.rd.68488",
+    "ruling.th.rd.68494",
+    "ruling.th.rd.68500",
+    "ruling.th.rd.68530",
+    "ruling.th.rd.68536"
+  ],
+  "pilot_target_strata": {
+    "CIT": 30,
+    "VAT": 25,
+    "WHT": 15,
+    "PIT": 10,
+    "Stamp": 5,
+    "SBT": 5,
+    "General": 10
+  }
+}

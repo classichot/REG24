@@ -1,0 +1,127 @@
+{
+  "schema_version": "1.1",
+  "batch_id": "B07",
+  "sequence_index": 7,
+  "name": "Health, property, transport and other sectors",
+  "predecessor_batch_id": "B06",
+  "original_previous_batch_id": "B09",
+  "owned_source_folders": [
+    {
+      "folder_id": "1q9NPkdSSakc7p8-w6wWlgojoYhKGdhFO",
+      "title": "Space Law",
+      "url": "https://drive.google.com/drive/folders/1q9NPkdSSakc7p8-w6wWlgojoYhKGdhFO",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "13zS2hmttQy-Rt-y1dnsL8t_iS7Lasn5r",
+      "title": "DOH Health Regulations",
+      "url": "https://drive.google.com/drive/folders/13zS2hmttQy-Rt-y1dnsL8t_iS7Lasn5r",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1PGRIUEWTGf1s70IBPoMsOWPDeK-aJvTB",
+      "title": "HSS Regulations",
+      "url": "https://drive.google.com/drive/folders/1PGRIUEWTGf1s70IBPoMsOWPDeK-aJvTB",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1K7GQCEaUtSJKaCaVKru2v2BllkgZwdSM",
+      "title": "MOPH Other Regulations",
+      "url": "https://drive.google.com/drive/folders/1K7GQCEaUtSJKaCaVKru2v2BllkgZwdSM",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "15n1OQpxNLVeaMGTV2yIIS8UMcr4MT0mm",
+      "title": "FDA Regulations",
+      "url": "https://drive.google.com/drive/folders/15n1OQpxNLVeaMGTV2yIIS8UMcr4MT0mm",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1bpL8aBlGF4Haw-YS95d8sMPjLAE7uKIY",
+      "title": "DDC Regulations",
+      "url": "https://drive.google.com/drive/folders/1bpL8aBlGF4Haw-YS95d8sMPjLAE7uKIY",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "15JHfkxuiJrh8eR82MJljc2DfDMfcHUID",
+      "title": "Roads & Rail Regulations",
+      "url": "https://drive.google.com/drive/folders/15JHfkxuiJrh8eR82MJljc2DfDMfcHUID",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1LW4ZkzvyoKDmpPhbXNMZpgcy_WnXYSpT",
+      "title": "MD Regulations",
+      "url": "https://drive.google.com/drive/folders/1LW4ZkzvyoKDmpPhbXNMZpgcy_WnXYSpT",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1AqXvQk71AVrrATFUQIQSdVRjoqRLoUvf",
+      "title": "DLT Regulations",
+      "url": "https://drive.google.com/drive/folders/1AqXvQk71AVrrATFUQIQSdVRjoqRLoUvf",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1USNHLkzESHU4C-rWq8QsD4g9rt0PSvqr",
+      "title": "Agriculture Regulations",
+      "url": "https://drive.google.com/drive/folders/1USNHLkzESHU4C-rWq8QsD4g9rt0PSvqr",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "11baQD-yjXebqLqzAIA4jIamOM8hG8VBp",
+      "title": "Education & Culture Regulations",
+      "url": "https://drive.google.com/drive/folders/11baQD-yjXebqLqzAIA4jIamOM8hG8VBp",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1PVgbHMJLhPv6YM8-pGfLDoZBDsbwHQZE",
+      "title": "Construction Regulations",
+      "url": "https://drive.google.com/drive/folders/1PVgbHMJLhPv6YM8-pGfLDoZBDsbwHQZE",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1Hlfy-Fp8CWiC1T3MFQE_-Qp5rL8MImIv",
+      "title": "Aviation Regulation",
+      "url": "https://drive.google.com/drive/folders/1Hlfy-Fp8CWiC1T3MFQE_-Qp5rL8MImIv",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1yCcf--L1g11uRCqagTCjwdhdnh_C-piv",
+      "title": "Health",
+      "url": "https://drive.google.com/drive/folders/1yCcf--L1g11uRCqagTCjwdhdnh_C-piv",
+      "scope": "recursive candidates; classify content before admission"
+    }
+  ],
+  "additional_source_folders": [],
+  "audit_source_pool": {
+    "files": 6691,
+    "gb": 4.5697,
+    "pdfs": 6650,
+    "pdf_gb": 4.568,
+    "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+    "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+  },
+  "pilot_quota": {
+    "total_unique_works": 50
+  },
+  "run_limits": {
+    "max_documents_per_run": 200,
+    "max_source_pages_per_run": 1000,
+    "max_ocr_task_pages": 50,
+    "max_ocr_dispatch_pages_per_run": 250,
+    "stratified_audit_fraction": 0.05,
+    "stratified_audit_min_docs": 20
+  },
+  "performance_cost_budget": {
+    "exact_lookup_p95_ms": 2000,
+    "standard_answer_p95_ms": 15000,
+    "max_cost_usd_per_run": 50,
+    "pause_on_budget_exhaustion": true
+  },
+  "evaluation_targets": {
+    "min_question_families": 100,
+    "development_families": 50,
+    "holdout_families": 50,
+    "mandatory_owner_uat_cases": 20,
+    "min_fidelity_owner_uat_cases": 5
+  }
+}

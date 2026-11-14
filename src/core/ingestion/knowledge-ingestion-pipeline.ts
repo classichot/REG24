@@ -17,19 +17,29 @@
  * and Section 19 all 24 Mandatory Acceptance Tests (AT01 through AT24).
  */
 
-function computePipelineHash(input: string): string {
-  let h1 = 0xdeadbeef ^ input.length;
-  let h2 = 0x41c6ce57 ^ input.length;
-  for (let i = 0; i < input.length; i++) {
-    const ch = input.charCodeAt(i);
-    h1 = Math.imul(h1 ^ ch, 2654435761);
-    h2 = Math.imul(h2 ^ ch, 1597334677);
+import * as crypto from "node:crypto";
+
+function computePipelineHash(input: string | Uint8Array): string {
+  return crypto.createHash("sha256").update(input).digest("hex");
+}
+
+function extractStableWorkIdentitySeed(originalName: string, rawText: string): string {
+  const combined = `${rawText}\n${originalName}`;
+  const rdMatch = combined.match(/กค\s*[0-9๐-๙]{4}(?:\([^)]+\))?\s*\/\s*(?:พ\.\s*)?[0-9๐-๙]+/);
+  if (rdMatch) {
+    const normalized = rdMatch[0]
+      .replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50))
+      .replace(/\s+/g, " ")
+      .replace(/\s*\/\s*/g, "/")
+      .trim();
+    return `rd_ruling:${normalized}`;
   }
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-  const p1 = (h1 >>> 0).toString(16).padStart(8, "0");
-  const p2 = (h2 >>> 0).toString(16).padStart(8, "0");
-  return `${p1}${p2}${p1}${p2}${p1}${p2}${p1}${p2}`;
+  const royalDecreeMatch = combined.match(/พระราชกฤษฎีกา[^(]*\(ฉบับที่\s*([0-9๐-๙]+)\)/);
+  if (royalDecreeMatch) {
+    const num = royalDecreeMatch[1].replace(/[๐-๙]/g, (d) => String(d.charCodeAt(0) - 0x0e50));
+    return `royal_decree:${num}`;
+  }
+  return originalName.replace(/\(\d+\)/g, "").replace(/\s*\(ฉบับแก้ไข\)|\s*v\d+/gi, "").trim();
 }
 
 // ============================================================================
@@ -726,7 +736,7 @@ export class KnowledgeIngestionPipelineService {
     const extractionRevId = `ext_${sha256.slice(0, 10)}_v1`;
     const procGenId = `gen_${sha256.slice(0, 8)}_${this.activeEmbeddingConfig.generation_version}`;
     const docId = `doc_${computePipelineHash(`${accessScopeId}:${input.original_name}`).slice(0, 10)}`;
-    const workId = `work_${computePipelineHash(input.original_name.replace(/\(\d+\)/g, "")).slice(0, 10)}`;
+    const workId = `work_${computePipelineHash(extractStableWorkIdentitySeed(input.original_name, input.raw_text)).slice(0, 10)}`;
     const versionId = `ver_${sha256.slice(0, 10)}`;
 
     // I05: Quarantine any prompt injection strings inside document content without altering permissions

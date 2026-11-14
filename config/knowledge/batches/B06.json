@@ -1,0 +1,133 @@
+{
+  "schema_version": "1.1",
+  "batch_id": "B06",
+  "sequence_index": 6,
+  "name": "Energy, environment and industry",
+  "predecessor_batch_id": "B05",
+  "original_previous_batch_id": "B07",
+  "owned_source_folders": [
+    {
+      "folder_id": "1LkwDYeqEbSgf1YZVpzneseooOkMYfxtu",
+      "title": "Carbon & Climate Regulations",
+      "url": "https://drive.google.com/drive/folders/1LkwDYeqEbSgf1YZVpzneseooOkMYfxtu",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1NRham8NU6HMwePlfijyR3_okAo8LPjXT",
+      "title": "Energy Transition Law",
+      "url": "https://drive.google.com/drive/folders/1NRham8NU6HMwePlfijyR3_okAo8LPjXT",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "19vJpedvBeRwoJ7QsBXT_YnU37A83CKyC",
+      "title": "IEAT - Industrial Estate Authority of Thailand",
+      "url": "https://drive.google.com/drive/folders/19vJpedvBeRwoJ7QsBXT_YnU37A83CKyC",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1EbsLAue8n6xCV0Oq7gD3w0uvoXEj4OpB",
+      "title": "DOEB",
+      "url": "https://drive.google.com/drive/folders/1EbsLAue8n6xCV0Oq7gD3w0uvoXEj4OpB",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1OVnna8TBFZWu7yTxU9zYXr2NiFEXH599",
+      "title": "DEDE & EPPO Regulations",
+      "url": "https://drive.google.com/drive/folders/1OVnna8TBFZWu7yTxU9zYXr2NiFEXH599",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1fqz3KVVAuWmKzV9Co3YIpOod1m8arEIr",
+      "title": "OAP Regulations",
+      "url": "https://drive.google.com/drive/folders/1fqz3KVVAuWmKzV9Co3YIpOod1m8arEIr",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1aTGwEDRABmD8t8Do3bvEWtGGzS-gHvPa",
+      "title": "OIE Regulations",
+      "url": "https://drive.google.com/drive/folders/1aTGwEDRABmD8t8Do3bvEWtGGzS-gHvPa",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1ah-CxwlQSny7bKzVy11RpfdC8npOqv4d",
+      "title": "DIPROM Regulations",
+      "url": "https://drive.google.com/drive/folders/1ah-CxwlQSny7bKzVy11RpfdC8npOqv4d",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "14hUTQP4beX8bsfRFSU0Lgt_QmnaphzbK",
+      "title": "OCSB Regulations",
+      "url": "https://drive.google.com/drive/folders/14hUTQP4beX8bsfRFSU0Lgt_QmnaphzbK",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1ag450qum7MJMc-P5pxzVzg7TKswQUPEn",
+      "title": "DPIM Regulations",
+      "url": "https://drive.google.com/drive/folders/1ag450qum7MJMc-P5pxzVzg7TKswQUPEn",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1fkaXB5VAwEJsK4IPSEpSlphYXet8MZPf",
+      "title": "TISI Regulations",
+      "url": "https://drive.google.com/drive/folders/1fkaXB5VAwEJsK4IPSEpSlphYXet8MZPf",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1yvpDgFsa-xf_fVxJKJX7kDFwiOSBGcYK",
+      "title": "DIW Regulations",
+      "url": "https://drive.google.com/drive/folders/1yvpDgFsa-xf_fVxJKJX7kDFwiOSBGcYK",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1LvI6kfjV3F3DoXnmkKzTwFwOgIELDg2K",
+      "title": "Environment Regulations",
+      "url": "https://drive.google.com/drive/folders/1LvI6kfjV3F3DoXnmkKzTwFwOgIELDg2K",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1jCDwAEoCWs7UspUJ99h4IHedRWX6s0y-",
+      "title": "DMF - Department of Mineral Fuels",
+      "url": "https://drive.google.com/drive/folders/1jCDwAEoCWs7UspUJ99h4IHedRWX6s0y-",
+      "scope": "recursive candidates; classify content before admission"
+    },
+    {
+      "folder_id": "1DCCntM2MmZ3d8l8PB_cjMkiMZAv7GDAT",
+      "title": "ERC - Energy Regulatory Commission",
+      "url": "https://drive.google.com/drive/folders/1DCCntM2MmZ3d8l8PB_cjMkiMZAv7GDAT",
+      "scope": "recursive candidates; classify content before admission"
+    }
+  ],
+  "additional_source_folders": [],
+  "audit_source_pool": {
+    "files": 5396,
+    "gb": 2.9651,
+    "pdfs": 5365,
+    "pdf_gb": 2.964,
+    "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+    "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+  },
+  "pilot_quota": {
+    "total_unique_works": 50
+  },
+  "run_limits": {
+    "max_documents_per_run": 200,
+    "max_source_pages_per_run": 1000,
+    "max_ocr_task_pages": 50,
+    "max_ocr_dispatch_pages_per_run": 250,
+    "stratified_audit_fraction": 0.05,
+    "stratified_audit_min_docs": 20
+  },
+  "performance_cost_budget": {
+    "exact_lookup_p95_ms": 2000,
+    "standard_answer_p95_ms": 15000,
+    "max_cost_usd_per_run": 50,
+    "pause_on_budget_exhaustion": true
+  },
+  "evaluation_targets": {
+    "min_question_families": 100,
+    "development_families": 50,
+    "holdout_families": 50,
+    "mandatory_owner_uat_cases": 20,
+    "min_fidelity_owner_uat_cases": 5
+  }
+}

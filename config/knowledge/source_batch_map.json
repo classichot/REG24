@@ -1,0 +1,838 @@
+{
+  "plan_version": "1.3",
+  "snapshot_date_bangkok": "2026-11-14",
+  "scope": "Ten release batches across 88 top-level source folders. The supplied 2026-11-14 OCR audit reports completed metadata traversal: 56,064 physical Drive files, including 54,072 PDFs. Page routing, archive expansion, content deduplication and legal-work verification remain outstanding. RD ownership is split between B01 and B02 after classification.",
+  "root_url": "https://drive.google.com/drive/folders/1Q81SV8sXWFrt9ASLf8uBsezFMd1d1Ltm",
+  "batches": [
+    {
+      "batch_id": "B01",
+      "name": "RD rulings",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6",
+          "title": "RD - Revenue Department",
+          "url": "https://drive.google.com/drive/folders/1sJHpmTR1uEiEcFo3B0bVSfkX1P5HPsi6",
+          "scope": "Rulings subtree only; remaining RD content belongs to B02"
+        }
+      ],
+      "previous_batch_id": "B01",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 5150,
+        "gb": 0.4381,
+        "pdfs": 5143,
+        "pdf_gb": 0.4374,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "RD parent pool shared with B02; exact B01 physical ownership not established."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B02",
+      "name": "Statutes and tax framework",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1d44FTBu5a4P63fcvRdTgWwqX8fFZmuz5",
+          "title": "Primary Law",
+          "url": "https://drive.google.com/drive/folders/1d44FTBu5a4P63fcvRdTgWwqX8fFZmuz5",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1RqAoj8tudRfYEwLjXTc4ZN2mXWUj88ed",
+          "title": "Misc Gazette",
+          "url": "https://drive.google.com/drive/folders/1RqAoj8tudRfYEwLjXTc4ZN2mXWUj88ed",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1uPd5YxGWZbSyl4y5ffl4bUUExeNn3mDE",
+          "title": "Parliament",
+          "url": "https://drive.google.com/drive/folders/1uPd5YxGWZbSyl4y5ffl4bUUExeNn3mDE",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "15Khrg59kGxNjt3rxqiTTxjIOV8Gp9_84",
+          "title": "Council of State (กฤษฎีกา)",
+          "url": "https://drive.google.com/drive/folders/15Khrg59kGxNjt3rxqiTTxjIOV8Gp9_84",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1mM9Urykv0oTRzer4bE12vTdrdVzgJPFq",
+          "title": "Misc Royal Decrees",
+          "url": "https://drive.google.com/drive/folders/1mM9Urykv0oTRzer4bE12vTdrdVzgJPFq",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1r9buiqHavK-pOVDw3lnjuX-y5Gex_YAA",
+          "title": "Excise - Excise Department",
+          "url": "https://drive.google.com/drive/folders/1r9buiqHavK-pOVDw3lnjuX-y5Gex_YAA",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1BaWRZgpQbEl7hl8Xsh3vPXMZsDjXkgxv",
+          "title": "Customs - Customs Department",
+          "url": "https://drive.google.com/drive/folders/1BaWRZgpQbEl7hl8Xsh3vPXMZsDjXkgxv",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "additional_source_folders": [
+        {
+          "folder_id": "1hRiPdjpakfyLnJ5fXmHpuNxkdLCDYkKk",
+          "title": "General & Other Taxes",
+          "url": "https://drive.google.com/drive/folders/1hRiPdjpakfyLnJ5fXmHpuNxkdLCDYkKk"
+        },
+        {
+          "folder_id": "1BfXhNRUFzI642Vn7o2JYvIltflzElpiS",
+          "title": "Transfer Pricing",
+          "url": "https://drive.google.com/drive/folders/1BfXhNRUFzI642Vn7o2JYvIltflzElpiS"
+        },
+        {
+          "folder_id": "1QJkIIauD-dObZyxzK8ImZyhh_Wa0mrnU",
+          "title": "Top-up Tax (Pillar Two)",
+          "url": "https://drive.google.com/drive/folders/1QJkIIauD-dObZyxzK8ImZyhh_Wa0mrnU"
+        },
+        {
+          "folder_id": "1R_JtsFimaUUlnLm3aLtpt8MWuSUeStGh",
+          "title": "Stamp",
+          "url": "https://drive.google.com/drive/folders/1R_JtsFimaUUlnLm3aLtpt8MWuSUeStGh"
+        },
+        {
+          "folder_id": "1UJOk0u5ds2VKqw03XpyUrc3ZhE-phizw",
+          "title": "SBT",
+          "url": "https://drive.google.com/drive/folders/1UJOk0u5ds2VKqw03XpyUrc3ZhE-phizw"
+        },
+        {
+          "folder_id": "1_0MeWeIYASBTmcKatjVqHcXYosJ8i3Ki",
+          "title": "WHT",
+          "url": "https://drive.google.com/drive/folders/1_0MeWeIYASBTmcKatjVqHcXYosJ8i3Ki"
+        },
+        {
+          "folder_id": "1rI8SUWMoZGMTsmY04Xc8QbAJW10HV5qf",
+          "title": "VAT",
+          "url": "https://drive.google.com/drive/folders/1rI8SUWMoZGMTsmY04Xc8QbAJW10HV5qf"
+        },
+        {
+          "folder_id": "1C0usBLcY-Gqm9nJciXH-a2gamIAlLcyP",
+          "title": "PIT",
+          "url": "https://drive.google.com/drive/folders/1C0usBLcY-Gqm9nJciXH-a2gamIAlLcyP"
+        },
+        {
+          "folder_id": "1hePa724n_u1559rnyv-rce4TXO5YRAGL",
+          "title": "CIT",
+          "url": "https://drive.google.com/drive/folders/1hePa724n_u1559rnyv-rce4TXO5YRAGL"
+        }
+      ],
+      "previous_batch_id": "B03",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 6753,
+        "gb": 3.1764,
+        "pdfs": 6724,
+        "pdf_gb": 3.1585,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Non-RD sources only; add B02-classified RD records without double-counting B01 pool."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B03",
+      "name": "Corporate, investment and commerce",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1h_VNeAfVx4F2TKNFPeaFuCm4DfZ2E5-k",
+          "title": "CPD Cooperatives Regulations",
+          "url": "https://drive.google.com/drive/folders/1h_VNeAfVx4F2TKNFPeaFuCm4DfZ2E5-k",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1ovmuMO-RzJnryN0DjondryPj9PtIRCHq",
+          "title": "EEC Regulations",
+          "url": "https://drive.google.com/drive/folders/1ovmuMO-RzJnryN0DjondryPj9PtIRCHq",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1TQnWbdCQZzbNix3AUDVotfV6uG_uQI4U",
+          "title": "DIT - Department of Internal Trade",
+          "url": "https://drive.google.com/drive/folders/1TQnWbdCQZzbNix3AUDVotfV6uG_uQI4U",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "19xMhu8R7iVKQyMe8Xy-Rr0NxfFJVAKy7",
+          "title": "OCPB Regulations",
+          "url": "https://drive.google.com/drive/folders/19xMhu8R7iVKQyMe8Xy-Rr0NxfFJVAKy7",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1qlvpJ75tLWBgBSR5Roo6_fI14w8n2MuP",
+          "title": "TCCT - Trade Competition Commission of Thailand",
+          "url": "https://drive.google.com/drive/folders/1qlvpJ75tLWBgBSR5Roo6_fI14w8n2MuP",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1J3v1MBMRJo6QTBnsv6-8TJYL2cR8Cn4U",
+          "title": "DITP - Department of International Trade Promotion",
+          "url": "https://drive.google.com/drive/folders/1J3v1MBMRJo6QTBnsv6-8TJYL2cR8Cn4U",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "16mP-VcR_RZl41JSyPb5O8nYk-1Uzr5wt",
+          "title": "DIP - Department of Intellectual Property",
+          "url": "https://drive.google.com/drive/folders/16mP-VcR_RZl41JSyPb5O8nYk-1Uzr5wt",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1XCcLJfgz1WLwfuGkGfju3ojvqAxWTUzL",
+          "title": "DFT - Department of Foreign Trade",
+          "url": "https://drive.google.com/drive/folders/1XCcLJfgz1WLwfuGkGfju3ojvqAxWTUzL",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1O_y2gYVNmj4D9jB4ZI4aHc9a4XQeFlq5",
+          "title": "BOI - Board of Investment",
+          "url": "https://drive.google.com/drive/folders/1O_y2gYVNmj4D9jB4ZI4aHc9a4XQeFlq5",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1rzEBsNIfbHoB37J2Nt05E60EDEZaVkgM",
+          "title": "DBD - Department of Business Development",
+          "url": "https://drive.google.com/drive/folders/1rzEBsNIfbHoB37J2Nt05E60EDEZaVkgM",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "previous_batch_id": "B04",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 3452,
+        "gb": 3.0608,
+        "pdfs": 3398,
+        "pdf_gb": 3.0573,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B04",
+      "name": "Financial services and capital markets",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1yF23vdy_4tYvQqSpBOblJTBBjjJRmrFe",
+          "title": "Bond Default Forensics",
+          "url": "https://drive.google.com/drive/folders/1yF23vdy_4tYvQqSpBOblJTBBjjJRmrFe",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1C1HDDoj0hi-cfZtvSS84CmirJsJwcUOy",
+          "title": "DPA Regulations",
+          "url": "https://drive.google.com/drive/folders/1C1HDDoj0hi-cfZtvSS84CmirJsJwcUOy",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1q-tch29kVfa25sVC4ZNj0j2E1J_YXhM_",
+          "title": "FPO Regulations",
+          "url": "https://drive.google.com/drive/folders/1q-tch29kVfa25sVC4ZNj0j2E1J_YXhM_",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1ctRzKWIsiGnjxL5FbpHKAnK4YJbm409P",
+          "title": "OIC - Office of Insurance Commission",
+          "url": "https://drive.google.com/drive/folders/1ctRzKWIsiGnjxL5FbpHKAnK4YJbm409P",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1kJK_a1NU-gRoo7t54S5kkIrZvoi35e6M",
+          "title": "PDMO Regulations",
+          "url": "https://drive.google.com/drive/folders/1kJK_a1NU-gRoo7t54S5kkIrZvoi35e6M",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1v0A2tcjqs_xPnaff2FDy3hQQfbA01P3v",
+          "title": "AMLO - Anti-Money Laundering Office",
+          "url": "https://drive.google.com/drive/folders/1v0A2tcjqs_xPnaff2FDy3hQQfbA01P3v",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1ogA-OJLKZZP4BQDGxzrZ2f_JDwwwNNQF",
+          "title": "BOT - Bank of Thailand",
+          "url": "https://drive.google.com/drive/folders/1ogA-OJLKZZP4BQDGxzrZ2f_JDwwwNNQF",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "14GpOTTS7h8Fx9SyEOn8TYOTwNYhXbvJB",
+          "title": "SEC - Securities and Exchange Commission Thailand",
+          "url": "https://drive.google.com/drive/folders/14GpOTTS7h8Fx9SyEOn8TYOTwNYhXbvJB",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1gQhTyb9Sa3vRoCl7ybyW3pilfnT6jjH_",
+          "title": "SET - Stock Exchange of Thailand",
+          "url": "https://drive.google.com/drive/folders/1gQhTyb9Sa3vRoCl7ybyW3pilfnT6jjH_",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "previous_batch_id": "B05",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 11228,
+        "gb": 7.8979,
+        "pdfs": 11174,
+        "pdf_gb": 7.8727,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B05",
+      "name": "Employment, data and digital business",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1F_Xsq_k-r5HFBQI4hKOHQbL88i6ySCf5",
+          "title": "Cross-Border Data & Cloud",
+          "url": "https://drive.google.com/drive/folders/1F_Xsq_k-r5HFBQI4hKOHQbL88i6ySCf5",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "16Wrzsbd3U27CxqOjBXPfLVcgzKvodwOa",
+          "title": "AI & Platform Law",
+          "url": "https://drive.google.com/drive/folders/16Wrzsbd3U27CxqOjBXPfLVcgzKvodwOa",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1zjfgUKmMQMnmq7rAx5XYRPoVh0LsKuc2",
+          "title": "DOE - Department of Employment",
+          "url": "https://drive.google.com/drive/folders/1zjfgUKmMQMnmq7rAx5XYRPoVh0LsKuc2",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1h6x4StDW71BKxuKrIkbV1-kfF2ieFX6d",
+          "title": "ETDA Regulations",
+          "url": "https://drive.google.com/drive/folders/1h6x4StDW71BKxuKrIkbV1-kfF2ieFX6d",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1H_E-dXoC7Lyz95qUXAxK6xLnDz01ry84",
+          "title": "PDPC Regulations",
+          "url": "https://drive.google.com/drive/folders/1H_E-dXoC7Lyz95qUXAxK6xLnDz01ry84",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1BqNSQ-IK5QJOdVd-xdEKyKxNGkxIWpDH",
+          "title": "NCSA",
+          "url": "https://drive.google.com/drive/folders/1BqNSQ-IK5QJOdVd-xdEKyKxNGkxIWpDH",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1fLYQuOVWCHxtTHhlD3zeWkY9YXEtXX2O",
+          "title": "Labor & Social Regulations",
+          "url": "https://drive.google.com/drive/folders/1fLYQuOVWCHxtTHhlD3zeWkY9YXEtXX2O",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1pGZ5d5vIl3acWHn9hrA3xw1bQ4yqmNWe",
+          "title": "NBTC",
+          "url": "https://drive.google.com/drive/folders/1pGZ5d5vIl3acWHn9hrA3xw1bQ4yqmNWe",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "previous_batch_id": "B06",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 2746,
+        "gb": 1.6658,
+        "pdfs": 2690,
+        "pdf_gb": 1.655,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B06",
+      "name": "Energy, environment and industry",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1LkwDYeqEbSgf1YZVpzneseooOkMYfxtu",
+          "title": "Carbon & Climate Regulations",
+          "url": "https://drive.google.com/drive/folders/1LkwDYeqEbSgf1YZVpzneseooOkMYfxtu",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1NRham8NU6HMwePlfijyR3_okAo8LPjXT",
+          "title": "Energy Transition Law",
+          "url": "https://drive.google.com/drive/folders/1NRham8NU6HMwePlfijyR3_okAo8LPjXT",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "19vJpedvBeRwoJ7QsBXT_YnU37A83CKyC",
+          "title": "IEAT - Industrial Estate Authority of Thailand",
+          "url": "https://drive.google.com/drive/folders/19vJpedvBeRwoJ7QsBXT_YnU37A83CKyC",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1EbsLAue8n6xCV0Oq7gD3w0uvoXEj4OpB",
+          "title": "DOEB",
+          "url": "https://drive.google.com/drive/folders/1EbsLAue8n6xCV0Oq7gD3w0uvoXEj4OpB",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1OVnna8TBFZWu7yTxU9zYXr2NiFEXH599",
+          "title": "DEDE & EPPO Regulations",
+          "url": "https://drive.google.com/drive/folders/1OVnna8TBFZWu7yTxU9zYXr2NiFEXH599",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1fqz3KVVAuWmKzV9Co3YIpOod1m8arEIr",
+          "title": "OAP Regulations",
+          "url": "https://drive.google.com/drive/folders/1fqz3KVVAuWmKzV9Co3YIpOod1m8arEIr",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1aTGwEDRABmD8t8Do3bvEWtGGzS-gHvPa",
+          "title": "OIE Regulations",
+          "url": "https://drive.google.com/drive/folders/1aTGwEDRABmD8t8Do3bvEWtGGzS-gHvPa",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1ah-CxwlQSny7bKzVy11RpfdC8npOqv4d",
+          "title": "DIPROM Regulations",
+          "url": "https://drive.google.com/drive/folders/1ah-CxwlQSny7bKzVy11RpfdC8npOqv4d",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "14hUTQP4beX8bsfRFSU0Lgt_QmnaphzbK",
+          "title": "OCSB Regulations",
+          "url": "https://drive.google.com/drive/folders/14hUTQP4beX8bsfRFSU0Lgt_QmnaphzbK",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1ag450qum7MJMc-P5pxzVzg7TKswQUPEn",
+          "title": "DPIM Regulations",
+          "url": "https://drive.google.com/drive/folders/1ag450qum7MJMc-P5pxzVzg7TKswQUPEn",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1fkaXB5VAwEJsK4IPSEpSlphYXet8MZPf",
+          "title": "TISI Regulations",
+          "url": "https://drive.google.com/drive/folders/1fkaXB5VAwEJsK4IPSEpSlphYXet8MZPf",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1yvpDgFsa-xf_fVxJKJX7kDFwiOSBGcYK",
+          "title": "DIW Regulations",
+          "url": "https://drive.google.com/drive/folders/1yvpDgFsa-xf_fVxJKJX7kDFwiOSBGcYK",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1LvI6kfjV3F3DoXnmkKzTwFwOgIELDg2K",
+          "title": "Environment Regulations",
+          "url": "https://drive.google.com/drive/folders/1LvI6kfjV3F3DoXnmkKzTwFwOgIELDg2K",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1jCDwAEoCWs7UspUJ99h4IHedRWX6s0y-",
+          "title": "DMF - Department of Mineral Fuels",
+          "url": "https://drive.google.com/drive/folders/1jCDwAEoCWs7UspUJ99h4IHedRWX6s0y-",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1DCCntM2MmZ3d8l8PB_cjMkiMZAv7GDAT",
+          "title": "ERC - Energy Regulatory Commission",
+          "url": "https://drive.google.com/drive/folders/1DCCntM2MmZ3d8l8PB_cjMkiMZAv7GDAT",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "previous_batch_id": "B07",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 5396,
+        "gb": 2.9651,
+        "pdfs": 5365,
+        "pdf_gb": 2.964,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B07",
+      "name": "Health, property, transport and other sectors",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1q9NPkdSSakc7p8-w6wWlgojoYhKGdhFO",
+          "title": "Space Law",
+          "url": "https://drive.google.com/drive/folders/1q9NPkdSSakc7p8-w6wWlgojoYhKGdhFO",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "13zS2hmttQy-Rt-y1dnsL8t_iS7Lasn5r",
+          "title": "DOH Health Regulations",
+          "url": "https://drive.google.com/drive/folders/13zS2hmttQy-Rt-y1dnsL8t_iS7Lasn5r",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1PGRIUEWTGf1s70IBPoMsOWPDeK-aJvTB",
+          "title": "HSS Regulations",
+          "url": "https://drive.google.com/drive/folders/1PGRIUEWTGf1s70IBPoMsOWPDeK-aJvTB",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1K7GQCEaUtSJKaCaVKru2v2BllkgZwdSM",
+          "title": "MOPH Other Regulations",
+          "url": "https://drive.google.com/drive/folders/1K7GQCEaUtSJKaCaVKru2v2BllkgZwdSM",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "15n1OQpxNLVeaMGTV2yIIS8UMcr4MT0mm",
+          "title": "FDA Regulations",
+          "url": "https://drive.google.com/drive/folders/15n1OQpxNLVeaMGTV2yIIS8UMcr4MT0mm",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1bpL8aBlGF4Haw-YS95d8sMPjLAE7uKIY",
+          "title": "DDC Regulations",
+          "url": "https://drive.google.com/drive/folders/1bpL8aBlGF4Haw-YS95d8sMPjLAE7uKIY",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "15JHfkxuiJrh8eR82MJljc2DfDMfcHUID",
+          "title": "Roads & Rail Regulations",
+          "url": "https://drive.google.com/drive/folders/15JHfkxuiJrh8eR82MJljc2DfDMfcHUID",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1LW4ZkzvyoKDmpPhbXNMZpgcy_WnXYSpT",
+          "title": "MD Regulations",
+          "url": "https://drive.google.com/drive/folders/1LW4ZkzvyoKDmpPhbXNMZpgcy_WnXYSpT",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1AqXvQk71AVrrATFUQIQSdVRjoqRLoUvf",
+          "title": "DLT Regulations",
+          "url": "https://drive.google.com/drive/folders/1AqXvQk71AVrrATFUQIQSdVRjoqRLoUvf",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1USNHLkzESHU4C-rWq8QsD4g9rt0PSvqr",
+          "title": "Agriculture Regulations",
+          "url": "https://drive.google.com/drive/folders/1USNHLkzESHU4C-rWq8QsD4g9rt0PSvqr",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "11baQD-yjXebqLqzAIA4jIamOM8hG8VBp",
+          "title": "Education & Culture Regulations",
+          "url": "https://drive.google.com/drive/folders/11baQD-yjXebqLqzAIA4jIamOM8hG8VBp",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1PVgbHMJLhPv6YM8-pGfLDoZBDsbwHQZE",
+          "title": "Construction Regulations",
+          "url": "https://drive.google.com/drive/folders/1PVgbHMJLhPv6YM8-pGfLDoZBDsbwHQZE",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1Hlfy-Fp8CWiC1T3MFQE_-Qp5rL8MImIv",
+          "title": "Aviation Regulation",
+          "url": "https://drive.google.com/drive/folders/1Hlfy-Fp8CWiC1T3MFQE_-Qp5rL8MImIv",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1yCcf--L1g11uRCqagTCjwdhdnh_C-piv",
+          "title": "Health",
+          "url": "https://drive.google.com/drive/folders/1yCcf--L1g11uRCqagTCjwdhdnh_C-piv",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "previous_batch_id": "B09",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 6691,
+        "gb": 4.5697,
+        "pdfs": 6650,
+        "pdf_gb": 4.568,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B08",
+      "name": "Council of State opinions",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1ER5P5v0aMPusO1UnS8FB7v6fsEHkpXdI",
+          "title": "Council of State Opinions",
+          "url": "https://drive.google.com/drive/folders/1ER5P5v0aMPusO1UnS8FB7v6fsEHkpXdI",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "previous_batch_id": "B02",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 7528,
+        "gb": 2.5014,
+        "pdfs": 7524,
+        "pdf_gb": 2.4999,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B09",
+      "name": "Public administration, procurement and oversight",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1VdYhbjOUbpuczjVt59XphoBGa4fRkl-w",
+          "title": "NHRC Regulations",
+          "url": "https://drive.google.com/drive/folders/1VdYhbjOUbpuczjVt59XphoBGa4fRkl-w",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1O-4_4KkBm8YaoysXSWotoa8tD9ZcI_WL",
+          "title": "Ombudsman Regulations",
+          "url": "https://drive.google.com/drive/folders/1O-4_4KkBm8YaoysXSWotoa8tD9ZcI_WL",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1CUdnikGHMdiFwOsPwDacrWD2OXaHH_cw",
+          "title": "Cabinet Resolutions",
+          "url": "https://drive.google.com/drive/folders/1CUdnikGHMdiFwOsPwDacrWD2OXaHH_cw",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1uk6jSBWD7l9wPVFfDYk0sJ3B5PG_K4qI",
+          "title": "ECT Regulations",
+          "url": "https://drive.google.com/drive/folders/1uk6jSBWD7l9wPVFfDYk0sJ3B5PG_K4qI",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1allqQw8wAHpisRXFtW98xsMYDNCAGClw",
+          "title": "DOPA & DDPM Regulations",
+          "url": "https://drive.google.com/drive/folders/1allqQw8wAHpisRXFtW98xsMYDNCAGClw",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1gcYYEIwKms7QYnmxIqaPoyWQzn0p8Nov",
+          "title": "Treasury & SEPO Regulations",
+          "url": "https://drive.google.com/drive/folders/1gcYYEIwKms7QYnmxIqaPoyWQzn0p8Nov",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1cAtWIoKn-h415LxFednyAzccldQutU4C",
+          "title": "CGD Regulations",
+          "url": "https://drive.google.com/drive/folders/1cAtWIoKn-h415LxFednyAzccldQutU4C",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1--dYD_19dgs9EebIFjIUbBtScIgPXgWi",
+          "title": "State Audit Office (OAG)",
+          "url": "https://drive.google.com/drive/folders/1--dYD_19dgs9EebIFjIUbBtScIgPXgWi",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1BAh1gfX47RHHyM-fqgy_1f1vWYHKMjnV",
+          "title": "NACC Regulations",
+          "url": "https://drive.google.com/drive/folders/1BAh1gfX47RHHyM-fqgy_1f1vWYHKMjnV",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1oXjU8ITJR7twJpR1ncZhLFccd3M1T5WR",
+          "title": "Security & Foreign Affairs Regulations",
+          "url": "https://drive.google.com/drive/folders/1oXjU8ITJR7twJpR1ncZhLFccd3M1T5WR",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1yyHc3I-Q8jZw4t_LeB4YwdomRpE4x5tY",
+          "title": "Public Administration Regulations",
+          "url": "https://drive.google.com/drive/folders/1yyHc3I-Q8jZw4t_LeB4YwdomRpE4x5tY",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "previous_batch_id": "B08",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 2866,
+        "gb": 2.8356,
+        "pdfs": 2805,
+        "pdf_gb": 2.7591,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+      },
+      "page_routing_required": true
+    },
+    {
+      "batch_id": "B10",
+      "name": "Courts, enforcement and research",
+      "status": "planned_not_ingested",
+      "source_folders": [
+        {
+          "folder_id": "1dS128D3yrWhtEjQxvBOJUvkdezFA6Hjy",
+          "title": "Thai Bar - เนติบัณฑิตยสภา",
+          "url": "https://drive.google.com/drive/folders/1dS128D3yrWhtEjQxvBOJUvkdezFA6Hjy",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1d0hFX1ie8X0dfJG6KNJC89N_C0Lp-6v4",
+          "title": "Law Books",
+          "url": "https://drive.google.com/drive/folders/1d0hFX1ie8X0dfJG6KNJC89N_C0Lp-6v4",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "17_UZynLH99oY93v3dbFp-TOXvnRHLNOs",
+          "title": "Constitutional Court",
+          "url": "https://drive.google.com/drive/folders/17_UZynLH99oY93v3dbFp-TOXvnRHLNOs",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1oXvGFWDci7nsuc9gjKb6H-I82tDpsrTm",
+          "title": "Attorney General Regulations",
+          "url": "https://drive.google.com/drive/folders/1oXvGFWDci7nsuc9gjKb6H-I82tDpsrTm",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or",
+          "title": "Legal Forms",
+          "url": "https://drive.google.com/drive/folders/1jNJtHzWoJfGZdDqHzPbuZshNzbOwk-or",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1kPB1flCbQiNKN-kKbWh0ct4JSE8pcemG",
+          "title": "LED Regulations",
+          "url": "https://drive.google.com/drive/folders/1kPB1flCbQiNKN-kKbWh0ct4JSE8pcemG",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "10u8pUbF0CmyLKWEkMdNfnS2Authk6GxD",
+          "title": "Advisory Back Up Doc",
+          "url": "https://drive.google.com/drive/folders/10u8pUbF0CmyLKWEkMdNfnS2Authk6GxD",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1f6Gm_tDpsYLpFHakziawg4MEAfZZo7w3",
+          "title": "Thai law book",
+          "url": "https://drive.google.com/drive/folders/1f6Gm_tDpsYLpFHakziawg4MEAfZZo7w3",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1FKdnmnguYbPl_XxUpeJ0lHTBBdA7ws61",
+          "title": "Justice & Courts Regulations",
+          "url": "https://drive.google.com/drive/folders/1FKdnmnguYbPl_XxUpeJ0lHTBBdA7ws61",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1RCd9CJBb_xclKVSXk-suMKeo5FL9AGjk",
+          "title": "Legal Articles Library",
+          "url": "https://drive.google.com/drive/folders/1RCd9CJBb_xclKVSXk-suMKeo5FL9AGjk",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1WC2nzehdVVEkGkGxpXaJ0dSqCpIhONqw",
+          "title": "Law Thesis Library",
+          "url": "https://drive.google.com/drive/folders/1WC2nzehdVVEkGkGxpXaJ0dSqCpIhONqw",
+          "scope": "recursive candidates; classify content before admission"
+        },
+        {
+          "folder_id": "1BpwNu1FmibYUDLtQ6PnEnt6OeogXAvDc",
+          "title": "Deka Database",
+          "url": "https://drive.google.com/drive/folders/1BpwNu1FmibYUDLtQ6PnEnt6OeogXAvDc",
+          "scope": "recursive candidates; classify content before admission"
+        }
+      ],
+      "previous_batch_id": "B10",
+      "preflight_required": true,
+      "audit_source_pool": {
+        "files": 4252,
+        "gb": 12.1401,
+        "pdfs": 2599,
+        "pdf_gb": 4.8605,
+        "count_basis": "Only mapped top-level source_folders; additional_source_folders are nested RD and excluded from sum.",
+        "ownership_caveat": "Metadata source pool before content classification, deduplication and archive expansion."
+      },
+      "page_routing_required": true
+    }
+  ],
+  "rules": {
+    "preserve_sources": true,
+    "index_is_not_evidence": true,
+    "execute_directly": false,
+    "dependencies": "Load necessary cited authorities on demand. B01 loads needed B02 provisions early; B08 reuses B02-B07 releases. Necessary court decisions may be loaded before B10. Preserve owner_batch_id and first_loaded_by_batch_id; targeted dependencies do not advance full owner-batch release.",
+    "routing": "Document type overrides folder. Rulings and opinions encountered elsewhere resolve to B01/B08; duplicates become source representations, not new legal documents.",
+    "batch_id_is_legal_identity": false,
+    "preserve_existing_canonical_ids": true,
+    "unreviewed_overwrite_allowed": false,
+    "automatic_existing_node_consolidation_allowed": false
+  },
+  "revision_note": "User requested original order 01-03-04-05-06-07-09-02-08-10, renumbered B01-B10; group membership unchanged. Revision 1.2 adds mandatory existing-graph protection based on a pinned repository review; no production ingestion performed.",
+  "preflight": {
+    "required_before_every_batch": true,
+    "counts_as_extra_batch": false,
+    "status": "BLOCKED_PENDING_VERIFICATION",
+    "reviewed_repository": "classichot/REG24",
+    "reviewed_commit": "0978e1d7c578b74c888eb06d9d70be786f387ca0",
+    "live_graph_inspected": false,
+    "deployed_commit_verified": false,
+    "existing_overlap_counts": null,
+    "production_write_allowed": false,
+    "required_checks": [
+      "baseline_inventory_and_restore_test",
+      "persistent_identity_registry_and_legacy_crosswalk",
+      "real_original_byte_sha256",
+      "dry_run_candidate_matching",
+      "field_level_change_review",
+      "restart_and_multiworker_replay",
+      "concurrency_uniqueness",
+      "cross_store_failure_recovery",
+      "rollback_preserves_shared_entities"
+    ],
+    "dispositions": [
+      "SKIP_UNCHANGED",
+      "ATTACH_REPRESENTATION",
+      "NEW_EXTRACTION_REVISION",
+      "NEW_LEGAL_VERSION",
+      "CREATE_NEW_WORK",
+      "REVIEW_IDENTITY_CONFLICT"
+    ]
+  },
+  "audit_baseline": {
+    "source_name": "REG24_Legal_Resource_OCR_Audit_2026-11-14(1).md",
+    "source_sha256": "f37d00d26140ba1d56a33ca440fae4f48ce31b27ca7bfcf73856ab145272c6d9",
+    "reported_by": "User-supplied OCR audit; not independently recrawled in this revision",
+    "snapshot_date_bangkok": "2026-11-14",
+    "top_level_folders": 88,
+    "descendant_folders_traversed": 534,
+    "physical_drive_files": 56064,
+    "reported_size_gb_decimal": 41.2509,
+    "pdf_files": 54072,
+    "pdf_size_gb_decimal": 33.8328,
+    "non_pdf_files": 1992,
+    "non_pdf_size_gb_decimal": 7.4181,
+    "content_deduplicated": false,
+    "archives_expanded": false,
+    "exact_ocr_pages": null,
+    "exact_ocr_bytes": null,
+    "ocr_model_benchmarked": false,
+    "random_sample": {
+      "pdfs": 120,
+      "pages": 914,
+      "seed": 20261114,
+      "file_routes": {
+        "native_cleanup": 52,
+        "legacy_font_repair": 7,
+        "corrupt_repair_or_ocr": 20,
+        "no_usable_text": 33,
+        "mixed_review": 8
+      }
+    },
+    "unallocated_root_files": 2,
+    "count_semantics": "Physical files are not unique legal works; expanded archive members and text records are separate ledgers."
+  }
+}
