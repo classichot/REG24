@@ -1,6 +1,6 @@
 {
-  "plan_id": "plan.mfst.b01.mwgepc5v",
-  "manifest_id": "mfst.b01.mwgepc5v",
+  "plan_id": "plan.mfst.b01.mwggutp5",
+  "manifest_id": "mfst.b01.mwggutp5",
   "batch_id": "B01",
   "total_candidates": 5150,
   "by_identity_action": {
@@ -23,5 +23,5 @@
   "planned_reused_works": 9,
   "accounting_matches_total": true,
   "silent_drops": 0,
-  "generated_at": "2026-11-14T12:53:20.563Z"
+  "generated_at": "2026-11-14T13:53:35.806Z"
 }

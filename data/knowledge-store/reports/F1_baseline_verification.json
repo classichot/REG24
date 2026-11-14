@@ -1,11 +1,11 @@
 {
   "baseline": {
-    "snapshot_id": "baseline_3dd93e0_628c8d71",
-    "captured_at": "2026-11-14T12:53:20.455Z",
-    "code_commit": "3dd93e08e37fc815d0198ec2362661a2d0440e66",
+    "snapshot_id": "baseline_55f9ca0_d57155ff",
+    "captured_at": "2026-11-14T13:53:35.692Z",
+    "code_commit": "55f9ca069181e32ba8a7077852c3fe1c61c350a6",
     "schema_version": "reg24.neo4j.schema.v2.1.0",
-    "snapshot_uri": "D:\\Code\\REG24\\data\\knowledge-store\\baseline\\baseline_3dd93e0_628c8d71.json",
-    "snapshot_sha256": "628c8d715e6b76d52e09d7829596110ffaf68d3f4496781d17a09b75852d3479",
+    "snapshot_uri": "D:\\Code\\REG24\\data\\knowledge-store\\baseline\\baseline_55f9ca0_d57155ff.json",
+    "snapshot_sha256": "d57155ffb082bb33abe72e4d7b3f5a83b626df9a28ddfd42484e7cd92b956431",
     "canonical_counts": {
       "thai_tax_rulings_rows": 3643,
       "resource_master_rows": 2312,
@@ -82,8 +82,8 @@
   },
   "isolated_restore_verification": {
     "checksum_matches": true,
-    "expected_sha256": "628c8d715e6b76d52e09d7829596110ffaf68d3f4496781d17a09b75852d3479",
-    "actual_sha256": "628c8d715e6b76d52e09d7829596110ffaf68d3f4496781d17a09b75852d3479",
+    "expected_sha256": "d57155ffb082bb33abe72e4d7b3f5a83b626df9a28ddfd42484e7cd92b956431",
+    "actual_sha256": "d57155ffb082bb33abe72e4d7b3f5a83b626df9a28ddfd42484e7cd92b956431",
     "restored_counts": {
       "thai_tax_rulings_rows": 3643,
       "resource_master_rows": 2312,
