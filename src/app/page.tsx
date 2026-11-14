@@ -960,7 +960,46 @@ export default function Reg24ModernistPage() {
       let finalPayload = fallback;
 
       try {
-        if (scope === "rd") {
+        // Consult Knowledge GraphRAG store first when querying RD tax rulings or explicit กค identifiers
+        const looksLikeTaxOrRulingQuery =
+          scope === "rd" || /กค\s*[0-9๐-๙]|ข้อหารือ|สรรพากร|ภาษีมูลค่าเพิ่ม|ประมวลรัษฎากร|มาตรา\s*65\s*ตรี/i.test(baseQ);
+        if (looksLikeTaxOrRulingQuery) {
+          const kgRes = await fetch("/api/v1/knowledge/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              question: baseQ,
+              applicable_date: asOfDate,
+              mode: /กค\s*[0-9๐-๙]/.test(baseQ) ? "exact_lookup" : "standard",
+            }),
+          });
+          if (kgRes.ok) {
+            const kgJson = await kgRes.json();
+            const kgAns = kgJson?.answer;
+            if (kgAns && (kgAns.evidence?.length > 0 || kgAns.status === "INSUFFICIENT_EVIDENCE")) {
+              finalPayload = {
+                answer: kgAns.answer,
+                citations:
+                  Array.isArray(kgAns.evidence) && kgAns.evidence.length > 0
+                    ? kgAns.evidence.slice(0, 4).map(
+                        (ev: { official_identifier?: string; title_th?: string; statement_role?: string }) => ({
+                          law: ev.title_th || (lang === "th" ? "ข้อหารือกรมสรรพากร" : "RD Ruling"),
+                          section: ev.official_identifier || ev.statement_role || "B01",
+                        })
+                      )
+                    : [],
+                note:
+                  lang === "th"
+                    ? `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · ข้อมูล ณ ${asOfDate}`
+                    : `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · Law as of ${asOfDate}`,
+              };
+            }
+          }
+        }
+
+        if (finalPayload !== fallback) {
+          // Grounded GraphRAG answer resolved directly from verified Knowledge Store
+        } else if (scope === "rd") {
           const rdRes = await fetch("/api/v1/tax-rulings", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

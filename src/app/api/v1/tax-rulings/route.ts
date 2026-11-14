@@ -23,3 +23,39 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json(response);
 }
+
+export async function POST(req: NextRequest) {
+  const body = (await req.json().catch(() => ({}))) as {
+    query?: string;
+    tax_type?: string;
+    year_be?: number;
+    limit?: number;
+    offset?: number;
+  };
+
+  const response = searchThaiTaxRulings({
+    query: body.query || "",
+    primary_tax_type: body.tax_type || "ALL",
+    year_be: typeof body.year_be === "number" ? body.year_be : undefined,
+    limit: Number(body.limit || 20),
+    offset: Number(body.offset || 0),
+  });
+
+  const enriched = response.rulings.map((r) => ({
+    ...r,
+    summary_th: r.ruling,
+    holding_th: r.ruling,
+    title_th: r.subject,
+    summary_en: `${r.ruling_no} (${r.primary_tax_type}): ${r.subject}`,
+    section: r.legal_provisions,
+  }));
+
+  return NextResponse.json({
+    ok: true,
+    rulings: enriched,
+    result: {
+      rulings: enriched,
+      total: response.matched_count,
+    },
+  });
+}

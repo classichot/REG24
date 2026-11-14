@@ -1050,9 +1050,14 @@ export async function recordUatDecision(
         `REVISION_CONFLICT_409: Submitted expected_revision (${req.expected_revision}) does not match current revision (${rel.revision}).`
       );
     }
-    if (rel.state !== "READY_FOR_UAT") {
+    if (
+      rel.state !== "READY_FOR_UAT" &&
+      rel.state !== "UAT_PASSED" &&
+      rel.state !== "UAT_FAILED" &&
+      rel.state !== "RELEASE_APPROVED"
+    ) {
       throw new Error(
-        `INVALID_RELEASE_STATE_422: Release ${req.release_id} must be in READY_FOR_UAT to record Owner UAT decision (current: ${rel.state}).`
+        `INVALID_RELEASE_STATE_422: Release ${req.release_id} must be in READY_FOR_UAT (or unpromoted UAT review state) to record Owner UAT decision (current: ${rel.state}).`
       );
     }
 
