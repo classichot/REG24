@@ -117,7 +117,10 @@ export async function queryKnowledge(
   // In exact_lookup mode with an explicit ruling identifier, scope citations strictly to the matched canonical ruling(s) + direct statutory hops (B01-U01)
   if (req.mode === "exact_lookup" && bundle.explicit_ruling_ids_in_query.length > 0) {
     const exactScoped = liveVerifiedHits.filter(
-      (h) => h.match_sources.includes("exact_id") || h.match_sources.includes("graph_hop")
+      (h) =>
+        h.match_sources.includes("exact_id") ||
+        (h.match_sources.includes("graph_hop") &&
+          freshState.works[h.passage.work_id]?.type === "ProvisionVersion")
     );
     if (exactScoped.length > 0) {
       liveVerifiedHits = exactScoped;

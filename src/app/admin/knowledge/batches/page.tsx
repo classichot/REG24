@@ -715,9 +715,9 @@ export default function KnowledgeBatchesUatPage() {
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", fontSize: "12px" }}>
                 <span style={{ color: "#9ca3af" }}>Quick Thai/Arabic Digit Parity Check:</span>
                 {[
-                  ["กค 0702/636 (Arabic — U01A)", "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636"],
-                  ["กค ๐๗๐๒ / ๖๓๖ (Same 0702/636 in Thai Digits)", "ค้นหาหนังสือตอบข้อหารือเลขไทย กค ๐๗๐๒ / ๖๓๖"],
-                  ["กค ๐๗๐๒ / ๑๒๔๘ (0702/1248 in Thai Digits — U01B)", "ค้นหาหนังสือตอบข้อหารือเลขไทย กค ๐๗๐๒ / ๑๒๔๘"],
+                  ["กค 0702/636 (Arabic — B01-U01A)", "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636"],
+                  ["กค ๐๗๐๒ / ๖๓๖ (Thai Digits — B01-U01B)", "ค้นหาหนังสือตอบข้อหารือเลขไทย กค ๐๗๐๒ / ๖๓๖"],
+                  ["กค ๐๗๐๒ / ๑๒๔๘ (0702/1248 in Thai Digits)", "ค้นหาหนังสือตอบข้อหารือเลขไทย กค ๐๗๐๒ / ๑๒๔๘"],
                 ].map(([label, qStr]) => (
                   <button
                     key={label}
