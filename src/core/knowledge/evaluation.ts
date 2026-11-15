@@ -1711,6 +1711,16 @@ export async function evaluateRelease(
   const isUnlocked =
     rel.state === "ACCEPTED" || rel.state === "ACCEPTED_WITH_DECLARED_GAPS";
 
+  const admittedPhysicalCount =
+    dispCounts.published_new + dispCounts.reused_existing + dispCounts.attached_representation;
+  const isLimitedScope = dispCounts.deferred_with_reason > 0;
+  const scopeClassification = isLimitedScope
+    ? "LIMITED_SCOPE_CANDIDATE"
+    : "FULL_BATCH_CANDIDATE";
+  const scopeLabel = isLimitedScope
+    ? `LIMITED-SCOPE CANDIDATE (${admittedPhysicalCount.toLocaleString()} / ${cands.length.toLocaleString()} physical files admitted [${((admittedPhysicalCount / Math.max(1, cands.length)) * 100).toFixed(2)}%]; ${dispCounts.deferred_with_reason.toLocaleString()} image-only/legacy-font PDFs deferred as DEFERRED_WITH_REASON pending verified OCR; ${dispCounts.rejected_out_of_scope.toLocaleString()} out-of-scope)`
+    : `FULL-SCOPE CANDIDATE (${admittedPhysicalCount.toLocaleString()} admitted physical files in ${rel.batch_id} scope; 0 deferred; ${dispCounts.rejected_out_of_scope.toLocaleString()} out-of-scope)`;
+
   const releaseReport: ReleaseReport = {
     template_only: false,
     schema_version: "1.1",
@@ -1722,6 +1732,20 @@ export async function evaluateRelease(
     inventory_snapshot_id: manifest?.inventory_snapshot_id || rel.manifest_id,
     source_cutoff_at: manifest?.source_cutoff_at || rel.created_at,
     previous_accepted_release_id: rel.previous_accepted_release_id,
+    scope_classification: scopeClassification,
+    scope_label: scopeLabel,
+    review_gate_status: {
+      mandatory_uat_gate_policy: "ALL_MANDATORY_CASES_MUST_PASS_20_OF_20",
+      automated_gates_passed: evaluation.all_automated_gates_passed,
+      automated_tests_replace_independent_legal_review: false,
+      technical_review_complete: Boolean(
+        acc?.technical_attestation && acc.technical_attestation.manifest_hash === rel.manifest_hash
+      ),
+      independent_legal_review_complete: Boolean(
+        acc?.legal_attestation && acc.legal_attestation.manifest_hash === rel.manifest_hash
+      ),
+      formal_owner_uat_opened: Boolean(acc?.user_decision !== null && acc?.user_decision !== undefined),
+    },
     supersession_lineage: rel.supersession_lineage ?? null,
     status: rel.state,
     inventory: {

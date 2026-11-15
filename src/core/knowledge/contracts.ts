@@ -830,6 +830,16 @@ export interface ReleaseReport {
   inventory_snapshot_id: string | null;
   source_cutoff_at: string | null;
   previous_accepted_release_id: string | null;
+  scope_classification?: "FULL_BATCH_CANDIDATE" | "LIMITED_SCOPE_CANDIDATE";
+  scope_label?: string | null;
+  review_gate_status?: {
+    mandatory_uat_gate_policy: "ALL_MANDATORY_CASES_MUST_PASS_20_OF_20";
+    automated_gates_passed: boolean;
+    automated_tests_replace_independent_legal_review: false;
+    technical_review_complete: boolean;
+    independent_legal_review_complete: boolean;
+    formal_owner_uat_opened: boolean;
+  } | null;
   supersession_lineage?: {
     supersedes_release_id: string;
     supersedes_manifest_id: string;
@@ -952,6 +962,15 @@ export function validateReleaseReport(
     if ((inv.deferred_with_reason ?? 0) > 0 && report.coverage_gaps.length === 0) {
       errors.push("UNDECLARED_DEFERRED_GAPS: Deferred records require explicit visible coverage_gaps.");
     }
+    if (
+      (inv.deferred_with_reason ?? 0) > 0 &&
+      report.scope_classification &&
+      report.scope_classification !== "LIMITED_SCOPE_CANDIDATE"
+    ) {
+      errors.push(
+        "MISLABELED_LIMITED_SCOPE_CANDIDATE: Any candidate with deferred_with_reason > 0 must be labeled LIMITED_SCOPE_CANDIDATE."
+      );
+    }
   }
 
   const pa = report.page_accounting;
@@ -1002,6 +1021,24 @@ export function validateReleaseReport(
       report.uat.owner_decision !== "UAT_PASS_WITH_DECLARED_GAPS"
     ) {
       errors.push("MISSING_OWNER_PASS: Owner UAT pass is required before approval or acceptance.");
+    }
+    if ((report.uat.failed ?? 0) > 0) {
+      errors.push(
+        `MANDATORY_UAT_CASE_FAILURE: ${report.uat.failed} mandatory UAT case(s) failed; 02_OWNER_UAT_CHECKLIST.md requires 100% pass across all ${report.uat.mandatory_case_count} mandatory cases.`
+      );
+    }
+    if (
+      report.uat.passed !== null &&
+      report.uat.passed < report.uat.mandatory_case_count
+    ) {
+      errors.push(
+        `INCOMPLETE_MANDATORY_UAT_PASS: ${report.uat.passed}/${report.uat.mandatory_case_count} mandatory UAT cases passed; 02_OWNER_UAT_CHECKLIST.md requires ${report.uat.mandatory_case_count}/${report.uat.mandatory_case_count} (100%) without lowering the gate.`
+      );
+    }
+    if ((report.quality.critical_defects_open ?? 0) > 0) {
+      errors.push(
+        `OPEN_CRITICAL_DEFECTS: ${report.quality.critical_defects_open} P0/P1 defect(s) remain open.`
+      );
     }
     if (report.uat.approved_manifest_hash !== report.manifest_hash) {
       errors.push("APPROVAL_HASH_MISMATCH: Owner UAT approval hash does not match manifest_hash.");

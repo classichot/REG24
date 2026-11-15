@@ -60,6 +60,14 @@ export function sanitizeGraphError(err: unknown): string {
     .replace(/password\s*[=:]\s*[^\s,;]+/gi, "password=[REDACTED]");
 }
 
+const PRESERVATION_FORBIDDEN_WRITE_CYPHER =
+  /\b(CREATE|MERGE|SET|DELETE|DETACH|REMOVE|DROP|ALTER|RENAME|FOREACH|LOAD\s+CSV|apoc\.create|apoc\.refactor)\b/i;
+
+export function isNeo4jPreservationWriteLockActive(): boolean {
+  const flag = (process.env.NEO4J_PRESERVATION_READ_ONLY || "").trim().toLowerCase();
+  return flag === "true" || flag === "1" || flag === "yes";
+}
+
 /**
  * Guards against unrestricted arbitrary Cypher execution or prompt/document injection
  * attempting multi-statement execution or administrative schema drops (REG-NEO-016).
@@ -220,6 +228,17 @@ class Neo4jConnectionManager {
     params: Record<string, unknown> = {},
     options: { write?: boolean; timeoutMs?: number; allowSchemaDdl?: boolean } = {}
   ): Promise<{ records: Neo4jRecord[]; rows: T[]; latencyMs: number }> {
+    if (
+      isNeo4jPreservationWriteLockActive() &&
+      (options.write || options.allowSchemaDdl || PRESERVATION_FORBIDDEN_WRITE_CYPHER.test(cypher))
+    ) {
+      const lockErr = new Error(
+        "NEO4J_PRESERVATION_LOCKOUT_423: Neo4j write/DDL execution is hard-blocked while NEO4J_PRESERVATION_READ_ONLY lock is active."
+      );
+      this.recordError(lockErr, false);
+      throw lockErr;
+    }
+
     try {
       assertSafeParameterizedCypher(cypher, params, options.allowSchemaDdl);
     } catch (secErr) {

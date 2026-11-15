@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { neo4jConnectionManager } from "@/core/graph/neo4j-client";
+import {
+  isNeo4jPreservationWriteLockActive,
+  neo4jConnectionManager,
+} from "@/core/graph/neo4j-client";
 import {
   rollbackMigrationBatch,
   runMigrationAndReconciliation,
@@ -74,20 +77,35 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => ({}));
-    const roleHeader =
-      req.headers.get("x-reg24-role") || body.role || "Platform Administrator";
+    const action = body.action || "run_diagnostics";
+    const isMutatingAction = action === "rollback_batch" || action === "run_migration";
+    const explicitRoleHeader = req.headers.get("x-reg24-role");
+    const roleHeader = isMutatingAction
+      ? explicitRoleHeader || ""
+      : explicitRoleHeader || body.role || "Platform Administrator";
 
     if (roleHeader !== "Platform Administrator") {
       return NextResponse.json(
         {
           status: "forbidden",
-          message: "Only Platform Administrator can run graph diagnostics or migrations.",
+          message:
+            "Explicit x-reg24-role: Platform Administrator header is required to run graph diagnostics or live migrations.",
         },
         { status: 403 }
       );
     }
 
-    const action = body.action || "run_diagnostics";
+    if (isMutatingAction && isNeo4jPreservationWriteLockActive()) {
+      return NextResponse.json(
+        {
+          status: "locked",
+          code: "NEO4J_PRESERVATION_LOCKOUT_423",
+          message:
+            "Neo4j write/rollback mutations are blocked while NEO4J_PRESERVATION_READ_ONLY lock is active.",
+        },
+        { status: 423 }
+      );
+    }
 
     if (action === "rollback_batch" && body.batch_id) {
       const rollbackResult = await rollbackMigrationBatch(String(body.batch_id));

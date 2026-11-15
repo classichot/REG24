@@ -648,7 +648,9 @@ export default function KnowledgeBatchesUatPage() {
                 }}
               >
                 <div style={{ fontSize: "12px", fontWeight: 800, color: "#fde047", marginBottom: "6px" }}>
-                  DECLARED SCOPE &amp; COVERAGE GAPS (VISIBLE BEFORE ACCEPTANCE)
+                  {rep.scope_classification === "LIMITED_SCOPE_CANDIDATE"
+                    ? `LIMITED-SCOPE CANDIDATE — ${rep.scope_label || "DECLARED SCOPE & COVERAGE GAPS"}`
+                    : "DECLARED SCOPE & COVERAGE GAPS (VISIBLE BEFORE ACCEPTANCE)"}
                 </div>
                 <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: "#fef08a", lineHeight: 1.6 }}>
                   {rep.coverage_gaps.map((g, i) => (

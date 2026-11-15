@@ -332,14 +332,16 @@ export function extractPublicationAndCommencement(
 } {
   const norm = thaiDigitsToArabic(fullText);
 
-  // 1. Royal Gazette header (`เล่ม 134 ตอนที่ 53 ก ราชกิจจานุเบกษา 17 พฤษภาคม 2560`)
+  // 1. Royal Gazette header (`เล่ม 134 ตอนที่ 53 ก ราชกิจจานุเบกษา 17 พฤษภาคม 2560`, including PDF-split `เลม` where tone mark `่` sits on the preceding page line)
   const gazMatch = norm.match(
-    /เล่ม\s*[0-9]+\s*ตอน(?:พิเศษ)?(?:ที่)?\s*[0-9]+\s*[กงขค]?\s*ราชกิจจานุเบกษา\s*([0-9]{1,2}\s+[^\s\d]{2,15}\s+[0-9]{4})/
+    /เล่?ม\s*[0-9]+\s*ตอน(?:พิเศษ)?(?:ที่)?\s*[0-9]+\s*[กงขค]?\s*ราชกิจจานุเบกษา\s*([0-9]{1,2}\s+[^\s\d]{2,15}\s+[0-9]{4})/
   );
   const gazRefMatch = norm.match(
-    /เล่ม\s*[0-9]+\s*ตอน(?:พิเศษ)?(?:ที่)?\s*[0-9]+\s*[กงขค]?\s*ราชกิจจานุเบกษา/
+    /เล่?ม\s*[0-9]+\s*ตอน(?:พิเศษ)?(?:ที่)?\s*[0-9]+\s*[กงขค]?\s*ราชกิจจานุเบกษา/
   );
-  const gazetteRef = gazRefMatch ? gazRefMatch[0].replace(/\s+/g, " ").trim() : null;
+  const gazetteRef = gazRefMatch
+    ? gazRefMatch[0].replace(/^เลม(?=\s)/, "เล่ม").replace(/\s+/g, " ").trim()
+    : null;
 
   let publicationDateIso: string | null = null;
   if (gazMatch?.[1]) {
@@ -365,7 +367,7 @@ export function extractPublicationAndCommencement(
     /ให้ใช้บังคับตั้งแต่วันที่\s*([0-9]{1,2}\s+[^\s\d]{2,15}\s+(?:พ\.ศ\.\s*)?[0-9]{4})/
   );
   const nextDayClause = norm.match(
-    /ให้ใช้บังคับตั้งแต่วันถัดจากวันประกาศในราชกิจจานุเบกษาเป็นต้นไป/
+    /ให้ใช้บังคับตั้งแต่วันถัดจากวันประกาศในราชกิจจานุเบกษา\s*เป็นต้นไป/
   );
   const afterDaysNumeric = norm.match(
     /ให้ใช้บังคับเมื่อพ้นกำหนด\s*([0-9]+)\s*วัน\s*นับแต่วันประกาศในราชกิจจานุเบกษา/
@@ -374,7 +376,7 @@ export function extractPublicationAndCommencement(
     /ให้ใช้บังคับเมื่อพ้นกำหนด(สามสิบ|สี่สิบห้า|หกสิบ|เก้าสิบ|หนึ่งร้อยยี่สิบ|ร้อยยี่สิบ|หนึ่งร้อยแปดสิบ|ร้อยแปดสิบ|สองร้อยสี่สิบ|สามร้อยหกสิบ|หนึ่งปี)(?:วัน)?นับแต่วันประกาศในราชกิจจานุเบกษา/
   );
   const onPubDayClause = norm.match(
-    /ให้ใช้บังคับตั้งแต่วันประกาศในราชกิจจานุเบกษาเป็นต้นไป/
+    /ให้ใช้บังคับตั้งแต่วันประกาศในราชกิจจานุเบกษา\s*เป็นต้นไป/
   );
 
   if (explicitDateClause?.[1]) {
@@ -401,7 +403,7 @@ export function extractPublicationAndCommencement(
   // 3. Transitional / accounting-period rules (`บทเฉพาะกาล`, `รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่...`, `เงินได้พึงประเมินประจำปีภาษี...`)
   const transitionConditions: string[] = [];
   const transRegexes = [
-    /(?:สำหรับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่|สำหรับเงินได้พึงประเมินประจำปีภาษี|บรรดาคำขอ|ในวาระเริ่มแรก|บทบัญญัติแห่ง[^\s]{3,40}ซึ่งถูกยกเลิกโดย)[^。\n]{8,240}/g,
+    /(?:สำหรับรอบระยะเวลาบัญชีที่(?:เริ่มในหรือหลังวันที่|ได้รับ[^\s\n]{2,40})|สำหรับเงินได้พึงประเมินประจำปีภาษี|ทั้งนี้\s*เฉพาะ(?:รายรับที่ได้รับ|ตราสารที่ได้กระทำ)ตั้งแต่วันที่|บรรดาคำขอ|ในวาระเริ่มแรก|บทบัญญัติแห่ง[^\s]{3,40}ซึ่งถูกยกเลิกโดย)[^。\n]{8,240}/g,
     /บทเฉพาะกาล[\s\S]{0,360}/g,
   ];
   for (const rgx of transRegexes) {
@@ -626,11 +628,21 @@ export async function extractB02(input: ProfileInput): Promise<ProfileResult> {
   const fullText = (input.extraction.normalized_text || input.extraction.raw_text || "").trim();
   const folderHint = meta.folder || "";
   const fileNameHint = meta.file_name || meta.rel_path || "";
+  const metaTitle = (meta.title_th || "").trim();
+  const formalCitationTitleMatch = fullText
+    .slice(0, 1800)
+    .match(/เรียกว่า\s*[“"]([^”"]{12,260})[”"]/);
+  const formalCitationTitle = formalCitationTitleMatch
+    ? thaiDigitsToArabic(formalCitationTitleMatch[1].replace(/\s+/g, " ").trim())
+    : "";
   const rawTitle =
-    (meta.title_th || "").trim() ||
-    fullText.split("\n")[0]?.slice(0, 180).trim() ||
-    fileNameHint ||
-    "ตราสารกฎหมายไทย";
+    formalCitationTitle &&
+    (!metaTitle || (!/พ\.ศ\.\s*[0-9๐-๙]{4}/.test(metaTitle) && /พ\.ศ\.\s*[0-9]{4}/.test(formalCitationTitle)))
+      ? formalCitationTitle
+      : metaTitle ||
+        fullText.split("\n")[0]?.slice(0, 180).trim() ||
+        fileNameHint ||
+        "ตราสารกฎหมายไทย";
 
   const cls = classifyB02InstrumentAndStatus(rawTitle, fullText, folderHint, fileNameHint);
   const temporal = extractPublicationAndCommencement(fullText, meta.date_hint);

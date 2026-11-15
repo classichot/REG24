@@ -17,6 +17,7 @@ import {
   type LegalDocumentArchetype,
   type LegalStructuralUnitType,
 } from "@/core/ingestion/legal-structural-chunker";
+import { isNeo4jPreservationWriteLockActive } from "@/core/graph/neo4j-client";
 import { syncLegalResourceMasterChunksToNeo4j } from "@/core/ingestion/legal-chunk-neo4j-sync";
 
 export async function GET(req: NextRequest) {
@@ -205,6 +206,28 @@ export async function POST(req: NextRequest) {
     } = body || {};
 
     if (action === "sync_chunks_to_neo4j") {
+      const explicitRoleHeader = req.headers.get("x-reg24-role") || "";
+      if (explicitRoleHeader !== "Platform Administrator") {
+        return NextResponse.json(
+          {
+            status: "forbidden",
+            message:
+              "Explicit x-reg24-role: Platform Administrator header is required to sync chunks to Neo4j.",
+          },
+          { status: 403 }
+        );
+      }
+      if (isNeo4jPreservationWriteLockActive()) {
+        return NextResponse.json(
+          {
+            status: "locked",
+            code: "NEO4J_PRESERVATION_LOCKOUT_423",
+            message:
+              "Neo4j chunk sync is blocked while NEO4J_PRESERVATION_READ_ONLY lock is active.",
+          },
+          { status: 423 }
+        );
+      }
       const syncReport = await syncLegalResourceMasterChunksToNeo4j({
         authority_code: authority_code || authority || "ALL",
       });

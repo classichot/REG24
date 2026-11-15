@@ -1,29 +1,546 @@
 /**
- * REG24 — Strictly Read-Only Verification Tool for Neo4j AuraDB Instance `374f4f7e`
+ * REG24 — Strictly Read-Only Verification & Isolated-Restore Audit Tool for Neo4j `374f4f7e`
  *
- * SAFETY & GOVERNANCE GUARANTEES:
- * 1. NEVER resumes, replaces, deletes, migrates, or mutates any Neo4j instance or database.
- * 2. Enforces `defaultAccessMode: neo4j.session.READ` AND a static Cypher keyword firewall
- *    that throws immediately if any write/DDL token (`CREATE`, `MERGE`, `SET`, `DELETE`,
- *    `DETACH`, `REMOVE`, `DROP`, `LOAD CSV`, `CALL apoc.create`) appears in a query.
- * 3. Distinguishes strictly between:
- *    - Verified network/DNS/Bolt reachability and historical repository sync evidence, vs.
- *    - Direct live database content verification (`VERIFIED_LIVE_READ` vs `UNVERIFIED_WHILE_PAUSED`).
+ * SAFETY & GOVERNANCE GUARANTEES (Owner Instruction 1 — 2026-11-15):
+ * 1. NEVER resumes, deletes, resets, overwrites, imports into, migrates, upgrades, or promotes any Neo4j instance.
+ * 2. Strict Target Validation (`validateAuditTarget`):
+ *    - In `live-374f4f7e` mode (default): requires explicit `NEO4J_URI` / `--bolt-uri` (zero silent fallback to
+ *      `374f4f7e.databases.neo4j.io`), enforces TLS scheme (`neo4j+s://` or `bolt+s://`), strictly verifies
+ *      Aura instance ID === `374f4f7e` AND configured database === `374f4f7e`, and verifies server-reported
+ *      database identity via `CALL db.info() YIELD name RETURN name` inside a read transaction.
+ *    - In `isolated-restore` mode (`--target-mode isolated-restore --bolt-uri bolt://127.0.0.1:7687`):
+ *      strictly enforces loopback host (`127.0.0.1`, `localhost`, `[::1]`) and hard-blocks `*.databases.neo4j.io`
+ *      so an audit against an isolated restored copy can NEVER connect to live Aura. Also computes & verifies
+ *      SHA-256 checksums for exported `.backup` / `.dump` files (`--backup-file`, `--expected-sha256`).
+ * 3. Strict Read-Only Execution:
+ *    - Uses `defaultAccessMode: neo4j.session.READ` + `session.executeRead(...)` + `assertStrictlyReadOnlyCypher`
+ *      blocking all write, DDL, admin, multi-statement, and mutating procedure tokens.
+ * 4. Honest Dynamic Failure Classification (`classifyAuditFailure`):
+ *    - Reports the ACTUAL observed failure stage and sanitized error message (`TARGET_VALIDATION_FAILED`,
+ *      `DNS_RESOLUTION_FAILED`, `TCP_CONNECT_FAILED`, `BOLT_AUTHENTICATION_FAILED`, `BOLT_TLS_ERROR`,
+ *      `DATABASE_IDENTITY_MISMATCH`, `CYPHER_READ_QUERY_FAILED`, `BACKUP_FILE_VERIFICATION_FAILED`) —
+ *      never emitting a hardcoded explanation.
  */
 import * as dns from "node:dns/promises";
 import * as net from "node:net";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as crypto from "node:crypto";
-import neo4j from "neo4j-driver";
+import { pathToFileURL } from "node:url";
+import neo4j, { type Driver } from "neo4j-driver";
+import { sanitizeGraphError } from "../src/core/graph/neo4j-client";
 
-const FORBIDDEN_WRITE_CYPHER =
-  /\b(CREATE|MERGE|SET|DELETE|DETACH|REMOVE|DROP|FOREACH|LOAD\s+CSV|apoc\.create|apoc\.refactor|dbms\.security)\b/i;
+export const EXPECTED_AURA_INSTANCE_ID = "374f4f7e";
+export const EXPECTED_AURA_HOST = "374f4f7e.databases.neo4j.io";
 
-function assertReadOnlyCypher(cypher: string): void {
-  if (FORBIDDEN_WRITE_CYPHER.test(cypher)) {
-    throw new Error(`READ_ONLY_FIREWALL_BLOCKED: Refusing non-read Cypher statement: ${cypher}`);
+export type AuditTargetMode = "live-374f4f7e" | "isolated-restore";
+
+export type AuditFailureCode =
+  | "TARGET_VALIDATION_FAILED"
+  | "BACKUP_FILE_VERIFICATION_FAILED"
+  | "DNS_RESOLUTION_FAILED"
+  | "TCP_CONNECT_FAILED"
+  | "BOLT_AUTHENTICATION_FAILED"
+  | "BOLT_TLS_ERROR"
+  | "DATABASE_IDENTITY_MISMATCH"
+  | "BOLT_ROUTING_OR_PROTOCOL_FAILED"
+  | "CYPHER_READ_QUERY_FAILED";
+
+export interface ValidatedAuditTarget {
+  valid: boolean;
+  target_mode: AuditTargetMode;
+  uri: string | null;
+  scheme: string | null;
+  host: string | null;
+  port: number;
+  aura_instance_id: string | null;
+  expected_database: string | null;
+  username_configured: boolean;
+  password_configured: boolean;
+  validation_errors: string[];
+}
+
+export interface BackupVerificationReceipt {
+  verified: boolean;
+  backup_path: string;
+  file_exists: boolean;
+  format: "neo4j_backup" | "neo4j_dump" | "archive" | "unknown";
+  size_bytes: number | null;
+  actual_sha256: string | null;
+  expected_sha256: string | null;
+  checksum_matches: boolean | null;
+  error: string | null;
+}
+
+export interface LiveReadOnlyGraphAudit {
+  verification_status: "VERIFIED_LIVE_READ" | "VERIFIED_ISOLATED_RESTORE_READ";
+  verified_server_database_name: string;
+  dbms_components: Array<Record<string, unknown>>;
+  total_nodes: number;
+  total_relationships: number;
+  counts_by_label: Record<string, number>;
+  counts_by_relationship_type: Record<string, number>;
+  counts_by_migration_batch_id: Record<string, number>;
+  b01_release_nodes_count: number;
+  b01_knowledge_work_th_rd_nodes_count: number;
+  legacy_seed_tax_ruling_nodes_count: number;
+  lrm_chunk_nodes_count: number;
+  orphan_nodes_count: number;
+}
+
+export interface DynamicFailureReport {
+  verification_status: AuditFailureCode;
+  failure_stage:
+    | "target_validation"
+    | "backup_checksum_verification"
+    | "dns_resolution"
+    | "tcp_reachability"
+    | "bolt_handshake_or_auth"
+    | "database_identity_check"
+    | "cypher_read_query";
+  observed_error_code: string | null;
+  observed_sanitized_message: string;
+  diagnostic_summary: string;
+}
+
+const FORBIDDEN_WRITE_OR_ADMIN_CYPHER =
+  /\b(CREATE|MERGE|SET|DELETE|DETACH|REMOVE|DROP|ALTER|RENAME|FOREACH|LOAD\s+CSV|GRANT|DENY|REVOKE|START\s+DATABASE|STOP\s+DATABASE|CREATE\s+DATABASE|CREATE\s+USER|ALTER\s+USER|DROP\s+USER|apoc\.|dbms\.security|dbms\.cluster|gds\.)\b/i;
+
+const ALLOWED_CALL_PROCEDURES =
+  /^\s*CALL\s+(?:db\.info\(\)|dbms\.components\(\)|db\.labels\(\)|db\.relationshipTypes\(\))(?:\s|$)/i;
+
+export function assertStrictlyReadOnlyCypher(cypher: string): void {
+  const trimmed = cypher.trim();
+  if (!trimmed) {
+    throw new Error("READ_ONLY_FIREWALL_BLOCKED: Empty Cypher query is not allowed.");
   }
+  const withoutTrailingSemicolon = trimmed.replace(/;\s*$/, "");
+  if (withoutTrailingSemicolon.includes(";")) {
+    throw new Error(
+      `READ_ONLY_FIREWALL_BLOCKED: Multi-statement Cypher is forbidden: ${trimmed}`
+    );
+  }
+  if (FORBIDDEN_WRITE_OR_ADMIN_CYPHER.test(trimmed)) {
+    throw new Error(
+      `READ_ONLY_FIREWALL_BLOCKED: Refusing non-read or administrative Cypher statement: ${trimmed}`
+    );
+  }
+  if (/\bCALL\b/i.test(trimmed) && !ALLOWED_CALL_PROCEDURES.test(trimmed)) {
+    throw new Error(
+      `READ_ONLY_FIREWALL_BLOCKED: Procedure call outside read-only allowlist (db.info, dbms.components, db.labels, db.relationshipTypes): ${trimmed}`
+    );
+  }
+}
+
+export function validateAuditTarget(input: {
+  targetMode: AuditTargetMode;
+  uri: string;
+  username: string;
+  password: string;
+  database: string;
+}): ValidatedAuditTarget {
+  const errors: string[] = [];
+  const rawUri = (input.uri || "").trim();
+  const username = (input.username || "").trim();
+  const password = (input.password || "").trim();
+  const database = (input.database || "").trim();
+
+  if (!rawUri) {
+    errors.push(
+      input.targetMode === "live-374f4f7e"
+        ? "Missing NEO4J_URI (or --bolt-uri). Target validator refuses to substitute a default hostname."
+        : "Missing --bolt-uri for isolated-restore verification."
+    );
+  }
+  if (!username) {
+    errors.push("Missing Neo4j username (NEO4J_USERNAME or --username).");
+  }
+  if (!password) {
+    errors.push("Missing Neo4j password (NEO4J_PASSWORD or --password).");
+  }
+  if (!database) {
+    errors.push("Missing Neo4j database name (NEO4J_DATABASE or --database).");
+  }
+
+  let scheme: string | null = null;
+  let host: string | null = null;
+  let port = 7687;
+  let auraInstanceId: string | null = null;
+
+  if (rawUri) {
+    const schemeMatch = rawUri.match(/^([a-zA-Z0-9+.-]+):\/\//);
+    if (!schemeMatch) {
+      errors.push(`Invalid Neo4j URI (missing scheme): ${sanitizeGraphError(rawUri)}`);
+    } else {
+      scheme = schemeMatch[1].toLowerCase();
+      const allowedSchemes =
+        input.targetMode === "live-374f4f7e"
+          ? ["neo4j+s", "bolt+s"]
+          : ["bolt", "neo4j", "bolt+s", "neo4j+s", "bolt+ssc", "neo4j+ssc"];
+      if (!allowedSchemes.includes(scheme)) {
+        errors.push(
+          `Disallowed URI scheme '${scheme}' for mode '${input.targetMode}'. Allowed: ${allowedSchemes.join(", ")}.`
+        );
+      }
+      try {
+        const normalizedHttp = rawUri.replace(/^[a-zA-Z0-9+.-]+:\/\//, "https://");
+        const parsed = new URL(normalizedHttp);
+        host = parsed.hostname.toLowerCase();
+        port = parsed.port ? Number(parsed.port) : 7687;
+      } catch (err) {
+        errors.push(`Malformed Neo4j URI: ${sanitizeGraphError(err)}`);
+      }
+    }
+  }
+
+  if (host) {
+    const auraMatch = host.match(/^([a-z0-9-]+)\.databases\.neo4j\.io$/i);
+    auraInstanceId = auraMatch ? auraMatch[1].toLowerCase() : null;
+
+    if (input.targetMode === "live-374f4f7e") {
+      if (host !== EXPECTED_AURA_HOST || auraInstanceId !== EXPECTED_AURA_INSTANCE_ID) {
+        errors.push(
+          `Target host '${host}' (instance='${auraInstanceId ?? "non-aura"}') does NOT match authorized Aura instance '${EXPECTED_AURA_INSTANCE_ID}' ('${EXPECTED_AURA_HOST}').`
+        );
+      }
+      if (database && database !== EXPECTED_AURA_INSTANCE_ID) {
+        errors.push(
+          `Configured database '${database}' does NOT match authorized Aura database '${EXPECTED_AURA_INSTANCE_ID}'.`
+        );
+      }
+    } else {
+      // isolated-restore mode: MUST be loopback and MUST NEVER point to *.databases.neo4j.io
+      const loopbackHosts = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+      if (host.endsWith(".databases.neo4j.io") || auraInstanceId !== null) {
+        errors.push(
+          `Refusing live Aura host '${host}' in 'isolated-restore' mode. Isolated restore verification must target a local loopback container/DBMS.`
+        );
+      } else if (!loopbackHosts.has(host)) {
+        errors.push(
+          `Non-loopback host '${host}' rejected in 'isolated-restore' mode. Allowed hosts: 127.0.0.1, localhost, ::1.`
+        );
+      }
+    }
+  }
+
+  return {
+    valid: errors.length === 0,
+    target_mode: input.targetMode,
+    uri: rawUri || null,
+    scheme,
+    host,
+    port,
+    aura_instance_id: auraInstanceId,
+    expected_database: database || null,
+    username_configured: Boolean(username),
+    password_configured: Boolean(password),
+    validation_errors: errors,
+  };
+}
+
+export function verifyBackupFileChecksum(
+  backupFilePath: string,
+  expectedSha256?: string | null
+): BackupVerificationReceipt {
+  const resolved = path.resolve(backupFilePath);
+  if (!fs.existsSync(resolved)) {
+    return {
+      verified: false,
+      backup_path: resolved,
+      file_exists: false,
+      format: "unknown",
+      size_bytes: null,
+      actual_sha256: null,
+      expected_sha256: expectedSha256 ? expectedSha256.toLowerCase() : null,
+      checksum_matches: null,
+      error: `Backup file does not exist at path: ${resolved}`,
+    };
+  }
+
+  const stat = fs.statSync(resolved);
+  if (!stat.isFile() || stat.size === 0) {
+    return {
+      verified: false,
+      backup_path: resolved,
+      file_exists: stat.isFile(),
+      format: "unknown",
+      size_bytes: stat.size,
+      actual_sha256: null,
+      expected_sha256: expectedSha256 ? expectedSha256.toLowerCase() : null,
+      checksum_matches: null,
+      error: `Backup artifact at ${resolved} is empty or not a regular file (size=${stat.size}).`,
+    };
+  }
+
+  const ext = path.extname(resolved).toLowerCase();
+  const format: BackupVerificationReceipt["format"] =
+    ext === ".backup"
+      ? "neo4j_backup"
+      : ext === ".dump"
+        ? "neo4j_dump"
+        : ext === ".tar" || ext === ".gz" || ext === ".tgz"
+          ? "archive"
+          : "unknown";
+
+  const hash = crypto.createHash("sha256");
+  const fd = fs.openSync(resolved, "r");
+  try {
+    const buf = Buffer.alloc(64 * 1024);
+    let bytesRead = 0;
+    while ((bytesRead = fs.readSync(fd, buf, 0, buf.length, null)) > 0) {
+      hash.update(buf.subarray(0, bytesRead));
+    }
+  } finally {
+    fs.closeSync(fd);
+  }
+  const actualSha = hash.digest("hex");
+  const normalizedExpected = expectedSha256 ? expectedSha256.trim().toLowerCase() : null;
+  const matches = normalizedExpected ? actualSha === normalizedExpected : null;
+
+  return {
+    verified: matches !== false,
+    backup_path: resolved,
+    file_exists: true,
+    format,
+    size_bytes: stat.size,
+    actual_sha256: actualSha,
+    expected_sha256: normalizedExpected,
+    checksum_matches: matches,
+    error:
+      matches === false
+        ? `Backup SHA-256 mismatch: expected ${normalizedExpected}, got ${actualSha}`
+        : null,
+  };
+}
+
+export async function runReadOnlyGraphAuditWithDriver(
+  driver: Driver,
+  expectedDatabase: string,
+  targetMode: AuditTargetMode
+): Promise<LiveReadOnlyGraphAudit> {
+  const runRead = async <T extends Record<string, unknown>>(
+    cypher: string
+  ): Promise<{ rows: T[]; summaryDatabaseName: string | null }> => {
+    assertStrictlyReadOnlyCypher(cypher);
+    const session = driver.session({
+      database: expectedDatabase,
+      defaultAccessMode: neo4j.session.READ,
+    });
+    try {
+      const res = await session.executeRead((tx) => tx.run(cypher));
+      const rows = res.records.map((r) => {
+        const obj: Record<string, unknown> = {};
+        for (const k of r.keys) {
+          const val = r.get(k);
+          obj[String(k)] = neo4j.isInt(val) ? val.toNumber() : val;
+        }
+        return obj as T;
+      });
+      const summaryDbName =
+        res.summary && res.summary.database && typeof res.summary.database.name === "string"
+          ? res.summary.database.name
+          : null;
+      return { rows, summaryDatabaseName: summaryDbName };
+    } finally {
+      await session.close();
+    }
+  };
+
+  // 1. Strictly verify server-reported database identity first
+  const dbInfoRes = await runRead<{ name: string }>("CALL db.info() YIELD name RETURN name");
+  const reportedDbName =
+    dbInfoRes.rows[0]?.name || dbInfoRes.summaryDatabaseName || "";
+  if (!reportedDbName || reportedDbName !== expectedDatabase) {
+    const mismatchErr = new Error(
+      `DATABASE_IDENTITY_MISMATCH: Expected database '${expectedDatabase}', server reported '${reportedDbName || "empty"}'.`
+    );
+    (mismatchErr as Error & { code?: string }).code = "DATABASE_IDENTITY_MISMATCH";
+    throw mismatchErr;
+  }
+
+  // 2. Read-only DBMS component & graph inventory queries
+  const dbmsComponentsRes = await runRead(
+    "CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition"
+  );
+  const totNodesRes = await runRead<{ cnt: number }>("MATCH (n) RETURN count(n) AS cnt");
+  const totRelsRes = await runRead<{ cnt: number }>("MATCH ()-[r]->() RETURN count(r) AS cnt");
+  const labelRes = await runRead<{ label: string; cnt: number }>(
+    "MATCH (n) UNWIND labels(n) AS label RETURN label, count(n) AS cnt ORDER BY cnt DESC"
+  );
+  const relTypeRes = await runRead<{ relType: string; cnt: number }>(
+    "MATCH ()-[r]->() RETURN type(r) AS relType, count(r) AS cnt ORDER BY cnt DESC"
+  );
+  const batchRes = await runRead<{ batchId: string; cnt: number }>(
+    "MATCH (n) RETURN coalesce(n.migration_batch_id, n.release_id, 'UNSET') AS batchId, count(n) AS cnt ORDER BY cnt DESC"
+  );
+  const b01RelNodesRes = await runRead<{ cnt: number }>(
+    "MATCH (n) WHERE n.release_id STARTS WITH 'rel.B01' OR n.canonical_id STARTS WITH 'asrt.' OR n.canonical_id STARTS WITH 'psg.' RETURN count(n) AS cnt"
+  );
+  const b01WorkNodesRes = await runRead<{ cnt: number }>(
+    "MATCH (n) WHERE n.canonical_id STARTS WITH 'work.th.rd.' OR n.work_id STARTS WITH 'work.th.rd.' RETURN count(n) AS cnt"
+  );
+  const seedTaxRulingsRes = await runRead<{ cnt: number }>(
+    "MATCH (n:TaxRuling) RETURN count(n) AS cnt"
+  );
+  const lrmChunksRes = await runRead<{ cnt: number }>(
+    "MATCH (n) WHERE n.canonical_id STARTS WITH 'inst.lrm.' OR n.migration_batch_id STARTS WITH 'mig.lrm.chunks.' RETURN count(n) AS cnt"
+  );
+  const orphanRes = await runRead<{ cnt: number }>(
+    "MATCH (n) WHERE NOT (n)--() RETURN count(n) AS cnt"
+  );
+
+  const byLabel: Record<string, number> = {};
+  for (const r of labelRes.rows) byLabel[r.label] = r.cnt;
+  const byRel: Record<string, number> = {};
+  for (const r of relTypeRes.rows) byRel[r.relType] = r.cnt;
+  const byBatch: Record<string, number> = {};
+  for (const r of batchRes.rows) byBatch[r.batchId] = r.cnt;
+
+  return {
+    verification_status:
+      targetMode === "isolated-restore"
+        ? "VERIFIED_ISOLATED_RESTORE_READ"
+        : "VERIFIED_LIVE_READ",
+    verified_server_database_name: reportedDbName,
+    dbms_components: dbmsComponentsRes.rows,
+    total_nodes: totNodesRes.rows[0]?.cnt ?? 0,
+    total_relationships: totRelsRes.rows[0]?.cnt ?? 0,
+    counts_by_label: byLabel,
+    counts_by_relationship_type: byRel,
+    counts_by_migration_batch_id: byBatch,
+    b01_release_nodes_count: b01RelNodesRes.rows[0]?.cnt ?? 0,
+    b01_knowledge_work_th_rd_nodes_count: b01WorkNodesRes.rows[0]?.cnt ?? 0,
+    legacy_seed_tax_ruling_nodes_count: seedTaxRulingsRes.rows[0]?.cnt ?? 0,
+    lrm_chunk_nodes_count: lrmChunksRes.rows[0]?.cnt ?? 0,
+    orphan_nodes_count: orphanRes.rows[0]?.cnt ?? 0,
+  };
+}
+
+export function classifyAuditFailure(params: {
+  targetValidation: ValidatedAuditTarget;
+  backupVerification?: BackupVerificationReceipt | null;
+  dnsResolvedAny: boolean;
+  dnsErrors: string[];
+  tcpBolt: { reachable: boolean; error: string | null } | null;
+  boltError: unknown;
+}): DynamicFailureReport {
+  if (!params.targetValidation.valid) {
+    const joined = params.targetValidation.validation_errors.join(" | ");
+    return {
+      verification_status: "TARGET_VALIDATION_FAILED",
+      failure_stage: "target_validation",
+      observed_error_code: "TARGET_VALIDATION_FAILED",
+      observed_sanitized_message: sanitizeGraphError(joined),
+      diagnostic_summary: `Audit aborted before network connection because target validation failed: ${sanitizeGraphError(joined)}`,
+    };
+  }
+
+  if (params.backupVerification && !params.backupVerification.verified) {
+    const msg = params.backupVerification.error || "Backup verification failed.";
+    return {
+      verification_status: "BACKUP_FILE_VERIFICATION_FAILED",
+      failure_stage: "backup_checksum_verification",
+      observed_error_code: "BACKUP_FILE_VERIFICATION_FAILED",
+      observed_sanitized_message: sanitizeGraphError(msg),
+      diagnostic_summary: `Audit aborted because backup file verification failed: ${sanitizeGraphError(msg)}`,
+    };
+  }
+
+  const rawBoltMsg =
+    params.boltError instanceof Error
+      ? params.boltError.message
+      : params.boltError
+        ? String(params.boltError)
+        : "";
+  const boltCode =
+    params.boltError &&
+    typeof params.boltError === "object" &&
+    "code" in params.boltError &&
+    typeof (params.boltError as { code?: unknown }).code === "string"
+      ? ((params.boltError as { code: string }).code)
+      : null;
+  const sanitizedBolt = sanitizeGraphError(rawBoltMsg);
+
+  if (
+    boltCode === "DATABASE_IDENTITY_MISMATCH" ||
+    rawBoltMsg.includes("DATABASE_IDENTITY_MISMATCH")
+  ) {
+    return {
+      verification_status: "DATABASE_IDENTITY_MISMATCH",
+      failure_stage: "database_identity_check",
+      observed_error_code: boltCode || "DATABASE_IDENTITY_MISMATCH",
+      observed_sanitized_message: sanitizedBolt,
+      diagnostic_summary: `Connected over Bolt, but server database identity check failed: ${sanitizedBolt}`,
+    };
+  }
+
+  if (!params.dnsResolvedAny && params.dnsErrors.length > 0) {
+    const dnsSummary = params.dnsErrors.join("; ");
+    return {
+      verification_status: "DNS_RESOLUTION_FAILED",
+      failure_stage: "dns_resolution",
+      observed_error_code: dnsSummary.includes("ENOTFOUND") ? "ENOTFOUND" : "DNS_ERROR",
+      observed_sanitized_message: sanitizeGraphError(dnsSummary),
+      diagnostic_summary: `DNS lookup for '${params.targetValidation.host}' failed (${sanitizeGraphError(dnsSummary)}). Live graph contents could not be queried from this host.`,
+    };
+  }
+
+  if (params.tcpBolt && !params.tcpBolt.reachable) {
+    const tcpErr = sanitizeGraphError(params.tcpBolt.error || "TCP connection failed");
+    return {
+      verification_status: "TCP_CONNECT_FAILED",
+      failure_stage: "tcp_reachability",
+      observed_error_code: tcpErr,
+      observed_sanitized_message: tcpErr,
+      diagnostic_summary: `DNS resolved '${params.targetValidation.host}', but TCP connection to port ${params.targetValidation.port} failed with '${tcpErr}'.${sanitizedBolt ? ` Bolt error: ${sanitizedBolt}` : ""}`,
+    };
+  }
+
+  if (
+    /Unauthorized|authentication\s+failure|Neo\.ClientError\.Security\.Unauthorized|credentials/i.test(
+       `${boltCode || ""} ${rawBoltMsg}`
+    )
+  ) {
+    return {
+      verification_status: "BOLT_AUTHENTICATION_FAILED",
+      failure_stage: "bolt_handshake_or_auth",
+      observed_error_code: boltCode || "Neo.ClientError.Security.Unauthorized",
+      observed_sanitized_message: sanitizedBolt,
+      diagnostic_summary: `TCP port ${params.targetValidation.port} accepted connection, but Neo4j rejected credentials: ${sanitizedBolt}`,
+    };
+  }
+
+  if (/TLS|SSL|certificate|CERT_|ERR_TLS/i.test(`${boltCode || ""} ${rawBoltMsg}`)) {
+    return {
+      verification_status: "BOLT_TLS_ERROR",
+      failure_stage: "bolt_handshake_or_auth",
+      observed_error_code: boltCode || "TLS_HANDSHAKE_ERROR",
+      observed_sanitized_message: sanitizedBolt,
+      diagnostic_summary: `TLS/certificate negotiation with '${params.targetValidation.host}:${params.targetValidation.port}' failed: ${sanitizedBolt}`,
+    };
+  }
+
+  if (
+    /ServiceUnavailable|SessionExpired|Could not perform discovery|routing/i.test(
+      `${boltCode || ""} ${rawBoltMsg}`
+    )
+  ) {
+    return {
+      verification_status: "BOLT_ROUTING_OR_PROTOCOL_FAILED",
+      failure_stage: "bolt_handshake_or_auth",
+      observed_error_code: boltCode || "ServiceUnavailable",
+      observed_sanitized_message: sanitizedBolt,
+      diagnostic_summary: `Bolt routing/protocol handshake with '${params.targetValidation.host}:${params.targetValidation.port}' failed: ${sanitizedBolt}`,
+    };
+  }
+
+  return {
+    verification_status: "CYPHER_READ_QUERY_FAILED",
+    failure_stage: "cypher_read_query",
+    observed_error_code: boltCode || "CYPHER_READ_ERROR",
+    observed_sanitized_message: sanitizedBolt || "Unknown Bolt/Cypher read failure",
+    diagnostic_summary: `Read-only Cypher audit failed with error: ${sanitizedBolt || "Unknown Bolt/Cypher read failure"}`,
+  };
 }
 
 function loadDotEnvLocalReadOnly(): Record<string, string> {
@@ -40,7 +557,11 @@ function loadDotEnvLocalReadOnly(): Record<string, string> {
   return out;
 }
 
-async function probeTcpPort(host: string, port: number, timeoutMs = 4000): Promise<{ reachable: boolean; error: string | null }> {
+async function probeTcpPort(
+  host: string,
+  port: number,
+  timeoutMs = 4000
+): Promise<{ reachable: boolean; error: string | null }> {
   return new Promise((resolve) => {
     const socket = new net.Socket();
     let settled = false;
@@ -58,12 +579,46 @@ async function probeTcpPort(host: string, port: number, timeoutMs = 4000): Promi
   });
 }
 
-async function main(): Promise<void> {
+function getCliArg(argv: string[], flag: string): string | undefined {
+  const idx = argv.indexOf(flag);
+  if (idx >= 0 && argv[idx + 1] && !argv[idx + 1].startsWith("--")) {
+    return argv[idx + 1];
+  }
+  return undefined;
+}
+
+export async function runCliAudit(argv = process.argv.slice(2)): Promise<Record<string, unknown>> {
   const fileEnv = loadDotEnvLocalReadOnly();
-  const uri = (process.env.NEO4J_URI || fileEnv.NEO4J_URI || "").trim();
-  const username = (process.env.NEO4J_USERNAME || fileEnv.NEO4J_USERNAME || "").trim();
-  const password = (process.env.NEO4J_PASSWORD || fileEnv.NEO4J_PASSWORD || "").trim();
-  const database = (process.env.NEO4J_DATABASE || fileEnv.NEO4J_DATABASE || "neo4j").trim();
+  const modeArg = (getCliArg(argv, "--target-mode") || "live-374f4f7e").trim() as AuditTargetMode;
+  const targetMode: AuditTargetMode =
+    modeArg === "isolated-restore" ? "isolated-restore" : "live-374f4f7e";
+
+  const uri =
+    targetMode === "isolated-restore"
+      ? (getCliArg(argv, "--bolt-uri") || "").trim()
+      : (getCliArg(argv, "--bolt-uri") || process.env.NEO4J_URI || fileEnv.NEO4J_URI || "").trim();
+  const username = (
+    getCliArg(argv, "--username") ||
+    process.env.NEO4J_USERNAME ||
+    fileEnv.NEO4J_USERNAME ||
+    ""
+  ).trim();
+  const password = (
+    getCliArg(argv, "--password") ||
+    process.env.NEO4J_PASSWORD ||
+    fileEnv.NEO4J_PASSWORD ||
+    ""
+  ).trim();
+  const database = (
+    getCliArg(argv, "--database") ||
+    process.env.NEO4J_DATABASE ||
+    fileEnv.NEO4J_DATABASE ||
+    ""
+  ).trim();
+
+  const backupFileArg = getCliArg(argv, "--backup-file");
+  const expectedShaArg = getCliArg(argv, "--expected-sha256");
+
   const hasAuraCloudApiCreds = Boolean(
     process.env.AURA_CLI_CLIENT_ID ||
       process.env.NEO4J_AURA_CLIENT_ID ||
@@ -71,190 +626,128 @@ async function main(): Promise<void> {
       fileEnv.NEO4J_AURA_CLIENT_ID
   );
 
-  const parsedUrl = uri ? new URL(uri.replace(/^neo4j(\+s|\+ssc)?:\/\//i, "https://")) : null;
-  const host = parsedUrl?.hostname || "374f4f7e.databases.neo4j.io";
-  const instanceIdMatch = host.match(/^([a-z0-9]+)\.databases\.neo4j\.io$/i);
-  const instanceId = instanceIdMatch ? instanceIdMatch[1] : "unknown";
+  const targetValidation = validateAuditTarget({
+    targetMode,
+    uri,
+    username,
+    password,
+    database,
+  });
 
-  // 1. DNS Probes (`A`, `AAAA`, `_neo4j._tcp` SRV)
+  const backupVerification = backupFileArg
+    ? verifyBackupFileChecksum(backupFileArg, expectedShaArg)
+    : null;
+
   const dnsResults: Record<string, { resolved: boolean; records: unknown; error: string | null }> = {};
-  for (const rrtype of ["A", "AAAA"] as const) {
-    try {
-      const recs = rrtype === "A" ? await dns.resolve4(host) : await dns.resolve6(host);
-      dnsResults[rrtype] = { resolved: true, records: recs, error: null };
-    } catch (err: unknown) {
-      dnsResults[rrtype] = {
-        resolved: false,
-        records: [],
-        error: err instanceof Error ? err.message : String(err),
-      };
-    }
-  }
-  try {
-    const srv = await dns.resolveSrv(`_neo4j._tcp.${host}`);
-    dnsResults.SRV = { resolved: true, records: srv, error: null };
-  } catch (err: unknown) {
-    dnsResults.SRV = {
-      resolved: false,
-      records: [],
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-
-  // 2. TCP Probes (`:7687` Bolt+TLS, `:443` HTTPS)
-  const tcp7687 = await probeTcpPort(host, 7687);
-  const tcp443 = await probeTcpPort(host, 443);
-
-  // 3. Bolt Strictly Read-Only Inspection (if host resolves & accepts connections)
+  const dnsErrors: string[] = [];
+  let dnsResolvedAny = false;
+  let tcpBolt: { reachable: boolean; error: string | null } | null = null;
+  let tcp443: { reachable: boolean; error: string | null } | null = null;
   let boltConnected = false;
-  let boltError: string | null = null;
-  let liveGraphAudit: {
-    verification_status: "VERIFIED_LIVE_READ";
-    dbms_components: Array<Record<string, unknown>>;
-    total_nodes: number;
-    total_relationships: number;
-    counts_by_label: Record<string, number>;
-    counts_by_relationship_type: Record<string, number>;
-    counts_by_migration_batch_id: Record<string, number>;
-    b01_release_nodes_count: number;
-    b01_knowledge_work_th_rd_nodes_count: number;
-    legacy_seed_tax_ruling_nodes_count: number;
-    lrm_chunk_nodes_count: number;
-    orphan_nodes_count: number;
-  } | null = null;
+  let boltCaughtError: unknown = null;
+  let liveGraphAudit: LiveReadOnlyGraphAudit | null = null;
 
-  if (uri && username && password) {
-    const driver = neo4j.driver(uri, neo4j.auth.basic(username, password), {
-      connectionTimeout: 6000,
-      maxTransactionRetryTime: 0,
-    });
-    try {
-      const runRead = async <T extends Record<string, unknown>>(cypher: string): Promise<T[]> => {
-        assertReadOnlyCypher(cypher);
-        const session = driver.session({
-          database,
-          defaultAccessMode: neo4j.session.READ,
-        });
+  if (
+    targetValidation.valid &&
+    targetValidation.host &&
+    (!backupVerification || backupVerification.verified)
+  ) {
+    const host = targetValidation.host;
+    if (net.isIP(host.replace(/^\[|\]$/g, "")) !== 0 || host === "localhost") {
+      dnsResolvedAny = true;
+      dnsResults.LOOPBACK = { resolved: true, records: [host], error: null };
+    } else {
+      for (const rrtype of ["A", "AAAA"] as const) {
         try {
-          const res = await session.executeRead((tx) => tx.run(cypher));
-          return res.records.map((r) => {
-            const obj: Record<string, unknown> = {};
-            for (const k of r.keys) {
-              const val = r.get(k);
-              obj[String(k)] = neo4j.isInt(val) ? val.toNumber() : val;
-            }
-            return obj as T;
-          });
-        } finally {
-          await session.close();
+          const recs = rrtype === "A" ? await dns.resolve4(host) : await dns.resolve6(host);
+          dnsResults[rrtype] = { resolved: true, records: recs, error: null };
+          if (recs.length > 0) dnsResolvedAny = true;
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          dnsResults[rrtype] = { resolved: false, records: [], error: msg };
+          dnsErrors.push(`${rrtype}: ${msg}`);
         }
-      };
+      }
+      try {
+        const srv = await dns.resolveSrv(`_neo4j._tcp.${host}`);
+        dnsResults.SRV = { resolved: true, records: srv, error: null };
+        if (srv.length > 0) dnsResolvedAny = true;
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        dnsResults.SRV = { resolved: false, records: [], error: msg };
+        dnsErrors.push(`SRV: ${msg}`);
+      }
+    }
 
-      const dbmsComponents = await runRead("CALL dbms.components() YIELD name, versions, edition RETURN name, versions, edition");
-      boltConnected = true;
+    if (dnsResolvedAny) {
+      const cleanHost = host.replace(/^\[|\]$/g, "");
+      tcpBolt = await probeTcpPort(cleanHost, targetValidation.port);
+      if (targetMode === "live-374f4f7e") {
+        tcp443 = await probeTcpPort(cleanHost, 443);
+      }
+    }
 
-      const totNodesRows = await runRead<{ cnt: number }>("MATCH (n) RETURN count(n) AS cnt");
-      const totRelsRows = await runRead<{ cnt: number }>("MATCH ()-[r]->() RETURN count(r) AS cnt");
-      const labelRows = await runRead<{ label: string; cnt: number }>(
-        "MATCH (n) UNWIND labels(n) AS label RETURN label, count(n) AS cnt ORDER BY cnt DESC"
-      );
-      const relTypeRows = await runRead<{ relType: string; cnt: number }>(
-        "MATCH ()-[r]->() RETURN type(r) AS relType, count(r) AS cnt ORDER BY cnt DESC"
-      );
-      const batchRows = await runRead<{ batchId: string; cnt: number }>(
-        "MATCH (n) RETURN coalesce(n.migration_batch_id, n.release_id, 'UNSET') AS batchId, count(n) AS cnt ORDER BY cnt DESC"
-      );
-      const b01RelNodes = await runRead<{ cnt: number }>(
-        "MATCH (n) WHERE n.release_id STARTS WITH 'rel.B01' OR n.canonical_id STARTS WITH 'asrt.' OR n.canonical_id STARTS WITH 'psg.' RETURN count(n) AS cnt"
-      );
-      const b01WorkNodes = await runRead<{ cnt: number }>(
-        "MATCH (n) WHERE n.canonical_id STARTS WITH 'work.th.rd.' OR n.work_id STARTS WITH 'work.th.rd.' RETURN count(n) AS cnt"
-      );
-      const seedTaxRulings = await runRead<{ cnt: number }>(
-        "MATCH (n:TaxRuling) RETURN count(n) AS cnt"
-      );
-      const lrmChunks = await runRead<{ cnt: number }>(
-        "MATCH (n) WHERE n.canonical_id STARTS WITH 'inst.lrm.' OR n.migration_batch_id STARTS WITH 'mig.lrm.chunks.' RETURN count(n) AS cnt"
-      );
-      const orphanRows = await runRead<{ cnt: number }>(
-        "MATCH (n) WHERE NOT (n)--() RETURN count(n) AS cnt"
-      );
-
-      const byLabel: Record<string, number> = {};
-      for (const r of labelRows) byLabel[r.label] = r.cnt;
-      const byRel: Record<string, number> = {};
-      for (const r of relTypeRows) byRel[r.relType] = r.cnt;
-      const byBatch: Record<string, number> = {};
-      for (const r of batchRows) byBatch[r.batchId] = r.cnt;
-
-      liveGraphAudit = {
-        verification_status: "VERIFIED_LIVE_READ",
-        dbms_components: dbmsComponents,
-        total_nodes: totNodesRows[0]?.cnt ?? 0,
-        total_relationships: totRelsRows[0]?.cnt ?? 0,
-        counts_by_label: byLabel,
-        counts_by_relationship_type: byRel,
-        counts_by_migration_batch_id: byBatch,
-        b01_release_nodes_count: b01RelNodes[0]?.cnt ?? 0,
-        b01_knowledge_work_th_rd_nodes_count: b01WorkNodes[0]?.cnt ?? 0,
-        legacy_seed_tax_ruling_nodes_count: seedTaxRulings[0]?.cnt ?? 0,
-        lrm_chunk_nodes_count: lrmChunks[0]?.cnt ?? 0,
-        orphan_nodes_count: orphanRows[0]?.cnt ?? 0,
-      };
-    } catch (err: unknown) {
-      boltConnected = false;
-      boltError = err instanceof Error ? err.message : String(err);
-    } finally {
-      await driver.close();
+    if (dnsResolvedAny && tcpBolt?.reachable) {
+      const driver = neo4j.driver(uri, neo4j.auth.basic(username, password), {
+        connectionTimeout: 6000,
+        maxTransactionRetryTime: 0,
+      });
+      try {
+        liveGraphAudit = await runReadOnlyGraphAuditWithDriver(driver, database, targetMode);
+        boltConnected = true;
+      } catch (err: unknown) {
+        boltConnected = false;
+        boltCaughtError = err;
+      } finally {
+        await driver.close();
+      }
     }
   }
 
-  const report = {
+  const failureReport = liveGraphAudit
+    ? null
+    : classifyAuditFailure({
+        targetValidation,
+        backupVerification,
+        dnsResolvedAny,
+        dnsErrors,
+        tcpBolt,
+        boltError: boltCaughtError,
+      });
+
+  const report: Record<string, unknown> = {
     verified_at: new Date().toISOString(),
     mode: "STRICT_READ_ONLY_NO_MUTATION",
-    target_identity: {
-      aura_instance_id: instanceId,
-      bolt_uri_redacted: uri ? `neo4j+s://${host}` : null,
-      database_name: database,
-      username_configured: Boolean(username),
-      password_configured: Boolean(password),
+    target_validation: {
+      valid: targetValidation.valid,
+      target_mode: targetValidation.target_mode,
+      expected_aura_instance_id:
+        targetMode === "live-374f4f7e" ? EXPECTED_AURA_INSTANCE_ID : null,
+      observed_aura_instance_id: targetValidation.aura_instance_id,
+      bolt_uri_redacted:
+        targetValidation.scheme && targetValidation.host
+          ? `${targetValidation.scheme}://${targetValidation.host}:${targetValidation.port}`
+          : null,
+      expected_database_name: targetValidation.expected_database,
+      username_configured: targetValidation.username_configured,
+      password_configured: targetValidation.password_configured,
       aura_cloud_management_api_credentials_present: hasAuraCloudApiCreds,
+      validation_errors: targetValidation.validation_errors,
     },
+    backup_verification: backupVerification,
     connectivity_probes: {
       dns: dnsResults,
-      tcp_7687_bolt_tls: tcp7687,
+      tcp_bolt_port: tcpBolt,
       tcp_443_https: tcp443,
       bolt_read_session_connected: boltConnected,
-      bolt_sanitized_error: boltError,
+      bolt_sanitized_error: boltCaughtError ? sanitizeGraphError(boltCaughtError) : null,
     },
-    live_database_content_verification: liveGraphAudit ?? {
-      verification_status: "UNVERIFIED_WHILE_PAUSED_OR_OFFLINE",
-      reason:
-        "Host 374f4f7e.databases.neo4j.io returns DNS ENOTFOUND (NXDOMAIN), which is the standard network signature of a paused (or expired) Neo4j AuraDB Free instance. Per Owner governance guardrail, the instance was NOT resumed and no Aura Cloud Console API credentials exist in the workspace; therefore live database contents cannot be queried until Owner inspects the Neo4j Aura Console.",
-      historical_repository_write_audit: {
-        oct_20_2026_commit_8fd220b_dd91850:
-          "src/core/graph/graph-migrator.ts (`runGraphMigration`) upserted 352 canonical seed nodes and 523 relationships (including 10 seed `:TaxRuling` nodes from `reg24-core.ts`).",
-        oct_21_2026_commit_802fdb6_2f06b30:
-          "src/core/ingestion/legal-chunk-neo4j-sync.ts (`syncLegalResourceMasterChunksToNeo4j`) upserted 17 `:Regulator` (`reg.th.lrm.*`), 2,312 `:LegalInstrument` (`inst.lrm.*`), and structural `:Provision` chunks — recording 9,242 live nodes and 9,096 live relationships in AGR-005 (`src/core/agentic-rag/agentic-legal-research-engine.ts:11, 1037-1038`).",
-        nov_14_2026_commit_bbdca54_to_7df41c4:
-          "All 10-batch knowledge store modules (`src/core/knowledge/*`) contain zero `neo4jConnectionManager.executeCypher` write calls; `scripts/materialize-b01-candidate.ts:40` ran with `probeLiveNeo4j: false` (`F1_baseline_verification.json:17-21`), persisting `rel.B01.rc1` only to `data/knowledge-store/projections/rel.B01.rc1_graph.json.gz`. However, absence of Batch 01 data inside `374f4f7e` remains formally UNVERIFIED_UNTIL_LIVE_READ_INSPECTION.",
-      },
-      auradb_free_retention_risk_window: {
-        auto_pause_threshold_hours: 72,
-        permanent_deletion_after_paused_days: 30,
-        automated_backups_on_free_tier: false,
-        last_recorded_repo_neo4j_sync_commits: ["2026-10-21 (802fdb6)", "2026-10-25 (7b4447a)"],
-        estimated_auto_pause_window: "2026-10-24 .. 2026-10-28",
-        estimated_30_day_deletion_deadline_window: "2026-11-23 .. 2026-11-27",
-        recommended_owner_console_check:
-          "Log into https://console.neo4j.io (read-only UI check first) to verify whether instance `374f4f7e` is in `Paused` state and check its remaining retention days before ~23 November 2026.",
-      },
-    },
+    live_database_content_verification: liveGraphAudit ?? failureReport,
   };
 
-  const outIdx = process.argv.indexOf("--out");
-  if (outIdx >= 0 && process.argv[outIdx + 1]) {
-    const outPath = path.resolve(process.argv[outIdx + 1]);
+  const outPathArg = getCliArg(argv, "--out");
+  if (outPathArg) {
+    const outPath = path.resolve(outPathArg);
     fs.mkdirSync(path.dirname(outPath), { recursive: true });
     const json = JSON.stringify(report, null, 2);
     const receiptWithHash = {
@@ -263,12 +756,20 @@ async function main(): Promise<void> {
     };
     fs.writeFileSync(outPath, JSON.stringify(receiptWithHash, null, 2), "utf8");
     console.log(`Saved read-only Neo4j verification receipt -> ${outPath}`);
-  } else {
-    console.log(JSON.stringify(report, null, 2));
+    return receiptWithHash;
   }
+
+  console.log(JSON.stringify(report, null, 2));
+  return report;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+const isMainModule =
+  Boolean(process.argv[1]) &&
+  pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url;
+
+if (isMainModule) {
+  runCliAudit().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

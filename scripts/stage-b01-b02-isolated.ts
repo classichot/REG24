@@ -847,6 +847,9 @@ async function main(): Promise<void> {
     },
     candidate_rel_B01_rc2: {
       release_id: runB01.release_id,
+      scope_classification: evalB01.release_report.scope_classification,
+      scope_label: evalB01.release_report.scope_label,
+      review_gate_status: evalB01.release_report.review_gate_status,
       state: stFinal.releases["rel.B01.rc2"].state,
       owner_decision: stFinal.acceptances["rel.B01.rc2"].user_decision,
       code_commit: stFinal.releases["rel.B01.rc2"].code_commit,
@@ -878,6 +881,9 @@ async function main(): Promise<void> {
     },
     candidate_rel_B02_rc1: {
       release_id: runB02.release_id,
+      scope_classification: evalB02.release_report.scope_classification,
+      scope_label: evalB02.release_report.scope_label,
+      review_gate_status: evalB02.release_report.review_gate_status,
       state: stFinal.releases["rel.B02.rc1"].state,
       owner_decision: stFinal.acceptances["rel.B02.rc1"].user_decision,
       code_commit: stFinal.releases["rel.B02.rc1"].code_commit,

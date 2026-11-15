@@ -4,6 +4,7 @@ import {
   getGraphExpansionPrdSnapshot,
   verifyLiveProductionGraphAudit,
 } from "@/core/graph/graph-expansion-prd";
+import { isNeo4jPreservationWriteLockActive } from "@/core/graph/neo4j-client";
 import { runMigrationAndReconciliation } from "@/core/graph/graph-migrator";
 
 /**
@@ -33,10 +34,26 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "sync_and_audit_neo4j") {
-      if (actorRole !== "Platform Administrator") {
+      const explicitRoleHeader = req.headers.get("x-reg24-role") || "";
+      if (explicitRoleHeader !== "Platform Administrator") {
         return NextResponse.json(
-          { status: "forbidden", message: "Only Platform Administrator can run live Neo4j sync." },
+          {
+            status: "forbidden",
+            message:
+              "Explicit x-reg24-role: Platform Administrator header is required to run live Neo4j sync.",
+          },
           { status: 403 }
+        );
+      }
+      if (isNeo4jPreservationWriteLockActive()) {
+        return NextResponse.json(
+          {
+            status: "locked",
+            code: "NEO4J_PRESERVATION_LOCKOUT_423",
+            message:
+              "Neo4j write sync is blocked while NEO4J_PRESERVATION_READ_ONLY lock is active.",
+          },
+          { status: 423 }
         );
       }
       const migration = await runMigrationAndReconciliation({

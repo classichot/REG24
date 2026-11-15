@@ -1525,7 +1525,7 @@ export async function startBatchRun(
       if (deferredCount > 0) {
         coverageGaps.push(
           req.batch_id === "B02"
-            ? `${deferredCount} image-only historical Gazette scan / unmapped legacy font files in B02 are quarantined as DEFERRED_WITH_REASON pending verified OCR (0 synthetic statutory passages admitted).`
+            ? `LIMITED-SCOPE CANDIDATE (${admittedCands.length.toLocaleString()} / ${allManifestCands.length.toLocaleString()} physical files admitted): ${deferredCount.toLocaleString()} image-only historical Gazette scan / unmapped legacy font files in B02 are quarantined as DEFERRED_WITH_REASON pending verified OCR (0 synthetic statutory passages admitted; queries requiring deferred instruments abstain or surface explicit coverage warnings).`
             : `${deferredCount} external Google Drive RD parent-pool files are not mounted locally in repository storage and are explicitly tracked as DEFERRED_WITH_REASON (zero silent drops).`
         );
       }
@@ -1785,6 +1785,23 @@ export async function recordUatDecision(
         );
       }
 
+      if (req.decision === "UAT_PASS" || req.decision === "UAT_PASS_WITH_DECLARED_GAPS") {
+        const mandatoryCases = draft.uat_cases[req.release_id] || [];
+        if (req.case_decisions && req.case_decisions.length > 0) {
+          const failedCases = req.case_decisions.filter((cd) => cd.decision === "FAIL");
+          if (failedCases.length > 0) {
+            throw new Error(
+              `MANDATORY_UAT_CASE_FAILURE_422: Cannot record ${req.decision} because ${failedCases.length} mandatory UAT case(s) failed (${failedCases.map((f) => f.case_id).join(", ")}). 02_OWNER_UAT_CHECKLIST.md requires 100% pass across all mandatory cases without lowering the gate.`
+            );
+          }
+          if (mandatoryCases.length > 0 && req.case_decisions.length < mandatoryCases.length) {
+            throw new Error(
+              `INCOMPLETE_MANDATORY_UAT_PASS_422: Submitted ${req.case_decisions.length}/${mandatoryCases.length} mandatory UAT case results; 02_OWNER_UAT_CHECKLIST.md requires ${mandatoryCases.length}/${mandatoryCases.length} (100%) pass.`
+            );
+          }
+        }
+      }
+
       const existingAcc = draft.acceptances[req.release_id];
       if (
         existingAcc &&
@@ -1905,6 +1922,9 @@ export async function recordUatDecision(
           rep.uat.decided_at = acc.timestamps.owner_decided_at;
           rep.uat.approved_manifest_hash = acc.manifest_hash;
           rep.gap_acceptance = acc.gap_acceptance;
+          if (rep.review_gate_status) {
+            rep.review_gate_status.formal_owner_uat_opened = true;
+          }
           const cases = draft.uat_cases[req.release_id] || [];
           const decided = cases.filter((c) => c.owner_result != null);
           if (decided.length > 0) {
@@ -2018,6 +2038,14 @@ export function recordTechnicalOrLegalAttestation(
           rep.status = rel.state;
           rep.technical_attestation = acc.technical_attestation;
           rep.legal_attestation = acc.legal_attestation;
+          if (rep.review_gate_status) {
+            rep.review_gate_status.technical_review_complete = Boolean(
+              acc.technical_attestation && acc.technical_attestation.manifest_hash === rel.manifest_hash
+            );
+            rep.review_gate_status.independent_legal_review_complete = Boolean(
+              acc.legal_attestation && acc.legal_attestation.manifest_hash === rel.manifest_hash
+            );
+          }
         }
       }
 
