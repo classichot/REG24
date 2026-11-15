@@ -1871,6 +1871,19 @@ export async function recordUatDecision(
         }
       }
 
+      if (req.custom_owner_questions && req.custom_owner_questions.length > 0) {
+        acc.custom_owner_questions = req.custom_owner_questions.map((cq, idx) => ({
+          question_id: cq.question_id || `OWNER-Q-${idx + 1}`,
+          question: cq.question,
+          applicable_date: cq.applicable_date ?? null,
+          trace_id: cq.trace_id ?? null,
+          decision: cq.decision,
+          comment: cq.comment || "",
+          actor_id: actor.actor_id,
+          decided_at: nowIso,
+        }));
+      }
+
       if (req.decision === "UAT_PASS_WITH_DECLARED_GAPS") {
         acc.gap_acceptance = {
           accepted: true,

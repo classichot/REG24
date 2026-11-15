@@ -370,6 +370,17 @@ export interface GapAcceptanceRecord {
   declared_gaps: string[];
 }
 
+export interface OwnerCustomUatQuestionResult {
+  question_id: string;
+  question: string;
+  applicable_date?: string | null;
+  trace_id?: string | null;
+  decision: "PASS" | "FAIL";
+  comment: string;
+  actor_id?: string;
+  decided_at?: string;
+}
+
 export interface Acceptance {
   release_id: string;
   batch_id: BatchId;
@@ -389,6 +400,7 @@ export interface Acceptance {
       decided_at: string;
     }
   >;
+  custom_owner_questions?: OwnerCustomUatQuestionResult[];
   actor_ids: string[];
   timestamps: {
     ready_for_uat_at: string | null;
@@ -787,6 +799,7 @@ export interface UatDecisionRequest {
     decision: "PASS" | "FAIL";
     comment: string;
   }>;
+  custom_owner_questions?: OwnerCustomUatQuestionResult[];
 }
 
 export interface PromotionRequest {

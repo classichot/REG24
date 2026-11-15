@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-15T17:37:40.778Z",
+  "generated_at": "2026-11-15T18:06:59.082Z",
   "protected_live_canonical_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
   "protected_live_canonical_untouched": true,
   "preview_store_dir": "data/knowledge-store-b01-rc2-staging",
@@ -37,7 +37,7 @@
       "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
       "release_id": "rel.B01.rc2",
       "status": "ANSWERED",
-      "latency_ms": 1088,
+      "latency_ms": 938,
       "evidence_count": 4,
       "citations": [
         {
@@ -80,7 +80,7 @@
       "question": "ในหนังสือตอบข้อหารือ กค 0702/1494 ข้อเท็จจริงของกองมรดกผู้ขอคืนภาษีคืออะไร และกรมสรรพากรวินิจฉัยเรื่องเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ อย่างไร",
       "release_id": "rel.B01.rc2",
       "status": "ANSWERED",
-      "latency_ms": 144,
+      "latency_ms": 119,
       "evidence_count": 12,
       "citations": [
         {
@@ -123,7 +123,7 @@
       "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/13980 เรื่องการยกเว้นภาษีเงินได้ตามพระราชกฤษฎีกา ฉบับที่ 244 มาตรา 3 (5)",
       "release_id": "rel.B01.rc2",
       "status": "ANSWERED",
-      "latency_ms": 122,
+      "latency_ms": 106,
       "evidence_count": 12,
       "citations": [
         {
@@ -166,7 +166,7 @@
       "question": "เปรียบเทียบการเสียภาษีมูลค่าเพิ่มระหว่างการขายสารเสริมสำหรับสัตว์ใน กค 0702/1903 กับการขายทองรูปพรรณความบริสุทธิ์ร้อยละ 96.5 ใน กค 0702/634",
       "release_id": "rel.B01.rc2",
       "status": "ANSWERED",
-      "latency_ms": 124,
+      "latency_ms": 98,
       "evidence_count": 12,
       "citations": [
         {
@@ -209,7 +209,7 @@
       "question": "ตามหนังสือตอบข้อหารือ กค 0702/1248 การให้เช่าที่ดินระยะเวลา 30 ปี มูลค่า 1,470,993,502.74 บาท ต้องรับรู้รายได้เพื่อเสียภาษีเงินได้นิติบุคคลตามมาตรา 65 และคำสั่งกรมสรรพากรใด",
       "release_id": "rel.B01.rc2",
       "status": "ANSWERED",
-      "latency_ms": 159,
+      "latency_ms": 122,
       "evidence_count": 12,
       "citations": [
         {
@@ -252,7 +252,7 @@
       "question": "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
       "release_id": "rel.B01.rc2",
       "status": "ANSWERED",
-      "latency_ms": 118,
+      "latency_ms": 83,
       "evidence_count": 12,
       "citations": [
         {
@@ -295,7 +295,7 @@
       "question": "แสดงแนววินิจฉัยในหนังสือตอบข้อหารือ กค 0702/1493 กรณีการยกเว้นภาษีธุรกิจเฉพาะและอากรแสตมป์จากการเวนคืนอสังหาริมทรัพย์",
       "release_id": "rel.B01.rc2",
       "status": "ANSWERED",
-      "latency_ms": 132,
+      "latency_ms": 110,
       "evidence_count": 12,
       "citations": [
         {
@@ -338,7 +338,7 @@
       "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999",
       "release_id": "rel.B01.rc2",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 84,
+      "latency_ms": 70,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/999999 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc2) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือแนววินิจฉัยขึ้นเอง"

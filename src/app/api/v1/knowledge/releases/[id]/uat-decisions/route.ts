@@ -27,6 +27,14 @@ export async function POST(
         decision: "PASS" | "FAIL";
         comment: string;
       }>;
+      custom_owner_questions?: Array<{
+        question_id: string;
+        question: string;
+        applicable_date?: string | null;
+        trace_id?: string | null;
+        decision: "PASS" | "FAIL";
+        comment: string;
+      }>;
       attestation_only?: boolean;
     };
 
@@ -70,6 +78,7 @@ export async function POST(
         declared_gaps_accepted: body.declared_gaps_accepted,
         comments: body.comments || "",
         case_decisions: body.case_decisions,
+        custom_owner_questions: body.custom_owner_questions,
       },
       actor,
       { store }

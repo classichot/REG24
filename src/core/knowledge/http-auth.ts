@@ -74,9 +74,11 @@ export function assertValidBatchId(raw: string): BatchId {
 export function knowledgeApiErrorResponse(err: unknown): NextResponse {
   const msg = err instanceof Error ? err.message : String(err);
   let status = 500;
-  if (msg.includes("_403") || msg.startsWith("FORBIDDEN_403")) status = 403;
+  if (msg.includes("_401")) status = 401;
+  else if (msg.includes("_403") || msg.startsWith("FORBIDDEN_403")) status = 403;
   else if (msg.includes("_404")) status = 404;
   else if (msg.includes("_409") || msg.includes("STALE_WORKER_FENCING_TOKEN")) status = 409;
+  else if (msg.includes("_429")) status = 429;
   else if (
     msg.includes("_422") ||
     msg.includes("PROJECTION_INCOMPLETE_OR_MEMORY_ONLY_BLOCKED") ||

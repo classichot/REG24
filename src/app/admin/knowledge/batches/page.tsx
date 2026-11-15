@@ -181,6 +181,16 @@ export default function KnowledgeBatchesUatPage() {
   const [caseDecisions, setCaseDecisions] = useState<
     Record<string, { decision: "PASS" | "FAIL"; comment: string }>
   >({});
+  const [customOwnerQuestions, setCustomOwnerQuestions] = useState<
+    Array<{
+      question_id: string;
+      question: string;
+      applicable_date: string | null;
+      trace_id: string | null;
+      decision: "PASS" | "FAIL";
+      comment: string;
+    }>
+  >([]);
   const [ownerEmail, setOwnerEmail] = useState<string>("rattaroj@reg24.th");
   const [ownerSummaryComment, setOwnerSummaryComment] = useState<string>("");
   const [acknowledgeGaps, setAcknowledgeGaps] = useState<boolean>(false);
@@ -405,6 +415,8 @@ export default function KnowledgeBatchesUatPage() {
               decision === "UAT_PASS_WITH_DECLARED_GAPS" ? data.report?.coverage_gaps : undefined,
             comments: ownerSummaryComment || `Owner submitted ${decision}`,
             case_decisions: caseDecisionArray,
+            custom_owner_questions:
+              customOwnerQuestions.length > 0 ? customOwnerQuestions : undefined,
           }),
         }
       );
@@ -993,6 +1005,71 @@ export default function KnowledgeBatchesUatPage() {
                     >
                       {answerResult.answer}
                     </div>
+
+                    {answerResult.coverage_warnings && answerResult.coverage_warnings.length > 0 && (
+                      <div
+                        style={{
+                          background: "rgba(250, 204, 21, 0.1)",
+                          border: "1px solid rgba(250, 204, 21, 0.5)",
+                          padding: "12px",
+                        }}
+                      >
+                        <strong style={{ fontSize: "12px", color: "#fde047" }}>
+                          Scope &amp; Evidence Boundary Notice (`usable_as_legal_evidence` control):
+                        </strong>
+                        <ul style={{ margin: "6px 0 0", paddingLeft: "18px", fontSize: "13px", color: "#fef08a" }}>
+                          {answerResult.coverage_warnings.map((cw, idx) => (
+                            <li key={idx}>{cw}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {!exploratoryMode && (
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: "12px", color: "#9ca3af" }}>
+                          Record this live Owner question in Formal UAT log:
+                        </span>
+                        {(["PASS", "FAIL"] as const).map((dec) => (
+                          <button
+                            key={dec}
+                            onClick={() => {
+                              setCustomOwnerQuestions((prev) => [
+                                ...prev,
+                                {
+                                  question_id: `OWNER-Q-${prev.length + 1}`,
+                                  question,
+                                  applicable_date: applicableDate || null,
+                                  trace_id: answerResult.trace_id,
+                                  decision: dec,
+                                  comment: `Recorded from live candidate query (${answerResult.status})`,
+                                },
+                              ]);
+                              setApiBanner({
+                                kind: "info",
+                                text: `Added "${question.slice(0, 48)}..." (${dec}, trace=${answerResult.trace_id}) to your Formal UAT submission queue below.`,
+                              });
+                            }}
+                            style={{
+                              padding: "4px 10px",
+                              fontSize: "12px",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              border: `1px solid ${dec === "PASS" ? "#166534" : "#991b1b"}`,
+                              background: "transparent",
+                              color: dec === "PASS" ? "#86efac" : "#fca5a5",
+                            }}
+                          >
+                            + Log Owner Question ({dec})
+                          </button>
+                        ))}
+                        {customOwnerQuestions.length > 0 && (
+                          <span style={{ fontSize: "12px", color: "#a3e635" }}>
+                            ({customOwnerQuestions.length} custom Owner question(s) queued for UAT audit record)
+                          </span>
+                        )}
+                      </div>
+                    )}
 
                     {answerResult.clarification_questions.length > 0 && (
                       <div style={{ background: "rgba(59,130,246,0.12)", border: "1px solid #3b82f6", padding: "12px" }}>

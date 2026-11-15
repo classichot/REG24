@@ -9,7 +9,7 @@
 
 import { verifyClaimAgainstPassages } from "./answer-verification";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
-import { sha256Bytes } from "./identity";
+import { sha256Bytes, thaiDigitsToArabic } from "./identity";
 import { retrieveAuthorizedKnowledge, type RetrievalStrategy } from "./retrieval";
 import { getDefaultKnowledgeStore, type DurableKnowledgeStore } from "./store";
 import type {
@@ -130,6 +130,116 @@ export async function queryKnowledge(
     };
   }
 
+  // 1b. Out-of-scope non-RD legal domain & quarantined external statute guard (Trial Scope Control)
+  const qArabic = thaiDigitsToArabic(req.question);
+  const hasTaxContext =
+    /ภาษี|อากรแสตมป์|รัษฎากร|สรรพากร|หัก\s*ณ\s*ที่จ่าย|ภ\.ง\.ด\.|ภ\.พ\.|กค\s*\d|0\d{3}\s*\/|เครดิตภาษี|มูลค่าเพิ่ม|นิติบุคคล|บุคคลธรรมดา|ธุรกิจเฉพาะ/i.test(
+      qArabic
+    );
+  const outOfScopeLawMatch = qArabic.match(
+    /(พระราชบัญญัติคุ้มครองแรงงาน|กฎหมายแรงงาน|ประมวลกฎหมายอาญา|ประมวลกฎหมายวิธีพิจารณาความ(?:แพ่ง|อาญา)?|คำพิพากษาศาลฎีกา|พระราชบัญญัติประกันสังคม|พระราชบัญญัติล้มละลาย|พระราชบัญญัติศุลกากร|พิกัดอัตราศุลกากร)/
+  );
+  if (releaseId.startsWith("rel.B01.") && outOfScopeLawMatch && !hasTaxContext) {
+    const uncoveredDomain = outOfScopeLawMatch[1];
+    const scopeMsg = `ประเด็นคำถามเกี่ยวกับ "${uncoveredDomain}" อยู่นอกขอบเขตคลังข้อมูลที่ผ่านการรับรองในชุดทดลองใช้งานปัจจุบัน (${releaseId}: ครอบคลุมหนังสือตอบข้อหารือกรมสรรพากร 4,578 รายการ ประมวลรัษฎากร และกฎหมายลำดับรองของกรมสรรพากรที่ตรวจสอบต้นฉบับแล้วเท่านั้น) ระบบจึงระงับการตอบและไม่คาดเดาข้อกฎหมายนอกขอบเขต`;
+    return {
+      release_id: releaseId,
+      knowledge_snapshot_at: snapshotAt,
+      status: "INSUFFICIENT_EVIDENCE",
+      answer: scopeMsg,
+      claims: [
+        {
+          claim_id: `clm.${traceId}.out_of_scope`,
+          statement: scopeMsg,
+          claim_type: "abstention_notice",
+          statement_role: "reg24_inference",
+          supporting_passage_ids: [],
+          applicable_version_id: null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "VERIFIED",
+        },
+      ],
+      evidence: [],
+      assumptions: [],
+      clarification_questions: [
+        "หากต้องการถามภาระภาษีอากรตามประมวลรัษฎากรที่เกี่ยวข้องกับธุรกรรมนี้ กรุณาระบุประเด็นภาษีที่ต้องการตรวจสอบเพิ่มเติม",
+      ],
+      coverage_warnings: [...coverageWarnings, scopeMsg],
+      applicable_date: req.applicable_date ?? null,
+      model_policy_version: "reg24-grounded-legal-v1.1",
+      trace_id: traceId,
+      latency_ms: Math.max(1, Date.now() - startedAt),
+    };
+  }
+
+  // Direct lookup of a quarantined Royal Decree's statutory text when no ruling is requested
+  const directRdMatch = qArabic.match(/พระราชกฤษฎีกา[^0-9]{0,40}ฉบับที่\s*(\d+)/);
+  if (
+    directRdMatch &&
+    bundle.explicit_ruling_ids_in_query.length === 0 &&
+    !/ข้อหารือ|หนังสือตอบ|แนววินิจฉัย/.test(qArabic)
+  ) {
+    const rdNum = directRdMatch[1];
+    const rdNumPattern = new RegExp(`ฉบับที่\\s*${rdNum}(?:\\D|$)`);
+    const releasePassages = store.getPassagesForRelease(releaseId);
+    const hasVerifiedRdWork = releasePassages.some((p) => {
+      if (p.extraction_id.startsWith("ext.dep.")) return false;
+      const w = state.works[p.work_id];
+      if (!w) return false;
+      return (
+        w.work_id === `subreg.th.rc.royal_decree.${rdNum}` ||
+        w.work_id === `subreg.th.rc.royal_decree_${rdNum}` ||
+        (w.type === "SubordinateLegislation" &&
+          w.title_th.includes("พระราชกฤษฎีกา") &&
+          rdNumPattern.test(thaiDigitsToArabic(w.title_th)))
+      );
+    });
+    if (!hasVerifiedRdWork) {
+      const isQuarantinedRd = Object.values(state.unresolved_references).some(
+        (u) =>
+          rdNumPattern.test(thaiDigitsToArabic(u.raw_citation_text)) ||
+          rdNumPattern.test(thaiDigitsToArabic(u.governing_instrument || "")) ||
+          u.target_hint.endsWith(`.${rdNum}`) ||
+          u.target_hint.endsWith(`_${rdNum}`)
+      );
+      const quarMsg = isQuarantinedRd
+        ? `พระราชกฤษฎีกาฯ (ฉบับที่ ${rdNum}) ยังอยู่ในทะเบียนกักกันแหล่งอ้างอิงภายนอกที่รอการตรวจรับรองต้นฉบับ (usable_as_legal_evidence: false) ในชุดข้อมูล ${releaseId} ระบบจึงไม่สรุปหรือคาดเดาตัวบทมาตราของพระราชกฤษฎีกาฉบับดังกล่าวโดยไม่มีต้นฉบับที่ผ่านการรับรอง`
+        : `ไม่พบตัวบทพระราชกฤษฎีกาฯ (ฉบับที่ ${rdNum}) ที่ผ่านการตรวจรับรองต้นฉบับในคลังข้อมูลชุด ${releaseId} ระบบจึงระงับการตอบและไม่คาดเดาตัวบทกฎหมาย`;
+      return {
+        release_id: releaseId,
+        knowledge_snapshot_at: snapshotAt,
+        status: "INSUFFICIENT_EVIDENCE",
+        answer: quarMsg,
+        claims: [
+          {
+            claim_id: `clm.${traceId}.quarantined_statute`,
+            statement: quarMsg,
+            claim_type: "abstention_notice",
+            statement_role: "reg24_inference",
+            supporting_passage_ids: [],
+            applicable_version_id: null,
+            factual_conditions: [],
+            exceptions: [],
+            counterevidence_passage_ids: [],
+            verification_result: "VERIFIED",
+          },
+        ],
+        evidence: [],
+        assumptions: [],
+        clarification_questions: [
+          `หากต้องการดูแนววินิจฉัยหนังสือตอบข้อหารือกรมสรรพากรที่กล่าวถึงพระราชกฤษฎีกา (ฉบับที่ ${rdNum}) กรุณาระบุเลขที่หนังสือตอบข้อหารือหรือถามแนววินิจฉัยของกรมสรรพากรโดยตรง`,
+        ],
+        coverage_warnings: [...coverageWarnings, quarMsg],
+        applicable_date: req.applicable_date ?? null,
+        model_policy_version: "reg24-grounded-legal-v1.1",
+        trace_id: traceId,
+        latency_ms: Math.max(1, Date.now() - startedAt),
+      };
+    }
+  }
+
   // 2. Final pre-delivery live authorization/withdrawal recheck (SH-16, AT08)
   const freshState = store.getState();
   let liveVerifiedHits = bundle.top_hits.filter((h) =>
@@ -195,6 +305,21 @@ export async function queryKnowledge(
   }
 
   const availablePassages: Passage[] = liveVerifiedHits.map((h) => h.passage);
+
+  // Surface explicit coverage warning when top cited rulings reference quarantined external statutes (`usable_as_legal_evidence: false`)
+  const topCitedWorkIds = new Set(availablePassages.slice(0, 4).map((p) => p.work_id));
+  const quarantinedCitationsForAnswer = Array.from(
+    new Set(
+      Object.values(freshState.unresolved_references)
+        .filter((u) => topCitedWorkIds.has(u.source_work_id) && !u.usable_as_legal_evidence)
+        .map((u) => u.raw_citation_text)
+    )
+  ).slice(0, 4);
+  if (quarantinedCitationsForAnswer.length > 0) {
+    coverageWarnings.push(
+      `หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ ${quarantinedCitationsForAnswer.join(", ")} — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน`
+    );
+  }
 
   // Collect conditions & exceptions from matched graph assertions
   const extractedConditions = new Set<string>();
