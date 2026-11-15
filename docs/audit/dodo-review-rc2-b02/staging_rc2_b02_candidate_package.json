@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-15T06:57:28.444Z",
+  "generated_at": "2026-11-15T07:57:49.608Z",
   "isolated_staging_dir": "C:\\Users\\I7\\.gemini\\antigravity\\brain\\ade02dfd-8b7a-4fcf-a521-8f458561a22a\\scratch\\staging_candidates_rc2_b02",
   "protected_canonical_store_verified_untouched": {
     "path": "D:\\Code\\REG24\\data\\knowledge-store\\canonical-state.json.gz",
@@ -8,11 +8,11 @@
     "identical": true
   },
   "code_identifiers": {
-    "git_head_sha": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
-    "git_head_short": "e9c2ffc",
+    "git_head_sha": "3c3034763128f22865c10c88274f468c5752bc09",
+    "git_head_short": "3c30347",
     "working_tree_dirty": false,
     "working_tree_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "remediation_tree_fingerprint": "e9c2ffc3b7c0+diff.e3b0c44298fc1c14"
+    "remediation_tree_fingerprint": "3c3034763128+diff.e3b0c44298fc1c14"
   },
   "governance_posture": {
     "active_release_id": null,
@@ -37,24 +37,34 @@
   },
   "candidate_rel_B01_rc2": {
     "release_id": "rel.B01.rc2",
+    "scope_classification": "FULL_BATCH_CANDIDATE",
+    "scope_label": "FULL-SCOPE CANDIDATE (4,578 admitted physical files in B01 scope; 0 deferred; 572 out-of-scope)",
+    "review_gate_status": {
+      "mandatory_uat_gate_policy": "ALL_MANDATORY_CASES_MUST_PASS_20_OF_20",
+      "automated_gates_passed": true,
+      "automated_tests_replace_independent_legal_review": false,
+      "technical_review_complete": false,
+      "independent_legal_review_complete": false,
+      "formal_owner_uat_opened": false
+    },
     "state": "READY_FOR_UAT",
     "owner_decision": null,
-    "code_commit": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
+    "code_commit": "3c3034763128f22865c10c88274f468c5752bc09",
     "supersession_lineage": {
       "supersedes_release_id": "rel.B01.rc1",
       "supersedes_manifest_id": "mfst.b01.mwgj0yb3",
       "supersedes_manifest_hash": "2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444",
       "prior_release_preserved_state": "READY_FOR_UAT",
       "prior_chat_approval_preserved": true,
-      "explanation": "Transparent candidate supersession: Product Owner granted chat-based approval for Batch 01 prior to the 14 November 2026 independent quality review, while rel.B01.rc1 (mfst.b01.mwgj0yb3, hash 2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444) remained READY_FOR_UAT with user_decision=null in canonical-state.json.gz. Per Owner instruction (15 November 2026), rel.B01.rc1 and the original chat approval history are preserved unaltered in the audit trail without retroactive modification or re-approval; rel.B01.rc2 (mfst.b01.mwhh9ec3) links directly to rel.B01.rc1 and may supersede it only upon formal Owner UAT acceptance."
+      "explanation": "Transparent candidate supersession: Product Owner granted chat-based approval for Batch 01 prior to the 14 November 2026 independent quality review, while rel.B01.rc1 (mfst.b01.mwgj0yb3, hash 2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444) remained READY_FOR_UAT with user_decision=null in canonical-state.json.gz. Per Owner instruction (15 November 2026), rel.B01.rc1 and the original chat approval history are preserved unaltered in the audit trail without retroactive modification or re-approval; rel.B01.rc2 (mfst.b01.mwhjetdw) links directly to rel.B01.rc1 and may supersede it only upon formal Owner UAT acceptance."
     },
-    "manifest_id": "mfst.b01.mwhh9ec3",
-    "inventory_snapshot_id": "inv.b01.mwhh9ec3",
+    "manifest_id": "mfst.b01.mwhjetdw",
+    "inventory_snapshot_id": "inv.b01.mwhjetdw",
     "inventory_hash": "73bae3ac43010507f888d5d22f58143749d5ca1692ad14824f33b6d7a200e60d",
-    "manifest_hash": "0dd66c57f27aa93844083267cba1a5372e4b61b9c3d598f7d508796abf160e4c",
+    "manifest_hash": "c3dfcafdf156404a578b9cbd7aee0534a7d4eb9f276382b34e5dd86ba994ead3",
     "reconciliation": {
-      "plan_id": "plan.mfst.b01.mwhh9ec3",
-      "manifest_id": "mfst.b01.mwhh9ec3",
+      "plan_id": "plan.mfst.b01.mwhjetdw",
+      "manifest_id": "mfst.b01.mwhjetdw",
       "batch_id": "B01",
       "total_candidates": 5150,
       "by_identity_action": {
@@ -77,7 +87,7 @@
       "planned_reused_works": 15,
       "accounting_matches_total": true,
       "silent_drops": 0,
-      "generated_at": "2026-11-15T06:52:43.999Z"
+      "generated_at": "2026-11-15T07:52:55.846Z"
     },
     "processed_candidates": 4578,
     "created_works": 4563,
@@ -122,18 +132,28 @@
   },
   "candidate_rel_B02_rc1": {
     "release_id": "rel.B02.rc1",
+    "scope_classification": "LIMITED_SCOPE_CANDIDATE",
+    "scope_label": "LIMITED-SCOPE CANDIDATE (2,024 / 7,335 physical files admitted [27.59%]; 5,275 image-only/legacy-font PDFs deferred as DEFERRED_WITH_REASON pending verified OCR; 36 out-of-scope)",
+    "review_gate_status": {
+      "mandatory_uat_gate_policy": "ALL_MANDATORY_CASES_MUST_PASS_20_OF_20",
+      "automated_gates_passed": true,
+      "automated_tests_replace_independent_legal_review": false,
+      "technical_review_complete": false,
+      "independent_legal_review_complete": false,
+      "formal_owner_uat_opened": false
+    },
     "state": "READY_FOR_UAT",
     "owner_decision": null,
-    "code_commit": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
+    "code_commit": "3c3034763128f22865c10c88274f468c5752bc09",
     "previous_accepted_release_id": "rel.B01.rc2",
     "supersession_lineage": null,
-    "manifest_id": "mfst.b02.mwhhbx89",
-    "inventory_snapshot_id": "inv.b02.mwhhbx89",
+    "manifest_id": "mfst.b02.mwhjhg12",
+    "inventory_snapshot_id": "inv.b02.mwhjhg12",
     "inventory_hash": "069b9d7f562ccf3ff074e132ab86159bb115b2fc446c842f1382fa3a7677d8ce",
-    "manifest_hash": "54bd47c5a67cee4684f61795c46289c5c2d296180475f731fd5f75cc608cf3b7",
+    "manifest_hash": "c0b6b5d9754e3a45d15035d2ffe116da73abbf2e252d8f017abfb51ab52aa0c8",
     "reconciliation": {
-      "plan_id": "plan.mfst.b02.mwhhbx89",
-      "manifest_id": "mfst.b02.mwhhbx89",
+      "plan_id": "plan.mfst.b02.mwhjhg12",
+      "manifest_id": "mfst.b02.mwhjhg12",
       "batch_id": "B02",
       "total_candidates": 7335,
       "by_identity_action": {
@@ -156,15 +176,15 @@
       "planned_reused_works": 187,
       "accounting_matches_total": true,
       "silent_drops": 0,
-      "generated_at": "2026-11-15T06:54:43.596Z"
+      "generated_at": "2026-11-15T07:55:01.382Z"
     },
     "processed_candidates": 2024,
     "created_works": 9093,
     "reused_works": 20,
-    "own_passages_count": 12770,
-    "cumulative_chain_passages_count": 23435,
-    "own_accepted_assertions_count": 24012,
-    "cumulative_chain_assertions_count": 57378,
+    "own_passages_count": 12851,
+    "cumulative_chain_passages_count": 23516,
+    "own_accepted_assertions_count": 24020,
+    "cumulative_chain_assertions_count": 57386,
     "synthetic_ext_dep_passages_in_chain": 0,
     "total_quarantined_unresolved_references": 1421,
     "all_automated_gates_passed": true,
@@ -202,13 +222,13 @@
     }
   },
   "source_fidelity_and_statutory_versions": {
-    "generated_at": "2026-11-15T06:57:28.424Z",
+    "generated_at": "2026-11-15T07:57:49.592Z",
     "code_identifiers": {
-      "git_head_sha": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
-      "git_head_short": "e9c2ffc",
+      "git_head_sha": "3c3034763128f22865c10c88274f468c5752bc09",
+      "git_head_short": "3c30347",
       "working_tree_dirty": false,
       "working_tree_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "remediation_tree_fingerprint": "e9c2ffc3b7c0+diff.e3b0c44298fc1c14"
+      "remediation_tree_fingerprint": "3c3034763128+diff.e3b0c44298fc1c14"
     },
     "artifact_sha256_integrity": {
       "rel_B01_rc2_distinct_artifacts": 4710,
@@ -219,7 +239,7 @@
     "passage_locator_integrity": {
       "rel_B01_rc2_passages_total": 10665,
       "rel_B01_rc2_all_have_origin_uri_and_artifact_id": true,
-      "rel_B02_rc1_chain_passages_total": 23435,
+      "rel_B02_rc1_chain_passages_total": 23516,
       "rel_B02_rc1_all_have_origin_uri_and_artifact_id": true
     },
     "verified_statutory_corpus_coverage": {

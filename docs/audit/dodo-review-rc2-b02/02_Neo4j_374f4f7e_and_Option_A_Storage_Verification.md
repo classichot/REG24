@@ -1,112 +1,94 @@
-# Neo4j AuraDB `374f4f7e` & Option A Production Storage Verification Report (Instruction 3)
-
-> [!IMPORTANT]
-> **Strict Non-Mutation Compliance**: Per Owner Instruction 3 (`2026-11-15`), Neo4j AuraDB instance `374f4f7e` was **neither resumed, replaced, deleted, migrated, nor modified**, no paid infrastructure changes were made, and `data/knowledge-store/canonical-state.json.gz` (`SHA-256 = 08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9`) and `https://reg24-theta.vercel.app` remain untouched.
-
----
-
-## 1. Identity & Live Connectivity Verification of Instance `374f4f7e`
-
-Executed via [`verify-neo4j-374f4f7e-readonly.ts`](file:///d:/Code/REG24/scripts/verify-neo4j-374f4f7e-readonly.ts) (`defaultAccessMode: neo4j.session.READ` + static Cypher write firewall; signed receipt [neo4j_374f4f7e_readonly_verification.json](file:///C:/Users/I7/.gemini/antigravity/brain/ade02dfd-8b7a-4fcf-a521-8f458561a22a/scratch/neo4j_374f4f7e_readonly_verification.json), `SHA-256 = 667dd671fc558e83f6f7db4b7f43eadee29fd388402375165a10ef9d806077ab`):
-
-| Property / Probe | Verified Result (`2026-11-15T06:36:59Z`) | Evidence |
-| :--- | :--- | :--- |
-| **Aura Instance ID & DB Name** | `374f4f7e` (`neo4j+s://374f4f7e.databases.neo4j.io`) | `.env.local` & [`neo4j-client.ts`](file:///d:/Code/REG24/src/core/graph/neo4j-client.ts#L118-L135) |
-| **Bolt DB Credentials Present** | `NEO4J_USERNAME=374f4f7e` + `NEO4J_PASSWORD` present | `.env.local` (redacted) |
-| **Aura Cloud Management API Keys** | **Not present** (`AURA_CLI_CLIENT_ID` / `NEO4J_AURA_CLIENT_ID` absent) | Cannot query Aura Cloud control-plane metadata from CLI without Owner Console login |
-| **DNS `A` / `AAAA` / `_neo4j._tcp` `SRV`** | `ENOTFOUND` (`NXDOMAIN` on all three record types) | Hostname de-registered while AuraDB Free instance is paused (or expired) |
-| **TCP `:7687` (Bolt+TLS) & `:443`** | `TCP_TIMEOUT_4000MS` (unreachable) | Direct socket probe |
-| **Bolt `READ` Session Probe** | `Could not perform discovery. No routing servers available. Known routing table: RoutingTable[database=374f4f7e, ..., routers=[], readers=[], writers=[]]` | Matches live `GET https://reg24-theta.vercel.app/api/v1/infrastructure/graph/health` |
-
----
-
-## 2. Current Graph State & Correction of Earlier Assumption (`UNVERIFIED_WHILE_PAUSED`)
-
-> [!WARNING]
-> **Explicit Audit Correction — Absence of Batch 01 Data in `374f4f7e` Is `UNVERIFIED_WHILE_PAUSED_OR_OFFLINE`, Not Assumed**:
-> Because `374f4f7e.databases.neo4j.io` currently returns `ENOTFOUND` and we are strictly prohibited from resuming it without Owner approval, **zero live Cypher queries can reach `374f4f7e` right now**. Furthermore, full Git history audit disproved our earlier summary claim that `374f4f7e` only ever received `352` seed nodes: in October 2026, `374f4f7e` held **9,242 nodes and 9,096 relationships**.
-
-### Complete Repository-Wide Neo4j Write Audit vs. Unverified Live State
-
-| Date & Commit | Code Path | What Repository History Proves | Live `374f4f7e` Verification Status |
-| :--- | :--- | :--- | :--- |
-| **20 Oct 2026** (`8fd220b`, `dd91850`) | [`graph-migrator.ts`](file:///d:/Code/REG24/src/core/graph/graph-migrator.ts#L1170-L1275) (`runGraphMigration`) | Upserted `352` core seed nodes and `523` relationships (including `10` seed `:TaxRuling` nodes from `reg24-core.ts`) into `374f4f7e`. | Recorded in commit `dd91850`; current presence inside `374f4f7e` **pending live read check**. |
-| **21 Oct 2026** (`802fdb6`, `2f06b30`) | [`legal-chunk-neo4j-sync.ts`](file:///d:/Code/REG24/src/core/ingestion/legal-chunk-neo4j-sync.ts#L40-L345) (`syncLegalResourceMasterChunksToNeo4j`) | Upserted `17` `:Regulator` (`reg.th.lrm.*`), `2,312` `:LegalInstrument` (`inst.lrm.*`), and structural `:Provision` chunks across 17 authorities — recording **`9,242` live nodes and `9,096` live relationships** in [`agentic-legal-research-engine.ts`](file:///d:/Code/REG24/src/core/agentic-rag/agentic-legal-research-engine.ts#L11) (`L1037-L1038`). | Recorded in `2f06b30`; current presence inside `374f4f7e` **pending live read check**. |
-| **14 Nov 2026** (`bbdca54`..`7df41c4`) | [`releases.ts`](file:///d:/Code/REG24/src/core/knowledge/releases.ts), [`projections.ts`](file:///d:/Code/REG24/src/core/knowledge/projections.ts), [`materialize-b01-candidate.ts`](file:///d:/Code/REG24/scripts/materialize-b01-candidate.ts#L40) | Zero `executeCypher` write calls exist in `src/core/knowledge/*`; `materialize-b01-candidate.ts` ran with `probeLiveNeo4j: false` ([F1_baseline_verification.json](file:///d:/Code/REG24/data/knowledge-store/reports/F1_baseline_verification.json#L16-L22)) and wrote `rel.B01.rc1` (`35,805` edges) to `projections/rel.B01.rc1_graph.json.gz`. | **Formally `UNVERIFIED_WHILE_PAUSED_OR_OFFLINE`** — cannot confirm zero Batch 01 / manual / ad-hoc data in `374f4f7e` until `374f4f7e` is inspected directly. |
-
----
-
-## 3. Backups, Recovery & Urgent 30-Day AuraDB Free Deletion Window
+# Neo4j `374f4f7e` Preservation Protocol & Option A Production Architecture / Cost Proposal (Instructions 1 & 4)
 
 > [!CAUTION]
-> **Time-Sensitive Data Retention Risk (`~23–27 November 2026`)**:
-> Under Neo4j AuraDB Free policy:
-> 1. Instances **auto-pause after 72 hours of write inactivity** (read queries do not reset the timer).
-> 2. Paused AuraDB Free instances have **no automated recurring cloud backups** (only manual on-demand `.dump` snapshots in the Aura Console).
-> 3. If a paused AuraDB Free instance is **not resumed within 30 days of being paused, Neo4j permanently deletes the instance and all of its data**.
->
-> Given the last Neo4j-related commits in Git occurred on **21–25 October 2026** (`802fdb6`, `7b4447a`), `374f4f7e` likely entered `Paused` state around **24–28 October 2026** — placing today (**15 November 2026**) at **~18–22 days paused**, with permanent auto-deletion estimated around **23–27 November 2026**.
-
-### Step-by-Step Read-Only Verification Protocol (Requires Owner Console Access)
-1. **Console Status Check (Zero Resume / Zero Cost)**: Log into `https://console.neo4j.io` and inspect instance `374f4f7e` (`status`: `Paused` vs. deleted, pause timestamp, node/relationship counters, and whether an existing manual snapshot is listed under *Snapshots*).
-2. **Optional Authorised Read-Only Inspection & Archival Export**: If `374f4f7e` is `Paused` and you authorise a temporary resume solely for verification/backup:
-   - Export an on-demand `.dump` snapshot in Aura Console for archival preservation, and
-   - Run `npx tsx scripts/verify-neo4j-374f4f7e-readonly.ts --out aura_374f4f7e_live_audit.json` (which uses `neo4j.session.READ` + a hard write-blocking regex firewall) to produce a signed SHA-256 inventory of every label, `migration_batch_id`, `work.th.rd.*`, and `rel.B01.*` count inside `374f4f7e`.
+> **IMMEDIATE PRESERVATION DEADLINE FLAG (`~23–27 November 2026` — Estimated `8–12 Days` Remaining)**
+> - Neo4j AuraDB Free auto-pauses instances after **72 hours** of write inactivity and **permanently deletes paused instances and all data after 30 days** (with **zero** automated recurring cloud backups while paused).
+> - Last Neo4j sync commits in Git occurred on **21–25 October 2026** (`802fdb6`, `7b4447a`), placing estimated auto-pause at **24–28 October 2026** and **irreversible 30-day deletion at `~23–27 November 2026`**.
+> - **Sanctioned Scope Boundary Flagged First (`Instruction 1`)**: This workspace contains Bolt database credentials (`NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, `NEO4J_DATABASE=374f4f7e`) in `.env.local`, but **zero** Neo4j Aura Cloud Console session or Management API keys (`AURA_CLI_CLIENT_ID` / `NEO4J_AURA_CLIENT_ID` absent), **zero** Vercel admin tokens, and **zero** local `docker` / `java` / `neo4j-admin` binaries on this host. Confirming pause status, clicking *Resume*, and exporting the `.backup` / `.dump` snapshot in `https://console.neo4j.io` therefore require Owner Console execution following the pre-resume writer-lockout checklist in Section 1 below.
 
 ---
 
-## 4. Option A Cost Evaluation (Managed PostgreSQL + Neo4j AuraDB Professional)
+## 1. Neo4j `374f4f7e` Pre-Resume Writer Lockout, Fixed Read-Only Verifier & Isolated-Restore Protocol (`Instruction 1`)
 
-No paid resources have been provisioned. Below are verified 2026 USD rates (`730 hrs/month` continuous 24/7 operation):
+### 1.1 Pre-Resume Writer Audit & Live Vercel Lockout Requirement
+Before resuming `374f4f7e` in Aura Console, we audited every Neo4j call site across the repository and deployment configuration:
+- **Background / Scheduled Jobs**: **Zero** (`0` `vercel.json` crons, `0` `.github/workflows` jobs, `0` background daemons).
+- **UI Page Loads**: Read-only (`GET /api/v1/infrastructure/graph/health` runs `MATCH (n) ... RETURN nodeCount, count(r)`).
+- **CRITICAL HAZARD FOUND ON LIVE VERCEL (`main` @ `7df41c4`)**: Live `https://reg24-theta.vercel.app` holds `NEO4J_URI` + `NEO4J_PASSWORD` and exposes **3 unauthenticated HTTP `POST` endpoints** that default a missing `x-reg24-role` header to `"Platform Administrator"` and execute live `MERGE` / `DETACH DELETE` against `374f4f7e` if invoked while `374f4f7e` is online:
+  1. `POST /api/v1/infrastructure/graph/health` (`action: "run_migration"` / `"rollback_batch"`)
+  2. `POST /api/v1/infrastructure/graph/audit` (`action: "sync_and_audit_neo4j"`)
+  3. `POST /api/v1/legal/resource-master` (`action: "sync_chunks_to_neo4j"`)
+- **Code Hardening Completed on Staging (`3c3034763128f22865c10c88274f468c5752bc09`)**:
+  - Removed default `"Platform Administrator"` role fallbacks on all 3 mutating routes ([`health/route.ts`](file:///d:/Code/REG24/src/app/api/v1/infrastructure/graph/health/route.ts#L77-L108), [`audit/route.ts`](file:///d:/Code/REG24/src/app/api/v1/infrastructure/graph/audit/route.ts#L36-L59), [`resource-master/route.ts`](file:///d:/Code/REG24/src/app/api/v1/legal/resource-master/route.ts#L208-L232)) so unauthenticated `POST` requests return `403 Forbidden`.
+  - Added process-wide `NEO4J_PRESERVATION_READ_ONLY=true` enforcement in [`neo4j-client.ts`](file:///d:/Code/REG24/src/core/graph/neo4j-client.ts#L63-L70) (`L226-L241`) returning `423 Locked` (`NEO4J_PRESERVATION_LOCKOUT_423`) on any write/DDL call.
+- **Mandatory Owner Step Before Clicking *Resume* in Aura Console**:
+  1. In **Vercel Project Settings -> Environment Variables** (`reg24-theta`), temporarily remove or blank `NEO4J_PASSWORD` (or `NEO4J_URI`) **before** resuming `374f4f7e` (or immediately rotate the database password in Aura Console upon resume and do **not** update Vercel), severing all live application reconnect paths.
 
-### 4.1 Transactional Governance & Canonical State Layer — Managed PostgreSQL
-| Provider & Tier | Billing Model | Compute / RAM / Storage Included | Backups & PITR | Typical Monthly Cost (USD) | Fit for REG24 |
+### 1.2 Audit Script Fixes & Retest Results ([`verify-neo4j-374f4f7e-readonly.ts`](file:///d:/Code/REG24/scripts/verify-neo4j-374f4f7e-readonly.ts))
+Both defects identified in `verify-neo4j-374f4f7e-readonly.ts` have been fixed and verified in [`neo4j-readonly-verifier.test.ts`](file:///d:/Code/REG24/tests/knowledge/neo4j-readonly-verifier.test.ts) (`6 / 6` tests passing):
+1. **Strict Target & Server Identity Validation (`validateAuditTarget` + `CALL db.info()`)**:
+   - Removed the silent fallback to `"374f4f7e.databases.neo4j.io"` and `"neo4j"`: missing `NEO4J_URI`, non-TLS schemes, mismatched Aura instance IDs (`!= "374f4f7e"`), or mismatched database names (`!= "374f4f7e"`) abort before network connect with `TARGET_VALIDATION_FAILED`.
+   - Added server-side database verification (`CALL db.info() YIELD name RETURN name`) inside `session.executeRead(...)` so a misrouted DB immediately throws `DATABASE_IDENTITY_MISMATCH`.
+   - Added `--target-mode isolated-restore --bolt-uri bolt://127.0.0.1:7687 --backup-file <path> --expected-sha256 <hex>`, which strictly requires a loopback host (`127.0.0.1` / `localhost`), **hard-blocks `*.databases.neo4j.io`**, verifies the `.backup` / `.dump` SHA-256 digest (`verifyBackupFileChecksum`), and audits the isolated restored copy strictly via `neo4j.session.READ` + `session.executeRead(...)` + `assertStrictlyReadOnlyCypher`.
+2. **Dynamic Actual Failure Reporting (`classifyAuditFailure`)**:
+   - Replaced the hardcoded DNS-paused message with stage-specific reporting (`TARGET_VALIDATION_FAILED`, `BACKUP_FILE_VERIFICATION_FAILED`, `DNS_RESOLUTION_FAILED`, `TCP_CONNECT_FAILED`, `BOLT_AUTHENTICATION_FAILED`, `BOLT_TLS_ERROR`, `DATABASE_IDENTITY_MISMATCH`, `BOLT_ROUTING_OR_PROTOCOL_FAILED`, `CYPHER_READ_QUERY_FAILED`).
+   - Current live read-only receipt ([`neo4j_374f4f7e_readonly_verification.json`](file:///C:/Users/I7/.gemini/antigravity/brain/ade02dfd-8b7a-4fcf-a521-8f458561a22a/scratch/neo4j_374f4f7e_readonly_verification.json), `report_sha256 = 8fda57b2a6f263d57342172d6dbeee5b31621f16c9c9cd39301ecfdca4b59e7f`):
+     - `target_validation.valid`: **`true`** (`observed_aura_instance_id = "374f4f7e"`, `expected_database_name = "374f4f7e"`)
+     - `verification_status`: **`DNS_RESOLUTION_FAILED`** (`observed_error_code = "ENOTFOUND"`, quoting exact `queryA` / `queryAaaa` / `querySrv` responses; live graph counts remain formally **unverified** until backup export & isolated restore).
+
+### 1.3 Safe Preservation, Export & Isolated-Restore Sequence (Zero Charge / Zero Live Graph Mutation)
+1. **Verify in `https://console.neo4j.io`**: Confirm instance ID `374f4f7e`, tier (`AuraDB Free`), current status (`Paused`), pause date, and remaining days before deletion.
+2. **Lock Out Writers**: Blank/remove `NEO4J_PASSWORD` in Vercel Environment Variables (`reg24-theta`) and set `NEO4J_PRESERVATION_READ_ONLY=true` locally.
+3. **Resume & Export Supported Snapshot**: Resume `374f4f7e` in Aura Console -> *Snapshots* -> *Take snapshot* -> download `.backup` / `.dump` to encrypted offline storage and record `Get-FileHash <file> -Algorithm SHA256`.
+4. **Restore & Audit in Isolated Local Container (Preferred Over Querying Live `374f4f7e`)**:
+   ```bash
+   docker run --rm -v /secure/backups:/backups neo4j:5-enterprise neo4j-admin database load 374f4f7e --from-path=/backups
+   # Start isolated container bound ONLY to 127.0.0.1:7687, then run read-only verifier:
+   npx tsx scripts/verify-neo4j-374f4f7e-readonly.ts --target-mode isolated-restore --bolt-uri bolt://127.0.0.1:7687 --username neo4j --password <local_pw> --database 374f4f7e --backup-file /secure/backups/374f4f7e.dump --expected-sha256 <sha256> --out aura_374f4f7e_isolated_restore_audit.json
+   ```
+
+---
+
+## 2. Option A Itemised Production Proposal: Managed PostgreSQL + Neo4j AuraDB (`Instruction 4`)
+
+*For evaluation only — no provider selected and no paid plan provisioned.*
+
+### 2.1 Regional Co-Location & Topology
+- **Recommended Region**: **`ap-southeast-1` (AWS Singapore)** for Managed PostgreSQL and **`asia-southeast1` / `ap-southeast-1` (Singapore)** for Neo4j AuraDB, co-located with Vercel Edge/Function region **`sin1` (Singapore)** (`< 3–8 ms` intra-region DB RTT; `~25–35 ms` end-user RTT from Bangkok).
+
+### 2.2 Itemised Component Specification (Availability, Backup/Recovery, Security & Monthly Charges)
+
+| Dimension | Option A-1: **AWS RDS PostgreSQL** (Enterprise Baseline) | Option A-2: **Supabase Pro / Neon Launch** (Lean Managed PG) | Graph Projection: **Neo4j AuraDB Professional** |
+| :--- | :--- | :--- | :--- |
+| **Region** | AWS `ap-southeast-1` (Singapore) | AWS `ap-southeast-1` (Singapore) | GCP `asia-southeast1` / AWS `ap-southeast-1` (Singapore) |
+| **Recommended Tier (`B01–B02` Launch)** | `db.t4g.small` (`2 vCPU`, `2 GiB RAM`, `20 GB gp3` SSD) — Single-AZ (`Multi-AZ` optional for `99.95%` HA) | Supabase Pro (`Dedicated Micro 2 vCPU / 1 GB` + `8 GB` SSD) or Neon Launch (`0.25–2 CU`, `10 GB`) | **AuraDB Professional `1 GB RAM`** (`2 GB` SSD, dedicated non-pausing instance; **never** auto-deletes on idle) |
+| **Availability & SLA** | Single-AZ: `99.5%` \| **Multi-AZ Standby**: **`99.95%` SLA** (`< 60s` automatic failover) | Supabase Pro: `99.9%` \| Neon Launch/Scale: `99.95%` multi-AZ storage separation | `99.5%` SLA (AuraDB Pro) \| `99.95%` Multi-AZ HA available on AuraDB Business Critical |
+| **Backup, PITR, RPO & RTO** | Continuous WAL archiving to S3 (**`35-day` PITR**, **`RPO < 5 min`**, **`RTO ~10–15 min`**) + daily snapshots + pre-release logical `.dump` | Daily automated backups (`7-day` retention) + **7-day continuous PITR add-on** (`RPO < 2 min`, `RTO ~5–10 min`) | Automated daily snapshots (**`30-day` retention** on Pro vs `0` on Free) + on-demand pre-promotion snapshots (`RPO = 0` per batch release because graph is deterministically rebuildable from PostgreSQL outbox in `< 4 min`) |
+| **Security Controls** | TLS `1.3` enforced (`rds.force_ssl=1`), KMS `AES-256` at rest, private VPC / egress IP allowlist, separate `reg24_app_rw` / `reg24_audit_ro` roles, PostgreSQL RLS ([`0001_reg24_canonical_rls.sql`](file:///d:/Code/REG24/prisma/migrations/0001_reg24_canonical_rls.sql)), 90-day secret rotation | TLS `1.3`, `AES-256` at rest, PgBouncer connection pooling (`transaction` mode for Vercel bursts), RLS enforced, IP restrictions (add-on), role separation | Mandatory `neo4j+s://` TLS `1.3`, `AES-256` encrypted volumes, dedicated `reg24_outbox_writer` vs `reg24_query_reader` credentials, parameterized-Cypher firewall, dynamic credential rotation ([`neo4j-client.ts`](file:///d:/Code/REG24/src/core/graph/neo4j-client.ts#L142-L173)) |
+| **Itemised Monthly Cost (`B01–B02`)** | Compute (`730h`): **\$26.28** (Single-AZ) / **\$52.56** (Multi-AZ)<br>Storage (`20 GB gp3`): **\$2.76**<br>PITR/Backups (`+20 GB`): **\$1.90**<br>Egress (`~5 GB`): **\$0.60**<br>**Subtotal PG**: **\$31.54 / mo** (Single-AZ) or **\$57.82 / mo** (Multi-AZ) | Base plan: **\$25.00 / mo** (includes `\$10` Micro compute + `8 GB` DB)<br>7-day PITR add-on (optional): **+\$100.00 / mo** (Supabase) or **\$19–\$34 / mo** all-in on Neon Launch (`7-day` PITR included) | Compute + Storage (`1 GB RAM / 2 GB SSD` @ `\$0.09/hr x 730h`): **\$65.70 / mo**<br>Automated 30-day daily backups: **\$0.00 (included)**<br>Intra-region transfer (`< 10 GB`): **~\$0.90 / mo**<br>**Subtotal Neo4j**: **\$66.60 / mo** |
+
+### 2.3 Combined Monthly Run-Rate & 10-Batch Growth Assumptions (`B01` .. `B10`)
+
+| Roadmap Phase | Cumulative Corpus Assumptions | Canonical Works / Passages / Graph Edges | PostgreSQL Footprint (incl. JSONB, Vector/Lexical & WAL Audit) | Neo4j Footprint & Recommended Tier | Expected Combined Monthly Charge (USD) |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Neon Launch** | Serverless usage (`\$0.106/CU-hr` + `\$0.35/GB-mo`) | Autoscaling `0.25–4 CU` (`1–16 GB RAM`), scale-to-zero or pinned | Instant PITR history (`\$0.20/GB-mo`) + DB branching | **\$15 – \$35 / mo** | Best for low idle cost + isolated staging branches per release candidate |
-| **Supabase Pro** | Fixed subscription + usage | Dedicated Micro compute (`\$10` credit included), `8 GB` SSD | Automated daily backups (7-day retention; PITR add-on available) | **\$25 – \$40 / mo** | Predictable flat billing; matches existing RLS migration [`0001_reg24_canonical_rls.sql`](file:///d:/Code/REG24/prisma/migrations/0001_reg24_canonical_rls.sql) |
-| **AWS RDS PostgreSQL** (`db.t4g.small` / `medium`) | Provisioned hourly (`24/7`) | `2 vCPU`, `2–4 GiB RAM`, `20 GB gp3` SSD | Automated daily snapshots + up to 35-day continuous PITR | **\$28 – \$55 / mo** (Single-AZ)<br>**\$56 – \$110 / mo** (Multi-AZ) | Highest enterprise compliance control if deploying in AWS ap-southeast-1 |
+| **Phase 1: `B01` + `B02` (Limited-Scope)** | `6,602` admitted files (`4,578` RD rulings + `2,024` statutes/sub-regs) | `~13.6k` works / `23.4k` passages / `57.4k` edges | `~0.65 GB` data + `~0.3 GB` indexes/WAL (`< 1.5 GB`) | `~0.35 GB` graph store -> **AuraDB Pro `1 GB`** (`\$66.60`) + PG (`\$25–\$58`) | **\$91.60 – \$124.42 / mo** |
+| **Phase 2: `B01` + Full `B02` (Post-OCR of `5,275` Scans)** | `11,877` files (`+41,247` verified OCR Gazette pages) | `~32k` works / `~95k` passages / `~190k` edges | `~2.8 GB` data + `~1.4 GB` indexes/WAL (`~4.2 GB`) | `~1.1 GB` graph store -> **AuraDB Pro `2 GB`** (`\$131.40`) + PG `20 GB` (`\$32–\$60`) | **\$163.40 – \$191.40 / mo** |
+| **Phase 3: `B01` – `B05`** *(+BOI/DBD, BOT/SEC/OIC, Labour/PDPA)* | `~28,000` files (`~140k` pages) | `~85k` works / `~260k` passages / `~520k` edges | `~8.5 GB` data + `~4.0 GB` indexes/WAL (`~12.5 GB`) | `~2.6 GB` graph store -> **AuraDB Pro `4 GB`** (`\$262.80`) + PG `db.t4g.medium` `30 GB` (`\$65–\$118`) | **\$327.80 – \$380.80 / mo** |
+| **Phase 4: `B01` – `B10` Full Target** *(+Sectoral, Council of State, Supreme Court `ฎีกา`)* | `~65,000+` files (`~380k` pages) | `~210k` works / `~680k` passages / `~1.55M` edges | `~24 GB` data + `~12 GB` indexes/WAL (`~36 GB`) | `~6.2 GB` graph store -> **AuraDB Pro `8 GB`** (`\$525.60`) + PG `db.t4g.large` Multi-AZ `60 GB` (`\$195`) | **\$720.60 / mo** |
 
-### 4.2 Graph Traversal Projection Layer — Neo4j AuraDB Professional
-AuraDB Professional bills at **\$0.09 / GB RAM / hour** (`never` auto-pauses or auto-deletes on idle; includes `2x RAM` SSD storage, automated daily backups, and 30-day backup retention):
-
-| AuraDB Pro Tier | Hourly Rate | Monthly Cost (`730h`) | Storage Quota | Capacity Fit Across REG24's 10-Batch Roadmap |
-| :--- | :--- | :--- | :--- | :--- |
-| **1 GB RAM** | \$0.09 / hr | **\$65.70 / mo** | `2 GB` SSD | Sufficient for **Batches B01 + B02** (`~6,600` works, `~57,400` assertion edges) |
-| **2 GB RAM** | \$0.18 / hr | **\$131.40 / mo** | `4 GB` SSD | Recommended for **Batches B01 – B05** (`~150k–250k` nodes / `~500k` edges) |
-| **4 GB RAM** | \$0.36 / hr | **\$262.80 / mo** | `8 GB` SSD | Full **10-Batch target** (`500k+` nodes / `1.6M+` edges) |
-
-### 4.3 Combined Option A Monthly Run-Rate Summary
-- **Initial Production (B01 + B02 — 1 GB AuraDB Pro + Neon/Supabase Pro)**: **~\$81 – \$106 / month**
-- **Mid-Roadmap Scale (B01 – B05 — 2 GB AuraDB Pro + Supabase Pro / RDS Single-AZ)**: **~\$156 – \$186 / month**
+*(Note: Verified OCR execution for the `5,275` deferred `B02` pages [`41,247` pages] is a separate one-time ingestion job cost estimated at `~\$62–\$165` total depending on OCR provider policy in `RAG24`, gated by budget reservations before dispatch.)*
 
 ---
 
-## 5. Proposed Option A Durable Storage & Two-Phase Rollback Design
+## 3. Durable-Storage Integration Test Results (`Instruction 4`)
 
-Draft DDL prepared for review (not applied) at [`0002_knowledge_releases_cas_and_outbox.sql`](file:///d:/Code/REG24/prisma/migrations/0002_knowledge_releases_cas_and_outbox.sql), extending [`0001_reg24_canonical_rls.sql`](file:///d:/Code/REG24/prisma/migrations/0001_reg24_canonical_rls.sql):
+All durable-storage, transactional concurrency, SQL schema constraint, crash-recovery, and rollback tests are green (**`29 / 29` suites, `157 / 157` tests passing**):
 
-```mermaid
-sequenceDiagram
-  participant API as Vercel API Worker
-  participant PG as PostgreSQL (System of Record)
-  participant W as Outbox Worker
-  participant Neo as Neo4j AuraDB Pro (Graph Projection)
-
-  API->>PG: BEGIN; SELECT store_revision FROM knowledge_store_coordinator FOR UPDATE
-  PG-->>API: Verify expected_revision (409 StaleRevisionError on mismatch)
-  API->>PG: INSERT audit_log_chain (UNIQUE sequence_no + SHA-256 prev_hash)
-  API->>PG: INSERT knowledge_release_approval / UPDATE knowledge_release
-  API->>PG: INSERT knowledge_neo4j_projection_outbox (status = PENDING)
-  API->>PG: COMMIT
-  W->>PG: Claim PENDING outbox row
-  W->>Neo: Idempotent MERGE nodes & edges tagged with release_id + manifest_hash
-  Neo-->>W: Verify node_count & edge_count == manifest checksums (Gate V06 / AT12)
-  W->>PG: Mark outbox VERIFIED_COMPLETED & swap active_release_id atomically
-```
-
-1. **Zero Lost Updates Across Serverless Instances (`DEF-B01-07`)**: Every state transition, UAT approval, promotion, and rollback runs inside a single PostgreSQL ACID transaction acquiring `SELECT ... FOR UPDATE` on `knowledge_store_coordinator`, checking `expected_revision`, appending to `audit_log_chain` (`UNIQUE(sequence_no)`), and enforcing `UNIQUE (release_id, manifest_hash, approval_kind, expected_release_revision)` on `knowledge_release_approval`.
-2. **Database-Enforced Quarantine Invariant (`DEF-B01-03`)**: `knowledge_quarantine_ledger` enforces `CHECK (quarantine_status = 'UNRESOLVED_QUARANTINED')` and `CHECK (usable_as_legal_evidence = FALSE)` at the SQL schema level so unverified citations cannot be flipped to legal evidence without verified ingestion.
-3. **Transparent Supersession Lineage (`Instruction 2`)**: `knowledge_release` stores `supersedes_release_id`, `supersedes_manifest_id`, `supersedes_manifest_hash`, `supersession_explanation`, and `prior_chat_approval_preserved` while keeping `rel.B01.rc1` immutable.
-4. **Two-Phase Non-Destructive Rollback (`< 5s` RTO)**:
-   - **Phase 1 (Immediate Read Cutover in PostgreSQL)**: Single ACID commit reverts `knowledge_store_coordinator.active_release_id` to `rollback_target_release_id` (`rel.B01.rc2` when rolling back `B02`, or `NULL` prior to first production cutover), appends a `ROLLED_BACK` receipt to `knowledge_release_approval`, and enqueues `DEACTIVATE_ROLLED_BACK_RELEASE` in `knowledge_neo4j_projection_outbox`. All live queries immediately pin to the restored `active_release_id`.
-   - **Phase 2 (Shared-Work-Safe Graph Cleanup in Neo4j)**: Outbox worker deletes only assertion edges with `{release_id: $rolledBackReleaseId}` and detaches only nodes not referenced by any other active or preserved release — guaranteeing shared statutory nodes (`prov.th.rc.65_ตรี`, `statute.th.revenue_code`) and preserved audit history remain intact.
+1. **Relational SQL WAL + CAS + Outbox Integration Suite ([`option-a-durable-storage-integration.test.ts`](file:///d:/Code/REG24/tests/knowledge/option-a-durable-storage-integration.test.ts)) — `PASS`**:
+   - Compiles [`0002_knowledge_releases_cas_and_outbox.sql`](file:///d:/Code/REG24/prisma/migrations/0002_knowledge_releases_cas_and_outbox.sql) directly onto a disk-backed ACID SQL database (`node:sqlite` in `WAL` + `synchronous = FULL` + `FOREIGN KEYS = ON` mode) across multiple independent database connections (`connA`, `connB`, `connC`):
+   - **Atomic State + Audit Rollback**: Simulated mid-transaction crash after `UPDATE knowledge_release` and `UPDATE knowledge_store_coordinator` (before `audit_log_chain` commit) rolled back **100%** of changes (`state = READY_FOR_UAT`, `revision = 1`, `store_revision = 0`, `0` orphan audit rows).
+   - **Two-Connection Concurrent Approval Race (`DEF-B01-07`)**: Both `connA` and `connB` read `revision = 1`; `connA` committed `UAT_PASS` (`revision -> 2`, `audit_sequence_no = 1`), and `connB`'s concurrent `UAT_FAIL` at stale `revision = 1` was deterministically rejected with `REVISION_CONFLICT_409` (`0` lost updates).
+   - **Database-Enforced Quarantine Non-Evidence Check**: Verified SQL `CHECK (usable_as_legal_evidence = 0)` blocked `UPDATE knowledge_quarantine_ledger SET usable_as_legal_evidence = 1` on Royal Decree `736` (`uref.subreg.th.rc.royal_decree.736...`) at the storage engine level.
+   - **Cold-Restart Durability & Hash-Chain Verification**: Closed all connections, reopened cold from disk (`connC`), and verified `rel.B01.rc1` preservation, `rel.B01.rc2` supersession lineage, SHA-256 `audit_log_chain` hash continuity, and `VERIFIED_COMPLETED` Neo4j outbox checksum match (`5,066` nodes / `29,094` edges).
+2. **Multi-Process OS Concurrency, Crash Journal & Serverless Guard Suite ([`concurrency-and-recovery.test.ts`](file:///d:/Code/REG24/tests/knowledge/concurrency-and-recovery.test.ts)) — `5 / 5 PASS`**:
+   - `5/5` 2-process barrier races with `0` lost updates; `4` OS processes x `5` commits (`20/20` unique monotonic WAL `seq`); interrupted `.staged-commits/` crash journal recovery; `/tmp` serverless promotion hard-blocked with `422`.

@@ -1,12 +1,12 @@
 {
-  "generated_at": "2026-11-15T06:57:28.392Z",
+  "generated_at": "2026-11-15T07:57:49.564Z",
   "rel_B01_rc2": {
-    "manifest_id": "mfst.b01.mwhh9ec3",
-    "inventory_snapshot_id": "inv.b01.mwhh9ec3",
+    "manifest_id": "mfst.b01.mwhjetdw",
+    "inventory_snapshot_id": "inv.b01.mwhjetdw",
     "inventory_hash": "73bae3ac43010507f888d5d22f58143749d5ca1692ad14824f33b6d7a200e60d",
     "reconciliation": {
-      "plan_id": "plan.mfst.b01.mwhh9ec3",
-      "manifest_id": "mfst.b01.mwhh9ec3",
+      "plan_id": "plan.mfst.b01.mwhjetdw",
+      "manifest_id": "mfst.b01.mwhjetdw",
       "batch_id": "B01",
       "total_candidates": 5150,
       "by_identity_action": {
@@ -29,7 +29,7 @@
       "planned_reused_works": 15,
       "accounting_matches_total": true,
       "silent_drops": 0,
-      "generated_at": "2026-11-15T06:52:43.999Z"
+      "generated_at": "2026-11-15T07:52:55.846Z"
     },
     "rejected_out_of_scope_by_rd_subfolder": {
       "CIT": 155,
@@ -108,12 +108,12 @@
     }
   },
   "rel_B02_rc1": {
-    "manifest_id": "mfst.b02.mwhhbx89",
-    "inventory_snapshot_id": "inv.b02.mwhhbx89",
+    "manifest_id": "mfst.b02.mwhjhg12",
+    "inventory_snapshot_id": "inv.b02.mwhjhg12",
     "inventory_hash": "069b9d7f562ccf3ff074e132ab86159bb115b2fc446c842f1382fa3a7677d8ce",
     "reconciliation": {
-      "plan_id": "plan.mfst.b02.mwhhbx89",
-      "manifest_id": "mfst.b02.mwhhbx89",
+      "plan_id": "plan.mfst.b02.mwhjhg12",
+      "manifest_id": "mfst.b02.mwhjhg12",
       "batch_id": "B02",
       "total_candidates": 7335,
       "by_identity_action": {
@@ -136,7 +136,7 @@
       "planned_reused_works": 187,
       "accounting_matches_total": true,
       "silent_drops": 0,
-      "generated_at": "2026-11-15T06:54:43.596Z"
+      "generated_at": "2026-11-15T07:55:01.382Z"
     },
     "by_folder_and_disposition": {
       "Council of State (กฤษฎีกา)": {

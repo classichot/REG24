@@ -1,17 +1,17 @@
 {
-  "generated_at": "2026-11-15T06:57:28.531Z",
+  "generated_at": "2026-11-15T07:57:49.693Z",
   "code_identifiers": {
-    "git_head_sha": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
-    "git_head_short": "e9c2ffc",
+    "git_head_sha": "3c3034763128f22865c10c88274f468c5752bc09",
+    "git_head_short": "3c30347",
     "working_tree_dirty": false,
     "working_tree_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "remediation_tree_fingerprint": "e9c2ffc3b7c0+diff.e3b0c44298fc1c14"
+    "remediation_tree_fingerprint": "3c3034763128+diff.e3b0c44298fc1c14"
   },
   "rel_B01_rc2_blind_validation": {
     "suite_id": "suite.blind.source_to_answer.b01.v1.0",
     "release_id": "rel.B01.rc2",
     "batch_id": "B01",
-    "evaluated_at": "2026-11-15T06:54:39.606Z",
+    "evaluated_at": "2026-11-15T07:54:56.482Z",
     "total_cases": 20,
     "passed_cases": 20,
     "overall_accuracy": 1,
@@ -577,7 +577,7 @@
     "suite_id": "suite.blind.source_to_answer.b02.v1.0",
     "release_id": "rel.B02.rc1",
     "batch_id": "B02",
-    "evaluated_at": "2026-11-15T06:57:15.903Z",
+    "evaluated_at": "2026-11-15T07:57:37.628Z",
     "total_cases": 26,
     "passed_cases": 26,
     "overall_accuracy": 1,
@@ -1254,23 +1254,23 @@
           "subreg.th.rc.royal_decree.10",
           "subreg.th.rc.royal_decree.437",
           "subreg.th.rc.royal_decree.338",
+          "subreg.th.rc.royal_decree.362",
           "subreg.th.rc.royal_decree.516",
           "subreg.th.rc.royal_decree.499",
           "subreg.th.rc.royal_decree.558",
           "subreg.th.rc.royal_decree.517",
-          "subreg.th.rc.royal_decree.433",
-          "subreg.th.rc.royal_decree.438"
+          "subreg.th.rc.royal_decree.433"
         ],
         "opened_origins": [
           "https://www.rd.go.th/2376.html",
           "https://www.rd.go.th/29513.html",
           "https://www.rd.go.th/2822.html",
+          "https://www.rd.go.th/2934.html",
           "https://www.rd.go.th/44810.html",
           "https://www.rd.go.th/42859.html",
           "https://www.rd.go.th/47650.html",
           "https://www.rd.go.th/44811.html",
-          "https://www.rd.go.th/22645.html",
-          "https://www.rd.go.th/29514.html"
+          "https://www.rd.go.th/22645.html"
         ],
         "failure_reasons": []
       },
@@ -1295,10 +1295,8 @@
           "work.th.rd.gk_0811_10677_1999_feb8fe5a",
           "prov.b7c33a7228.1",
           "statute.th.rc_amendment_act.47",
-          "work.th.statute.2407270531a598",
-          "work.th.statute.d7f9fec39f8c2b",
-          "work.th.statute.7745238c1c2ea2",
-          "prov.th.rc.91/8"
+          "prov.th.rc.91/8",
+          "work.th.statute.5ea793e225d860"
         ],
         "opened_origins": [
           "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p48.pdf",
@@ -1306,9 +1304,6 @@
           "https://www.rd.go.th/23741.html",
           "https://drive.google.com/drive/folders/b02#Primary%20Law%2FActs%2F17074765.pdf",
           "https://drive.google.com/drive/folders/b02#RD%2FTransfer%20Pricing%2F2018-11-21_Act_47_%E0%B8%9E%E0%B8%A3%E0%B8%B0%E0%B8%A3%E0%B8%B2%E0%B8%8A%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8D%E0%B8%B1%E0%B8%95%E0%B8%B4%E0%B9%81%E0%B8%81%E0%B9%89%E0%B9%84%E0%B8%82%E0%B9%80%E0%B8%9E%E0%B8%B4%E0%B9%88%E0%B8%A1%E0%B9%80%E0%B8%95%E0%B8%B4%E0%B8%A1%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%A1%E0%B8%A7%E0%B8%A5%E0%B8%A3%E0%B8%B1%E0%B8%A9%E0%B8%8E%E0%B8%B2%E0%B8%81%E0%B8%A3%20(%E0%B8%89%E0%B8%9A%E0%B8%B1%E0%B8%9A%E0%B8%97%E0%B8%B5%E0%B9%88%2047)%20%E0%B8%9E.%E0%B8%A8.%202.pdf",
-          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FActs%2F17076750.pdf",
-          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FActs%2F17081919.pdf",
-          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FActs%2F17072849.pdf",
           "https://www.rd.go.th/5204.html#mata91_8"
         ],
         "failure_reasons": []
