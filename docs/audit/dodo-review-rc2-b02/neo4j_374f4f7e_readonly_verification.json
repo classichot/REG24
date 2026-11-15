@@ -1,0 +1,63 @@
+{
+  "verified_at": "2026-11-15T06:36:59.704Z",
+  "mode": "STRICT_READ_ONLY_NO_MUTATION",
+  "target_identity": {
+    "aura_instance_id": "374f4f7e",
+    "bolt_uri_redacted": "neo4j+s://374f4f7e.databases.neo4j.io",
+    "database_name": "374f4f7e",
+    "username_configured": true,
+    "password_configured": true,
+    "aura_cloud_management_api_credentials_present": false
+  },
+  "connectivity_probes": {
+    "dns": {
+      "A": {
+        "resolved": false,
+        "records": [],
+        "error": "queryA ENOTFOUND 374f4f7e.databases.neo4j.io"
+      },
+      "AAAA": {
+        "resolved": false,
+        "records": [],
+        "error": "queryAaaa ENOTFOUND 374f4f7e.databases.neo4j.io"
+      },
+      "SRV": {
+        "resolved": false,
+        "records": [],
+        "error": "querySrv ENOTFOUND _neo4j._tcp.374f4f7e.databases.neo4j.io"
+      }
+    },
+    "tcp_7687_bolt_tls": {
+      "reachable": false,
+      "error": "TCP_TIMEOUT_4000MS"
+    },
+    "tcp_443_https": {
+      "reachable": false,
+      "error": "TCP_TIMEOUT_4000MS"
+    },
+    "bolt_read_session_connected": false,
+    "bolt_sanitized_error": "Could not perform discovery. No routing servers available. Known routing table: RoutingTable[database=374f4f7e, expirationTime=0, currentTime=1794724619703, routers=[], readers=[], writers=[]]"
+  },
+  "live_database_content_verification": {
+    "verification_status": "UNVERIFIED_WHILE_PAUSED_OR_OFFLINE",
+    "reason": "Host 374f4f7e.databases.neo4j.io returns DNS ENOTFOUND (NXDOMAIN), which is the standard network signature of a paused (or expired) Neo4j AuraDB Free instance. Per Owner governance guardrail, the instance was NOT resumed and no Aura Cloud Console API credentials exist in the workspace; therefore live database contents cannot be queried until Owner inspects the Neo4j Aura Console.",
+    "historical_repository_write_audit": {
+      "oct_20_2026_commit_8fd220b_dd91850": "src/core/graph/graph-migrator.ts (`runGraphMigration`) upserted 352 canonical seed nodes and 523 relationships (including 10 seed `:TaxRuling` nodes from `reg24-core.ts`).",
+      "oct_21_2026_commit_802fdb6_2f06b30": "src/core/ingestion/legal-chunk-neo4j-sync.ts (`syncLegalResourceMasterChunksToNeo4j`) upserted 17 `:Regulator` (`reg.th.lrm.*`), 2,312 `:LegalInstrument` (`inst.lrm.*`), and structural `:Provision` chunks — recording 9,242 live nodes and 9,096 live relationships in AGR-005 (`src/core/agentic-rag/agentic-legal-research-engine.ts:11, 1037-1038`).",
+      "nov_14_2026_commit_bbdca54_to_7df41c4": "All 10-batch knowledge store modules (`src/core/knowledge/*`) contain zero `neo4jConnectionManager.executeCypher` write calls; `scripts/materialize-b01-candidate.ts:40` ran with `probeLiveNeo4j: false` (`F1_baseline_verification.json:17-21`), persisting `rel.B01.rc1` only to `data/knowledge-store/projections/rel.B01.rc1_graph.json.gz`. However, absence of Batch 01 data inside `374f4f7e` remains formally UNVERIFIED_UNTIL_LIVE_READ_INSPECTION."
+    },
+    "auradb_free_retention_risk_window": {
+      "auto_pause_threshold_hours": 72,
+      "permanent_deletion_after_paused_days": 30,
+      "automated_backups_on_free_tier": false,
+      "last_recorded_repo_neo4j_sync_commits": [
+        "2026-10-21 (802fdb6)",
+        "2026-10-25 (7b4447a)"
+      ],
+      "estimated_auto_pause_window": "2026-10-24 .. 2026-10-28",
+      "estimated_30_day_deletion_deadline_window": "2026-11-23 .. 2026-11-27",
+      "recommended_owner_console_check": "Log into https://console.neo4j.io (read-only UI check first) to verify whether instance `374f4f7e` is in `Paused` state and check its remaining retention days before ~23 November 2026."
+    }
+  },
+  "report_sha256": "667dd671fc558e83f6f7db4b7f43eadee29fd388402375165a10ef9d806077ab"
+}

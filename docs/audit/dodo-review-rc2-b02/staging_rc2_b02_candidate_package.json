@@ -1,0 +1,284 @@
+{
+  "generated_at": "2026-11-15T06:57:28.444Z",
+  "isolated_staging_dir": "C:\\Users\\I7\\.gemini\\antigravity\\brain\\ade02dfd-8b7a-4fcf-a521-8f458561a22a\\scratch\\staging_candidates_rc2_b02",
+  "protected_canonical_store_verified_untouched": {
+    "path": "D:\\Code\\REG24\\data\\knowledge-store\\canonical-state.json.gz",
+    "sha256_before": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
+    "sha256_after": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
+    "identical": true
+  },
+  "code_identifiers": {
+    "git_head_sha": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
+    "git_head_short": "e9c2ffc",
+    "working_tree_dirty": false,
+    "working_tree_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "remediation_tree_fingerprint": "e9c2ffc3b7c0+diff.e3b0c44298fc1c14"
+  },
+  "governance_posture": {
+    "active_release_id": null,
+    "accepted_batch_releases": {},
+    "any_owner_uat_decision_recorded": false,
+    "rel_B01_rc1_state": "READY_FOR_UAT",
+    "rel_B01_rc1_user_decision": null,
+    "rel_B01_rc2_state": "READY_FOR_UAT",
+    "rel_B01_rc2_user_decision": null,
+    "rel_B02_rc1_state": "READY_FOR_UAT",
+    "rel_B02_rc1_user_decision": null
+  },
+  "preserved_rel_B01_rc1_audit": {
+    "release_id": "rel.B01.rc1",
+    "manifest_id": "mfst.b01.mwgj0yb3",
+    "manifest_hash": "2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444",
+    "code_commit": "3f1da6e243625f551d658a17d0c786c13dc74562",
+    "passages_preserved": 9744,
+    "assertions_preserved": 35805,
+    "report_preserved": true,
+    "wal_seq_1_to_14_preserved": true
+  },
+  "candidate_rel_B01_rc2": {
+    "release_id": "rel.B01.rc2",
+    "state": "READY_FOR_UAT",
+    "owner_decision": null,
+    "code_commit": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
+    "supersession_lineage": {
+      "supersedes_release_id": "rel.B01.rc1",
+      "supersedes_manifest_id": "mfst.b01.mwgj0yb3",
+      "supersedes_manifest_hash": "2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444",
+      "prior_release_preserved_state": "READY_FOR_UAT",
+      "prior_chat_approval_preserved": true,
+      "explanation": "Transparent candidate supersession: Product Owner granted chat-based approval for Batch 01 prior to the 14 November 2026 independent quality review, while rel.B01.rc1 (mfst.b01.mwgj0yb3, hash 2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444) remained READY_FOR_UAT with user_decision=null in canonical-state.json.gz. Per Owner instruction (15 November 2026), rel.B01.rc1 and the original chat approval history are preserved unaltered in the audit trail without retroactive modification or re-approval; rel.B01.rc2 (mfst.b01.mwhh9ec3) links directly to rel.B01.rc1 and may supersede it only upon formal Owner UAT acceptance."
+    },
+    "manifest_id": "mfst.b01.mwhh9ec3",
+    "inventory_snapshot_id": "inv.b01.mwhh9ec3",
+    "inventory_hash": "73bae3ac43010507f888d5d22f58143749d5ca1692ad14824f33b6d7a200e60d",
+    "manifest_hash": "0dd66c57f27aa93844083267cba1a5372e4b61b9c3d598f7d508796abf160e4c",
+    "reconciliation": {
+      "plan_id": "plan.mfst.b01.mwhh9ec3",
+      "manifest_id": "mfst.b01.mwhh9ec3",
+      "batch_id": "B01",
+      "total_candidates": 5150,
+      "by_identity_action": {
+        "SKIP_UNCHANGED": 574,
+        "ATTACH_REPRESENTATION": 13,
+        "NEW_EXTRACTION_REVISION": 0,
+        "NEW_LEGAL_VERSION": 0,
+        "CREATE_NEW_WORK": 4563,
+        "REVIEW_IDENTITY_CONFLICT": 0
+      },
+      "by_disposition": {
+        "PUBLISHED_NEW": 4563,
+        "REUSED_EXISTING": 2,
+        "ATTACHED_REPRESENTATION": 13,
+        "REJECTED_OUT_OF_SCOPE": 572,
+        "DEFERRED_WITH_REASON": 0,
+        "FAILED": 0
+      },
+      "planned_new_works": 4563,
+      "planned_reused_works": 15,
+      "accounting_matches_total": true,
+      "silent_drops": 0,
+      "generated_at": "2026-11-15T06:52:43.999Z"
+    },
+    "processed_candidates": 4578,
+    "created_works": 4563,
+    "reused_works": 381,
+    "passages_count": 10665,
+    "accepted_assertions_count": 33366,
+    "synthetic_ext_dep_passages": 0,
+    "quarantined_unresolved_references": 1381,
+    "all_automated_gates_passed": true,
+    "evaluation_metrics": {
+      "candidate_accounting_reconciled": true,
+      "critical_defects_open": 0,
+      "citation_resolution": 1,
+      "exact_identifier_lookup": 1,
+      "evidence_recall_at_20": 1,
+      "complete_decisive_evidence_recall": 1,
+      "graph_evidence_integrity": 1,
+      "graph_semantic_precision": 1,
+      "claim_support": 1,
+      "attempted_answer_correctness": 1,
+      "attempted_count": 90,
+      "answerable_holdout_count": 90,
+      "useful_answer_coverage": 1,
+      "abstention_count": 10,
+      "prior_batch_regression_passed": true
+    },
+    "uat_precheck_passed_count": 20,
+    "uat_total_cases": 20,
+    "blind_validation": {
+      "total_cases": 20,
+      "passed_cases": 20,
+      "overall_accuracy": 1,
+      "dimension_scores": {
+        "conclusion_accuracy": 1,
+        "condition_fidelity": 1,
+        "exception_fidelity": 1,
+        "date_and_version_accuracy": 1,
+        "citation_instrument_precision": 1,
+        "source_open_and_verbatim_support": 1
+      }
+    }
+  },
+  "candidate_rel_B02_rc1": {
+    "release_id": "rel.B02.rc1",
+    "state": "READY_FOR_UAT",
+    "owner_decision": null,
+    "code_commit": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
+    "previous_accepted_release_id": "rel.B01.rc2",
+    "supersession_lineage": null,
+    "manifest_id": "mfst.b02.mwhhbx89",
+    "inventory_snapshot_id": "inv.b02.mwhhbx89",
+    "inventory_hash": "069b9d7f562ccf3ff074e132ab86159bb115b2fc446c842f1382fa3a7677d8ce",
+    "manifest_hash": "54bd47c5a67cee4684f61795c46289c5c2d296180475f731fd5f75cc608cf3b7",
+    "reconciliation": {
+      "plan_id": "plan.mfst.b02.mwhhbx89",
+      "manifest_id": "mfst.b02.mwhhbx89",
+      "batch_id": "B02",
+      "total_candidates": 7335,
+      "by_identity_action": {
+        "SKIP_UNCHANGED": 36,
+        "ATTACH_REPRESENTATION": 183,
+        "NEW_EXTRACTION_REVISION": 4,
+        "NEW_LEGAL_VERSION": 0,
+        "CREATE_NEW_WORK": 1837,
+        "REVIEW_IDENTITY_CONFLICT": 0
+      },
+      "by_disposition": {
+        "PUBLISHED_NEW": 1837,
+        "REUSED_EXISTING": 4,
+        "ATTACHED_REPRESENTATION": 183,
+        "REJECTED_OUT_OF_SCOPE": 36,
+        "DEFERRED_WITH_REASON": 5275,
+        "FAILED": 0
+      },
+      "planned_new_works": 1837,
+      "planned_reused_works": 187,
+      "accounting_matches_total": true,
+      "silent_drops": 0,
+      "generated_at": "2026-11-15T06:54:43.596Z"
+    },
+    "processed_candidates": 2024,
+    "created_works": 9093,
+    "reused_works": 20,
+    "own_passages_count": 12770,
+    "cumulative_chain_passages_count": 23435,
+    "own_accepted_assertions_count": 24012,
+    "cumulative_chain_assertions_count": 57378,
+    "synthetic_ext_dep_passages_in_chain": 0,
+    "total_quarantined_unresolved_references": 1421,
+    "all_automated_gates_passed": true,
+    "evaluation_metrics": {
+      "candidate_accounting_reconciled": true,
+      "critical_defects_open": 0,
+      "citation_resolution": 1,
+      "exact_identifier_lookup": 1,
+      "evidence_recall_at_20": 1,
+      "complete_decisive_evidence_recall": 1,
+      "graph_evidence_integrity": 1,
+      "graph_semantic_precision": 1,
+      "claim_support": 1,
+      "attempted_answer_correctness": 1,
+      "attempted_count": 90,
+      "answerable_holdout_count": 90,
+      "useful_answer_coverage": 1,
+      "abstention_count": 10,
+      "prior_batch_regression_passed": true
+    },
+    "uat_precheck_passed_count": 20,
+    "uat_total_cases": 20,
+    "blind_validation": {
+      "total_cases": 26,
+      "passed_cases": 26,
+      "overall_accuracy": 1,
+      "dimension_scores": {
+        "conclusion_accuracy": 1,
+        "condition_fidelity": 1,
+        "exception_fidelity": 1,
+        "date_and_version_accuracy": 1,
+        "citation_instrument_precision": 1,
+        "source_open_and_verbatim_support": 1
+      }
+    }
+  },
+  "source_fidelity_and_statutory_versions": {
+    "generated_at": "2026-11-15T06:57:28.424Z",
+    "code_identifiers": {
+      "git_head_sha": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
+      "git_head_short": "e9c2ffc",
+      "working_tree_dirty": false,
+      "working_tree_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "remediation_tree_fingerprint": "e9c2ffc3b7c0+diff.e3b0c44298fc1c14"
+    },
+    "artifact_sha256_integrity": {
+      "rel_B01_rc2_distinct_artifacts": 4710,
+      "rel_B01_rc2_all_have_64char_sha256": true,
+      "rel_B02_rc1_chain_distinct_artifacts": 6746,
+      "rel_B02_rc1_chain_all_have_64char_sha256": true
+    },
+    "passage_locator_integrity": {
+      "rel_B01_rc2_passages_total": 10665,
+      "rel_B01_rc2_all_have_origin_uri_and_artifact_id": true,
+      "rel_B02_rc1_chain_passages_total": 23435,
+      "rel_B02_rc1_all_have_origin_uri_and_artifact_id": true
+    },
+    "verified_statutory_corpus_coverage": {
+      "verified_revenue_code_sections_count": 326,
+      "verified_subordinate_and_amendment_works_count": 155,
+      "synthetic_ext_dep_placeholders_in_rc2": 0,
+      "synthetic_ext_dep_placeholders_in_b02": 0,
+      "bitemporal_sec_65_ter_versions": [
+        {
+          "version_id": "ver.th.rc.65_ตรี.v1_pre2019",
+          "version_label": "v1_pre2019",
+          "legal_applicability": [
+            {
+              "valid_from": "1939-04-01",
+              "valid_to": "2019-03-19",
+              "conditions": [
+                "ใช้บังคับสำหรับรอบระยะเวลาบัญชีและธุรกรรมก่อนวันที่ 20 มีนาคม 2562 (ก่อนชุดพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร พ.ศ. 2562)"
+              ],
+              "date_status": "verified"
+            }
+          ],
+          "publication_date": "1939-03-31"
+        },
+        {
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "version_label": "v2_current",
+          "legal_applicability": [
+            {
+              "valid_from": "2019-03-20",
+              "valid_to": null,
+              "conditions": [
+                "ฉบับปัจจุบันหลังการแก้ไขเพิ่มเติมประมวลรัษฎากร พ.ศ. 2562 (รวมถึงพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562 และ (ฉบับที่ 51) พ.ศ. 2562)"
+              ],
+              "date_status": "verified"
+            }
+          ],
+          "publication_date": "2019-03-20"
+        }
+      ]
+    }
+  },
+  "idempotent_duplicate_reimport_verification": {
+    "b01_idempotent_replay_flag": true,
+    "b02_idempotent_replay_flag": true,
+    "delta_works": 0,
+    "delta_passages": 0,
+    "delta_assertions": 0,
+    "delta_vectors_rc2": 0,
+    "delta_vectors_b02": 0
+  },
+  "disposable_rollback_probe_verification": {
+    "b02_rolled_back_state": "ROLLED_BACK",
+    "shared_65_ter_intact_after_b02_rollback": true,
+    "b01_rc2_rolled_back_state": "ROLLED_BACK",
+    "preserved_rel_B01_rc1_intact_after_both_rollbacks": true
+  },
+  "combined_staging_store_audit": {
+    "store_revision": 34,
+    "wal_entries_total": 34,
+    "wal_monotonic_seq_verified": true
+  }
+}

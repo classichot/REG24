@@ -1,0 +1,352 @@
+{
+  "generated_at": "2026-11-15T06:57:28.392Z",
+  "rel_B01_rc2": {
+    "manifest_id": "mfst.b01.mwhh9ec3",
+    "inventory_snapshot_id": "inv.b01.mwhh9ec3",
+    "inventory_hash": "73bae3ac43010507f888d5d22f58143749d5ca1692ad14824f33b6d7a200e60d",
+    "reconciliation": {
+      "plan_id": "plan.mfst.b01.mwhh9ec3",
+      "manifest_id": "mfst.b01.mwhh9ec3",
+      "batch_id": "B01",
+      "total_candidates": 5150,
+      "by_identity_action": {
+        "SKIP_UNCHANGED": 574,
+        "ATTACH_REPRESENTATION": 13,
+        "NEW_EXTRACTION_REVISION": 0,
+        "NEW_LEGAL_VERSION": 0,
+        "CREATE_NEW_WORK": 4563,
+        "REVIEW_IDENTITY_CONFLICT": 0
+      },
+      "by_disposition": {
+        "PUBLISHED_NEW": 4563,
+        "REUSED_EXISTING": 2,
+        "ATTACHED_REPRESENTATION": 13,
+        "REJECTED_OUT_OF_SCOPE": 572,
+        "DEFERRED_WITH_REASON": 0,
+        "FAILED": 0
+      },
+      "planned_new_works": 4563,
+      "planned_reused_works": 15,
+      "accounting_matches_total": true,
+      "silent_drops": 0,
+      "generated_at": "2026-11-15T06:52:43.999Z"
+    },
+    "rejected_out_of_scope_by_rd_subfolder": {
+      "CIT": 155,
+      "General & Other Taxes": 251,
+      "PIT": 32,
+      "ROOT_INDEX": 2,
+      "SBT": 8,
+      "Stamp": 1,
+      "Top-up Tax (Pillar Two)": 12,
+      "Transfer Pricing": 5,
+      "VAT": 71,
+      "WHT": 35
+    },
+    "by_folder_and_disposition": {
+      "Rulings": {
+        "PUBLISHED_NEW": 4563,
+        "ATTACHED_REPRESENTATION": 13,
+        "REUSED_EXISTING": 2
+      },
+      "CIT": {
+        "REJECTED_OUT_OF_SCOPE": 155
+      },
+      "General & Other Taxes": {
+        "REJECTED_OUT_OF_SCOPE": 251
+      },
+      "PIT": {
+        "REJECTED_OUT_OF_SCOPE": 32
+      },
+      "ROOT": {
+        "REJECTED_OUT_OF_SCOPE": 2
+      },
+      "SBT": {
+        "REJECTED_OUT_OF_SCOPE": 8
+      },
+      "Stamp": {
+        "REJECTED_OUT_OF_SCOPE": 1
+      },
+      "Top-up Tax (Pillar Two)": {
+        "REJECTED_OUT_OF_SCOPE": 12
+      },
+      "Transfer Pricing": {
+        "REJECTED_OUT_OF_SCOPE": 5
+      },
+      "VAT": {
+        "REJECTED_OUT_OF_SCOPE": 71
+      },
+      "WHT": {
+        "REJECTED_OUT_OF_SCOPE": 35
+      }
+    },
+    "top_exclusion_and_deferral_reasons": {
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of กค 0706/107 (7 มกราคม 2547); attached to ruling.th.rd.28732": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of กค 0706/520 (21 มกราคม 2547); attached to ruling.th.rd.28736": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (verified_pdf) of กค 0706/2901 (22 มีนาคม 2547); attached to ruling.th.rd.24458": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of กค 0706/2901 (22 มีนาคม 2547); attached to ruling.th.rd.24458": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (verified_pdf) of กค 0706/7020 (22 สิงหาคม 2548); attached to ruling.th.rd.29280": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of กค 0706/7020 (22 สิงหาคม 2548); attached to ruling.th.rd.29280": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (verified_pdf) of กค 0811/2827 (10 เมษายน 2543); attached to ruling.th.rd.23888": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of กค 0702/3542 (26 มิถุนายน 2566); attached to ruling.th.rd.64749": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of กค 0702/7456 (25 ธันวาคม 2567); attached to ruling.th.rd.67395": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of กค 0811/2827 (10 เมษายน 2543); attached to ruling.th.rd.23888": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (verified_pdf) of กค 0811/พ./7446 (1 สิงหาคม 2546); attached to ruling.th.rd.24641": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of กค 0811/พ./7446 (1 สิงหาคม 2546); attached to ruling.th.rd.24641": 1,
+      "ATTACHED_REPRESENTATION :: Duplicate representation (html_rendered_pdf) of 0706(กม.07)/พ./092 (29 มกราคม 2547); attached to ruling.th.rd.28783": 1,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'CIT' belongs to Batch B02 per source_batch_map.json": 155,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'General & Other Taxes' belongs to Batch B02 per source_batch_map.json": 251,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'PIT' belongs to Batch B02 per source_batch_map.json": 32,
+      "REJECTED_OUT_OF_SCOPE :: Root spreadsheet index descriptor (RD Index (superseded 2026-10-20, pre-FourCorners).gsheet) reconciled during inventory; not a legal ruling work": 1,
+      "REJECTED_OUT_OF_SCOPE :: Root spreadsheet index descriptor (RD Index.gsheet) reconciled during inventory; not a legal ruling work": 1,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'SBT' belongs to Batch B02 per source_batch_map.json": 8,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'Stamp' belongs to Batch B02 per source_batch_map.json": 1,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'Top-up Tax (Pillar Two)' belongs to Batch B02 per source_batch_map.json": 12,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'Transfer Pricing' belongs to Batch B02 per source_batch_map.json": 5,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'VAT' belongs to Batch B02 per source_batch_map.json": 71,
+      "REJECTED_OUT_OF_SCOPE :: Non-ruling RD tax regulation in 'WHT' belongs to Batch B02 per source_batch_map.json": 35
+    }
+  },
+  "rel_B02_rc1": {
+    "manifest_id": "mfst.b02.mwhhbx89",
+    "inventory_snapshot_id": "inv.b02.mwhhbx89",
+    "inventory_hash": "069b9d7f562ccf3ff074e132ab86159bb115b2fc446c842f1382fa3a7677d8ce",
+    "reconciliation": {
+      "plan_id": "plan.mfst.b02.mwhhbx89",
+      "manifest_id": "mfst.b02.mwhhbx89",
+      "batch_id": "B02",
+      "total_candidates": 7335,
+      "by_identity_action": {
+        "SKIP_UNCHANGED": 36,
+        "ATTACH_REPRESENTATION": 183,
+        "NEW_EXTRACTION_REVISION": 4,
+        "NEW_LEGAL_VERSION": 0,
+        "CREATE_NEW_WORK": 1837,
+        "REVIEW_IDENTITY_CONFLICT": 0
+      },
+      "by_disposition": {
+        "PUBLISHED_NEW": 1837,
+        "REUSED_EXISTING": 4,
+        "ATTACHED_REPRESENTATION": 183,
+        "REJECTED_OUT_OF_SCOPE": 36,
+        "DEFERRED_WITH_REASON": 5275,
+        "FAILED": 0
+      },
+      "planned_new_works": 1837,
+      "planned_reused_works": 187,
+      "accounting_matches_total": true,
+      "silent_drops": 0,
+      "generated_at": "2026-11-15T06:54:43.596Z"
+    },
+    "by_folder_and_disposition": {
+      "Council of State (กฤษฎีกา)": {
+        "DEFERRED_WITH_REASON": 36,
+        "PUBLISHED_NEW": 24,
+        "REJECTED_OUT_OF_SCOPE": 1
+      },
+      "Customs - Customs Department": {
+        "DEFERRED_WITH_REASON": 68,
+        "PUBLISHED_NEW": 65,
+        "ATTACHED_REPRESENTATION": 2,
+        "REJECTED_OUT_OF_SCOPE": 8
+      },
+      "Excise - Excise Department": {
+        "PUBLISHED_NEW": 245,
+        "DEFERRED_WITH_REASON": 421,
+        "ATTACHED_REPRESENTATION": 1,
+        "REJECTED_OUT_OF_SCOPE": 3
+      },
+      "Misc Gazette": {
+        "PUBLISHED_NEW": 38,
+        "DEFERRED_WITH_REASON": 1,
+        "ATTACHED_REPRESENTATION": 1,
+        "REJECTED_OUT_OF_SCOPE": 1
+      },
+      "Misc Royal Decrees": {
+        "DEFERRED_WITH_REASON": 3,
+        "PUBLISHED_NEW": 16,
+        "REJECTED_OUT_OF_SCOPE": 17,
+        "ATTACHED_REPRESENTATION": 25
+      },
+      "Parliament": {
+        "PUBLISHED_NEW": 29,
+        "DEFERRED_WITH_REASON": 10,
+        "REJECTED_OUT_OF_SCOPE": 1
+      },
+      "Primary Law": {
+        "DEFERRED_WITH_REASON": 4591,
+        "PUBLISHED_NEW": 1081,
+        "ATTACHED_REPRESENTATION": 60,
+        "REJECTED_OUT_OF_SCOPE": 5
+      },
+      "RD": {
+        "PUBLISHED_NEW": 328,
+        "DEFERRED_WITH_REASON": 144,
+        "REUSED_EXISTING": 4,
+        "ATTACHED_REPRESENTATION": 94
+      },
+      "Customs": {
+        "PUBLISHED_NEW": 11,
+        "DEFERRED_WITH_REASON": 1
+      }
+    },
+    "top_exclusion_and_deferral_reasons": {
+      "DEFERRED_WITH_REASON :: OCR_PENDING_HISTORICAL_GAZETTE_SCAN_QUARANTINED": 5087,
+      "DEFERRED_WITH_REASON :: UNMAPPED_LEGACY_FONT_QUARANTINED_PENDING_VERIFIED_OCR": 187,
+      "REJECTED_OUT_OF_SCOPE :: Administrative spreadsheet/CSV index descriptor; non-normative metadata file.": 18,
+      "ATTACHED_REPRESENTATION :: Companion representation (unofficial copy / English translation / superseded Parliament print).": 28,
+      "REJECTED_OUT_OF_SCOPE :: Archive container wrapper; inner PDF members unpacked and tracked in B02_archive_member_manifest.json.": 2,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_FeeSchedule_-_Fees.pdf.": 2,
+      "REJECTED_OUT_OF_SCOPE :: Foreign jurisdiction reference file (Myanmar); outside Thai legal authority scope.": 15,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2023-10-20_Royal Decree_RG140-60ก_ปิดประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่หนึ่ง พ.ศ. 2566.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2023-11-22_Royal Decree_RG140-66ก_เรียกประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่สอง พ.ศ. 2566.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2024-03-17_Royal Decree_RG141-12ก_ปิดประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่สอง พ.ศ. 2567.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Royal Decrees/2024-05-11_Royal Decree_RG141-28ก_ให้มีการเลือกสมาชิกวุฒิสภา พ.ศ. 2567.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2024-05-31_Royal Decree_RG141-33ก_เรียกประชุมสมัยวิสามัญแห่งรัฐสภา พ.ศ. 2567.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2024-06-19_Royal Decree_RG141-39ก_ปิดประชุมสมัยวิสามัญแห่งรัฐสภา พ.ศ. 2567.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2024-06-22_Royal Decree_RG141-40ก_เรียกประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่หนึ่ง พ.ศ. 2567.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2024-10-03_Royal Decree_RG141-62ก_ปิดประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่หนึ่ง พ.ศ. 2567.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2024-11-15_Royal Decree_RG141-68ก_เรียกประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่สอง พ.ศ. 2567.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-03-07_Royal Decree_RG142-11ก_ปิดประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่สอง พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-05-15_Royal Decree_RG142-33ก_เรียกประชุมสมัยวิสามัญแห่งรัฐสภา พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-05-29_Royal Decree_RG142-36ก_ปิดประชุมสมัยวิสามัญแห่งรัฐสภา พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Royal Decrees/2025-06-05_Act_RG142-38ก_อำนาจเรียกของคณะกรรมาธิการของสภาผู้แทนราษฎรและวุฒิสภา พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-06-09_Royal Decree_RG142-39ก_เรียกประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่หนึ่ง พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-10-10_Royal Decree_RG142-66ก_ปิดประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่หนึ่ง พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-11-28_Royal Decree_RG142-78ก_ปิดประชุมสมัยวิสามัญแห่งรัฐสภา พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-11-28_Royal Decree_RG142-78ก_เรียกประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่สอง พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-11-28_Royal Decree_RG142-78ก_เรียกประชุมสมัยวิสามัญแห่งรัฐสภา พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Royal Decrees/2025-12-12_Royal Decree_RG142-80ก_ยุบสภาผู้แทนราษฎร พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2025-12-20_Royal Decree_RG142-85ก_ปิดประชุมสมัยวิสามัญแห่งรัฐสภา พ.ศ. 2568.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2026-03-11_Royal Decree_RG143-20ก_เรียกประชุมรัฐสภา พ.ศ. 2569.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2026-06-25_Royal Decree_RG143-36ก_ปิดประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่หนึ่ง พ.ศ. 2569.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Gazette/2026-08-06_Royal Decree_RG143-46ก_เรียกประชุมรัฐสภาสมัยประชุมสามัญประจำปีครั้งที่สอง พ.ศ. 2569.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/117433.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/140A020N0000000000700_Act.pdf.": 2,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/140A020N0000000001400_Act.pdf.": 2,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/140A020N0000000004800_Act.pdf.": 2,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/140A020N0000000005600_Act.pdf.": 2,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Customs - Customs Department/2018-11-07_Act_NA_TariffDecreeAmend8_2557.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Royal Decrees/2015-06-02_Act_RG132-47ก_ยกเลิกกฎหมายบางฉบับที่หมดความจำเป็นหรือซํ้าซ้อนกับกฎหมายอื่น พ.ศ. 2558.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2046094.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2057832.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2064453.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2075412.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2079902.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2082495.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2094604.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2096453.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2097456.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2097693.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Customs - Customs Department/2018-11-16_Act_NA_CustomsAct2560_TH.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Misc Royal Decrees/2017-06-08_Act_RG134-61ก_ยกเลิกกฎหมายบางฉบับที่หมดความจำเป็นหรือซํ้าซ้อนกับกฎหมายอื่น (ฉบับที่.pdf.": 2,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2109072.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2112624.pdf.": 1,
+      "REJECTED_OUT_OF_SCOPE :: Corrupt/0-page PDF stub on source drive.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2137997.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/2140136.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/25841.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/36482.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/41031.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/44678.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/17207583_Act.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/U_chemweapons_2545_Act.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/U_localelect_2545_Act.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Acts/U_ministry_2545_Act.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-10-02_RoyalDecree_2560_Local-Govt-Surcharge.pdf.": 2,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17178394_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186435_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186438_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186439_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186440_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186442_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186443_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/2163531_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/2163532_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17207936_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17210443_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17214850_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17228889_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17228890_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A020N0000000010000.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A020N0000000010300.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A033N0000000000900.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000000900.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000002200.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000002500.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000002800.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000003500.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000003800.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/11867_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/18993_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/29929_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/29930_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/29931_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/29932_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/29933_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/30423_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/60182_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/62998_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/65751_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/78097_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/93258_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/93259_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/101575_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/104276_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/104277_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/124513_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/128317_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/128318_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/128319_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Service-Venue-Refund-Exemption.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Raw-Material-Exemption.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Export-FreeZone-Exemption-Refund.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Registered-Tax-Mark-Production.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Refund-Interest.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Excise-Stamp-Use.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Goods-Categories.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_No01-2560_Tariff-Rates-Original.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Industrial-Tax-Deduction-Goods.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Refund-Eligible-Damaged-Goods.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2017-09-16_MinReg_2560_Excise-Stamps.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Customs - Customs Department/2021-06-30_MinisterialRegulation_NA_MR_TaxCard_2564.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2021-12-30_MinReg_2564_Sale-License-Fee-Exemption.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17190183_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Excise - Excise Department/2022-12-26_MinReg_No2-2565_Sale-License-Fee-Exemption.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/49141_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/57949_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/57950_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/101576_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186437_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186446_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/1876467_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17178395_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186444_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186445_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/2163533_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17199178_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17207933_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17207934_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17210444_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17214849_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17214851_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17214852_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17214853_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17228888_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17228891_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A033N0000000000600.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A033N0000000001500.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000000100.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000000600.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000001300.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000001800.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/140A047N0000000004100.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/30418_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/126052_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186436_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17186441_Royal_Decree.pdf.": 1,
+      "ATTACHED_REPRESENTATION :: Exact byte-identical SHA-256 duplicate of Primary Law/Royal Decrees/17207585_Royal_Decree.pdf.": 1,
+      "DEFERRED_WITH_REASON :: Unpacked Customs RAR scan-only member PDF quarantined pending verified OCR": 1
+    }
+  }
+}

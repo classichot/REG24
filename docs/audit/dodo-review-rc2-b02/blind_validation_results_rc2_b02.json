@@ -1,0 +1,1318 @@
+{
+  "generated_at": "2026-11-15T06:57:28.531Z",
+  "code_identifiers": {
+    "git_head_sha": "e9c2ffc3b7c0a4f9c5a0bd2d66767d1dbe8966b5",
+    "git_head_short": "e9c2ffc",
+    "working_tree_dirty": false,
+    "working_tree_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "remediation_tree_fingerprint": "e9c2ffc3b7c0+diff.e3b0c44298fc1c14"
+  },
+  "rel_B01_rc2_blind_validation": {
+    "suite_id": "suite.blind.source_to_answer.b01.v1.0",
+    "release_id": "rel.B01.rc2",
+    "batch_id": "B01",
+    "evaluated_at": "2026-11-15T06:54:39.606Z",
+    "total_cases": 20,
+    "passed_cases": 20,
+    "overall_accuracy": 1,
+    "dimension_scores": {
+      "conclusion_accuracy": 1,
+      "condition_fidelity": 1,
+      "exception_fidelity": 1,
+      "date_and_version_accuracy": 1,
+      "citation_instrument_precision": 1,
+      "source_open_and_verbatim_support": 1
+    },
+    "synthetic_placeholder_citations_detected": 0,
+    "quarantined_unresolved_used_as_evidence": 0,
+    "mislinked_instrument_citations_detected": 0,
+    "case_results": [
+      {
+        "blind_case_id": "BLIND-01",
+        "defect_tags": [
+          "DEF-B01-01",
+          "DEF-B01-02"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/13980 เรื่องการขายฝากที่ดินของบริษัทจำกัดและสิทธิไถ่ทรัพย์สินคืน",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0811_13980_1997_74b835fc"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/22874.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-02",
+        "defect_tags": [
+          "DEF-B01-01"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/14025 เกี่ยวกับการคำนวณกำไรขาดทุนจากอัตราแลกเปลี่ยนตามคำสั่ง ท.ป. 72/2540",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0811_14025_1997_f2b16361"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/22875.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-03",
+        "defect_tags": [
+          "DEF-B01-01",
+          "DEF-B01-02"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/00131 เรื่องการใช้สิทธิประโยชน์ของบัตรส่งเสริมการลงทุนสองบัตรและการลงบัญชีสต็อควัตถุดิบ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0811_00131_1998_b30a8092"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/22929.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-04",
+        "defect_tags": [
+          "DEF-B01-01"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0706/พ./10877 กรณีบอกเลิกสัญญาซื้อขายรถยนต์โดยมีเงื่อนไขและออกใบลดหนี้",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0706_พ_10877_2002_c7921ce6"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/24875.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-05",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636 เกี่ยวกับสิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 โครงการเงินช่วยเหลือจากต่างประเทศ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_636_2026_ec1b79d8",
+          "work.th.rd.gk_0702_636_2012_394a3877"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68302.html",
+          "https://www.rd.go.th/46391.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-06",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/634 กรณีนำเข้าทองรูปพรรณความบริสุทธิ์ร้อยละ 96.5 ได้รับยกเว้นภาษีมูลค่าเพิ่มหรือไม่",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_634_2026_a3ba2d58"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68308.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-07",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1248 กรณีการรับรู้รายได้ค่าเช่าที่ดินระยะยาว 30 ปี เพื่อเสียภาษีเงินได้นิติบุคคล",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1248_2026_b8bef81c",
+          "work.th.rd.gk_0702_1248_2014_1b114329"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68464.html",
+          "https://www.rd.go.th/52540.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-08",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1230 กรณีกิจการร่วมค้าสร้างภาพยนตร์และโอนลิขสิทธิ์ให้ผู้ซื้อในต่างประเทศผ่านอินเทอร์เน็ต",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1230_2026_60f73017"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68470.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-09",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1903 กรณีนำเข้าอาหารเสริมสำหรับสัตว์ที่ขึ้นทะเบียนกับกรมปศุสัตว์",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1903_2026_b1d563eb"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68482.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-10",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1603 กรณีนำเข้าสินค้าประเภทอาหารสัตว์ที่ไม่ต้องขึ้นทะเบียนอาหารสัตว์แต่ต้องขออนุญาตนำเข้าจากกรมปศุสัตว์",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1603_2026_4e9d294a"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68500.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-11",
+        "defect_tags": [
+          "DEF-B01-01",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1491 เรื่องส่วนลดค่าเครื่องโทรศัพท์และฐานภาษีมูลค่าเพิ่มตามมาตรา 79",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1491_2026_469a306d",
+          "prov.th.rc.79"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68488.html",
+          "https://www.rd.go.th/5205.html#mata79"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-12",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1493 กรณีเวนคืนอสังหาริมทรัพย์ตามพระราชกฤษฎีกา (ฉบับที่ 736)",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1493_2026_c76989ef"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68494.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-13",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1255 กรณีค่าสินไหมทดแทนรถยนต์เช่าซื้อเกินมูลหนี้ที่ค้างชำระ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1255_2026_d937cd7d"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68530.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-14",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1494 กรณีกองมรดกที่ยังไม่ได้แบ่งขอเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1494_2026_f445ed1a",
+          "prov.th.rc.47_ทวิ"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68536.html",
+          "https://www.rd.go.th/5937.html#mata47_2"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-15",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการที่ไม่ให้ถือเป็นรายจ่ายในการคำนวณกำไรสุทธิไว้อย่างไร สำหรับธุรกรรมเมื่อวันที่ 30 มิถุนายน 2561",
+        "answer_status": "CONDITIONAL",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.65_ตรี",
+          "work.th.rd.gk_0706_9454_2007_271ea668",
+          "work.th.rd.gk_0811_12530_1999_58884fac",
+          "work.th.rd.gk_0811_12651_1999_189160f8",
+          "work.th.rd.0811_กม_04_942_2000_1cf90c23",
+          "work.th.rd.gk_0811_01746_1999_71e15286",
+          "work.th.rd.gk_0706_415_2005_7648c19b",
+          "subreg.th.rc.royal_decree.315",
+          "work.th.rd.gk_0702_2994_2014_fa0ff441",
+          "work.th.rd.gk_0811_03725_1999_fc28f002"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5939.html#mata65_3",
+          "https://www.rd.go.th/36179.html",
+          "https://www.rd.go.th/23788.html",
+          "https://www.rd.go.th/23792.html",
+          "https://www.rd.go.th/23991.html",
+          "https://www.rd.go.th/23420.html",
+          "https://www.rd.go.th/28755.html",
+          "https://www.rd.go.th/2796.html",
+          "https://www.rd.go.th/52912.html",
+          "https://www.rd.go.th/23544.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-16",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการที่ไม่ให้ถือเป็นรายจ่ายในการคำนวณกำไรสุทธิไว้อย่างไร สำหรับธุรกรรมเมื่อวันที่ 15 มกราคม 2568",
+        "answer_status": "CONDITIONAL",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.65_ตรี",
+          "work.th.rd.gk_0706_9454_2007_271ea668",
+          "work.th.rd.gk_0811_12530_1999_58884fac",
+          "work.th.rd.gk_0811_12651_1999_189160f8",
+          "work.th.rd.gk_0706_415_2005_7648c19b",
+          "work.th.rd.gk_0811_04270_1998_87b39003",
+          "subreg.th.rc.royal_decree.315",
+          "work.th.rd.0811_กม_พ_012_1999_fa66ad2e",
+          "work.th.rd.gk_0702_2479_2023_3db41381"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5939.html#mata65_3",
+          "https://www.rd.go.th/36179.html",
+          "https://www.rd.go.th/23788.html",
+          "https://www.rd.go.th/23792.html",
+          "https://www.rd.go.th/28755.html",
+          "https://www.rd.go.th/23022.html",
+          "https://www.rd.go.th/2796.html",
+          "https://www.rd.go.th/23381.html",
+          "https://www.rd.go.th/65127.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-17",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-03"
+        ],
+        "question": "แสดงบทบัญญัติประมวลรัษฎากร มาตรา 80/1 เกี่ยวกับการคำนวณภาษีมูลค่าเพิ่มอัตราร้อยละ 0",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.80/1",
+          "work.th.rd.gk_0813_08519_1998_d107fbea",
+          "work.th.rd.gk_0811_2877_2000_f923c4ad",
+          "work.th.rd.gk_0811_05486_1998_c4242f03",
+          "work.th.rd.gk_0811_พ_03202_1999_d62dc535",
+          "work.th.rd.gk_0811_พ_02340_1998_0c3610ff",
+          "work.th.rd.0811_กม_06_พ_941_2000_0f6b89a3",
+          "work.th.rd.gk_0702_6419_2014_617ea88d",
+          "work.th.rd.gk_0811_พ_06466_1999_72627a2f",
+          "work.th.rd.gk_0702_8247_2013_e9a8f4b7"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5206.html#mata80_1",
+          "https://www.rd.go.th/23097.html",
+          "https://www.rd.go.th/23893.html",
+          "https://www.rd.go.th/23058.html",
+          "https://www.rd.go.th/23530.html",
+          "https://www.rd.go.th/22995.html",
+          "https://www.rd.go.th/23990.html",
+          "https://www.rd.go.th/53728.html",
+          "https://www.rd.go.th/23629.html",
+          "https://www.rd.go.th/49018.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-18",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "เปรียบเทียบแนววินิจฉัย กค 0702/1903 และ กค 0702/1603 เกี่ยวกับเงื่อนไขการรับรองจากกรมปศุสัตว์ในการยกเว้นภาษีมูลค่าเพิ่มนำเข้าอาหารสัตว์",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "work.th.rd.gk_0702_1603_2026_4e9d294a",
+          "work.th.rd.gk_0702_7024_2023_8d6fe04e",
+          "work.th.rd.gk_0702_6075_2023_fa52de73",
+          "work.th.rd.gk_0702_3692_2024_75b8225e",
+          "work.th.rd.gk_0702_52_2025_94ecad2f",
+          "work.th.rd.gk_0702_7375_2024_37527a04",
+          "work.th.rd.gk_0702_2404_2026_e0512a32",
+          "work.th.rd.gk_0702_4400_2023_dedbfff1",
+          "work.th.rd.gk_0702_4401_2023_ec79fa7f"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68482.html",
+          "https://www.rd.go.th/68500.html",
+          "https://www.rd.go.th/65986.html",
+          "https://www.rd.go.th/65572.html",
+          "https://www.rd.go.th/67224.html",
+          "https://www.rd.go.th/67515.html",
+          "https://www.rd.go.th/67383.html",
+          "https://www.rd.go.th/68563.html",
+          "https://www.rd.go.th/65311.html",
+          "https://www.rd.go.th/65317.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-19",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "บริษัทนำเข้าอาหารเสริมสำหรับสัตว์จะได้รับยกเว้นภาษีมูลค่าเพิ่มตามมาตรา 81 (2) (ก) หรือไม่ โดยไม่ทราบว่าได้รับการขึ้นทะเบียนหรือรับรองจากกรมปศุสัตว์หรือไม่",
+        "answer_status": "NEEDS_CLARIFICATION",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.0702_5954_2015_312309fd",
+          "work.th.rd.gk_0702_3692_2024_75b8225e",
+          "work.th.rd.gk_0706_พ_2230_2007_824ab55e",
+          "prov.th.rc.81",
+          "work.th.rd.gk_0702_7024_2023_8d6fe04e",
+          "work.th.rd.gk_0702_6075_2023_fa52de73",
+          "work.th.rd.gk_0811_พ_30017_2000_1e69f8a5",
+          "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "work.th.rd.gk_0706_พ_7662_2006_a22e567a",
+          "work.th.rd.gk_0702_พ_8343_2009_9840f234"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/26159.html",
+          "https://www.rd.go.th/67224.html",
+          "https://www.rd.go.th/34638.html",
+          "https://www.rd.go.th/5206.html#mata81",
+          "https://www.rd.go.th/65986.html",
+          "https://www.rd.go.th/65572.html",
+          "https://www.rd.go.th/23807.html",
+          "https://www.rd.go.th/68482.html",
+          "https://www.rd.go.th/32843.html",
+          "https://www.rd.go.th/42075.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-20",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999404",
+        "answer_status": "INSUFFICIENT_EVIDENCE",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [],
+        "opened_origins": [],
+        "failure_reasons": []
+      }
+    ]
+  },
+  "rel_B02_rc1_blind_validation": {
+    "suite_id": "suite.blind.source_to_answer.b02.v1.0",
+    "release_id": "rel.B02.rc1",
+    "batch_id": "B02",
+    "evaluated_at": "2026-11-15T06:57:15.903Z",
+    "total_cases": 26,
+    "passed_cases": 26,
+    "overall_accuracy": 1,
+    "dimension_scores": {
+      "conclusion_accuracy": 1,
+      "condition_fidelity": 1,
+      "exception_fidelity": 1,
+      "date_and_version_accuracy": 1,
+      "citation_instrument_precision": 1,
+      "source_open_and_verbatim_support": 1
+    },
+    "synthetic_placeholder_citations_detected": 0,
+    "quarantined_unresolved_used_as_evidence": 0,
+    "mislinked_instrument_citations_detected": 0,
+    "case_results": [
+      {
+        "blind_case_id": "BLIND-01",
+        "defect_tags": [
+          "DEF-B01-01",
+          "DEF-B01-02"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/13980 เรื่องการขายฝากที่ดินของบริษัทจำกัดและสิทธิไถ่ทรัพย์สินคืน",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0811_13980_1997_74b835fc"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/22874.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-02",
+        "defect_tags": [
+          "DEF-B01-01"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/14025 เกี่ยวกับการคำนวณกำไรขาดทุนจากอัตราแลกเปลี่ยนตามคำสั่ง ท.ป. 72/2540",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0811_14025_1997_f2b16361"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/22875.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-03",
+        "defect_tags": [
+          "DEF-B01-01",
+          "DEF-B01-02"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/00131 เรื่องการใช้สิทธิประโยชน์ของบัตรส่งเสริมการลงทุนสองบัตรและการลงบัญชีสต็อควัตถุดิบ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0811_00131_1998_b30a8092"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/22929.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-04",
+        "defect_tags": [
+          "DEF-B01-01"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0706/พ./10877 กรณีบอกเลิกสัญญาซื้อขายรถยนต์โดยมีเงื่อนไขและออกใบลดหนี้",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0706_พ_10877_2002_c7921ce6"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/24875.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-05",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636 เกี่ยวกับสิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 โครงการเงินช่วยเหลือจากต่างประเทศ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_636_2026_ec1b79d8",
+          "work.th.rd.gk_0702_636_2012_394a3877"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68302.html",
+          "https://www.rd.go.th/46391.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-06",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/634 กรณีนำเข้าทองรูปพรรณความบริสุทธิ์ร้อยละ 96.5 ได้รับยกเว้นภาษีมูลค่าเพิ่มหรือไม่",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_634_2026_a3ba2d58",
+          "prov.5d72009212.3"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68308.html",
+          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FRoyal%20Decrees%2F2145642_Royal_Decree.pdf"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-07",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1248 กรณีการรับรู้รายได้ค่าเช่าที่ดินระยะยาว 30 ปี เพื่อเสียภาษีเงินได้นิติบุคคล",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1248_2026_b8bef81c",
+          "work.th.rd.gk_0702_1248_2014_1b114329"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68464.html",
+          "https://www.rd.go.th/52540.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-08",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1230 กรณีกิจการร่วมค้าสร้างภาพยนตร์และโอนลิขสิทธิ์ให้ผู้ซื้อในต่างประเทศผ่านอินเทอร์เน็ต",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1230_2026_60f73017",
+          "prov.decc033372.2"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68470.html",
+          "https://drive.google.com/drive/folders/b02#RD%2FCIT%2F2023_MR_387_%E0%B8%81%E0%B8%8E%E0%B8%81%E0%B8%A3%E0%B8%B0%E0%B8%97%E0%B8%A3%E0%B8%A7%E0%B8%87%20%E0%B8%AD%E0%B8%AD%E0%B8%81%E0%B8%95%E0%B8%B2%E0%B8%A1%E0%B8%84%E0%B8%A7%E0%B8%B2%E0%B8%A1%E0%B9%83%E0%B8%99%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%A1%E0%B8%A7%E0%B8%A5%E0%B8%A3%E0%B8%B1%E0%B8%A9%E0%B8%8E%E0%B8%B2%E0%B8%81%E0%B8%A3%20%E0%B8%A7%E0%B9%88%E0%B8%B2%E0%B8%94%E0%B9%89%E0%B8%A7%E0%B8%A2%E0%B8%81%E0%B8%B2%E0%B8%A3%E0%B8%A2%E0%B8%81%E0%B9%80%E0%B8%A7%E0%B9%89%E0%B8%99%E0%B8%A3%E0%B8%B1%E0%B8%A9%E0%B8%8E%E0%B8%B2%E0%B8%81%E0%B8%A3.pdf"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-09",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1903 กรณีนำเข้าอาหารเสริมสำหรับสัตว์ที่ขึ้นทะเบียนกับกรมปศุสัตว์",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1903_2026_b1d563eb"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68482.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-10",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1603 กรณีนำเข้าสินค้าประเภทอาหารสัตว์ที่ไม่ต้องขึ้นทะเบียนอาหารสัตว์แต่ต้องขออนุญาตนำเข้าจากกรมปศุสัตว์",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1603_2026_4e9d294a"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68500.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-11",
+        "defect_tags": [
+          "DEF-B01-01",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1491 เรื่องส่วนลดค่าเครื่องโทรศัพท์และฐานภาษีมูลค่าเพิ่มตามมาตรา 79",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1491_2026_469a306d",
+          "prov.th.rc.79"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68488.html",
+          "https://www.rd.go.th/5205.html#mata79"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-12",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1493 กรณีเวนคืนอสังหาริมทรัพย์ตามพระราชกฤษฎีกา (ฉบับที่ 736)",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1493_2026_c76989ef"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68494.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-13",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1255 กรณีค่าสินไหมทดแทนรถยนต์เช่าซื้อเกินมูลหนี้ที่ค้างชำระ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1255_2026_d937cd7d"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68530.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-14",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1494 กรณีกองมรดกที่ยังไม่ได้แบ่งขอเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1494_2026_f445ed1a",
+          "prov.th.rc.47_ทวิ"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68536.html",
+          "https://www.rd.go.th/5937.html#mata47_2"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-15",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการที่ไม่ให้ถือเป็นรายจ่ายในการคำนวณกำไรสุทธิไว้อย่างไร สำหรับธุรกรรมเมื่อวันที่ 30 มิถุนายน 2561",
+        "answer_status": "CONDITIONAL",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.65_ตรี",
+          "work.th.rd.gk_0706_9454_2007_271ea668",
+          "work.th.rd.gk_0811_12530_1999_58884fac",
+          "work.th.rd.gk_0811_12651_1999_189160f8",
+          "work.th.rd.0811_กม_04_942_2000_1cf90c23",
+          "work.th.rd.gk_0811_01746_1999_71e15286",
+          "subreg.th.rc.royal_decree.315",
+          "work.th.rd.gk_0702_2994_2014_fa0ff441",
+          "work.th.rd.gk_0811_03725_1999_fc28f002",
+          "work.th.rd.gk_0702_8680_2013_64ff6a0c"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5939.html#mata65_3",
+          "https://www.rd.go.th/36179.html",
+          "https://www.rd.go.th/23788.html",
+          "https://www.rd.go.th/23792.html",
+          "https://www.rd.go.th/23991.html",
+          "https://www.rd.go.th/23420.html",
+          "https://www.rd.go.th/2796.html",
+          "https://www.rd.go.th/52912.html",
+          "https://www.rd.go.th/23544.html",
+          "https://www.rd.go.th/49006.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-16",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการที่ไม่ให้ถือเป็นรายจ่ายในการคำนวณกำไรสุทธิไว้อย่างไร สำหรับธุรกรรมเมื่อวันที่ 15 มกราคม 2568",
+        "answer_status": "CONDITIONAL",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.65_ตรี",
+          "work.th.rd.gk_0706_9454_2007_271ea668",
+          "work.th.rd.gk_0811_12530_1999_58884fac",
+          "work.th.rd.gk_0811_12651_1999_189160f8",
+          "work.th.rd.gk_0706_415_2005_7648c19b",
+          "work.th.rd.gk_0811_04270_1998_87b39003",
+          "subreg.th.rc.royal_decree.315",
+          "work.th.rd.0811_กม_พ_012_1999_fa66ad2e",
+          "work.th.rd.gk_0702_2994_2014_fa0ff441"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5939.html#mata65_3",
+          "https://www.rd.go.th/36179.html",
+          "https://www.rd.go.th/23788.html",
+          "https://www.rd.go.th/23792.html",
+          "https://www.rd.go.th/28755.html",
+          "https://www.rd.go.th/23022.html",
+          "https://www.rd.go.th/2796.html",
+          "https://www.rd.go.th/23381.html",
+          "https://www.rd.go.th/52912.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-17",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-03"
+        ],
+        "question": "แสดงบทบัญญัติประมวลรัษฎากร มาตรา 80/1 เกี่ยวกับการคำนวณภาษีมูลค่าเพิ่มอัตราร้อยละ 0",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.80/1",
+          "work.th.rd.gk_0811_2877_2000_f923c4ad",
+          "work.th.rd.gk_0813_08519_1998_d107fbea",
+          "work.th.rd.gk_0811_05486_1998_c4242f03",
+          "work.th.rd.gk_0702_8247_2013_e9a8f4b7",
+          "work.th.rd.gk_0811_พ_03202_1999_d62dc535",
+          "work.th.rd.gk_0811_พ_02340_1998_0c3610ff",
+          "work.th.rd.0811_กม_06_พ_941_2000_0f6b89a3",
+          "work.th.rd.gk_0811_พ_06466_1999_72627a2f",
+          "work.th.rd.gk_0811_5184_2000_2e141b3a"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5206.html#mata80_1",
+          "https://www.rd.go.th/23893.html",
+          "https://www.rd.go.th/23097.html",
+          "https://www.rd.go.th/23058.html",
+          "https://www.rd.go.th/49018.html",
+          "https://www.rd.go.th/23530.html",
+          "https://www.rd.go.th/22995.html",
+          "https://www.rd.go.th/23990.html",
+          "https://www.rd.go.th/23629.html",
+          "https://www.rd.go.th/24002.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-18",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "เปรียบเทียบแนววินิจฉัย กค 0702/1903 และ กค 0702/1603 เกี่ยวกับเงื่อนไขการรับรองจากกรมปศุสัตว์ในการยกเว้นภาษีมูลค่าเพิ่มนำเข้าอาหารสัตว์",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "work.th.rd.gk_0702_1603_2026_4e9d294a",
+          "work.th.rd.gk_0702_7024_2023_8d6fe04e",
+          "work.th.rd.gk_0702_6075_2023_fa52de73",
+          "work.th.rd.gk_0702_3692_2024_75b8225e",
+          "work.th.rd.gk_0702_52_2025_94ecad2f",
+          "work.th.rd.gk_0702_7375_2024_37527a04",
+          "work.th.rd.gk_0702_2404_2026_e0512a32",
+          "work.th.rd.gk_0702_4400_2023_dedbfff1",
+          "work.th.rd.gk_0702_4401_2023_ec79fa7f"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/68482.html",
+          "https://www.rd.go.th/68500.html",
+          "https://www.rd.go.th/65986.html",
+          "https://www.rd.go.th/65572.html",
+          "https://www.rd.go.th/67224.html",
+          "https://www.rd.go.th/67515.html",
+          "https://www.rd.go.th/67383.html",
+          "https://www.rd.go.th/68563.html",
+          "https://www.rd.go.th/65311.html",
+          "https://www.rd.go.th/65317.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-19",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "บริษัทนำเข้าอาหารเสริมสำหรับสัตว์จะได้รับยกเว้นภาษีมูลค่าเพิ่มตามมาตรา 81 (2) (ก) หรือไม่ โดยไม่ทราบว่าได้รับการขึ้นทะเบียนหรือรับรองจากกรมปศุสัตว์หรือไม่",
+        "answer_status": "NEEDS_CLARIFICATION",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "work.th.rd.0702_5954_2015_312309fd",
+          "work.th.rd.gk_0702_3692_2024_75b8225e",
+          "work.th.rd.gk_0706_พ_2230_2007_824ab55e",
+          "prov.th.rc.81",
+          "work.th.rd.gk_0702_7024_2023_8d6fe04e",
+          "prov.dfee6f5903.81",
+          "prov.10e7a48508.81",
+          "work.th.rd.gk_0811_พ_30017_2000_1e69f8a5",
+          "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "work.th.rd.gk_0702_6075_2023_fa52de73",
+          "work.th.rd.gk_0702_พ_8343_2009_9840f234"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/26159.html",
+          "https://www.rd.go.th/67224.html",
+          "https://www.rd.go.th/34638.html",
+          "https://www.rd.go.th/5206.html#mata81",
+          "https://www.rd.go.th/65986.html",
+          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FRoyal%20Decrees%2F1779693_Royal_Decree.pdf",
+          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FRoyal%20Decrees%2F2128064_Royal_Decree.pdf",
+          "https://www.rd.go.th/23807.html",
+          "https://www.rd.go.th/68482.html",
+          "https://www.rd.go.th/65572.html",
+          "https://www.rd.go.th/42075.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-20",
+        "defect_tags": [
+          "DEF-B01-04"
+        ],
+        "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999404",
+        "answer_status": "INSUFFICIENT_EVIDENCE",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [],
+        "opened_origins": [],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-21",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-03"
+        ],
+        "question": "แสดงบทบัญญัติประมวลรัษฎากร มาตรา 3 เตรส เกี่ยวกับการสั่งให้ผู้จ่ายเงินได้หักภาษี ณ ที่จ่าย",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.3_เตรส"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5951.html#mata3_13"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-22",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "แสดงบทบัญญัติประมวลรัษฎากร มาตรา 77/1 เกี่ยวกับบทนิยามในหมวดภาษีมูลค่าเพิ่ม",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.77/1"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5205.html#mata77_1"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-23",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "แสดงบทบัญญัติประมวลรัษฎากร มาตรา 81 เกี่ยวกับกิจการที่ได้รับยกเว้นภาษีมูลค่าเพิ่ม",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.81"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5206.html#mata81"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-24",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "แสดงบทบัญญัติประมวลรัษฎากร มาตรา 91/2 เกี่ยวกับกิจการที่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะ",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "prov.th.rc.91/2"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/5204.html#mata91_2"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-25",
+        "defect_tags": [
+          "DEF-B01-02",
+          "DEF-B01-03"
+        ],
+        "question": "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการยกเว้นรัษฎากร (ฉบับที่ 10) พ.ศ. 2500 ออกโดยหน่วยงานใดและอาศัยอำนาจตามกฎหมายใด",
+        "answer_status": "ANSWERED",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "subreg.th.rc.royal_decree.10",
+          "subreg.th.rc.royal_decree.437",
+          "subreg.th.rc.royal_decree.338",
+          "subreg.th.rc.royal_decree.516",
+          "subreg.th.rc.royal_decree.499",
+          "subreg.th.rc.royal_decree.558",
+          "subreg.th.rc.royal_decree.517",
+          "subreg.th.rc.royal_decree.433",
+          "subreg.th.rc.royal_decree.438"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/2376.html",
+          "https://www.rd.go.th/29513.html",
+          "https://www.rd.go.th/2822.html",
+          "https://www.rd.go.th/44810.html",
+          "https://www.rd.go.th/42859.html",
+          "https://www.rd.go.th/47650.html",
+          "https://www.rd.go.th/44811.html",
+          "https://www.rd.go.th/22645.html",
+          "https://www.rd.go.th/29514.html"
+        ],
+        "failure_reasons": []
+      },
+      {
+        "blind_case_id": "BLIND-26",
+        "defect_tags": [
+          "DEF-B01-03",
+          "DEF-B01-04"
+        ],
+        "question": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562 มีสาระสำคัญอย่างไร",
+        "answer_status": "CONDITIONAL",
+        "conclusion_passed": true,
+        "conditions_passed": true,
+        "exceptions_passed": true,
+        "dates_passed": true,
+        "citations_passed": true,
+        "source_open_and_supports_passed": true,
+        "overall_passed": true,
+        "cited_work_ids": [
+          "statute.th.rc_amendment_48_2562",
+          "work.th.rd.gk_0811_พ_03662_1999_d29b0c2f",
+          "work.th.rd.gk_0811_10677_1999_feb8fe5a",
+          "prov.b7c33a7228.1",
+          "statute.th.rc_amendment_act.47",
+          "work.th.statute.2407270531a598",
+          "work.th.statute.d7f9fec39f8c2b",
+          "work.th.statute.7745238c1c2ea2",
+          "prov.th.rc.91/8"
+        ],
+        "opened_origins": [
+          "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p48.pdf",
+          "https://www.rd.go.th/23542.html",
+          "https://www.rd.go.th/23741.html",
+          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FActs%2F17074765.pdf",
+          "https://drive.google.com/drive/folders/b02#RD%2FTransfer%20Pricing%2F2018-11-21_Act_47_%E0%B8%9E%E0%B8%A3%E0%B8%B0%E0%B8%A3%E0%B8%B2%E0%B8%8A%E0%B8%9A%E0%B8%B1%E0%B8%8D%E0%B8%8D%E0%B8%B1%E0%B8%95%E0%B8%B4%E0%B9%81%E0%B8%81%E0%B9%89%E0%B9%84%E0%B8%82%E0%B9%80%E0%B8%9E%E0%B8%B4%E0%B9%88%E0%B8%A1%E0%B9%80%E0%B8%95%E0%B8%B4%E0%B8%A1%E0%B8%9B%E0%B8%A3%E0%B8%B0%E0%B8%A1%E0%B8%A7%E0%B8%A5%E0%B8%A3%E0%B8%B1%E0%B8%A9%E0%B8%8E%E0%B8%B2%E0%B8%81%E0%B8%A3%20(%E0%B8%89%E0%B8%9A%E0%B8%B1%E0%B8%9A%E0%B8%97%E0%B8%B5%E0%B9%88%2047)%20%E0%B8%9E.%E0%B8%A8.%202.pdf",
+          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FActs%2F17076750.pdf",
+          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FActs%2F17081919.pdf",
+          "https://drive.google.com/drive/folders/b02#Primary%20Law%2FActs%2F17072849.pdf",
+          "https://www.rd.go.th/5204.html#mata91_8"
+        ],
+        "failure_reasons": []
+      }
+    ]
+  }
+}
