@@ -63,7 +63,8 @@ export function validateStagedAssertion(
       entityType === "Issue" ||
       entityType === "FactPattern" ||
       entityType === "Condition" ||
-      entityType === "Exception"
+      entityType === "Exception" ||
+      entityType === "DefinedTerm"
     ) {
       return Boolean(id && id.trim().length > 0);
     }

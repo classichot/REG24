@@ -14,7 +14,7 @@ import { sha256Bytes, thaiDigitsToArabic } from "./identity";
 function writeProjectionSnapshotDisk(projDir: string, baseName: string, jsonStr: string): void {
   const plainPath = path.join(projDir, `${baseName}.json`);
   const gzPath = path.join(projDir, `${baseName}.json.gz`);
-  if (jsonStr.length > 8_000_000) {
+  if (jsonStr.length > 1_000_000) {
     fs.writeFileSync(gzPath, zlib.gzipSync(Buffer.from(jsonStr, "utf8"), { level: 6 }));
     if (fs.existsSync(plainPath)) fs.unlinkSync(plainPath);
   } else {
@@ -53,6 +53,8 @@ export interface LexicalProjectionSnapshot {
   built_at: string;
   passage_count: number;
   inverted_index: Record<string, string[]>; // token -> passage_id[]
+  passage_table?: string[];
+  compact_index?: Record<string, number[]>;
 }
 
 export interface VectorProjectionSnapshot {
@@ -206,27 +208,30 @@ export async function buildReleaseProjectionsFromOutbox(
 
   const generation = `gen.${releaseId}.r${st.releases[releaseId]?.revision ?? 1}`;
 
-  // 1. Build Lexical Snapshot (null-prototype object prevents 'constructor'/'toString' token collisions)
-  const inverted: Record<string, string[]> = Object.create(null);
-  for (const p of passages) {
+  // 1. Build Lexical Snapshot using compact integer posting lists on disk (~80% smaller than repeating string IDs)
+  const passageTable = passages.map((p) => p.passage_id);
+  const compactInverted: Record<string, number[]> = Object.create(null);
+  for (let pIdx = 0; pIdx < passages.length; pIdx++) {
+    const p = passages[pIdx];
     const work = st.works[p.work_id];
     const headerIds = (work?.official_identifiers || []).map((id) => id.normalized).join(" ");
     const toks = tokenizeThaiLegalForIndex(
       `${headerIds} ${p.contextualized_header} ${p.exact_text}`
     );
     for (const tok of toks) {
-      if (!inverted[tok]) inverted[tok] = [];
-      inverted[tok].push(p.passage_id);
+      if (!compactInverted[tok]) compactInverted[tok] = [];
+      compactInverted[tok].push(pIdx);
     }
   }
-  const lexicalSnapshot: LexicalProjectionSnapshot = {
+  const lexicalDiskPayload = {
     release_id: releaseId,
     generation,
     built_at: nowIso,
     passage_count: passages.length,
-    inverted_index: inverted,
+    passage_table: passageTable,
+    compact_index: compactInverted,
   };
-  const lexicalJson = JSON.stringify(lexicalSnapshot);
+  const lexicalJson = JSON.stringify(lexicalDiskPayload);
   writeProjectionSnapshotDisk(projDir, `${releaseId}_lexical`, lexicalJson);
 
   // 2. Build Vector Snapshot
@@ -337,6 +342,18 @@ export async function buildReleaseProjectionsFromOutbox(
 
 const vectorSnapCache = new Map<string, { mtimeMs: number; snap: VectorProjectionSnapshot }>();
 const lexicalSnapCache = new Map<string, { mtimeMs: number; snap: LexicalProjectionSnapshot }>();
+const graphSnapCache = new Map<string, { mtimeMs: number; snap: GraphProjectionSnapshot }>();
+
+export function loadGraphProjectionSnapshot(
+  store: DurableKnowledgeStore,
+  releaseId: string
+): GraphProjectionSnapshot | null {
+  return readProjectionSnapshotDisk(
+    path.join(store.dataDir, "projections"),
+    `${releaseId}_graph`,
+    graphSnapCache
+  );
+}
 
 export function loadVectorProjectionSnapshot(
   store: DurableKnowledgeStore,
@@ -353,9 +370,18 @@ export function loadLexicalProjectionSnapshot(
   store: DurableKnowledgeStore,
   releaseId: string
 ): LexicalProjectionSnapshot | null {
-  return readProjectionSnapshotDisk(
+  const snap = readProjectionSnapshotDisk(
     path.join(store.dataDir, "projections"),
     `${releaseId}_lexical`,
     lexicalSnapCache
   );
+  if (snap && !snap.inverted_index && snap.compact_index && snap.passage_table) {
+    const hydrated: Record<string, string[]> = Object.create(null);
+    const tbl = snap.passage_table;
+    for (const [tok, idxs] of Object.entries(snap.compact_index)) {
+      hydrated[tok] = idxs.map((i) => tbl[i]);
+    }
+    snap.inverted_index = hydrated;
+  }
+  return snap;
 }

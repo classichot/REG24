@@ -73,10 +73,19 @@ interface ResolvedDrawerEvidence {
 }
 
 export default function KnowledgeBatchesUatPage() {
-  const [selectedBatch, setSelectedBatch] = useState<string>("B01");
+  const [selectedBatch, setSelectedBatch] = useState<string>("B02");
   const [data, setData] = useState<ReportApiResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [apiBanner, setApiBanner] = useState<{ kind: "info" | "ok" | "err"; text: string } | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const qBatch = new URLSearchParams(window.location.search).get("batch");
+      if (qBatch && /^B\d{2}$/.test(qBatch)) {
+        setSelectedBatch(qBatch);
+      }
+    }
+  }, []);
 
   // Interactive Grounded Query State
   const [question, setQuestion] = useState<string>(
@@ -119,7 +128,7 @@ export default function KnowledgeBatchesUatPage() {
             };
           }
         }
-        setCaseDecisions((prev) => ({ ...existingMap, ...prev }));
+        setCaseDecisions(existingMap);
       }
     } catch (err) {
       setApiBanner({
@@ -131,28 +140,41 @@ export default function KnowledgeBatchesUatPage() {
     }
   }, []);
 
+  const [lastAutoRunBatch, setLastAutoRunBatch] = useState<string>("");
+
   useEffect(() => {
     void loadBatchReport(selectedBatch);
   }, [selectedBatch, loadBatchReport]);
 
-  // Auto-execute Case #1 (`B01-U01A`) on first load of an unlocked candidate batch so the user immediately sees HTTP 200 grounded output
-  const [didAutoRunFirstCase, setDidAutoRunFirstCase] = useState<boolean>(false);
+  // Auto-execute Case #1 on load of an unlocked candidate batch so the user immediately sees HTTP 200 grounded output
   useEffect(() => {
-    if (!didAutoRunFirstCase && data?.uat_cases && data.uat_cases.length > 0 && data.report) {
-      setDidAutoRunFirstCase(true);
+    if (
+      data?.batch_id === selectedBatch &&
+      lastAutoRunBatch !== selectedBatch &&
+      data?.uat_cases &&
+      data.uat_cases.length > 0 &&
+      data.report
+    ) {
+      setLastAutoRunBatch(selectedBatch);
       const firstCase = data.uat_cases[0];
+      const mode: "standard" | "exact_lookup" | "comparison" =
+        firstCase.category === "comparison"
+          ? "comparison"
+          : firstCase.category === "legal_lookup" || firstCase.category === "nonexistent_lookup"
+            ? "exact_lookup"
+            : "standard";
       setQuestion(firstCase.question);
       setApplicableDate(firstCase.applicable_date || "");
-      setQueryMode("exact_lookup");
+      setQueryMode(mode);
       void runLiveQuery({
         q: firstCase.question,
         date: firstCase.applicable_date,
-        mode: "exact_lookup",
+        mode,
         cmp: firstCase.comparison_target_ids,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, didAutoRunFirstCase]);
+  }, [data, selectedBatch, lastAutoRunBatch]);
 
   const runLiveQuery = async (override?: {
     q: string;
@@ -238,9 +260,15 @@ export default function KnowledgeBatchesUatPage() {
     window.scrollTo({ top: 380, behavior: "smooth" });
   };
 
-  const testPrematureB02Gate = async () => {
-    setApiBanner({ kind: "info", text: "Testing sequential predecessor gate on Batch B02..." });
-    const res = await fetch("/api/v1/knowledge/batches/B02/runs", {
+  const nextLockedBatch =
+    data?.batch_gate_board?.find((b) => !b.unlocked)?.batch_id || "B03";
+
+  const testPrematureNextBatchGate = async () => {
+    setApiBanner({
+      kind: "info",
+      text: `Testing sequential predecessor gate on Batch ${nextLockedBatch}...`,
+    });
+    const res = await fetch(`/api/v1/knowledge/batches/${nextLockedBatch}/runs`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -256,12 +284,12 @@ export default function KnowledgeBatchesUatPage() {
     if (res.status === 422) {
       setApiBanner({
         kind: "ok",
-        text: `✅ PASS (Expected Predecessor Gate): Batch B02 returned HTTP 422 because B02 is intentionally locked until you approve B01. Batch B01 itself is LIVE and serving HTTP 200 below.`,
+        text: `✅ PASS (Expected Predecessor Gate): Batch ${nextLockedBatch} returned HTTP 422 because ${nextLockedBatch} is intentionally locked until you approve ${selectedBatch}. Batch ${selectedBatch} itself is LIVE and serving HTTP 200 below.`,
       });
     } else {
       setApiBanner({
         kind: "info",
-        text: `B02 Gate response (HTTP ${res.status}): ${JSON.stringify(json)}`,
+        text: `${nextLockedBatch} Gate response (HTTP ${res.status}): ${JSON.stringify(json)}`,
       });
     }
   };
@@ -369,7 +397,6 @@ export default function KnowledgeBatchesUatPage() {
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
             <button
               onClick={() => {
-                setSelectedBatch("B01");
                 if (data?.uat_cases?.[0]) {
                   executeUatCase(data.uat_cases[0]);
                 } else {
@@ -386,11 +413,11 @@ export default function KnowledgeBatchesUatPage() {
                 cursor: "pointer",
               }}
             >
-              ▶ Run B01 UAT Case #1 (200 OK)
+              ▶ Run {selectedBatch} UAT Case #1 (200 OK)
             </button>
             <button
-              onClick={() => void testPrematureB02Gate()}
-              title="Security check: confirms Batch B02 cannot start before B01 is approved"
+              onClick={() => void testPrematureNextBatchGate()}
+              title={`Security check: confirms Batch ${nextLockedBatch} cannot start before ${selectedBatch} is approved`}
               style={{
                 background: "#1f2937",
                 color: "#d1d5db",
@@ -401,7 +428,7 @@ export default function KnowledgeBatchesUatPage() {
                 cursor: "pointer",
               }}
             >
-              🔒 Check B02 Lock (Expected 422)
+              🔒 Check {nextLockedBatch} Lock (Expected 422)
             </button>
             <Link
               href="/"

@@ -33,19 +33,10 @@ export async function POST(
       { store }
     );
 
-    await store.transact("SYNC_REPORT_PROMOTED_STATUS", (draft) => {
-      const rel = draft.releases[id];
-      const repByRel = draft.release_reports[id];
-      const repByBatch = rel ? draft.release_reports[rel.batch_id] : undefined;
-      for (const rep of [repByRel, repByBatch]) {
-        if (rep && rel) {
-          rep.status = rel.state;
-          rep.next_batch_unlocked = receipt.next_batch_unlocked;
-        }
-      }
-    });
-
-    return NextResponse.json({ ok: true, receipt }, { status: 200 });
+    return NextResponse.json(
+      { ok: true, receipt, storage_topology: store.getStorageTopology() },
+      { status: 200 }
+    );
   } catch (err) {
     return knowledgeApiErrorResponse(err);
   }

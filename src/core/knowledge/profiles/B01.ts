@@ -5,6 +5,10 @@
 
 import { chunkThaiLegalDocument } from "../extraction";
 import {
+  getRecoveredB01RulingTexts,
+  getVerifiedStatutoryCorpus,
+} from "../../data/verified-statutory-loader";
+import {
   buildDeterministicWorkId,
   normalizeOfficialRulingIdentifier,
   normalizeThaiLegalSectionRef,
@@ -66,6 +70,148 @@ function extractRelevantPeriods(text: string): string[] {
   return Array.from(periods);
 }
 
+function stripRulingHeaderAndCabinetFooter(text: string): string {
+  return text
+    .replace(/^ภาษีอากร[\s\S]{0,420}?ข้อ\s*หารือ\s*/u, "")
+    .replace(/\s*เลขตู้\s*[0-9๐-๙/\-\s]{3,25}$/u, "")
+    .trim();
+}
+
+/**
+ * Separates requester facts/questions from official Revenue Department conclusions (DEF-B01-01).
+ * Handles:
+ * 1. The 785 RD web-table records where `facts === ruling` with spaced `แนว วินิจฉัย` boundary;
+ * 2. The 9 two-column PDF records where `แนว <first ruling line> วินิจฉัย <rest>` is interleaved;
+ * 3. Continuous-prose letters pivoting on `กรมสรรพากรขอเรียนว่า` / `จึงวินิจฉัยว่า`;
+ * 4. Explicit review flagging if non-empty `facts` and `ruling` remain identical.
+ */
+export function separateRulingFactsAndConclusion(params: {
+  rawFacts?: string | null;
+  rawRuling?: string | null;
+  fullText: string;
+  legacyId?: string | null;
+}): {
+  factsText: string;
+  rulingText: string;
+  wasMixedAndSplit: boolean;
+  ambiguousUnresolvedMix: boolean;
+} {
+  const stripTrailingEmptyRulingRow = (s: string): string =>
+    s
+      .replace(/\s*แนว\s*วินิจฉัย\s*-\s*(?:เลขตู้\s*[0-9๐-๙/\-\s]{3,25})?$/u, "")
+      .replace(/\s*เลขตู้\s*[0-9๐-๙/\-\s]{3,25}$/u, "")
+      .trim();
+
+  let fRaw = stripTrailingEmptyRulingRow(params.rawFacts || "");
+  let rRaw = stripTrailingEmptyRulingRow(params.rawRuling || "");
+  if (rRaw === "-") rRaw = "";
+
+  // Recover full text from physical Google Drive PDF if corpus ruling field was empty/truncated
+  if (!rRaw && params.legacyId) {
+    const rec = getRecoveredB01RulingTexts()[params.legacyId];
+    if (rec?.full_text) {
+      const cleanedRec = stripTrailingEmptyRulingRow(rec.full_text);
+      fRaw = cleanedRec;
+      rRaw = "";
+    }
+  }
+
+  const isIdentical = Boolean(fRaw && rRaw && fRaw === rRaw);
+  const fHasRulingHeader =
+    /(?:แนว\s*วินิจฉั(?:ย|\s*:)|\.{2}DRFT|กระผมได้พิจารณาแล้วขอเรียนว่า)/u.test(fRaw) &&
+    !/(?:มี|วาง|ตาม|เป็น)\s*แนว\s*วินิจฉัย/u.test(fRaw);
+
+  if (!isIdentical && !fHasRulingHeader && rRaw) {
+    return {
+      factsText: stripRulingHeaderAndCabinetFooter(fRaw),
+      rulingText: rRaw,
+      wasMixedAndSplit: false,
+      ambiguousUnresolvedMix: false,
+    };
+  }
+
+  const source = stripTrailingEmptyRulingRow(fRaw || rRaw || params.fullText || "");
+
+  // Pattern A: Standard / glued / typo (`แนววินิจฉั :`) `แนว วินิจฉัย` boundary
+  const directRe = /แนว\s*วินิจฉั(?:ย(?:\s|:)*|\s*:)/gu;
+  let splitMatch: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = directRe.exec(source)) !== null) {
+    const before = source.slice(Math.max(0, m.index - 14), m.index);
+    if (!/(?:มี|วาง|ตาม|เป็น|แนวทาง|คำ)\s*$/u.test(before) && m.index > 30) {
+      splitMatch = m;
+      break;
+    }
+  }
+
+  if (splitMatch) {
+    const left = stripRulingHeaderAndCabinetFooter(source.slice(0, splitMatch.index));
+    const right = stripTrailingEmptyRulingRow(source.slice(splitMatch.index + splitMatch[0].length));
+    if (left && right && left !== "-" && left !== right) {
+      return {
+        factsText: left,
+        rulingText: right,
+        wasMixedAndSplit: true,
+        ambiguousUnresolvedMix: false,
+      };
+    }
+  }
+
+  // Pattern B: Two-column interleaved `แนว <line 1 of ruling> วินิจฉัย <line 2+>` (9/794 records)
+  const interleavedRe = /(?:^|\s)แนว\s+([^\n]{5,175}?)\s+วินิจฉัย\s+/u;
+  const im = interleavedRe.exec(source);
+  if (im && im.index !== undefined) {
+    const left = stripRulingHeaderAndCabinetFooter(source.slice(0, im.index));
+    const right = stripTrailingEmptyRulingRow(
+      `${im[1].trim()} ${source.slice(im.index + im[0].length).trim()}`
+    );
+    if (left && right && left !== right) {
+      return {
+        factsText: left,
+        rulingText: right,
+        wasMixedAndSplit: true,
+        ambiguousUnresolvedMix: false,
+      };
+    }
+  }
+
+  // Pattern C: Continuous official letter / RD HTML draft marker pivot clauses (`..DRFT`, `กระผมได้พิจารณาแล้วขอเรียนว่า`, `กรมสรรพากรขอเรียนว่า`)
+  const prosePivotRe = /(?:\.{2}DRFT\s*|(?:[0-9]+\.\s*)?กระผมได้พิจารณาแล้วขอเรียนว่า|กรมสรรพากรขอเรียนว่า|จึงวินิจฉัยว่า|วินิจฉัยดังนี้)/u;
+  const pm = prosePivotRe.exec(source);
+  if (pm && pm.index > 20) {
+    const left = stripRulingHeaderAndCabinetFooter(source.slice(0, pm.index));
+    const right = stripTrailingEmptyRulingRow(
+      source.slice(pm.index).replace(/^\.{2}DRFT\s*/u, "")
+    );
+    if (left && right && left !== right) {
+      return {
+        factsText: left,
+        rulingText: right,
+        wasMixedAndSplit: true,
+        ambiguousUnresolvedMix: false,
+      };
+    }
+  }
+
+  // Fallback for genuine inquiry-only pages where RD published `แนว วินิจฉัย -` with no conclusion body (e.g. rd.go.th/30677.html):
+  // Never duplicate `facts` into `ruling` and never fabricate an official conclusion!
+  if (!rRaw && fRaw) {
+    return {
+      factsText: stripRulingHeaderAndCabinetFooter(fRaw),
+      rulingText: "",
+      wasMixedAndSplit: false,
+      ambiguousUnresolvedMix: false,
+    };
+  }
+
+  return {
+    factsText: isIdentical ? "" : stripRulingHeaderAndCabinetFooter(fRaw),
+    rulingText: rRaw.replace(/\s*เลขตู้\s*[0-9๐-๙/\-\s]{3,25}$/u, "").trim(),
+    wasMixedAndSplit: false,
+    ambiguousUnresolvedMix: isIdentical,
+  };
+}
+
 function splitRequesterFactsQuestionAndProposal(factsText: string): {
   facts: string | null;
   question: string | null;
@@ -111,127 +257,397 @@ function extractConditionsAndExceptions(rulingText: string): {
   };
 }
 
+export interface QuarantinedExternalCitation {
+  citation_raw: string;
+  normalized_key: string;
+  governing_instrument: string;
+  instrument_kind:
+    | "REVENUE_CODE"
+    | "ROYAL_DECREE"
+    | "MINISTERIAL_REGULATION"
+    | "CIVIL_AND_COMMERCIAL_CODE"
+    | "STANDALONE_ACT"
+    | "EMERGENCY_DECREE"
+    | "OTHER_SUBREGULATION";
+  section_label: string | null;
+  owner_batch_hint: "B02" | "B07";
+  reason: string;
+}
+
+const PALI_ORDINALS_PATTERN =
+  "(?:อัฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|จัตวา|เบญจ|สัตต|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ)";
+
 export function extractCitedRevenueCodeAndSubRegulations(
   provisionsText: string,
   rulingText: string,
-  requiredByWorkId: string
+  requiredByWorkId: string,
+  extraVerifiedKeys?: Set<string>
 ): {
   dependencies: DependencyRequest[];
+  quarantinedCitations: QuarantinedExternalCitation[];
   citedRulings: string[];
   otherStatuteRefs: string[];
 } {
   const combined = thaiDigitsToArabic(`${provisionsText}\n${rulingText}`);
+  const compact = combined.replace(/\s+/g, " ");
+  const verifiedCorpus = getVerifiedStatutoryCorpus();
   const deps = new Map<string, DependencyRequest>();
+  const quarantined = new Map<string, QuarantinedExternalCitation>();
 
-  // 1. Revenue Code Sections (`มาตรา ... แห่งประมวลรัษฎากร` or sections in `legal_provisions` when Revenue Code is present)
-  const mentionsRevenueCode = /ประมวลรัษฎากร/.test(combined);
-  const secMatches =
-    combined.match(
-      /มาตรา\s*[0-9]+(?:\/[0-9]+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นว))?(?:\s*\([0-9ก-ฮ]+\))*/g
-    ) || [];
-
-  for (const rawSec of secMatches) {
-    const cleanSec = normalizeThaiLegalSectionRef(rawSec);
-    // Avoid attaching sections that belong explicitly to another Act (e.g., Expropriation Act or CCC) as Revenue Code sections!
-    const afterIdx = combined.indexOf(rawSec) + rawSec.length;
-    const trailingContext = combined.slice(afterIdx, afterIdx + 95);
-    if (/แห่งพระราชบัญญัติ|แห่งประมวลกฎหมายแพ่ง/.test(trailingContext) && !/ประมวลรัษฎากร/.test(trailingContext)) {
-      continue;
+  const isVerifiedTarget = (key: string): boolean => {
+    if (extraVerifiedKeys?.has(key)) return true;
+    if (key === "prov.th.rc.65_ตรี") return true;
+    if (key.startsWith("prov.th.rc.")) {
+      return Boolean(verifiedCorpus.revenue_code_sections[key]);
     }
-    if (!mentionsRevenueCode && !/แห่งประมวลรัษฎากร/.test(trailingContext)) {
-      continue;
-    }
+    return Boolean(verifiedCorpus.subordinate_and_amendment_works[key]);
+  };
 
-    const baseSecMatch = cleanSec.match(
-      /^มาตรา\s*([0-9]+(?:\/[0-9]+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นว))?)/
+  // Span-based, chain-aware Thai section parser (DEF-B01-02)
+  const secTokenSource = `(?:มาตรา|ม\\.)\\s*([0-9]+(?:\\/[0-9]+)?(?:\\s*${PALI_ORDINALS_PATTERN})?)(?:\\s*วรรค[^\\s,;()]+|\\s*\\([0-9ก-ฮ]+\\))*`;
+  const secRegex = new RegExp(secTokenSource, "gu");
+  const chainPrefixRegex = new RegExp(
+    `^(?:\\s*(?:,|และ|หรือ|ถึง|ประกอบ|วรรค[ก-๙0-9]+|\\([0-9ก-ฮ]+\\))\\s*|\\s*${secTokenSource}\\s*)*`,
+    "u"
+  );
+
+  const rcExplicit = new Map<string, string>(); // baseSec -> fullCleanLabel
+  const rcUnattributed = new Map<string, string>();
+  const nonRcBaseSecs = new Set<string>();
+
+  let sm: RegExpExecArray | null;
+  while ((sm = secRegex.exec(compact)) !== null) {
+    const fullRawSec = normalizeThaiLegalSectionRef(sm[0]);
+    const baseClean = normalizeThaiLegalSectionRef(`มาตรา ${sm[1]}`)
+      .replace(/^มาตรา\s*/, "")
+      .replace(/\s+/g, "_");
+    const leadNumMatch = baseClean.match(/^[0-9]+/);
+    const leadNum = leadNumMatch ? Number(leadNumMatch[0]) : 9999;
+
+    const afterStart = sm.index + sm[0].length;
+    const lookahead = compact.slice(afterStart, afterStart + 460);
+    const chainMatch = chainPrefixRegex.exec(lookahead);
+    const tail = chainMatch ? lookahead.slice(chainMatch[0].length) : lookahead;
+    const prev = compact.slice(Math.max(0, sm.index - 110), sm.index);
+
+    const govTailMatch = tail.match(
+      /^\s*(?:แห่ง|ตาม|ของ|ใน)?\s*(ประมวล\s*รัษฎากร|พระราชกฤษฎีกา|พ\.ร\.ฎ\.|ประมวลกฎหมายแพ่งและพาณิชย์|ป\.พ\.พ\.|ประมวลกฎหมายที่ดิน|ประมวลกฎหมายอาญา|ประมวลกฎหมายวิธีพิจารณา[^\s,;]{0,40}|พระราชบัญญัติ|พ\.ร\.บ\.|พระราชกำหนด|พ\.ร\.ก\.|กฎกระทรวง|ระเบียบ|คำสั่งกรมสรรพากร|คำสั่ง|ประกาศอธิบดีกรมสรรพากร|ประกาศ)/u
     );
-    const baseSec = baseSecMatch ? baseSecMatch[1].replace(/\s+/g, "_") : cleanSec;
+    let govHead = govTailMatch ? govTailMatch[1].replace(/\s+/g, "") : null;
+
+    if (!govHead) {
+      const govPrevMatch = prev.match(
+        /(ประมวล\s*รัษฎากร|พระราชกฤษฎีกา[^,;]{0,95}|พ\.ร\.ฎ\.[^,;]{0,65}|ประมวลกฎหมายแพ่งและพาณิชย์|ป\.พ\.พ\.|พระราชบัญญัติ[^,;]{0,85}|พ\.ร\.บ\.[^,;]{0,65}|กฎกระทรวง[^,;]{0,65})\s*$/u
+      );
+      if (govPrevMatch) {
+        const ptxt = govPrevMatch[1];
+        if (/พระราชกฤษฎีกา|พ\.ร\.ฎ\./u.test(ptxt)) govHead = "พระราชกฤษฎีกา";
+        else if (/แพ่ง|ป\.พ\.พ\./u.test(ptxt)) govHead = "ประมวลกฎหมายแพ่งและพาณิชย์";
+        else if (/กฎกระทรวง/u.test(ptxt)) govHead = "กฎกระทรวง";
+        else if (/พระราชบัญญัติ|พ\.ร\.บ\./u.test(ptxt) && !/แก้ไขเพิ่มเติมประมวล\s*รัษฎากร/u.test(ptxt)) {
+          govHead = "พระราชบัญญัติ";
+        } else if (/รัษฎากร/u.test(ptxt)) {
+          govHead = "ประมวลรัษฎากร";
+        }
+      }
+    }
+
+    if (govHead === "ประมวลรัษฎากร") {
+      // Thai Revenue Code has Sections 1..129 (+ bis/ter/etc.)
+      if (leadNum >= 1 && leadNum <= 129 && !/^[0-9]+\/25[0-9]{2}$/.test(baseClean)) {
+        rcExplicit.set(baseClean, `มาตรา ${baseClean.replace(/_/g, " ")}`);
+      }
+    } else if (govHead === "พระราชกฤษฎีกา" || govHead === "พ.ร.ฎ.") {
+      nonRcBaseSecs.add(baseClean);
+      const rdNumM = tail.slice(0, 240).match(/ฉบับที่\s*([0-9]+)/) || prev.match(/ฉบับที่\s*([0-9]+)/);
+      if (rdNumM) {
+        const rdNum = rdNumM[1];
+        const rdKey = `subreg.th.rc.royal_decree.${rdNum}`;
+        const rdTitle = `พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ ${rdNum})`;
+        if (isVerifiedTarget(rdKey)) {
+          if (!deps.has(rdKey)) {
+            deps.set(rdKey, {
+              citation_raw: `${fullRawSec} แห่ง${rdTitle}`,
+              normalized_key: rdKey,
+              target_type: "SubordinateLegislation",
+              instrument_title_th: rdTitle,
+              section_label: fullRawSec,
+              owner_batch_id: "B02",
+              first_loaded_by_batch_id: "B01",
+              required_by_work_id: requiredByWorkId,
+            });
+          }
+        } else {
+          const qKey = `${rdKey}#${fullRawSec}`;
+          quarantined.set(qKey, {
+            citation_raw: `${fullRawSec} แห่ง${rdTitle}`,
+            normalized_key: rdKey,
+            governing_instrument: rdTitle,
+            instrument_kind: "ROYAL_DECREE",
+            section_label: fullRawSec,
+            owner_batch_hint: "B02",
+            reason:
+              "Section belongs to Royal Decree (not Revenue Code); quarantined as unresolved until verbatim Royal Decree text is verified (DEF-B01-02 / DEF-B01-03).",
+          });
+        }
+      } else {
+        const qKey = `subreg.th.royal_decree.unnumbered#${fullRawSec}`;
+        quarantined.set(qKey, {
+          citation_raw: `${fullRawSec} แห่งพระราชกฤษฎีกา`,
+          normalized_key: "subreg.th.royal_decree.unspecified",
+          governing_instrument: "พระราชกฤษฎีกา",
+          instrument_kind: "ROYAL_DECREE",
+          section_label: fullRawSec,
+          owner_batch_hint: "B02",
+          reason: "Royal Decree section citation without verified decree number; quarantined.",
+        });
+      }
+    } else if (govHead === "ประมวลกฎหมายแพ่งและพาณิชย์" || govHead === "ป.พ.พ.") {
+      nonRcBaseSecs.add(baseClean);
+      const cccKey = `prov.th.ccc.${baseClean}`;
+      quarantined.set(cccKey, {
+        citation_raw: `${fullRawSec} แห่งประมวลกฎหมายแพ่งและพาณิชย์`,
+        normalized_key: cccKey,
+        governing_instrument: "ประมวลกฎหมายแพ่งและพาณิชย์",
+        instrument_kind: "CIVIL_AND_COMMERCIAL_CODE",
+        section_label: fullRawSec,
+        owner_batch_hint: "B02",
+        reason:
+          "Civil and Commercial Code provision cited in tax ruling; kept strictly separate from Revenue Code and quarantined while CCC text is unverified.",
+      });
+    } else if (govHead === "กฎกระทรวง") {
+      nonRcBaseSecs.add(baseClean);
+      const mrNumM = tail.slice(0, 180).match(/ฉบับที่\s*([0-9]+)/) || prev.match(/ฉบับที่\s*([0-9]+)/);
+      const mrNum = mrNumM ? mrNumM[1] : null;
+      const mrKey = mrNum ? `subreg.th.rc.min_reg.${mrNum}` : "subreg.th.rc.min_reg.unspecified";
+      const mrTitle = mrNum
+        ? `กฎกระทรวง ฉบับที่ ${mrNum} ออกตามความในประมวลรัษฎากร`
+        : "กฎกระทรวง";
+      if (mrNum && isVerifiedTarget(mrKey)) {
+        if (!deps.has(mrKey)) {
+          deps.set(mrKey, {
+            citation_raw: `${fullRawSec} แห่ง${mrTitle}`,
+            normalized_key: mrKey,
+            target_type: "SubordinateLegislation",
+            instrument_title_th: mrTitle,
+            section_label: fullRawSec,
+            owner_batch_id: "B02",
+            first_loaded_by_batch_id: "B01",
+            required_by_work_id: requiredByWorkId,
+          });
+        }
+      } else {
+        quarantined.set(`${mrKey}#${fullRawSec}`, {
+          citation_raw: `${fullRawSec} แห่ง${mrTitle}`,
+          normalized_key: mrKey,
+          governing_instrument: mrTitle,
+          instrument_kind: "MINISTERIAL_REGULATION",
+          section_label: fullRawSec,
+          owner_batch_hint: "B02",
+          reason: "Ministerial Regulation provision quarantined until verbatim text is verified.",
+        });
+      }
+    } else if (govHead !== null) {
+      nonRcBaseSecs.add(baseClean);
+      const actTitleMatch = tail.match(
+        /^\s*(?:แห่ง|ตาม|ของ|ใน)?\s*((?:พระราชบัญญัติ|พ\.ร\.บ\.|พระราชกำหนด|พ\.ร\.ก\.|ประมวลกฎหมาย)[^,;\n]{3,110}?(?:พ\.ศ\.\s*[0-9]{4}|พุทธศักราช\s*[0-9]{4})?)(?=\s|$|,)/u
+      );
+      const govTitle = actTitleMatch ? actTitleMatch[1].trim() : govHead;
+      const actSlug = sha256Bytes(govTitle).slice(0, 10);
+      const actKey = `prov.th.ext.${actSlug}.${baseClean}`;
+      quarantined.set(actKey, {
+        citation_raw: `${fullRawSec} แห่ง${govTitle}`,
+        normalized_key: actKey,
+        governing_instrument: govTitle,
+        instrument_kind: /พระราชกำหนด|พ\.ร\.ก\./u.test(govTitle)
+          ? "EMERGENCY_DECREE"
+          : /พระราชบัญญัติ|พ\.ร\.บ\./u.test(govTitle)
+            ? "STANDALONE_ACT"
+            : "OTHER_SUBREGULATION",
+        section_label: fullRawSec,
+        owner_batch_hint: /อาหารสัตว์|เวนคืน|สิ่งปลูกสร้าง|จัดสรรที่ดิน|อาคารชุด/u.test(govTitle) ? "B07" : "B02",
+        reason:
+          "External non-Revenue-Code statutory provision cited in ruling; isolated from Revenue Code and quarantined while external statute text is unverified.",
+      });
+    } else {
+      // Unattributed section mention: ONLY eligible as Revenue Code if ruling mentions ประมวลรัษฎากร,
+      // section number is within RC 1..129, AND this section number was NOT bound to an external Act/RD/CCC in this ruling!
+      if (
+        /ประมวล\s*รัษฎากร/u.test(compact) &&
+        leadNum >= 1 &&
+        leadNum <= 129 &&
+        !/^[0-9]+\/25[0-9]{2}$/.test(baseClean)
+      ) {
+        rcUnattributed.set(baseClean, `มาตรา ${baseClean.replace(/_/g, " ")}`);
+      }
+    }
+  }
+
+  // Finalize Revenue Code section dependencies (explicit OR unattributed-and-uncollided)
+  const finalRcSecs = new Map<string, string>(rcExplicit);
+  for (const [bSec, lbl] of rcUnattributed.entries()) {
+    if (!nonRcBaseSecs.has(bSec) && !finalRcSecs.has(bSec)) {
+      finalRcSecs.set(bSec, lbl);
+    }
+  }
+
+  for (const [baseSec, cleanLabel] of finalRcSecs.entries()) {
     const normKey = `prov.th.rc.${baseSec}`;
-    if (!deps.has(normKey)) {
+    if (isVerifiedTarget(normKey)) {
       deps.set(normKey, {
-        citation_raw: `${cleanSec} แห่งประมวลรัษฎากร`,
+        citation_raw: `${cleanLabel} แห่งประมวลรัษฎากร`,
         normalized_key: normKey,
         target_type: "ProvisionVersion",
         instrument_title_th: "ประมวลรัษฎากร",
-        section_label: cleanSec,
+        section_label: cleanLabel,
         owner_batch_id: "B02",
         first_loaded_by_batch_id: "B01",
         required_by_work_id: requiredByWorkId,
       });
+    } else {
+      quarantined.set(normKey, {
+        citation_raw: `${cleanLabel} แห่งประมวลรัษฎากร`,
+        normalized_key: normKey,
+        governing_instrument: "ประมวลรัษฎากร",
+        instrument_kind: "REVENUE_CODE",
+        section_label: cleanLabel,
+        owner_batch_hint: "B02",
+        reason:
+          "Cited Revenue Code section (e.g. repealed historical provision) not present in verified consolidated text; quarantined as unresolved rather than generating placeholder text.",
+      });
     }
   }
 
-  // 2. Royal Decrees issued under Revenue Code (`พระราชกฤษฎีกา ... (ฉบับที่ NNN)`)
-  const rdMatches = combined.match(/พระราชกฤษฎีกา[^(]{0,60}\(ฉบับที่\s*([0-9]+)\)(?:\s*พ\.ศ\.\s*([0-9]{4}))?/g) || [];
+  // 2. Whole-instrument Royal Decrees issued under Revenue Code (`พระราชกฤษฎีกา ... (ฉบับที่ NNN)`)
+  const rdMatches =
+    compact.match(/พระราชกฤษฎีกา[^(]{0,80}\(ฉบับที่\s*([0-9]+)\)(?:\s*พ\.ศ\.\s*([0-9]{4}))?/g) || [];
   for (const m of rdMatches) {
     const numM = m.match(/ฉบับที่\s*([0-9]+)/);
     if (!numM) continue;
     const normKey = `subreg.th.rc.royal_decree.${numM[1]}`;
-    if (!deps.has(normKey)) {
-      deps.set(normKey, {
+    const titleTh = `พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ ${numM[1]})`;
+    if (isVerifiedTarget(normKey)) {
+      if (!deps.has(normKey)) {
+        deps.set(normKey, {
+          citation_raw: m.replace(/\s+/g, " ").trim(),
+          normalized_key: normKey,
+          target_type: "SubordinateLegislation",
+          instrument_title_th: titleTh,
+          section_label: null,
+          owner_batch_id: "B02",
+          first_loaded_by_batch_id: "B01",
+          required_by_work_id: requiredByWorkId,
+        });
+      }
+    } else if (!Array.from(quarantined.values()).some((q) => q.normalized_key === normKey)) {
+      quarantined.set(normKey, {
         citation_raw: m.replace(/\s+/g, " ").trim(),
         normalized_key: normKey,
-        target_type: "SubordinateLegislation",
-        instrument_title_th: `พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ ${numM[1]})`,
+        governing_instrument: titleTh,
+        instrument_kind: "ROYAL_DECREE",
         section_label: null,
-        owner_batch_id: "B02",
-        first_loaded_by_batch_id: "B01",
-        required_by_work_id: requiredByWorkId,
+        owner_batch_hint: "B02",
+        reason:
+          "Royal Decree cited in ruling does not yet have verified verbatim statutory text in staging; quarantined as unresolved.",
       });
     }
   }
 
   // 3. Departmental Orders / DG VAT Notifications (`คำสั่งกรมสรรพากรที่ ท.ป. X/YYYY`, `ประกาศอธิบดีกรมสรรพากร ... (ฉบับที่ N)`)
-  const tpMatches = combined.match(/คำสั่งกรมสรรพากร\s*ที่\s*ท\.ป\.\s*([0-9]+\/[0-9]{4})/g) || [];
+  const tpMatches = compact.match(/คำสั่งกรมสรรพากร\s*ที่\s*ท\.ป\.\s*([0-9]+\/[0-9]{4})/g) || [];
   for (const m of tpMatches) {
     const codeM = m.match(/([0-9]+)\/([0-9]{4})/);
     if (!codeM) continue;
     const normKey = `subreg.th.rd.order_tp.${codeM[1]}_${codeM[2]}`;
-    if (!deps.has(normKey)) {
-      deps.set(normKey, {
+    const titleTh = `คำสั่งกรมสรรพากร ที่ ท.ป. ${codeM[1]}/${codeM[2]}`;
+    if (isVerifiedTarget(normKey)) {
+      if (!deps.has(normKey)) {
+        deps.set(normKey, {
+          citation_raw: m.replace(/\s+/g, " ").trim(),
+          normalized_key: normKey,
+          target_type: "SubordinateLegislation",
+          instrument_title_th: titleTh,
+          section_label: null,
+          owner_batch_id: "B02",
+          first_loaded_by_batch_id: "B01",
+          required_by_work_id: requiredByWorkId,
+        });
+      }
+    } else {
+      quarantined.set(normKey, {
         citation_raw: m.replace(/\s+/g, " ").trim(),
         normalized_key: normKey,
-        target_type: "SubordinateLegislation",
-        instrument_title_th: `คำสั่งกรมสรรพากร ที่ ท.ป. ${codeM[1]}/${codeM[2]}`,
+        governing_instrument: titleTh,
+        instrument_kind: "OTHER_SUBREGULATION",
         section_label: null,
-        owner_batch_id: "B02",
-        first_loaded_by_batch_id: "B01",
-        required_by_work_id: requiredByWorkId,
+        owner_batch_hint: "B02",
+        reason: "Departmental Order ท.ป. quarantined as unresolved until verbatim text is verified.",
       });
     }
   }
 
   const dgVatMatches =
-    combined.match(/ประกาศอธิบดีกรมสรรพากร\s*เกี่ยวกับภาษีมูลค่าเพิ่ม\s*\(ฉบับที่\s*([0-9]+)\)/g) || [];
+    compact.match(/ประกาศอธิบดีกรมสรรพากร\s*เกี่ยวกับภาษีมูลค่าเพิ่ม\s*\(ฉบับที่\s*([0-9]+)\)/g) || [];
   for (const m of dgVatMatches) {
     const codeM = m.match(/ฉบับที่\s*([0-9]+)/);
     if (!codeM) continue;
     const normKey = `subreg.th.rd.dg_vat.${codeM[1]}`;
-    if (!deps.has(normKey)) {
-      deps.set(normKey, {
+    const titleTh = `ประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ ${codeM[1]})`;
+    if (isVerifiedTarget(normKey)) {
+      if (!deps.has(normKey)) {
+        deps.set(normKey, {
+          citation_raw: m.replace(/\s+/g, " ").trim(),
+          normalized_key: normKey,
+          target_type: "SubordinateLegislation",
+          instrument_title_th: titleTh,
+          section_label: null,
+          owner_batch_id: "B02",
+          first_loaded_by_batch_id: "B01",
+          required_by_work_id: requiredByWorkId,
+        });
+      }
+    } else {
+      quarantined.set(normKey, {
         citation_raw: m.replace(/\s+/g, " ").trim(),
         normalized_key: normKey,
-        target_type: "SubordinateLegislation",
-        instrument_title_th: `ประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ ${codeM[1]})`,
+        governing_instrument: titleTh,
+        instrument_kind: "OTHER_SUBREGULATION",
         section_label: null,
-        owner_batch_id: "B02",
-        first_loaded_by_batch_id: "B01",
-        required_by_work_id: requiredByWorkId,
+        owner_batch_hint: "B02",
+        reason: "DG VAT Notification quarantined as unresolved until verbatim text is verified.",
       });
     }
   }
 
   // 4. Cited other RD rulings
-  const citedRulings = (combined.match(/กค\s*[0-9]{4}(?:\([^)]+\))?\s*\/\s*(?:พ\.\s*)?[0-9]+/g) || []).map(
+  const citedRulings = (compact.match(/กค\s*[0-9]{4}(?:\([^)]+\))?\s*\/\s*(?:พ\.\s*)?[0-9]+/g) || []).map(
     (x) => normalizeOfficialRulingIdentifier(x)
   );
 
-  // 5. Non-Revenue-Code external Acts (e.g., Animal Feed Quality Control Act B.E. 2558, Expropriation Act B.E. 2562) -> explicit unresolved references if not loaded!
+  // 5. Non-Revenue-Code external Acts mentioned without section numbers
   const otherActs =
-    combined.match(/พระราชบัญญัติ[^\s\n(]{4,70}\s*พ\.ศ\.\s*[0-9]{4}/g) || [];
+    compact.match(/พระราชบัญญัติ[^\s\n(]{4,70}\s*พ\.ศ\.\s*[0-9]{4}/g) || [];
+  for (const actRaw of otherActs) {
+    const act = actRaw.trim();
+    if (/ประมวล\s*รัษฎากร/u.test(act)) continue;
+    if (!Array.from(quarantined.values()).some((q) => q.governing_instrument.includes(act))) {
+      const slug = sha256Bytes(act).slice(0, 10);
+      quarantined.set(`statute.th.ext.${slug}`, {
+        citation_raw: act,
+        normalized_key: `statute.th.ext.${slug}`,
+        governing_instrument: act,
+        instrument_kind: "STANDALONE_ACT",
+        section_label: null,
+        owner_batch_hint: /อาหารสัตว์|เวนคืน|สิ่งปลูกสร้าง|จัดสรรที่ดิน|อาคารชุด/u.test(act) ? "B07" : "B02",
+        reason:
+          "External standalone Act cited in ruling; quarantined explicitly as unresolved dependency rather than generating placeholder law.",
+      });
+    }
+  }
 
   return {
     dependencies: Array.from(deps.values()),
+    quarantinedCitations: Array.from(quarantined.values()),
     citedRulings: [...new Set(citedRulings)],
     otherStatuteRefs: [...new Set(otherActs.map((x) => x.trim()))],
   };
@@ -291,10 +707,20 @@ export async function extractB01(input: ProfileInput): Promise<ProfileResult> {
     meta.subject?.trim() ||
     (normLetterNo ? `หนังสือตอบข้อหารือกรมสรรพากร ที่ ${normLetterNo}` : "หนังสือตอบข้อหารือกรมสรรพากร");
 
+  const separated = separateRulingFactsAndConclusion({
+    rawFacts: meta.facts,
+    rawRuling: meta.ruling,
+    fullText,
+    legacyId: meta.legacy_id || null,
+  });
+  if (separated.ambiguousUnresolvedMix) {
+    reviewReasons.push("MIXED_FACTS_AND_RULING_REQUIRES_REVIEW");
+  }
+
   const taxTypes = normalizeB01TaxTypes(meta.tax_types || meta.primary_tax_type || "", fullText);
-  const relevantPeriods = extractRelevantPeriods(`${meta.facts || ""}\n${fullText}`);
-  const parsedFacts = splitRequesterFactsQuestionAndProposal(meta.facts || "");
-  const rdBody = (meta.ruling || fullText).trim();
+  const relevantPeriods = extractRelevantPeriods(`${separated.factsText}\n${separated.rulingText}`);
+  const parsedFacts = splitRequesterFactsQuestionAndProposal(separated.factsText);
+  const rdBody = (separated.rulingText || fullText).trim();
   const { conditions, exceptions } = extractConditionsAndExceptions(rdBody);
 
   const work: LegalWork = {
@@ -342,7 +768,7 @@ export async function extractB01(input: ProfileInput): Promise<ProfileResult> {
     access_scope: input.access_scope,
   };
 
-  const releaseId = `rel.${input.batch_id}.rc1`;
+  const releaseId = input.release_id || `rel.${input.batch_id}.rc1`;
   const headerLabel = `${normLetterNo || workId} (${rawDate || "ไม่ปรากฏวันที่"}) — ${subjectTh}`;
   const passages: Passage[] = [];
 
@@ -569,21 +995,24 @@ export async function extractB01(input: ProfileInput): Promise<ProfileResult> {
     });
   });
 
-  // 5. Explicit UnresolvedReferenceRecord for external non-Revenue-Code statutes not loaded in B01 (SH-17)
-  const unresolvedReferences: UnresolvedReferenceRecord[] = citations.otherStatuteRefs
-    .filter((act) => !act.includes("ประมวลรัษฎากร"))
-    .map((act, idx) => ({
+  // 5. Explicit UnresolvedReferenceRecord quarantine for external or unverified statutory citations (SH-17 / DEF-B01-02 / DEF-B01-03)
+  const unresolvedReferences: UnresolvedReferenceRecord[] = citations.quarantinedCitations.map(
+    (qc, idx) => ({
       unresolved_ref_id: `uref.${workId}.${idx + 1}`,
       source_work_id: workId,
       source_version_id: versionId,
       source_passage_id: decisiveEvidenceIds[0],
-      raw_citation_text: act,
-      target_hint: act,
-      owner_batch_hint: /อาหารสัตว์|เวนคืน|สิ่งปลูกสร้าง/.test(act) ? "B07" : "B02",
-      reason:
-        "External non-tax sector statute cited in ruling facts/reasoning; recorded explicitly as unresolved dependency rather than fabricating placeholder law.",
+      raw_citation_text: qc.citation_raw,
+      target_hint: qc.section_label ? `${qc.normalized_key}#${qc.section_label}` : qc.normalized_key,
+      governing_instrument: qc.governing_instrument,
+      section_label: qc.section_label,
+      quarantine_status: "UNRESOLVED_QUARANTINED",
+      usable_as_legal_evidence: false,
+      owner_batch_hint: qc.owner_batch_hint,
+      reason: qc.reason,
       created_at: new Date().toISOString(),
-    }));
+    })
+  );
 
   const domainFields: B01ExtractedDomainFields = {
     official_letter_no_raw: rawLetterMatch,

@@ -36,6 +36,7 @@ export interface RetrievalBundle {
   strategy: RetrievalStrategy;
   explicit_ruling_ids_in_query: string[];
   explicit_section_refs_in_query: string[];
+  explicit_instrument_hints_in_query?: string[];
   unresolved_explicit_ruling_ids: string[];
   top_hits: RankedPassageHit[];
   evidence_cards: EvidenceCard[];
@@ -83,6 +84,7 @@ function isVersionApplicableOnDate(
 export function extractExplicitIdentifiersFromQuery(question: string): {
   rulingIds: string[];
   sectionRefs: string[];
+  instrumentHints: string[];
 } {
   const arabic = thaiDigitsToArabic(question);
   // Match both 'กค 0702/636' and historical 4-digit RD bureau codes like '0811(กม)/806' or 'กค 0706/พ./1234'
@@ -94,11 +96,34 @@ export function extractExplicitIdentifiersFromQuery(question: string): {
 
   const rawSecs =
     arabic.match(
-      /มาตรา\s*[0-9]+(?:\/[0-9]+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นว))?(?:\s*\([0-9ก-ฮ]+\))*/g
+      /(?:มาตรา|ข้อ)\s*[0-9]+(?:\/[0-9]+)?(?:\s*(?:อัฏฐารส|สัตตรส|เอกาทศ|ทวาทศ|จตุทศ|ปัณรส|จัตวา|เบญจ|เตรส|โสฬส|สัตต|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ))?(?:\s*\([0-9ก-ฮ]+\))*/g
     ) || [];
   const sectionRefs = [...new Set(rawSecs.map((s) => normalizeThaiLegalSectionRef(s)))];
 
-  return { rulingIds, sectionRefs };
+  const instrumentHints: string[] = [];
+  const strippedSubordinateRc = arabic.replace(
+    /(?:พระราชบัญญัติแก้ไขเพิ่มเติม|ออกตามความใน)\s*ประมวลรัษฎากร/g,
+    ""
+  );
+  if (/ประมวลรัษฎากร/.test(strippedSubordinateRc)) {
+    instrumentHints.push("ประมวลรัษฎากร");
+  }
+  const statMatches =
+    arabic.match(
+      /(?:ร่าง)?(?:พระราชบัญญัติประกอบรัฐธรรมนูญ|พระราชบัญญัติ|พระราชกำหนด|พระราชกฤษฎีกา|กฎกระทรวง|ประกาศอธิบดีกรมสรรพากร|ประกาศกรมศุลกากร|ประกาศกรมสรรพสามิต|ประกาศกระทรวงการคลัง|คำสั่งกรมสรรพากร|คำสั่งกรมสรรพสามิต)[^\n?]{2,180}?(?=\s*(?:มาตรา\s*[0-9]|ข้อ\s*[0-9]|บัญญัติว่า|กำหนดไว้อย่างไร|กำหนดหลักเกณฑ์อย่างไร|มีผลใช้บังคับ|ประกาศในราชกิจจา|เริ่มใช้บังคับ|คืออะไร|ว่าอย่างไร|เป็นกฎหมายที่ใช้บังคับ|หรือไม่|$))/g
+    ) || [];
+  for (const sm of statMatches) {
+    const cleaned = sm.replace(/\s+/g, " ").trim();
+    if (cleaned.length >= 8) {
+      instrumentHints.push(cleaned);
+    }
+  }
+
+  return {
+    rulingIds,
+    sectionRefs,
+    instrumentHints: [...new Set(instrumentHints)],
+  };
 }
 
 export function retrieveAuthorizedKnowledge(
@@ -117,7 +142,50 @@ export function retrieveAuthorizedKnowledge(
   const maxPassages = params.max_passages ?? 12;
   const state = store.getState();
 
-  const { rulingIds, sectionRefs } = extractExplicitIdentifiersFromQuery(params.question);
+  const { rulingIds, sectionRefs, instrumentHints } = extractExplicitIdentifiersFromQuery(
+    params.question
+  );
+  const queryAsksAboutDraft = /ร่างพระราชบัญญัติ|ร่างกฎหมาย|วิเคราะห์ร่าง|กรรมาธิการ|มาตรา\s*77/.test(
+    thaiDigitsToArabic(params.question)
+  );
+  const queryIsVersionComparison = /เปรียบเทียบ|ก่อนแก้ไข|หลังแก้ไข|ฉบับเดิม|ฉบับปัจจุบัน/.test(
+    params.question
+  );
+
+  const workMatchesInstrumentHint = (w: CanonicalPersistedState["works"][string]): boolean => {
+    if (instrumentHints.length === 0) return true;
+    const hay = thaiDigitsToArabic(
+      `${w.title_th} ${(w.aliases || []).join(" ")} ${(w.official_identifiers || []).map((o) => o.normalized).join(" ")}`
+    ).replace(/\s+/g, " ");
+    return instrumentHints.some((hint) => {
+      const hNorm = thaiDigitsToArabic(hint).replace(/\s+/g, " ").trim();
+      if (hNorm === "ประมวลรัษฎากร") {
+        return (
+          w.work_id === "statute.th.revenue_code" ||
+          w.work_id.startsWith("prov.th.rc.") ||
+          w.work_id.startsWith("sched.th.rc.")
+        );
+      }
+      // If the query specifies an explicit instrument issue number `(ฉบับที่ N)` or `ท.ป. X/YYYY`, strictly enforce it!
+      const chabapM = hNorm.match(/ฉบับที่\s*([0-9]+)/);
+      if (chabapM) {
+        const numRe = new RegExp(`ฉบับที่\\s*${chabapM[1]}(?![0-9])`);
+        if (!numRe.test(hay)) return false;
+      }
+      const tpM = hNorm.match(/(?:ท\.ป\.|ป\.)\s*([0-9]+\/[0-9]{4})/);
+      if (tpM && !hay.includes(tpM[1])) {
+        return false;
+      }
+      if (hay.includes(hNorm)) return true;
+      if (chabapM) {
+        // Instrument type + exact `ฉบับที่ N` match
+        const typePrefix = hNorm.split(/\s*(?:\(|ฉบับที่|ออกตามความ|ว่าด้วย)/)[0].trim();
+        return typePrefix.length >= 6 && hay.includes(typePrefix);
+      }
+      const stem = hNorm.split(/\s*(?:พ\.ศ\.)/)[0].trim();
+      return stem.length >= 14 && hay.includes(stem);
+    });
+  };
 
   // Map explicit ruling IDs to canonical works in scope
   const allAuthorizedPassages = store
@@ -128,6 +196,7 @@ export function retrieveAuthorizedKnowledge(
 
   const explicitWorkIds = new Set<string>(params.comparison_work_ids || []);
   const secondarySectionWorkIds = new Set<string>();
+  const wrongInstrumentSectionWorkIds = new Set<string>();
   const unresolvedExplicitRulingIds: string[] = [];
 
   for (const rId of rulingIds) {
@@ -152,28 +221,66 @@ export function retrieveAuthorizedKnowledge(
 
   for (const sRef of sectionRefs) {
     const baseMatch = sRef.match(
-      /^มาตรา\s*([0-9]+(?:\/[0-9]+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นว))?)/
+      /^(?:มาตรา|ข้อ)\s*([0-9]+(?:\/[0-9]+)?(?:\s*(?:อัฏฐารส|สัตตรส|เอกาทศ|ทวาทศ|จตุทศ|ปัณรส|จัตวา|เบญจ|เตรส|โสฬส|สัตต|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ))?)/
     );
-    const normBase = baseMatch ? `มาตรา ${baseMatch[1].replace(/\s+/g, " ").trim()}` : sRef;
+    const prefixWord = sRef.startsWith("ข้อ") ? "ข้อ" : "มาตรา";
+    const normBase = baseMatch ? `${prefixWord} ${baseMatch[1].replace(/\s+/g, " ").trim()}` : sRef;
     for (const w of Object.values(state.works)) {
       if (!authorizedWorkIds.has(w.work_id)) continue;
-      if (w.type !== "Provision" && w.type !== "ProvisionVersion" && w.type !== "Statute") {
+      if (
+        w.type !== "Provision" &&
+        w.type !== "ProvisionVersion" &&
+        w.type !== "Statute" &&
+        w.type !== "SubordinateLegislation"
+      ) {
         continue;
       }
-      if (w.official_identifiers.some((oid) => oid.normalized === sRef)) {
+      const idMatchesExact = w.official_identifiers.some((oid) => oid.normalized === sRef);
+      const idMatchesBase =
+        normBase !== sRef && w.official_identifiers.some((oid) => oid.normalized === normBase);
+      if (!idMatchesExact && !idMatchesBase) continue;
+
+      if (!workMatchesInstrumentHint(w)) {
+        wrongInstrumentSectionWorkIds.add(w.work_id);
+        continue;
+      }
+      if (idMatchesExact) {
         explicitWorkIds.add(w.work_id);
-      } else if (
-        normBase !== sRef &&
-        w.official_identifiers.some((oid) => oid.normalized === normBase)
-      ) {
+      } else {
         secondarySectionWorkIds.add(w.work_id);
       }
     }
   }
 
-  // Filter passages by temporal applicability (AT05, AT13)
+  // Also match named Statute / SubordinateLegislation instruments directly when queried by title or explicit code!
+  const qNormFull = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").trim();
+  const exactFullTitleWorkIds = new Set<string>();
+  const nonGenericHints = instrumentHints.filter((h) => h !== "ประมวลรัษฎากร");
+  for (const w of Object.values(state.works)) {
+    if (!authorizedWorkIds.has(w.work_id)) continue;
+    if (w.type === "TaxRuling" || w.type === "Provision" || w.type === "ProvisionVersion") continue;
+    if (
+      !queryAsksAboutDraft &&
+      state.versions[`ver.${w.work_id.replace(/^(?:work\.|statute\.|subreg\.)/, "")}.v1_legislative_draft`]
+    ) {
+      continue;
+    }
+    const wTitleNorm = thaiDigitsToArabic(w.title_th).replace(/\s+/g, " ").trim();
+    if (wTitleNorm.length >= 10 && qNormFull.includes(wTitleNorm)) {
+      explicitWorkIds.add(w.work_id);
+      exactFullTitleWorkIds.add(w.work_id);
+      continue;
+    }
+    if (sectionRefs.length === 0 && nonGenericHints.length > 0 && workMatchesInstrumentHint(w)) {
+      explicitWorkIds.add(w.work_id);
+    }
+  }
+
+  // Filter passages by temporal applicability (AT05, AT13), preserving multi-version comparison when requested (B02-U03)
   let candidatePool = allAuthorizedPassages.filter((p) =>
-    isVersionApplicableOnDate(state, p, params.applicable_date, explicitWorkIds)
+    queryIsVersionComparison && !params.applicable_date
+      ? true
+      : isVersionApplicableOnDate(state, p, params.applicable_date, explicitWorkIds)
   );
   // Fallback if applicable_date filtered out rulings whose ruling issue_date is in BE 2569 while querying general tax rules without explicit historical statute conflict
   if (candidatePool.length === 0 && params.applicable_date && sectionRefs.length === 0) {
@@ -207,9 +314,10 @@ export function retrieveAuthorizedKnowledge(
 
   // Stage 1: Exact identifier & comparison work boost (always outranks fuzzy lexical/vector scores)
   for (const wid of explicitWorkIds) {
+    const fullTitleBonus = exactFullTitleWorkIds.has(wid) ? 8.0 : 0.0;
     for (const p of passagesByWorkId.get(wid) || []) {
       const roleBoost = p.statement_role === "official_conclusion" || p.statement_role === "statutory_text" ? 40.0 : 32.0;
-      addScore(p.passage_id, roleBoost, "exact_id");
+      addScore(p.passage_id, roleBoost + fullTitleBonus, "exact_id");
     }
   }
   for (const wid of secondarySectionWorkIds) {
@@ -241,28 +349,48 @@ export function retrieveAuthorizedKnowledge(
           hitAccum.set(pid, (hitAccum.get(pid) || 0) + delta);
         }
       }
-      // Refine top 250 IDF candidates with exact substring & header phrase matching
+      // Refine top 250 IDF candidates + any exact ruling/statute header-subject matches
+      const qClean = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").toLowerCase().trim();
+      for (const p of candidatePool) {
+        const w = state.works[p.work_id];
+        if (w?.type !== "TaxRuling") continue;
+        const subjPart = thaiDigitsToArabic(w.title_th.replace(/^[^—]+—\s*/, ""))
+          .replace(/\s+/g, " ")
+          .toLowerCase()
+          .trim();
+        if ((subjPart.length >= 26 || subjPart.includes("กรณี")) && qClean.includes(subjPart)) {
+          hitAccum.set(p.passage_id, (hitAccum.get(p.passage_id) || 0) + 40.0);
+        }
+      }
       const preTop = Array.from(hitAccum.entries())
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 250);
-      const qClean = thaiDigitsToArabic(params.question).toLowerCase().trim();
+        .slice(0, 350);
       for (const [pid, idfHits] of preTop) {
         const p = passageById.get(pid)!;
-        const hdrNorm = thaiDigitsToArabic(p.contextualized_header).toLowerCase();
+        const w = state.works[p.work_id];
+        const hdrNorm = thaiDigitsToArabic(p.contextualized_header).replace(/\s+/g, " ").toLowerCase();
         const bodyNorm = thaiDigitsToArabic(p.exact_text).toLowerCase();
         let exactBonus = 0;
+        let hasFullSubjMatch = false;
         for (const qt of qTokens) {
           if (qt.length >= 5 && (hdrNorm.includes(qt) || bodyNorm.includes(qt))) {
             exactBonus += hdrNorm.includes(qt) ? 1.8 : 0.9;
           }
         }
-        // Boost when full subject title inside contextualized_header appears in the question
-        const subjPart = hdrNorm.split("|").pop()?.trim() || "";
-        if (subjPart.length >= 6 && qClean.includes(subjPart)) {
-          exactBonus += 8.0;
+        // Boost when full TaxRuling subject title appears in the question (never matching `มาตรา 80` inside `มาตรา 80/1`!)
+        if (w?.type === "TaxRuling") {
+          const subjPart = thaiDigitsToArabic(w.title_th.replace(/^[^—]+—\s*/, ""))
+            .replace(/\s+/g, " ")
+            .toLowerCase()
+            .trim();
+          if ((subjPart.length >= 26 || subjPart.includes("กรณี")) && qClean.includes(subjPart)) {
+            hasFullSubjMatch = true;
+          }
         }
-        // Normalize IDF-weighted score onto the calibrated [0, 4.0] lexical scale so Stage 1 & Stage 4 remain balanced
-        const normalizedLex = Math.min(4.0, (idfHits + exactBonus) / (denom * 4.5));
+        const rawLexRatio = (idfHits + exactBonus) / (denom * 4.5);
+        const baseLex =
+          rawLexRatio <= 4.0 ? rawLexRatio : 4.0 + Math.log1p(rawLexRatio - 4.0) * 1.5;
+        const normalizedLex = hasFullSubjMatch ? baseLex + 10.5 : baseLex;
         lexicalScored.push({ passage_id: pid, lexScore: normalizedLex });
       }
     } else {
@@ -301,6 +429,7 @@ export function retrieveAuthorizedKnowledge(
 
     for (const p of candidatePool) {
       const storedVec = vecSnap?.vectors[`vec.${p.passage_id}`]?.values;
+      if (!storedVec && candidatePool.length > 1500) continue;
       const pVec =
         storedVec || computeDeterministicLegalEmbedding(`${p.contextualized_header} ${p.exact_text}`);
       const sim = cosineSimilarity(qVec, pVec);
@@ -325,40 +454,75 @@ export function retrieveAuthorizedKnowledge(
     .filter((a) => a.scope === "scope.platform.public" || params.actor.authorized_scopes.includes(a.scope));
 
   if (strategy === "hybrid_with_graph" && scoreMap.size > 0) {
-    const seedTopPassages = Array.from(scoreMap.entries())
-      .sort((a, b) => b[1].score - a[1].score)
-      .slice(0, 8)
-      .map(([pid]) => passageById.get(pid)!)
-      .filter(Boolean);
-
-    const seedWorkIds = new Set(seedTopPassages.map((p) => p.work_id));
+    const sortedInitial = Array.from(scoreMap.entries()).sort((a, b) => b[1].score - a[1].score);
+    const seedWorkIdList: string[] = [];
+    for (const [pid] of sortedInitial) {
+      const p = passageById.get(pid);
+      if (p && !seedWorkIdList.includes(p.work_id)) {
+        seedWorkIdList.push(p.work_id);
+        if (seedWorkIdList.length >= 10) break;
+      }
+    }
+    for (const lexTop of lexicalScored.slice(0, 4)) {
+      const lp = passageById.get(lexTop.passage_id);
+      if (lp && !seedWorkIdList.includes(lp.work_id)) {
+        seedWorkIdList.push(lp.work_id);
+      }
+    }
+    const seedWorkIds = new Set(seedWorkIdList);
 
     // Hop 1: Direct provisions interpreted/cited by seed rulings + sibling passages (requester_facts <-> official_conclusion)
     const hop1ProvisionIds = new Set<string>();
     for (const wid of seedWorkIds) {
+      let maxWorkLexVecScore = 0;
       for (const p of passagesByWorkId.get(wid) || []) {
-        addScore(
-          p.passage_id,
-          p.statement_role === "official_conclusion" ? 1.8 : 1.0,
-          "graph_hop"
-        );
+        const cur = scoreMap.get(p.passage_id);
+        if (cur && !cur.sources.has("exact_id") && cur.score > maxWorkLexVecScore) {
+          maxWorkLexVecScore = cur.score;
+        }
+      }
+      for (const p of passagesByWorkId.get(wid) || []) {
+        const siblingBoost =
+          p.statement_role === "official_conclusion"
+            ? Math.max(1.8, maxWorkLexVecScore * 0.65)
+            : 1.0;
+        addScore(p.passage_id, siblingBoost, "graph_hop");
       }
     }
 
-    // Pass 1: Collect rulings interpreting the queried provision, sort by highest lexical/vector fact overlap descending, then boost top 15!
-    const reverseOverlapCandidates: Array<{ workId: string; maxExistingScore: number }> = [];
-    const pureGraphCandidates: string[] = [];
-    const seenReverseSubjects = new Set<string>();
+    // Pass 1: Collect rulings interpreting the queried provision, prioritizing direct INTERPRETS on explicitWorkIds over CITES, then lexical/vector overlap!
+    const reverseOverlapCandidates: Array<{
+      workId: string;
+      maxExistingScore: number;
+      isDirectInterprets: boolean;
+    }> = [];
+    const pureInterpretsCandidates: string[] = [];
+    const pureCitesCandidates: string[] = [];
+    const seenReverseObjects = new Map<string, boolean>();
     for (const asrt of acceptedAssertions) {
-      if (seedWorkIds.has(asrt.subject) && (asrt.predicate === "INTERPRETS" || asrt.predicate === "CITES")) {
-        hop1ProvisionIds.add(asrt.object);
+      if (
+        seedWorkIds.has(asrt.subject) &&
+        (asrt.predicate === "INTERPRETS" ||
+          asrt.predicate === "CITES" ||
+          asrt.predicate === "MADE_UNDER" ||
+          asrt.predicate === "AMENDS" ||
+          asrt.predicate === "REPEALS" ||
+          asrt.predicate === "CONTAINS")
+      ) {
+        if (!wrongInstrumentSectionWorkIds.has(asrt.object)) {
+          hop1ProvisionIds.add(asrt.object);
+        }
       }
       if (
         seedWorkIds.has(asrt.object) &&
-        (asrt.predicate === "INTERPRETS" || asrt.predicate === "CITES") &&
-        !seenReverseSubjects.has(asrt.subject)
+        (asrt.predicate === "INTERPRETS" || asrt.predicate === "CITES")
       ) {
-        seenReverseSubjects.add(asrt.subject);
+        const directInterp = explicitWorkIds.has(asrt.object) && asrt.predicate === "INTERPRETS";
+        const prevDirect = seenReverseObjects.get(asrt.subject);
+        if (prevDirect === true || (prevDirect === false && !directInterp)) {
+          continue;
+        }
+        seenReverseObjects.set(asrt.subject, directInterp);
         const subjPassages = passagesByWorkId.get(asrt.subject) || [];
         let maxExisting = 0;
         for (const sp of subjPassages) {
@@ -366,30 +530,64 @@ export function retrieveAuthorizedKnowledge(
           if (cur > maxExisting) maxExisting = cur;
         }
         if (maxExisting > 0) {
-          reverseOverlapCandidates.push({ workId: asrt.subject, maxExistingScore: maxExisting });
-        } else if (pureGraphCandidates.length < 16) {
-          pureGraphCandidates.push(asrt.subject);
+          const existingIdx = reverseOverlapCandidates.findIndex((x) => x.workId === asrt.subject);
+          if (existingIdx >= 0) {
+            reverseOverlapCandidates[existingIdx].isDirectInterprets = directInterp;
+          } else {
+            reverseOverlapCandidates.push({
+              workId: asrt.subject,
+              maxExistingScore: maxExisting,
+              isDirectInterprets: directInterp,
+            });
+          }
+        } else if (directInterp && pureInterpretsCandidates.length < 16) {
+          pureInterpretsCandidates.push(asrt.subject);
+        } else if (!directInterp && pureCitesCandidates.length < 16) {
+          pureCitesCandidates.push(asrt.subject);
         }
       }
     }
-    reverseOverlapCandidates.sort((a, b) => b.maxExistingScore - a.maxExistingScore);
+    reverseOverlapCandidates.sort((a, b) => {
+      if (a.isDirectInterprets !== b.isDirectInterprets) {
+        return a.isDirectInterprets ? -1 : 1;
+      }
+      return b.maxExistingScore - a.maxExistingScore;
+    });
+    const isProvisionSurveyQuery =
+      /(?:มีหนังสือตอบข้อหารือใด|ข้อหารือใดที่ตีความ|แนววินิจฉัยใดที่ตีความ|มีแนววินิจฉัยใดบ้างที่ตีความ)/.test(
+        params.question
+      );
     let reverseLexGraphAdded = 0;
     for (const cand of reverseOverlapCandidates.slice(0, 15)) {
+      const boost = isProvisionSurveyQuery
+        ? cand.isDirectInterprets
+          ? 20.0
+          : 14.0
+        : cand.isDirectInterprets
+          ? 3.5
+          : 2.0;
       for (const p of passagesByWorkId.get(cand.workId) || []) {
         if (p.statement_role === "official_conclusion" || scoreMap.has(p.passage_id)) {
-          addScore(p.passage_id, 18.0, "graph_hop");
+          addScore(p.passage_id, boost, "graph_hop");
         }
       }
       reverseLexGraphAdded += 1;
     }
     // Pass 2: Also surface representative rulings interpreting the provision when query was pure provision-navigation
-    for (const subjWorkId of pureGraphCandidates) {
-      if (reverseLexGraphAdded >= 18) break;
-      for (const p of passagesByWorkId.get(subjWorkId) || []) {
-        if (p.statement_role === "official_conclusion") {
-          addScore(p.passage_id, 14.5, "graph_hop");
-          reverseLexGraphAdded += 1;
-          break;
+    if (isProvisionSurveyQuery || scoreMap.size < 4) {
+      for (const subjWorkId of [...pureInterpretsCandidates, ...pureCitesCandidates]) {
+        if (reverseLexGraphAdded >= 18) break;
+        const isDirectInterp = pureInterpretsCandidates.includes(subjWorkId);
+        for (const p of passagesByWorkId.get(subjWorkId) || []) {
+          if (p.statement_role === "official_conclusion") {
+            addScore(
+              p.passage_id,
+              isProvisionSurveyQuery ? (isDirectInterp ? 16.5 : 12.5) : isDirectInterp ? 3.0 : 2.0,
+              "graph_hop"
+            );
+            reverseLexGraphAdded += 1;
+            break;
+          }
         }
       }
     }
@@ -419,14 +617,41 @@ export function retrieveAuthorizedKnowledge(
     }
   }
 
-  // Rerank top 30 -> return top `maxPassages`
-  const rankedHits: RankedPassageHit[] = Array.from(scoreMap.entries())
+  const queryAsksForRulingOnProvision =
+    rulingIds.length === 0 &&
+    sectionRefs.length > 0 &&
+    /(?:หนังสือตอบข้อหารือใด|ข้อหารือใด|แนววินิจฉัยใด)/.test(params.question);
+
+  // Rerank top 40 with per-(work_id, version_id) diversity cap so a 15-chunk verbatim statute never crowds out interpreting TaxRulings
+  const sortedCandidates: RankedPassageHit[] = Array.from(scoreMap.entries())
     .map(([pid, entry]) => {
       const psg = passageById.get(pid)!;
+      const ver = state.versions[psg.version_id];
+      const work = state.works[psg.work_id];
       // Boost official_conclusion and statutory_text slightly over requester_facts during final rerank
       let roleMult = 1.0;
       if (psg.statement_role === "official_conclusion" || psg.statement_role === "statutory_text") {
         roleMult = 1.12;
+      }
+      if (
+        queryAsksForRulingOnProvision &&
+        work?.type === "TaxRuling" &&
+        psg.statement_role === "official_conclusion" &&
+        entry.sources.has("graph_hop")
+      ) {
+        roleMult *= 2.65;
+      }
+      // Prevent same-numbered section from a DIFFERENT Act from contaminating Act-scoped section lookup (B02-U01)
+      if (wrongInstrumentSectionWorkIds.has(psg.work_id)) {
+        roleMult *= 0.08;
+      }
+      // Prevent un-enacted draft bills / committee reports from ranking as governing law unless explicitly queried (B02-U06)
+      if (
+        !queryAsksAboutDraft &&
+        (ver?.draft_or_enacted_status === "DRAFT_BILL" ||
+          ver?.draft_or_enacted_status === "LEGISLATIVE_HISTORY")
+      ) {
+        roleMult *= 0.2;
       }
       return {
         passage: psg,
@@ -435,8 +660,29 @@ export function retrieveAuthorizedKnowledge(
       };
     })
     .sort((a, b) => b.score - a.score)
-    .slice(0, 30)
-    .slice(0, maxPassages);
+    .slice(0, 48);
+
+  const primarySelected: RankedPassageHit[] = [];
+  const overflowSelected: RankedPassageHit[] = [];
+  const countByWorkVer = new Map<string, number>();
+  for (const hit of sortedCandidates) {
+    const key = `${hit.passage.work_id}::${hit.passage.version_id}`;
+    const c = countByWorkVer.get(key) || 0;
+    const hitWork = state.works[hit.passage.work_id];
+    const perWorkCap =
+      (hitWork?.type === "Provision" || hitWork?.type === "ProvisionVersion") &&
+      qTokens.length > 8 &&
+      rulingIds.length === 0
+        ? 2
+        : 4;
+    if (c < perWorkCap) {
+      primarySelected.push(hit);
+      countByWorkVer.set(key, c + 1);
+    } else {
+      overflowSelected.push(hit);
+    }
+  }
+  const rankedHits: RankedPassageHit[] = [...primarySelected, ...overflowSelected].slice(0, maxPassages);
 
   const selectedWorkIds = new Set(rankedHits.map((h) => h.passage.work_id));
   const matchedAssertions = acceptedAssertions.filter(
@@ -453,7 +699,12 @@ export function retrieveAuthorizedKnowledge(
       .filter(
         (a) =>
           a.subject === p.work_id &&
-          (a.predicate === "INTERPRETS" || a.predicate === "CITES")
+          (a.predicate === "INTERPRETS" ||
+            a.predicate === "CITES" ||
+            a.predicate === "MADE_UNDER" ||
+            a.predicate === "AMENDS" ||
+            a.predicate === "REPEALS" ||
+            a.predicate === "ISSUED_BY")
       )
       .map((a) => {
         const targetWork = state.works[a.object];
@@ -461,7 +712,7 @@ export function retrieveAuthorizedKnowledge(
           work_id: a.object,
           label: targetWork?.title_th || a.object,
           predicate: a.predicate,
-          resolved: Boolean(targetWork),
+          resolved: Boolean(targetWork || a.object_type === "Agency"),
         };
       });
 
@@ -489,6 +740,7 @@ export function retrieveAuthorizedKnowledge(
     strategy,
     explicit_ruling_ids_in_query: rulingIds,
     explicit_section_refs_in_query: sectionRefs,
+    explicit_instrument_hints_in_query: instrumentHints,
     unresolved_explicit_ruling_ids: unresolvedExplicitRulingIds,
     top_hits: rankedHits,
     evidence_cards: evidenceCards,

@@ -37,6 +37,18 @@ function detectMissingFactSignals(question: string): string[] {
   return questions;
 }
 
+const AGENCY_LABELS_TH: Record<string, string> = {
+  "reg.th.parliament": "รัฐสภา / ฝ่ายนิติบัญญัติ (reg.th.parliament)",
+  "reg.th.cabinet": "คณะรัฐมนตรี / ฝ่ายบริหาร (reg.th.cabinet)",
+  "reg.th.mof": "กระทรวงการคลัง (reg.th.mof)",
+  "reg.th.rd": "กรมสรรพากร (reg.th.rd)",
+  "reg.th.customs": "กรมศุลกากร (reg.th.customs)",
+  "reg.th.excise": "กรมสรรพสามิต (reg.th.excise)",
+  "reg.th.ocs": "สำนักงานคณะกรรมการกฤษฎีกา (reg.th.ocs)",
+  "reg.th.opm": "สำนักนายกรัฐมนตรี (reg.th.opm)",
+  "reg.th.moi": "กระทรวงมหาดไทย (reg.th.moi)",
+};
+
 export async function queryKnowledge(
   req: QueryRequest,
   actor: Actor,
@@ -114,13 +126,20 @@ export async function queryKnowledge(
   let liveVerifiedHits = bundle.top_hits.filter((h) =>
     isPassageCurrentlyAuthorizedAndActive(freshState, h.passage, actor)
   );
-  // In exact_lookup mode with an explicit ruling identifier, scope citations strictly to the matched canonical ruling(s) + direct statutory hops (B01-U01)
-  if (req.mode === "exact_lookup" && bundle.explicit_ruling_ids_in_query.length > 0) {
+  // In exact_lookup mode with an explicit ruling identifier OR explicit Act+Section lookup, scope citations strictly (B01-U01, B02-U01)
+  if (
+    req.mode === "exact_lookup" &&
+    (bundle.explicit_ruling_ids_in_query.length > 0 ||
+      (bundle.explicit_section_refs_in_query.length > 0 &&
+        (bundle.explicit_instrument_hints_in_query?.length || 0) > 0))
+  ) {
     const exactScoped = liveVerifiedHits.filter(
       (h) =>
         h.match_sources.includes("exact_id") ||
-        (h.match_sources.includes("graph_hop") &&
-          freshState.works[h.passage.work_id]?.type === "ProvisionVersion")
+        (bundle.explicit_ruling_ids_in_query.length > 0 &&
+          h.match_sources.includes("graph_hop") &&
+          (freshState.works[h.passage.work_id]?.type === "Provision" ||
+            freshState.works[h.passage.work_id]?.type === "ProvisionVersion"))
     );
     if (exactScoped.length > 0) {
       liveVerifiedHits = exactScoped;
@@ -194,20 +213,33 @@ export async function queryKnowledge(
   const answerSections: string[] = [];
 
   if (isComparisonMode) {
-    // Group hits by canonical work_id so each ruling's facts, conditions, and conclusion stay distinct (B01-U03)
-    const byWork = new Map<string, Passage[]>();
+    // Group hits by canonical work_id OR by version_id when comparing two versions of the same statutory provision (B01-U03, B02-U03)
+    const distinctWorkIds = new Set(
+      availablePassages
+        .filter((p) => freshState.works[p.work_id]?.type !== "ProvisionVersion")
+        .map((p) => p.work_id)
+    );
+    const firstWorkId = availablePassages[0]?.work_id;
+    const versionsOfFirstWork = new Set(
+      availablePassages.filter((p) => p.work_id === firstWorkId).map((p) => p.version_id)
+    );
+    const groupByVersion = distinctWorkIds.size <= 1 || versionsOfFirstWork.size >= 2;
+
+    const byGroup = new Map<string, Passage[]>();
     for (const p of availablePassages) {
       const w = freshState.works[p.work_id];
-      if (w?.type === "ProvisionVersion" && byWork.size >= 2) continue;
-      const list = byWork.get(p.work_id) || [];
+      if (!groupByVersion && w?.type === "ProvisionVersion" && byGroup.size >= 2) continue;
+      const key = groupByVersion ? `${p.work_id}::${p.version_id}` : p.work_id;
+      const list = byGroup.get(key) || [];
       list.push(p);
-      byWork.set(p.work_id, list);
+      byGroup.set(key, list);
     }
 
-    answerSections.push("### การเปรียบเทียบแนววินิจฉัยและข้อกฎหมายตามข้อเท็จจริงแต่ละกรณี");
+    answerSections.push("### การเปรียบเทียบแนววินิจฉัยและรุ่นบทบัญญัติกฎหมายตามช่วงเวลา/ข้อเท็จจริง");
     let idx = 0;
-    for (const [workId, workPassages] of byWork.entries()) {
+    for (const [, workPassages] of byGroup.entries()) {
       if (idx >= 3) break;
+      const workId = workPassages[0].work_id;
       const work = freshState.works[workId];
       const ver = freshState.versions[workPassages[0].version_id];
       const conclusionPsg =
@@ -215,8 +247,15 @@ export async function queryKnowledge(
         workPassages[0];
       const factsPsg = workPassages.find((p) => p.statement_role.startsWith("requester_"));
       const label = work?.official_identifiers[0]?.normalized || work?.title_th || workId;
+      const appInterval = ver?.legal_applicability?.[0];
+      const intervalNote =
+        appInterval && (appInterval.valid_from || appInterval.valid_to)
+          ? ` [ช่วงใช้บังคับ: ${appInterval.valid_from || "เดิม"} ถึง ${appInterval.valid_to || "ปัจจุบัน"}]`
+          : ver?.raw_date_text
+            ? ` ลงวันที่ ${ver.raw_date_text}`
+            : "";
 
-      const stmt = `[${label}${ver?.raw_date_text ? ` ลงวันที่ ${ver.raw_date_text}` : ""}] แนววินิจฉัยกรมสรรพากร: ${conclusionPsg.exact_text}`;
+      const stmt = `[${label}${intervalNote}] ${work?.type === "TaxRuling" ? "แนววินิจฉัยกรมสรรพากร" : "บทบัญญัติกฎหมาย"}: ${conclusionPsg.exact_text}`;
       const verCheck = verifyClaimAgainstPassages(
         { statement: stmt, supporting_passage_ids: [conclusionPsg.passage_id] },
         availablePassages
@@ -239,9 +278,9 @@ export async function queryKnowledge(
       });
 
       answerSections.push(
-        `- **กรณีที่ ${idx + 1}: ${work?.title_th || label}**` +
+        `- **กรณี/รุ่นที่ ${idx + 1}: ${work?.title_th || label} (\`${ver?.version_label || conclusionPsg.version_id}\`)${intervalNote}**` +
           (factsPsg ? `\n  - *ข้อเท็จจริงของผู้หารือ*: ${factsPsg.exact_text.slice(0, 280)}${factsPsg.exact_text.length > 280 ? "..." : ""}` : "") +
-          `\n  - *แนววินิจฉัยของกรมสรรพากร*: ${conclusionPsg.exact_text}`
+          `\n  - *${work?.type === "TaxRuling" ? "แนววินิจฉัยของกรมสรรพากร" : "เนื้อหาบทบัญญัติ"}*: ${conclusionPsg.exact_text}`
       );
       idx += 1;
     }
@@ -339,9 +378,81 @@ export async function queryKnowledge(
       );
     }
 
-    answerSections.push(
-      `**${primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${primaryVer?.raw_date_text ? ` ลงวันที่ ${primaryVer.raw_date_text}` : ""})**:\n${primaryOfficial.exact_text}`
+    const isDraftOrHistory =
+      primaryVer?.draft_or_enacted_status === "DRAFT_BILL" ||
+      primaryVer?.draft_or_enacted_status === "LEGISLATIVE_HISTORY";
+
+    if (isDraftOrHistory) {
+      answerSections.push(
+        `**สถานะทางกฎหมาย: ร่างกฎหมาย / เอกสารประกอบการพิจารณานิติบัญญัติ (\`${primaryVer?.draft_or_enacted_status}\`) — ยังไม่ได้ประกาศใช้บังคับเป็นกฎหมายในราชกิจจานุเบกษา จึงยังไม่มีผลผูกพันเป็นกฎหมายปัจจุบัน**`
+      );
+    }
+
+    if (
+      primaryWork?.type !== "TaxRuling" &&
+      (primaryVer?.publication_date || primaryVer?.legal_applicability?.[0]?.valid_from)
+    ) {
+      const pubStr = primaryVer?.publication_date || "ไม่ปรากฏในหน้าต้นฉบับ";
+      const effStr = primaryVer?.legal_applicability?.[0]?.valid_from || "ไม่ปรากฏ/ตามเงื่อนไขเฉพาะกาล";
+      const condNote = primaryVer?.legal_applicability?.[0]?.conditions?.[0];
+      answerSections.push(
+        `**การแยกวันประกาศและวันเริ่มใช้บังคับ**: วันประกาศในราชกิจจานุเบกษา \`${pubStr}\` | วันที่มีผลเริ่มใช้บังคับ \`${effStr}\`${condNote ? ` (${condNote})` : ""}`
+      );
+    }
+
+    const issuedByAsrt = bundle.matched_assertions.find(
+      (a) => a.subject === primaryOfficial.work_id && a.predicate === "ISSUED_BY"
     );
+    const madeUnderAsrt = bundle.matched_assertions.find(
+      (a) => a.subject === primaryOfficial.work_id && a.predicate === "MADE_UNDER"
+    );
+    if (primaryWork?.type === "SubordinateLegislation" && (issuedByAsrt || madeUnderAsrt)) {
+      const issuerName = issuedByAsrt
+        ? AGENCY_LABELS_TH[issuedByAsrt.object] || issuedByAsrt.object
+        : AGENCY_LABELS_TH[primaryWork.issuer_id] || primaryWork.issuer_id;
+      const enablingWork = madeUnderAsrt ? freshState.works[madeUnderAsrt.object] : undefined;
+      const enablingLabel =
+        enablingWork?.title_th ||
+        madeUnderAsrt?.qualifications.conditions?.[0] ||
+        madeUnderAsrt?.object ||
+        "ตามบทอาศัยอำนาจในตราสารต้นฉบับ";
+      answerSections.push(
+        `**การแยกหน่วยงานผู้ออกตราสารและกฎหมายแม่บท**: ผู้ออกตราสาร (\`ISSUED_BY\`): **${issuerName}** | อาศัยอำนาจตามกฎหมายแม่บท (\`MADE_UNDER\`): **${enablingLabel}**`
+      );
+    }
+
+    answerSections.push(
+      `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${primaryVer?.raw_date_text ? ` — ${primaryVer.raw_date_text}` : ""})**:\n${primaryOfficial.exact_text}`
+    );
+
+    // When answering a B01 TaxRuling and an upgraded B02 statutory provision passage is in availablePassages, surface it explicitly (B02-U09)!
+    if (primaryWork?.type === "TaxRuling") {
+      const linkedStatPsg = availablePassages.find(
+        (p) =>
+          p.work_id !== primaryOfficial.work_id &&
+          p.statement_role === "statutory_text" &&
+          !p.extraction_id.startsWith("ext.dep.")
+      );
+      if (linkedStatPsg) {
+        const statWork = freshState.works[linkedStatPsg.work_id];
+        const statStmt = `[บทบัญญัติกฎหมายอ้างอิง B02: ${statWork?.title_th || linkedStatPsg.work_id}] ${linkedStatPsg.exact_text}`;
+        claims.push({
+          claim_id: `clm.${traceId}.b02_statute.1`,
+          statement: statStmt,
+          claim_type: "direct_source_statement",
+          statement_role: "statutory_text",
+          supporting_passage_ids: [linkedStatPsg.passage_id],
+          applicable_version_id: linkedStatPsg.version_id,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "VERIFIED",
+        });
+        answerSections.push(
+          `**บทบัญญัติกฎหมายแม่บทที่เชื่อมโยงจากคลังกฎหมาย B02 (${statWork?.title_th || linkedStatPsg.work_id})**:\n${linkedStatPsg.exact_text}`
+        );
+      }
+    }
 
     if (extractedConditions.size > 0) {
       answerSections.push(
@@ -366,12 +477,19 @@ export async function queryKnowledge(
     }
   }
 
+  const topVer = availablePassages[0] ? freshState.versions[availablePassages[0].version_id] : undefined;
+  const topIsDraft =
+    topVer?.draft_or_enacted_status === "DRAFT_BILL" ||
+    topVer?.draft_or_enacted_status === "LEGISLATIVE_HISTORY";
+
   let finalStatus: AnswerStatus = "ANSWERED";
   if (explicitMissingFactQuestions.length > 0) {
     finalStatus = "NEEDS_CLARIFICATION";
     answerSections.unshift(
       `**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (\`NEEDS_CLARIFICATION\`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:`
     );
+  } else if (topIsDraft) {
+    finalStatus = "CONDITIONAL";
   } else if (
     extractedConditions.size > 0 &&
     req.mode !== "exact_lookup" &&

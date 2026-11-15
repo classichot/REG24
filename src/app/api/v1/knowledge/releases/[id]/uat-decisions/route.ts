@@ -40,6 +40,7 @@ export async function POST(
       const acc = recordTechnicalOrLegalAttestation(store, {
         release_id: id,
         manifest_hash: body.manifest_hash,
+        expected_revision: body.expected_revision,
         actor,
         notes: body.comments || "Attested via Knowledge Release API",
       });
@@ -48,6 +49,7 @@ export async function POST(
           ok: true,
           acceptance: acc,
           release_state: store.getState().releases[id]?.state,
+          storage_topology: store.getStorageTopology(),
         },
         { status: 200 }
       );
@@ -73,34 +75,12 @@ export async function POST(
       { store }
     );
 
-    // Sync UAT owner_decision in cached release report if present
-    await store.transact("SYNC_REPORT_UAT_STATUS", (draft) => {
-      const rel = draft.releases[id];
-      const repByRel = draft.release_reports[id];
-      const repByBatch = rel ? draft.release_reports[rel.batch_id] : undefined;
-      for (const rep of [repByRel, repByBatch]) {
-        if (rep && rel) {
-          rep.status = rel.state;
-          rep.uat.owner_decision = acc.user_decision;
-          rep.uat.owner_actor_id = actor.actor_id;
-          rep.uat.decided_at = acc.timestamps.owner_decided_at;
-          rep.uat.approved_manifest_hash = acc.manifest_hash;
-          rep.gap_acceptance = acc.gap_acceptance;
-          const cases = draft.uat_cases[id] || [];
-          const decided = cases.filter((c) => c.owner_result != null);
-          if (decided.length > 0) {
-            rep.uat.passed = decided.filter((c) => c.owner_result?.decision === "PASS").length;
-            rep.uat.failed = decided.filter((c) => c.owner_result?.decision === "FAIL").length;
-          }
-        }
-      }
-    });
-
     return NextResponse.json(
       {
         ok: true,
         acceptance: acc,
         release_state: store.getState().releases[id]?.state,
+        storage_topology: store.getStorageTopology(),
       },
       { status: 200 }
     );

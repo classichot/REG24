@@ -48,8 +48,10 @@ export const ALLOWED_RELATIONSHIP_TYPES = [
   "PENALTY_UNDER",
   "PROMOTED_BY",
   "SUPERSEDES",
-  // Knowledge GraphRAG 10-Batch typed legal predicates (SH-17 & B01-GR)
+  // Knowledge GraphRAG 10-Batch typed legal predicates (SH-17, B01-GR, B02-GR)
   "ISSUED_BY",
+  "MADE_UNDER",
+  "DEFINES",
   "REPEALS",
   "HAS_CONDITION",
   "HAS_EXCEPTION",
@@ -158,7 +160,7 @@ export const NEO4J_SCHEMA_CONSTRAINTS_CYPHER: string[] = [
 // KNOWLEDGE GRAPHRAG VERSIONED ONTOLOGY & DOMAIN/RANGE CERTIFICATION (SH-17)
 // ============================================================================
 
-export const KNOWLEDGE_ONTOLOGY_VERSION = "reg24.knowledge.ontology.v1.1.0";
+export const KNOWLEDGE_ONTOLOGY_VERSION = "reg24.knowledge.ontology.v1.2.0";
 
 export const KNOWLEDGE_ENTITY_TYPES = [
   "LegalWork",
@@ -178,12 +180,15 @@ export const KNOWLEDGE_ENTITY_TYPES = [
   "FactPattern",
   "Condition",
   "Exception",
+  "DefinedTerm",
 ] as const;
 
 export type KnowledgeEntityType = (typeof KNOWLEDGE_ENTITY_TYPES)[number];
 
 export const KNOWLEDGE_TYPED_PREDICATES = [
   "ISSUED_BY",
+  "MADE_UNDER",
+  "DEFINES",
   "HAS_VERSION",
   "REPRESENTED_BY",
   "CONTAINS",
@@ -208,6 +213,14 @@ export const KNOWLEDGE_PREDICATE_DOMAIN_RANGE: Record<
   ISSUED_BY: {
     allowedSubjects: ["LegalWork", "TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "Statute", "SubordinateLegislation"],
     allowedObjects: ["Agency", "Court"],
+  },
+  MADE_UNDER: {
+    allowedSubjects: ["SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
+    allowedObjects: ["Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
+  },
+  DEFINES: {
+    allowedSubjects: ["Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
+    allowedObjects: ["DefinedTerm", "Issue"],
   },
   HAS_VERSION: {
     allowedSubjects: ["LegalWork", "TaxRuling", "CouncilOfStateOpinion", "CourtDecision", "Statute", "SubordinateLegislation", "Provision"],

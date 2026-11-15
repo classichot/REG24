@@ -38,8 +38,12 @@ export function normalizeOfficialRulingIdentifier(raw: string): string {
   return s.trim();
 }
 
+const THAI_PALI_ORDINALS_RE =
+  /(^|[0-9/])\s*(อัฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|จัตวา|เบญจ|สัตต|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ)(?=\s|$|\()/g;
+
 export function normalizeThaiLegalSectionRef(raw: string): string {
   return thaiDigitsToArabic(raw || "")
+    .replace(THAI_PALI_ORDINALS_RE, "$1 $2")
     .replace(/\s+/g, " ")
     .replace(/\(\s+/g, "(")
     .replace(/\s+\)/g, ")")

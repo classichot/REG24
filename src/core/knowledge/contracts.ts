@@ -194,6 +194,7 @@ export interface LegalVersion {
   known_from: string;
   known_to: string | null;
   is_consolidated_derived?: boolean;
+  draft_or_enacted_status?: "ENACTED_ORIGINAL" | "ENACTED_AMENDMENT" | "CONSOLIDATED_DERIVED" | "DRAFT_BILL" | "LEGISLATIVE_HISTORY" | "UNOFFICIAL_TRANSLATION";
   access_scope: string;
 }
 
@@ -300,6 +301,11 @@ export interface UnresolvedReferenceRecord {
   source_passage_id: string;
   raw_citation_text: string;
   target_hint: string;
+  governing_instrument?: string;
+  section_label?: string | null;
+  quarantine_status?: "UNRESOLVED_QUARANTINED";
+  usable_as_legal_evidence?: false;
+  recorded_in_release_id?: string;
   owner_batch_hint: BatchId;
   reason: string;
   created_at: string;
@@ -599,6 +605,7 @@ export interface ProfileInput {
   extraction: Extraction;
   candidate_work_id: string;
   candidate_version_id: string;
+  release_id?: string;
   source_metadata?: Record<string, unknown>;
   processing_version: string;
   access_scope: string;
@@ -635,14 +642,56 @@ export interface B01ExtractedDomainFields {
   identity_or_date_unknown_restricted: boolean;
 }
 
+export interface B02ExtractedDomainFields {
+  instrument_type:
+    | "CODE"
+    | "ORGANIC_ACT"
+    | "ACT"
+    | "EMERGENCY_DECREE"
+    | "ROYAL_DECREE"
+    | "MINISTERIAL_REGULATION"
+    | "NOTIFICATION"
+    | "ORDER_OR_REGULATION"
+    | "DRAFT_BILL"
+    | "LEGISLATIVE_COMMITTEE_REPORT"
+    | "GUIDANCE_OR_COMPENDIUM";
+  official_name_th: string;
+  year_be: string | null;
+  number_code: string | null;
+  issuing_authority_id: string;
+  gazette_ref: string | null;
+  publication_date_iso: string | null;
+  commencement_date_iso: string | null;
+  commencement_note: string | null;
+  draft_or_enacted_status:
+    | "ENACTED_ORIGINAL"
+    | "ENACTED_AMENDMENT"
+    | "CONSOLIDATED_DERIVED"
+    | "DRAFT_BILL"
+    | "LEGISLATIVE_HISTORY"
+    | "UNOFFICIAL_TRANSLATION";
+  is_consolidated_derived: boolean;
+  enabling_statute_citation: string | null;
+  enabling_work_id: string | null;
+  amendment_targets: string[];
+  repeal_targets: string[];
+  transition_conditions: string[];
+  definitions: Array<{ term_th: string; definition_text: string }>;
+  schedules_and_footnotes: string[];
+  sections_extracted: string[];
+  identity_or_date_unknown_restricted: boolean;
+}
+
 export interface ProfileResult {
   work: LegalWork;
   version: LegalVersion;
+  child_works?: LegalWork[];
+  child_versions?: LegalVersion[];
   passages: Passage[];
   proposed_assertions: Assertion[];
   dependency_requests: DependencyRequest[];
   unresolved_references: UnresolvedReferenceRecord[];
-  domain_fields: B01ExtractedDomainFields | Record<string, unknown>;
+  domain_fields: B01ExtractedDomainFields | B02ExtractedDomainFields | Record<string, unknown>;
   review_reasons: string[];
 }
 
@@ -781,6 +830,14 @@ export interface ReleaseReport {
   inventory_snapshot_id: string | null;
   source_cutoff_at: string | null;
   previous_accepted_release_id: string | null;
+  supersession_lineage?: {
+    supersedes_release_id: string;
+    supersedes_manifest_id: string;
+    supersedes_manifest_hash: string;
+    prior_release_preserved_state: ReleaseState;
+    prior_chat_approval_preserved: boolean;
+    explanation: string;
+  } | null;
   status: ReleaseState;
   inventory: {
     total_candidates: number | null;

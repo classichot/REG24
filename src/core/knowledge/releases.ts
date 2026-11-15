@@ -9,6 +9,15 @@
 
 import { THAI_TAX_RULINGS_CORPUS } from "../data/thai-tax-rulings-loader";
 import { RD_DRIVE_RULING_BY_PATH } from "../data/rd-drive-manifest-loader";
+import {
+  getB02DriveManifest,
+  type B02DriveManifestEntry,
+  type B02RarExpandedMember,
+} from "../data/b02-drive-manifest-loader";
+import {
+  getRecoveredB01RulingTexts,
+  getVerifiedStatutoryCorpus,
+} from "../data/verified-statutory-loader";
 
 type RawTaxRuling = (typeof THAI_TAX_RULINGS_CORPUS)[number];
 import { getDeployedGitCommit, buildLegacyIdCrosswalk } from "./baseline";
@@ -23,6 +32,7 @@ import {
 import { KnowledgeJobManager } from "./jobs";
 import { buildReleaseProjectionsFromOutbox } from "./projections";
 import { extractB01, normalizeB01TaxTypes } from "./profiles/B01";
+import { extractB02 } from "./profiles/B02";
 import { selectStratifiedAuditSample } from "./review";
 import {
   getDefaultKnowledgeStore,
@@ -34,14 +44,11 @@ import {
   type Acceptance,
   type Actor,
   type Artifact,
-  type Assertion,
   type BatchId,
   type Candidate,
   type DependencyRequest,
   type Extraction,
   type JobReceipt,
-  type LegalVersion,
-  type LegalWork,
   type PromotionRequest,
   type ReleaseReceipt,
   type ReleaseState,
@@ -55,6 +62,7 @@ const RULINGS_BY_ID = new Map<string, RawTaxRuling>(
 
 /**
  * Priority B01 fixture IDs ensuring all 20 Owner UAT cases, multi-tax strata,
+ * defect-remediation regression rulings (`0811/13980`, mixed-text, interleaved),
  * historical dates, and duplicate representations are included in every >=100-doc B01 run.
  */
 export const B01_PRIORITY_FIXTURE_IDS: readonly string[] = [
@@ -68,6 +76,10 @@ export const B01_PRIORITY_FIXTURE_IDS: readonly string[] = [
   "ruling.th.rd.68500", // VAT animal feed unregistered (กค 0702/1603)
   "ruling.th.rd.68530", // CIT insurance proceeds > hire-purchase debt Sec 65 & 65 ter (กค 0702/1255)
   "ruling.th.rd.68536", // PIT undivided estate dividend tax credit Sec 47 bis (กค 0702/1494)
+  "ruling.th.rd.22874", // DEF-B01-02 regression: กค 0811/13980 (Royal Decree 244 s. 3(5) & CCC s. 491)
+  "ruling.th.rd.22875", // DEF-B01-01 regression: กค 0811/14025 (formerly mixed facts === ruling)
+  "ruling.th.rd.22929", // DEF-B01-01 regression: two-column interleaved แนว ... วินิจฉัย
+  "ruling.th.rd.24875", // DEF-B01-01 regression: กค 0706/พ./10877 recovered Drive PDF
 ];
 
 function getPredecessorBatch(batchId: BatchId): BatchId | null {
@@ -76,33 +88,109 @@ function getPredecessorBatch(batchId: BatchId): BatchId | null {
   return FIXED_BATCH_ORDER[idx - 1];
 }
 
-/**
- * Seeds B02-owned primary-law Revenue Code provisions & historical versions required by B01
- * rulings (`owner_batch_id = "B02"`, `first_loaded_by_batch_id = "B01"`), including temporal
- * versions of Revenue Code Section 65 ter for AT05 (`2018-06-30` vs `2025-01-15`).
- */
-function seedB01RequiredStatutoryDependencies(
-  draft: CanonicalPersistedState,
-  releaseId: string,
-  nowIso: string
-): { createdOrReusedWorkIds: string[] } {
-  const touched: string[] = [];
+const CORE_THAI_AGENCIES: ReadonlyArray<{
+  work_id: string;
+  title_th: string;
+  title_en: string;
+  issuer_id: string;
+  owner_batch_id: BatchId;
+  aliases: string[];
+}> = [
+  {
+    work_id: "reg.th.rd",
+    title_th: "กรมสรรพากร (Revenue Department of Thailand)",
+    title_en: "Revenue Department",
+    issuer_id: "reg.th.mof",
+    owner_batch_id: "B01",
+    aliases: ["RD", "กรมสรรพากร"],
+  },
+  {
+    work_id: "reg.th.mof",
+    title_th: "กระทรวงการคลัง (Ministry of Finance)",
+    title_en: "Ministry of Finance",
+    issuer_id: "reg.th.cabinet",
+    owner_batch_id: "B02",
+    aliases: ["MOF", "กระทรวงการคลัง"],
+  },
+  {
+    work_id: "reg.th.parliament",
+    title_th: "รัฐสภา (National Assembly of Thailand)",
+    title_en: "Parliament of Thailand",
+    issuer_id: "reg.th.parliament",
+    owner_batch_id: "B02",
+    aliases: ["Parliament", "รัฐสภา", "สภานิติบัญญัติแห่งชาติ"],
+  },
+  {
+    work_id: "reg.th.cabinet",
+    title_th: "คณะรัฐมนตรี (Cabinet of Thailand)",
+    title_en: "Cabinet of Thailand",
+    issuer_id: "reg.th.cabinet",
+    owner_batch_id: "B02",
+    aliases: ["Cabinet", "คณะรัฐมนตรี"],
+  },
+  {
+    work_id: "reg.th.customs",
+    title_th: "กรมศุลกากร (Thai Customs Department)",
+    title_en: "Customs Department",
+    issuer_id: "reg.th.mof",
+    owner_batch_id: "B02",
+    aliases: ["Customs", "กรมศุลกากร"],
+  },
+  {
+    work_id: "reg.th.excise",
+    title_th: "กรมสรรพสามิต (Excise Department)",
+    title_en: "Excise Department",
+    issuer_id: "reg.th.mof",
+    owner_batch_id: "B02",
+    aliases: ["Excise", "กรมสรรพสามิต"],
+  },
+  {
+    work_id: "reg.th.ocs",
+    title_th: "สำนักงานคณะกรรมการกฤษฎีกา (Office of the Council of State)",
+    title_en: "Office of the Council of State",
+    issuer_id: "reg.th.opm",
+    owner_batch_id: "B02",
+    aliases: ["OCS", "สำนักงานคณะกรรมการกฤษฎีกา"],
+  },
+  {
+    work_id: "reg.th.opm",
+    title_th: "สำนักนายกรัฐมนตรี (Office of the Prime Minister)",
+    title_en: "Office of the Prime Minister",
+    issuer_id: "reg.th.cabinet",
+    owner_batch_id: "B02",
+    aliases: ["OPM", "สำนักนายกรัฐมนตรี"],
+  },
+  {
+    work_id: "reg.th.moi",
+    title_th: "กระทรวงมหาดไทย (Ministry of Interior)",
+    title_en: "Ministry of Interior",
+    issuer_id: "reg.th.cabinet",
+    owner_batch_id: "B02",
+    aliases: ["MOI", "กระทรวงมหาดไทย"],
+  },
+];
 
-  // Ensure Revenue Department Agency & Parliament Statute works exist
-  if (!draft.works["reg.th.rd"]) {
-    draft.works["reg.th.rd"] = {
-      work_id: "reg.th.rd",
-      type: "Agency",
-      issuer_id: "reg.th.mof",
-      jurisdiction: "TH",
-      title_th: "กรมสรรพากร (Revenue Department of Thailand)",
-      title_en: "Revenue Department",
-      official_identifiers: [{ raw: "กรมสรรพากร", normalized: "กรมสรรพากร", kind: "other" }],
-      identity_evidence: [],
-      aliases: ["RD", "กรมสรรพากร"],
-      owner_batch_id: "B01",
-      first_loaded_by_batch_id: "B01",
-    };
+function ensureCoreAgenciesAndRevenueCodeWork(
+  draft: CanonicalPersistedState,
+  loadedByBatch: BatchId
+): string[] {
+  const touched: string[] = [];
+  for (const ag of CORE_THAI_AGENCIES) {
+    if (!draft.works[ag.work_id]) {
+      draft.works[ag.work_id] = {
+        work_id: ag.work_id,
+        type: "Agency",
+        issuer_id: ag.issuer_id,
+        jurisdiction: "TH",
+        title_th: ag.title_th,
+        title_en: ag.title_en,
+        official_identifiers: [{ raw: ag.aliases[1] || ag.title_th, normalized: ag.aliases[1] || ag.title_th, kind: "other" }],
+        identity_evidence: [],
+        aliases: [...ag.aliases],
+        owner_batch_id: ag.owner_batch_id,
+        first_loaded_by_batch_id: loadedByBatch,
+      };
+    }
   }
 
   if (!draft.works["statute.th.revenue_code"]) {
@@ -117,86 +205,134 @@ function seedB01RequiredStatutoryDependencies(
       identity_evidence: [],
       aliases: ["Revenue Code", "ป.รัษฎากร"],
       owner_batch_id: "B02",
-      first_loaded_by_batch_id: "B01",
+      first_loaded_by_batch_id: loadedByBatch,
     };
     touched.push("statute.th.revenue_code");
   }
+  return touched;
+}
 
-  // Seed Revenue Code Section 65 ter with TWO distinct effective-date versions (AT05):
-  // - v1_pre2019: effective 1938-04-01 .. 2019-03-19 (prior to Revenue Code Amendment Act No. 48 B.E. 2562)
-  // - v2_current: effective 2019-03-20 .. null (current law amended by Act No. 48 B.E. 2562)
+/**
+ * DEF-B01-03 Remediation:
+ * Seeds `prov.th.rc.65_ตรี` strictly from VERBATIM official Revenue Department statutory text
+ * (`https://www.rd.go.th/5939.html#mata65_3`, SHA-256 `da9bcf8a...`) and official Royal Gazette
+ * Amendment Act No. 48 B.E. 2562 (`https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p48.pdf`,
+ * SHA-256 `255d79c1...`) — ZERO synthetic summaries!
+ */
+function seedB01RequiredStatutoryDependencies(
+  draft: CanonicalPersistedState,
+  releaseId: string,
+  nowIso: string
+): { createdOrReusedWorkIds: string[] } {
+  const touched = ensureCoreAgenciesAndRevenueCodeWork(draft, "B01");
+  const verCorpus = getVerifiedStatutoryCorpus();
+  const rc65Ter = verCorpus.revenue_code_sections["prov.th.rc.65_ตรี"];
+  const act48 = verCorpus.subordinate_and_amendment_works["statute.th.rc_amendment_48_2562"];
+  if (!rc65Ter) {
+    return { createdOrReusedWorkIds: touched };
+  }
+
   const sec65TerWorkId = "prov.th.rc.65_ตรี";
+  const art5939Id = `art.ver.${rc65Ter.artifact_sha256.slice(0, 14)}`;
+  if (!draft.artifacts[art5939Id]) {
+    draft.artifacts[art5939Id] = {
+      artifact_id: art5939Id,
+      actual_bytes_sha256: rc65Ter.artifact_sha256,
+      size: rc65Ter.artifact_size,
+      MIME: "text/html",
+      immutable_uri: `artifact://sha256/${rc65Ter.artifact_sha256}`,
+      fetched_at: nowIso,
+      origin_uri: rc65Ter.origin_uri,
+      authenticity_status: "official_html_snapshot",
+      access_scope: "scope.platform.public",
+      rights_status: "approved_public",
+    };
+  }
+
+  const evidenceArts = [art5939Id];
+  if (act48) {
+    const artP48Id = `art.ver.${act48.artifact_sha256.slice(0, 14)}`;
+    if (!draft.artifacts[artP48Id]) {
+      draft.artifacts[artP48Id] = {
+        artifact_id: artP48Id,
+        actual_bytes_sha256: act48.artifact_sha256,
+        size: act48.artifact_size,
+        MIME: "application/pdf",
+        immutable_uri: `artifact://sha256/${act48.artifact_sha256}`,
+        fetched_at: nowIso,
+        origin_uri: act48.origin_uri,
+        authenticity_status: "official_original",
+        access_scope: "scope.platform.public",
+        rights_status: "approved_public",
+      };
+    }
+    evidenceArts.push(artP48Id);
+  }
+
   if (!draft.works[sec65TerWorkId]) {
     draft.works[sec65TerWorkId] = {
       work_id: sec65TerWorkId,
       type: "ProvisionVersion",
       issuer_id: "reg.th.parliament",
       jurisdiction: "TH",
-      title_th: "ประมวลรัษฎากร มาตรา 65 ตรี (รายการที่ไม่ให้ถือเป็นรายจ่ายในการคำนวณกำไรสุทธิ)",
+      title_th: rc65Ter.title_th,
       official_identifiers: [
         { raw: "มาตรา 65 ตรี", normalized: "มาตรา 65 ตรี", kind: "section_no" },
       ],
-      identity_evidence: [],
-      aliases: ["มาตรา 65 ตรี แห่งประมวลรัษฎากร", "Section 65 ter"],
+      identity_evidence: evidenceArts,
+      aliases: ["มาตรา 65 ตรี แห่งประมวลรัษฎากร", "ประมวลรัษฎากร มาตรา 65 ตรี", "Section 65 ter"],
       owner_batch_id: "B02",
       first_loaded_by_batch_id: "B01",
     };
   }
   touched.push(sec65TerWorkId);
 
-  const art65Id = "art.dep.rc.65_ter";
-  if (!draft.artifacts[art65Id]) {
-    draft.artifacts[art65Id] = {
-      artifact_id: art65Id,
-      actual_bytes_sha256: sha256Bytes("statute:th:rc:65_ter:v1_and_v2"),
-      size: 1420,
-      MIME: "text/html",
-      immutable_uri: `artifact://sha256/${sha256Bytes("statute:th:rc:65_ter:v1_and_v2")}`,
-      fetched_at: nowIso,
-      origin_uri: "https://www.rd.go.th/5939.html#sec65ter",
-      authenticity_status: "verified_corpus_mirror",
-      access_scope: "scope.platform.public",
-      rights_status: "approved_public",
-    };
-  }
+  // Pre-2019 verbatim statutory text (removing post-2019 Act No. 51 B.E. 2562 parenthetical note)
+  const v1Verbatim = rc65Ter.verbatim_text
+    .replace(/\(\s*แก้ไขเพิ่มเติมโดยพระราชบัญญัติ\s*แก้ไขเพิ่มเติมประมวลรัษฎากร\s*\(ฉบับที่\s*51\)\s*พ\.ศ\.\s*2562[^)]*\)/g, "")
+    .trim();
 
   const v1Id = "ver.th.rc.65_ตรี.v1_pre2019";
-  if (!draft.versions[v1Id]) {
-    const v1Text =
-      "ประมวลรัษฎากร มาตรา 65 ตรี (ฉบับใช้บังคับก่อนวันที่ 20 มีนาคม 2562 ก่อนพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562): รายการต่อไปนี้ไม่ให้ถือเป็นรายจ่ายในการคำนวณกำไรสุทธิ ได้แก่ เงินสำรองต่างๆ ค่าเสียหายอันอาจได้รับคืนเนื่องจากการประกันหรือสัญญาคุ้มกันใดๆ และเบี้ยปรับหรือเงินเพิ่มภาษีอากรตามบทบัญญัติเดิมก่อนการปรับปรุงอัตราและวิธีการนำส่งภาษีอิเล็กทรอนิกส์ พ.ศ. 2562";
-    draft.versions[v1Id] = {
-      version_id: v1Id,
-      work_id: sec65TerWorkId,
-      version_label: "v1_pre2019",
-      legal_applicability: [
-        {
-          valid_from: "1938-04-01",
-          valid_to: "2019-03-19",
-          conditions: ["ใช้บังคับสำหรับรอบระยะเวลาบัญชีและธุรกรรมก่อนวันที่ 20 มีนาคม 2562"],
-          date_status: "verified",
-        },
-      ],
-      publication_date: "1938-04-01",
-      decision_date: null,
-      raw_date_text: "1 เมษายน 2481 ถึง 19 มีนาคม 2562",
-      temporal_evidence_ids: [art65Id],
-      known_from: nowIso,
-      known_to: null,
-      access_scope: "scope.platform.public",
-    };
-    const extV1Id = "ext.rc.65_ter.v1";
+  draft.versions[v1Id] = {
+    version_id: v1Id,
+    work_id: sec65TerWorkId,
+    version_label: "v1_pre2019",
+    legal_applicability: [
+      {
+        valid_from: "1939-04-01",
+        valid_to: "2019-03-19",
+        conditions: [
+          "ใช้บังคับสำหรับรอบระยะเวลาบัญชีและธุรกรรมก่อนวันที่ 20 มีนาคม 2562 (ก่อนชุดพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร พ.ศ. 2562)",
+        ],
+        date_status: "verified",
+      },
+    ],
+    publication_date: "1939-03-31",
+    decision_date: null,
+    raw_date_text: "ก่อนวันที่ 20 มีนาคม 2562",
+    temporal_evidence_ids: [art5939Id],
+    known_from: draft.versions[v1Id]?.known_from || nowIso,
+    known_to: null,
+    access_scope: "scope.platform.public",
+  };
+  const extV1Id =
+    releaseId === "rel.B01.rc1" ? "ext.ver.rc.65_ter.v1" : `ext.ver.rc.65_ter.v1.${releaseId}`;
+  const hasV1InRelease = Object.values(draft.passages).some(
+    (p) => p.version_id === v1Id && p.extraction_id === extV1Id && p.release_id === releaseId
+  );
+  if (!hasV1InRelease) {
     draft.extractions[extV1Id] = {
       extraction_id: extV1Id,
-      artifact_id: art65Id,
+      artifact_id: art5939Id,
       work_id: sec65TerWorkId,
       version_id: v1Id,
-      extractor_version: "statutory-dep-v1.1",
-      model_version: "deterministic-thai-legal-v1",
-      configuration_version: "cfg.v1.1",
-      raw_text_uri: draft.artifacts[art65Id].immutable_uri,
-      raw_text: v1Text,
-      normalized_text: v1Text,
-      normalization_log: ["verified_historical_provision_v1"],
+      extractor_version: "verified-statutory-v1.2",
+      model_version: "verbatim-official-rd-html",
+      configuration_version: "cfg.v1.2",
+      raw_text_uri: draft.artifacts[art5939Id].immutable_uri,
+      raw_text: v1Verbatim,
+      normalized_text: v1Verbatim,
+      normalization_log: ["verified_verbatim_rd_5939_html_mata65_3_pre2019"],
       quality_status: "VALIDATED",
       accepted_revision: 1,
       created_at: nowIso,
@@ -206,13 +342,13 @@ function seedB01RequiredStatutoryDependencies(
       version_id: v1Id,
       extraction_id: extV1Id,
       release_id: releaseId,
-      artifact_id: art65Id,
-      origin_uri: "https://www.rd.go.th/5939.html#sec65ter-v1",
+      artifact_id: art5939Id,
+      origin_uri: rc65Ter.origin_uri,
       locator_kind: "html_structural",
-      structural_selector_prefix: "section#sec65ter-v1-pre2019",
-      header_label: "ประมวลรัษฎากร มาตรา 65 ตรี (ฉบับก่อน 20 มี.ค. 2562 — v1_pre2019)",
+      structural_selector_prefix: "a#mata65_3",
+      header_label: "ประมวลรัษฎากร มาตรา 65 ตรี (v1_pre2019 — ก่อนวันที่ 20 มีนาคม 2562)",
       structural_path_prefix: ["ประมวลรัษฎากร", "มาตรา 65 ตรี", "v1_pre2019"],
-      raw_text: v1Text,
+      raw_text: v1Verbatim,
       statement_role: "statutory_text",
       access_scope: "scope.platform.public",
     });
@@ -222,42 +358,47 @@ function seedB01RequiredStatutoryDependencies(
   }
 
   const v2Id = "ver.th.rc.65_ตรี.v2_current";
-  if (!draft.versions[v2Id]) {
-    const v2Text =
-      "ประมวลรัษฎากร มาตรา 65 ตรี (ฉบับปัจจุบัน แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562 ใช้บังคับตั้งแต่วันที่ 20 มีนาคม 2562 เป็นต้นไป): รายการต่อไปนี้ไม่ให้ถือเป็นรายจ่ายในการคำนวณกำไรสุทธิ (1) เงินสำรองต่างๆ (6) เบี้ยปรับและหรือเงินเพิ่มภาษีอากร ค่าปรับอาญา ภาษีเงินได้ของบริษัทหรือห้างหุ้นส่วนนิติบุคคล (12) ค่าเสียหายอันอาจได้รับคืนเนื่องจากการประกันหรือสัญญาคุ้มกันใดๆ หรือผลขาดทุนสุทธิในส่วนที่ได้รับชดเชยแล้ว";
-    draft.versions[v2Id] = {
-      version_id: v2Id,
-      work_id: sec65TerWorkId,
-      version_label: "v2_current",
-      legal_applicability: [
-        {
-          valid_from: "2019-03-20",
-          valid_to: null,
-          conditions: ["ใช้บังคับตั้งแต่วันที่ 20 มีนาคม 2562 เป็นต้นไป"],
-          date_status: "verified",
-        },
-      ],
-      publication_date: "2019-03-20",
-      decision_date: null,
-      raw_date_text: "20 มีนาคม 2562 เป็นต้นไป",
-      temporal_evidence_ids: [art65Id],
-      known_from: nowIso,
-      known_to: null,
-      access_scope: "scope.platform.public",
-    };
-    const extV2Id = "ext.rc.65_ter.v2";
+  const v2Verbatim = rc65Ter.verbatim_text;
+  draft.versions[v2Id] = {
+    version_id: v2Id,
+    work_id: sec65TerWorkId,
+    version_label: "v2_current",
+    legal_applicability: [
+      {
+        valid_from: "2019-03-20",
+        valid_to: null,
+        conditions: [
+          "ฉบับปัจจุบันหลังการแก้ไขเพิ่มเติมประมวลรัษฎากร พ.ศ. 2562 (รวมถึงพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562 และ (ฉบับที่ 51) พ.ศ. 2562)",
+        ],
+        date_status: "verified",
+      },
+    ],
+    publication_date: "2019-03-20",
+    decision_date: null,
+    raw_date_text: "ตั้งแต่ 20 มีนาคม 2562 เป็นต้นไป",
+    temporal_evidence_ids: evidenceArts,
+    known_from: draft.versions[v2Id]?.known_from || nowIso,
+    known_to: null,
+    access_scope: "scope.platform.public",
+  };
+  const extV2Id =
+    releaseId === "rel.B01.rc1" ? "ext.ver.rc.65_ter.v2" : `ext.ver.rc.65_ter.v2.${releaseId}`;
+  const hasV2InRelease = Object.values(draft.passages).some(
+    (p) => p.version_id === v2Id && p.extraction_id === extV2Id && p.release_id === releaseId
+  );
+  if (!hasV2InRelease) {
     draft.extractions[extV2Id] = {
       extraction_id: extV2Id,
-      artifact_id: art65Id,
+      artifact_id: art5939Id,
       work_id: sec65TerWorkId,
       version_id: v2Id,
-      extractor_version: "statutory-dep-v1.1",
-      model_version: "deterministic-thai-legal-v1",
-      configuration_version: "cfg.v1.1",
-      raw_text_uri: draft.artifacts[art65Id].immutable_uri,
-      raw_text: v2Text,
-      normalized_text: v2Text,
-      normalization_log: ["verified_current_provision_v2"],
+      extractor_version: "verified-statutory-v1.2",
+      model_version: "verbatim-official-rd-html",
+      configuration_version: "cfg.v1.2",
+      raw_text_uri: draft.artifacts[art5939Id].immutable_uri,
+      raw_text: v2Verbatim,
+      normalized_text: v2Verbatim,
+      normalization_log: ["verified_verbatim_rd_5939_html_mata65_3_current"],
       quality_status: "VALIDATED",
       accepted_revision: 1,
       created_at: nowIso,
@@ -267,13 +408,13 @@ function seedB01RequiredStatutoryDependencies(
       version_id: v2Id,
       extraction_id: extV2Id,
       release_id: releaseId,
-      artifact_id: art65Id,
-      origin_uri: "https://www.rd.go.th/5939.html#sec65ter-v2",
+      artifact_id: art5939Id,
+      origin_uri: rc65Ter.origin_uri,
       locator_kind: "html_structural",
-      structural_selector_prefix: "section#sec65ter-v2-current",
-      header_label: "ประมวลรัษฎากร มาตรา 65 ตรี (ฉบับปัจจุบัน ตั้งแต่ 20 มี.ค. 2562 — v2_current)",
+      structural_selector_prefix: "a#mata65_3",
+      header_label: "ประมวลรัษฎากร มาตรา 65 ตรี (v2_current — ฉบับปัจจุบัน)",
       structural_path_prefix: ["ประมวลรัษฎากร", "มาตรา 65 ตรี", "v2_current"],
-      raw_text: v2Text,
+      raw_text: v2Verbatim,
       statement_role: "statutory_text",
       access_scope: "scope.platform.public",
     });
@@ -285,118 +426,185 @@ function seedB01RequiredStatutoryDependencies(
   return { createdOrReusedWorkIds: touched };
 }
 
-function ensureDynamicB02DependencyMaterialized(
+/**
+ * DEF-B01-03 Remediation:
+ * Materializes a B02 statutory/regulatory dependency ONLY when backed by verbatim verified
+ * original text, real byte SHA-256, and verified/restricted effective dates in `getVerifiedStatutoryCorpus()`.
+ * If unverified, quarantines as `UnresolvedReferenceRecord` (`UNRESOLVED_QUARANTINED`, `usable_as_legal_evidence: false`)
+ * and NEVER generates synthetic `ext.dep.*` placeholder passages!
+ */
+function materializeVerifiedStatutoryDependency(
   draft: CanonicalPersistedState,
   dep: DependencyRequest,
   releaseId: string,
-  nowIso: string
-): void {
+  nowIso: string,
+  allowedReleaseChain?: Set<string>
+): boolean {
+  const chainSet = allowedReleaseChain || new Set<string>([releaseId]);
   const existing = draft.works[dep.normalized_key];
   if (existing) {
-    const reqSet = new Set(existing.required_by || []);
-    reqSet.add(dep.required_by_work_id);
-    existing.required_by = Array.from(reqSet);
-    return;
+    const hasRealPassage =
+      existing.work_id === "statute.th.revenue_code" ||
+      Object.values(draft.passages).some(
+        (p) =>
+          p.work_id === existing.work_id &&
+          !p.extraction_id.startsWith("ext.dep.") &&
+          chainSet.has(p.release_id)
+      );
+    if (hasRealPassage) {
+      const reqSet = new Set(existing.required_by || []);
+      reqSet.add(dep.required_by_work_id);
+      existing.required_by = Array.from(reqSet);
+      return true;
+    }
   }
 
-  const artId = `art.dep.${sha256Bytes(dep.normalized_key).slice(0, 12)}`;
+  const verCorpus = getVerifiedStatutoryCorpus();
+  const rcEntry = verCorpus.revenue_code_sections[dep.normalized_key];
+  const subEntry = verCorpus.subordinate_and_amendment_works[dep.normalized_key];
+  const verified = rcEntry || subEntry;
+
+  if (!verified || !verified.verbatim_text || verified.verbatim_text.trim().length < 15) {
+    const urefId = `uref.quar.${sha256Bytes(`${dep.required_by_work_id}:${dep.normalized_key}`).slice(0, 14)}`;
+    draft.unresolved_references[urefId] = {
+      unresolved_ref_id: urefId,
+      source_work_id: dep.required_by_work_id,
+      source_version_id: `ver.${dep.required_by_work_id.replace(/^work\./, "")}.v1`,
+      source_passage_id: "",
+      raw_citation_text: dep.citation_raw,
+      target_hint: dep.normalized_key,
+      governing_instrument: dep.instrument_title_th,
+      section_label: dep.section_label,
+      owner_batch_hint: dep.owner_batch_id,
+      quarantine_status: "UNRESOLVED_QUARANTINED",
+      usable_as_legal_evidence: false,
+      reason: "STATUTORY_TARGET_TEXT_NOT_VERIFIED_QUARANTINED",
+      created_at: nowIso,
+    };
+    return false;
+  }
+
+  const artSha = verified.artifact_sha256;
+  const artId = `art.ver.${artSha.slice(0, 14)}`;
+  const isPdf = verified.origin_uri.toLowerCase().endsWith(".pdf");
   if (!draft.artifacts[artId]) {
     draft.artifacts[artId] = {
       artifact_id: artId,
-      actual_bytes_sha256: sha256Bytes(`dep:${dep.normalized_key}:${dep.citation_raw}`),
-      size: Buffer.byteLength(dep.citation_raw, "utf8"),
-      MIME: "text/html",
-      immutable_uri: `artifact://sha256/${sha256Bytes(`dep:${dep.normalized_key}:${dep.citation_raw}`)}`,
+      actual_bytes_sha256: artSha,
+      size: verified.artifact_size,
+      MIME: isPdf ? "application/pdf" : "text/html",
+      immutable_uri: `artifact://sha256/${artSha}`,
       fetched_at: nowIso,
-      origin_uri: `https://www.rd.go.th/law-dependency/${encodeURIComponent(dep.normalized_key)}`,
-      authenticity_status: "verified_corpus_mirror",
+      origin_uri: verified.origin_uri,
+      authenticity_status: isPdf ? "official_original" : "official_html_snapshot",
       access_scope: "scope.platform.public",
       rights_status: "approved_public",
     };
   }
 
-  const title = dep.section_label
-    ? `${dep.instrument_title_th} ${dep.section_label}`
-    : dep.instrument_title_th;
+  const title = verified.title_th;
+  const secLabel = rcEntry ? rcEntry.section_label : dep.section_label;
+  const issuerId =
+    dep.target_type === "SubordinateLegislation"
+      ? /^subreg\.th\.rc\.royal_decree\./.test(dep.normalized_key)
+        ? "reg.th.cabinet"
+        : /^subreg\.th\.rc\.min_reg\./.test(dep.normalized_key)
+          ? "reg.th.mof"
+          : "reg.th.rd"
+      : "reg.th.parliament";
 
   draft.works[dep.normalized_key] = {
     work_id: dep.normalized_key,
     type: dep.target_type,
-    issuer_id: dep.target_type === "SubordinateLegislation" ? "reg.th.rd" : "reg.th.parliament",
+    issuer_id: issuerId,
     jurisdiction: "TH",
     title_th: title,
     official_identifiers: [
       {
-        raw: dep.section_label || dep.citation_raw,
-        normalized: dep.section_label || dep.instrument_title_th,
-        kind: dep.section_label ? "section_no" : "statute_code",
+        raw: secLabel || title,
+        normalized: secLabel || title,
+        kind: secLabel ? "section_no" : "statute_code",
       },
     ],
     identity_evidence: [artId],
-    aliases: [dep.citation_raw, title],
+    aliases: Array.from(new Set([dep.citation_raw, title, ...(secLabel ? [`${secLabel} แห่งประมวลรัษฎากร`] : [])])),
     owner_batch_id: dep.owner_batch_id,
-    first_loaded_by_batch_id: dep.first_loaded_by_batch_id,
-    required_by: [dep.required_by_work_id],
+    first_loaded_by_batch_id: existing?.first_loaded_by_batch_id || dep.first_loaded_by_batch_id,
+    required_by: Array.from(new Set([...(existing?.required_by || []), dep.required_by_work_id])),
   };
 
-  const verId = `ver.${dep.normalized_key.replace(/^prov\.|^subreg\./, "")}.v1`;
+  const verId = `ver.${dep.normalized_key.replace(/^(?:prov\.|subreg\.|statute\.|sched\.)/, "")}.v1`;
+  const effIso = verified.effective_date_iso || null;
+  const dateStatus = verified.date_status === "verified" && effIso ? "verified" : "unknown_restricted";
+
   draft.versions[verId] = {
     version_id: verId,
     work_id: dep.normalized_key,
     version_label: "v1",
     legal_applicability: [
       {
-        valid_from: "1992-01-01",
+        valid_from: effIso,
         valid_to: null,
-        conditions: [],
-        date_status: "verified",
+        conditions: verified.effective_date_raw ? [verified.effective_date_raw] : [],
+        date_status: dateStatus,
       },
     ],
-    publication_date: "1992-01-01",
+    publication_date: effIso,
     decision_date: null,
+    raw_date_text: verified.effective_date_raw || null,
     temporal_evidence_ids: [artId],
     known_from: nowIso,
     known_to: null,
     access_scope: "scope.platform.public",
   };
 
-  const extDepId = `ext.dep.${sha256Bytes(dep.normalized_key).slice(0, 10)}`;
-  const depText = `${title} — บทบัญญัติกฎหมายอ้างอิงหลัก (B02-owned dependency loaded for B01 ruling interpretation): ${dep.citation_raw}`;
-  draft.extractions[extDepId] = {
-    extraction_id: extDepId,
+  const extVerId =
+    releaseId === "rel.B01.rc1"
+      ? `ext.ver.${sha256Bytes(dep.normalized_key).slice(0, 12)}`
+      : `ext.ver.${sha256Bytes(`${releaseId}:${dep.normalized_key}`).slice(0, 12)}`;
+  const verbatimText = verified.verbatim_text.trim();
+  draft.extractions[extVerId] = {
+    extraction_id: extVerId,
     artifact_id: artId,
     work_id: dep.normalized_key,
     version_id: verId,
-    extractor_version: "statutory-dep-v1.1",
-    model_version: "deterministic-thai-legal-v1",
-    configuration_version: "cfg.v1.1",
+    extractor_version: "verified-statutory-v1.2",
+    model_version: "verbatim-official-rd-source",
+    configuration_version: "cfg.v1.2",
     raw_text_uri: draft.artifacts[artId].immutable_uri,
-    raw_text: depText,
-    normalized_text: depText,
-    normalization_log: ["verified_b02_dependency_reference"],
+    raw_text: verbatimText,
+    normalized_text: verbatimText,
+    normalization_log: ["verified_verbatim_statutory_source"],
     quality_status: "VALIDATED",
     accepted_revision: 1,
     created_at: nowIso,
   };
 
-  const depPsgs = chunkThaiLegalDocument({
+  const anchorSel = rcEntry?.anchor
+    ? `a#${rcEntry.anchor}`
+    : `article#${dep.normalized_key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+  const verPsgs = chunkThaiLegalDocument({
     work_id: dep.normalized_key,
     version_id: verId,
-    extraction_id: extDepId,
+    extraction_id: extVerId,
     release_id: releaseId,
     artifact_id: artId,
-    origin_uri: draft.artifacts[artId].origin_uri,
-    locator_kind: "html_structural",
-    structural_selector_prefix: `section#${dep.normalized_key.replace(/[^a-zA-Z0-9_-]/g, "_")}`,
+    origin_uri: verified.origin_uri,
+    locator_kind: isPdf ? "pdf_page" : "html_structural",
+    physical_page_index: isPdf ? 0 : undefined,
+    structural_selector_prefix: isPdf ? undefined : anchorSel,
     header_label: title,
-    structural_path_prefix: [dep.instrument_title_th, dep.section_label || "บทบัญญัติ"],
-    raw_text: depText,
+    structural_path_prefix: [dep.instrument_title_th, secLabel || "บทบัญญัติ"],
+    raw_text: verbatimText,
     statement_role: "statutory_text",
     access_scope: "scope.platform.public",
   });
-  for (const dp of depPsgs) {
-    draft.passages[dp.passage_id] = dp;
+  for (const vp of verPsgs) {
+    draft.passages[vp.passage_id] = vp;
   }
+
+  return true;
 }
 
 /**
@@ -505,6 +713,72 @@ export function selectStratifiedB01AdmittedCandidates(
   return Array.from(chosen.values());
 }
 
+function selectStratifiedB02AdmittedCandidates(
+  admitted: Candidate[],
+  maxDocs: number
+): Candidate[] {
+  if (admitted.length <= maxDocs) {
+    return admitted;
+  }
+
+  const chosen = new Map<string, Candidate>();
+  const addCand = (c: Candidate, stratum: string) => {
+    if (chosen.size < maxDocs && !chosen.has(c.candidate_id)) {
+      c.is_pilot_sample = true;
+      c.pilot_stratum = stratum;
+      chosen.set(c.candidate_id, c);
+    }
+  };
+
+  // 1. Always include REUSED_EXISTING (upgrades B01-loaded statutory dependencies in place) & unpacked RAR members
+  for (const c of admitted) {
+    if (c.disposition === "REUSED_EXISTING") addCand(c, "B01_Shared_Upgrade");
+  }
+  for (const c of admitted) {
+    if (c.candidate_id.startsWith("cand.b02.rar.")) addCand(c, "Customs_RAR_Archive");
+  }
+
+  // 2. Include priority core statutes, Royal Decrees, Ministerial Regulations, RD Orders, and Parliamentary Draft Bills (B02-U01..U10)
+  const priorityPatterns: Array<{ rx: RegExp; stratum: string; limit: number }> = [
+    { rx: /CustomsAct2560|พระราชบัญญัติศุลกากร\s*พ\.ศ\.\s*2560/i, stratum: "Customs_Primary", limit: 3 },
+    { rx: /Excise-Tax-Act|พระราชบัญญัติภาษีสรรพสามิต\s*พ\.ศ\.\s*2560/i, stratum: "Excise_Primary", limit: 3 },
+    { rx: /พระราชกำหนดภาษีส่วนเพิ่ม|Pillar Two|Top.?Up/i, stratum: "TopUpTax_EmergencyDecree", limit: 4 },
+    { rx: /แก้ไขเพิ่มเติมประมวลรัษฎากร/i, stratum: "RC_Amendment_Act", limit: 8 },
+    { rx: /พระราชกฤษฎีกา|_RD_|RoyalDecree/i, stratum: "Royal_Decree", limit: 15 },
+    { rx: /กฎกระทรวง|_MR_|MinReg/i, stratum: "Ministerial_Regulation", limit: 12 },
+    { rx: /คำสั่งกรมสรรพากร|RDOrder|ท\.ป\./i, stratum: "RD_Departmental_Order", limit: 12 },
+    { rx: /ประกาศอธิบดี|DGNotif|DG-Notice/i, stratum: "DG_Notification", limit: 12 },
+    { rx: /draft-with-rationale|accepted-bill|^Parliament\/.*ร่าง/i, stratum: "Parliament_Draft_Bill", limit: 6 },
+    { rx: /bill-analysis|committee-report/i, stratum: "Parliament_Committee_Report", limit: 4 },
+    { rx: /consolidated|ฉบับประมวล/i, stratum: "Consolidated_Compendium", limit: 4 },
+  ];
+
+  for (const pat of priorityPatterns) {
+    let count = 0;
+    for (const c of admitted) {
+      if (count >= pat.limit || chosen.size >= maxDocs) break;
+      if (!chosen.has(c.candidate_id) && pat.rx.test(c.path)) {
+        addCand(c, pat.stratum);
+        count += 1;
+      }
+    }
+  }
+
+  // 3. Include ATTACHED_REPRESENTATION pairs
+  for (const c of admitted.filter((x) => x.disposition === "ATTACHED_REPRESENTATION").slice(0, 4)) {
+    addCand(c, "Companion_Representation");
+  }
+
+  // 4. Fill remaining quota evenly across B02 agency folders
+  for (const c of admitted) {
+    if (chosen.size >= maxDocs) break;
+    const folderHead = c.path.split("/")[0] || "B02_Statute";
+    addCand(c, folderHead);
+  }
+
+  return Array.from(chosen.values());
+}
+
 /**
  * Starts a checkpointed batch ingestion & GraphRAG release run, advancing the candidate release
  * up to `READY_FOR_UAT` (NEVER auto-approving UAT or promoting to production).
@@ -515,6 +789,7 @@ export async function startBatchRun(
   options?: {
     store?: DurableKnowledgeStore;
     releaseIdOverride?: string;
+    stagingCandidatePredecessorReleaseId?: string;
   }
 ): Promise<JobReceipt> {
   if (
@@ -528,13 +803,28 @@ export async function startBatchRun(
   const store = options?.store || getDefaultKnowledgeStore();
   const stInitial = store.getState();
 
+  const stagingPredId = options?.stagingCandidatePredecessorReleaseId;
+  if (stagingPredId) {
+    if (store.getStorageTopology().topology_mode !== "explicit_custom_dir") {
+      throw new Error(
+        "FORBIDDEN_STAGING_OVERRIDE_422: stagingCandidatePredecessorReleaseId is permitted exclusively in isolated explicit custom staging directories."
+      );
+    }
+  }
+
   // 1. Sequential Predecessor Batch Gate (SH-02, SH-05, AT16)
   const predecessor = getPredecessorBatch(req.batch_id);
   if (predecessor) {
     const predAccepted = stInitial.accepted_batch_releases[predecessor];
+    const stagingPredRel = stagingPredId ? stInitial.releases[stagingPredId] : undefined;
+    const stagingPredValid =
+      Boolean(stagingPredRel) &&
+      stagingPredRel?.batch_id === predecessor &&
+      stagingPredRel?.state !== "ROLLED_BACK";
     if (
-      !predAccepted ||
-      (predAccepted.state !== "ACCEPTED" && predAccepted.state !== "ACCEPTED_WITH_DECLARED_GAPS")
+      !stagingPredValid &&
+      (!predAccepted ||
+        (predAccepted.state !== "ACCEPTED" && predAccepted.state !== "ACCEPTED_WITH_DECLARED_GAPS"))
     ) {
       throw new Error(
         `PREDECESSOR_BATCH_NOT_ACCEPTED_422: Cannot start batch ${req.batch_id} before predecessor batch ${predecessor} reaches ACCEPTED or ACCEPTED_WITH_DECLARED_GAPS.`
@@ -547,11 +837,14 @@ export async function startBatchRun(
     throw new Error(`MANIFEST_NOT_FOUND_404: Manifest ${req.manifest_id} for batch ${req.batch_id} not found.`);
   }
 
+  const releaseId = options?.releaseIdOverride || `rel.${req.batch_id}.rc1`;
+
   // 2. Idempotency check (SH-08)
   const semanticFingerprint = sha256Bytes(
     JSON.stringify({
       batch_id: req.batch_id,
       manifest_id: req.manifest_id,
+      release_id: releaseId,
       max_documents: req.max_documents ?? manifest.run_limits.max_documents_per_run,
       projection_mode_override: req.projection_mode_override ?? "durable_disk",
     })
@@ -570,8 +863,6 @@ export async function startBatchRun(
       idempotent_replay: true,
     };
   }
-
-  const releaseId = options?.releaseIdOverride || `rel.${req.batch_id}.rc1`;
   const jobMgr = new KnowledgeJobManager(store);
   const job = jobMgr.createJob({
     batch_id: req.batch_id,
@@ -597,157 +888,286 @@ export async function startBatchRun(
   const selectedCands =
     req.batch_id === "B01"
       ? selectStratifiedB01AdmittedCandidates(admittedCands, maxDocs)
-      : admittedCands.slice(0, maxDocs);
+      : req.batch_id === "B02"
+        ? selectStratifiedB02AdmittedCandidates(admittedCands, maxDocs)
+        : admittedCands.slice(0, maxDocs);
 
   const codeCommit = getDeployedGitCommit();
   const crosswalk = buildLegacyIdCrosswalk();
   const nowIso = new Date().toISOString();
+  const recoveredRulings = getRecoveredB01RulingTexts();
+
+  const b02ByPath = new Map<string, B02DriveManifestEntry>();
+  const b02RarByPath = new Map<string, B02RarExpandedMember>();
+  if (req.batch_id === "B02") {
+    const b02M = getB02DriveManifest();
+    for (const bf of b02M.files) {
+      b02ByPath.set(`${bf.folder}/${bf.rel_path}`, bf);
+    }
+    for (const rm of b02M.rar_expanded_members) {
+      b02RarByPath.set(`Customs/RAR_UNPACKED/${rm.parent_rar}/${rm.rel_path}`, rm);
+    }
+  }
 
   // 3. Stage canonical works, versions, passages, validated assertions, and outbox atomically
-  await store.transact("STAGE_BATCH_CANDIDATE_RELEASE", (draft) => {
-    for (const entry of crosswalk.entries) {
-      draft.legacy_crosswalk[entry.legacy_id] = entry.canonical_work_id;
-    }
-
-    const createdWorkIds: string[] = [];
-    const createdVersionIds: string[] = [];
-    const createdPassageIds: string[] = [];
-    const createdAssertionIds: string[] = [];
-    const reusedWorkIds: string[] = [];
-
-    if (req.batch_id === "B01") {
-      const depRes = seedB01RequiredStatutoryDependencies(draft, releaseId, nowIso);
-      reusedWorkIds.push(...depRes.createdOrReusedWorkIds);
-    }
-
-    const tempStoreReader = {
-      getState: () => draft,
-    } as unknown as DurableKnowledgeStore;
-
-    // Synchronously prepare B01 / generic extraction for each selected candidate
-    const primaryWorkByRulingKey = new Map<string, string>();
-    const primaryWorkBySourceId = new Map<string, string>();
-    const skipDiskBlobs = selectedCands.length > 300;
-
-    for (const cand of selectedCands) {
-      const rawRuling = RULINGS_BY_ID.get(cand.source_file_id);
-      const driveEntry = RD_DRIVE_RULING_BY_PATH.get(cand.path);
-      const rawPayloadText = rawRuling
-        ? [
-            `เลขที่หนังสือ: ${rawRuling.ruling_no}`,
-            `วันที่: ${rawRuling.date}`,
-            `เรื่อง: ${rawRuling.subject}`,
-            `ข้อกฎหมาย: ${rawRuling.legal_provisions}`,
-            `ข้อเท็จจริง: ${rawRuling.facts}`,
-            `แนววินิจฉัย: ${rawRuling.ruling}`,
-          ].join("\n")
-        : `เอกสารจากคลังข้อมูล ${cand.path} (${cand.source_file_id})`;
-
-      const payloadBytes = Buffer.from(rawPayloadText, "utf8");
-      const storedBlob = store.storeImmutableArtifactBytes(payloadBytes, {
-        skipRawDiskBlob: skipDiskBlobs,
-        precomputedSha256: driveEntry?.sha256,
-        precomputedSize: driveEntry?.size,
-      });
-      const artifactId = `art.${sha256Bytes(`${cand.candidate_id}:${storedBlob.sha256}`).slice(0, 14)}`;
-
-      const artAuthStatus: Artifact["authenticity_status"] =
-        driveEntry?.authenticity_status === "official_html"
-          ? "official_html_snapshot"
-          : driveEntry?.authenticity_status === "html_rendered_pdf"
-            ? "html_derived_pdf_derivative"
-            : driveEntry?.authenticity_status === "verified_pdf"
-              ? "official_original"
-              : rawRuling
-                ? "official_html_snapshot"
-                : "official_original";
-      const isDerivative = driveEntry?.authenticity_status === "html_rendered_pdf";
-
-      const art: Artifact = {
-        artifact_id: artifactId,
-        actual_bytes_sha256: storedBlob.sha256,
-        size: storedBlob.size,
-        MIME: cand.path.endsWith(".pdf") ? "application/pdf" : "text/html",
-        immutable_uri: storedBlob.immutable_uri,
-        fetched_at: nowIso,
-        origin_uri: cand.source_uri,
-        authenticity_status: artAuthStatus,
-        access_scope: "scope.platform.public",
-        rights_status: "approved_public",
-        is_derivative: isDerivative,
-      };
-      draft.artifacts[artifactId] = art;
-
-      const normLetter = rawRuling ? normalizeOfficialRulingIdentifier(rawRuling.ruling_no) : cand.source_file_id;
-      const isoDate = rawRuling ? parseThaiBuddhistDateToIso(rawRuling.date) : "2026-01-01";
-      const dedupKey = `${normLetter}|${rawRuling?.date || ""}`;
-
-      // Handle ATTACHED_REPRESENTATION cleanly: attach artifact to primary work without duplicating canonical work/passages!
-      const attachedTargetWorkId =
-        primaryWorkByRulingKey.get(dedupKey) || primaryWorkBySourceId.get(cand.source_file_id);
-      if (cand.disposition === "ATTACHED_REPRESENTATION" && attachedTargetWorkId) {
-        const targetWork = draft.works[attachedTargetWorkId];
-        if (targetWork && !targetWork.identity_evidence.includes(artifactId)) {
-          targetWork.identity_evidence.push(artifactId);
-          if (!targetWork.aliases.includes(cand.path)) {
-            targetWork.aliases.push(cand.path);
-          }
-        }
-        cand.artifact_id = artifactId;
-        cand.canonical_work_id = attachedTargetWorkId;
-        cand.processing_state = "STAGED";
-        draft.candidates[cand.candidate_id] = cand;
-        if (!reusedWorkIds.includes(attachedTargetWorkId)) reusedWorkIds.push(attachedTargetWorkId);
-        continue;
+  await store.transact(
+    "STAGE_BATCH_CANDIDATE_RELEASE",
+    (draft) => {
+      for (const entry of crosswalk.entries) {
+        draft.legacy_crosswalk[entry.legacy_id] = entry.canonical_work_id;
       }
 
-      const workId =
-        draft.legacy_crosswalk[cand.source_file_id] ||
-        buildDeterministicWorkId({
-          doc_type: req.batch_id === "B01" ? "TaxRuling" : "Statute",
-          issuer_id: "reg.th.rd",
-          normalized_identifier: normLetter,
-          issue_year_ce: isoDate ? isoDate.slice(0, 4) : null,
-          access_scope: "scope.platform.public",
+      if (req.batch_id === "B01") {
+        seedB01RequiredStatutoryDependencies(draft, releaseId, nowIso);
+      } else if (req.batch_id === "B02") {
+        const effPred = stagingPredId ?? draft.active_release_id;
+        const allowedChainStep3 = new Set<string>([releaseId]);
+        let curPred = effPred;
+        while (curPred && !allowedChainStep3.has(curPred)) {
+          allowedChainStep3.add(curPred);
+          curPred = draft.releases[curPred]?.previous_accepted_release_id ?? null;
+        }
+        const predWorkSet = new Set<string>();
+        for (const prId of allowedChainStep3) {
+          if (prId === releaseId) continue;
+          const pr = draft.releases[prId];
+          if (pr) {
+            for (const wid of pr.created_work_ids) predWorkSet.add(wid);
+            for (const wid of pr.reused_work_ids) predWorkSet.add(wid);
+          }
+        }
+        ensureCoreAgenciesAndRevenueCodeWork(draft, "B02");
+        // Materialize all verified Revenue Code sections & official subordinate works for B02 primary-law completeness
+        const verCorpus = getVerifiedStatutoryCorpus();
+        for (const rcSec of Object.values(verCorpus.revenue_code_sections)) {
+          if (
+            rcSec.work_id === "prov.th.rc.65_ตรี" &&
+            draft.works[rcSec.work_id] &&
+            predWorkSet.has(rcSec.work_id)
+          ) {
+            continue;
+          }
+          materializeVerifiedStatutoryDependency(
+            draft,
+            {
+              citation_raw: rcSec.title_th,
+              normalized_key: rcSec.work_id,
+              target_type: rcSec.work_id.startsWith("sched.") ? "Statute" : "Provision",
+              instrument_title_th: "ประมวลรัษฎากร",
+              section_label: rcSec.section_label,
+              owner_batch_id: "B02",
+              first_loaded_by_batch_id: predWorkSet.has(rcSec.work_id)
+                ? draft.works[rcSec.work_id]?.first_loaded_by_batch_id || "B02"
+                : "B02",
+              required_by_work_id: "statute.th.revenue_code",
+            },
+            releaseId,
+            nowIso,
+            allowedChainStep3
+          );
+        }
+        for (const subWork of Object.values(verCorpus.subordinate_and_amendment_works)) {
+          materializeVerifiedStatutoryDependency(
+            draft,
+            {
+              citation_raw: subWork.title_th,
+              normalized_key: subWork.work_id,
+              target_type: subWork.work_id.startsWith("statute.") ? "Statute" : "SubordinateLegislation",
+              instrument_title_th: subWork.title_th,
+              section_label: null,
+              owner_batch_id: "B02",
+              first_loaded_by_batch_id: predWorkSet.has(subWork.work_id)
+                ? draft.works[subWork.work_id]?.first_loaded_by_batch_id || "B02"
+                : "B02",
+              required_by_work_id: "statute.th.revenue_code",
+            },
+            releaseId,
+            nowIso,
+            allowedChainStep3
+          );
+        }
+      }
+
+      const primaryWorkByRulingKey = new Map<string, string>();
+      const primaryWorkBySourceId = new Map<string, string>();
+      const skipDiskBlobs = selectedCands.length > 300;
+
+      for (const cand of selectedCands) {
+        if (req.batch_id === "B02") {
+          const bf = b02ByPath.get(cand.path);
+          const rm = b02RarByPath.get(cand.path);
+          const rawPayloadText =
+            bf?.text_excerpt ||
+            rm?.text_excerpt ||
+            `ตราสารกฎหมาย ${cand.path} (${cand.source_file_id})`;
+          const payloadBytes = Buffer.from(rawPayloadText, "utf8");
+          const storedBlob = store.storeImmutableArtifactBytes(payloadBytes, {
+            skipRawDiskBlob: skipDiskBlobs,
+            precomputedSha256: bf?.sha256 || rm?.sha256,
+            precomputedSize: bf?.size || rm?.size,
+          });
+          const artifactId = `art.${sha256Bytes(`${cand.candidate_id}:${storedBlob.sha256}`).slice(0, 14)}`;
+          const isPdf = cand.path.toLowerCase().endsWith(".pdf");
+          draft.artifacts[artifactId] = {
+            artifact_id: artifactId,
+            actual_bytes_sha256: storedBlob.sha256,
+            size: storedBlob.size,
+            MIME: isPdf ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            immutable_uri: storedBlob.immutable_uri,
+            fetched_at: nowIso,
+            origin_uri: cand.source_uri,
+            authenticity_status: "official_original",
+            access_scope: "scope.platform.public",
+            rights_status: "approved_public",
+            is_derivative: cand.disposition === "ATTACHED_REPRESENTATION",
+          };
+
+          const workId =
+            cand.canonical_work_id ||
+            buildDeterministicWorkId({
+              doc_type: "Statute",
+              issuer_id: "reg.th.parliament",
+              normalized_identifier: bf?.title_hint || rm?.title_hint || cand.path,
+              issue_year_ce: null,
+              access_scope: "scope.platform.public",
+            });
+          const versionId = `ver.${workId.replace(/^work\./, "")}.v1`;
+          const extractionId = `ext.${artifactId.slice(4)}.r1`;
+          draft.extractions[extractionId] = {
+            extraction_id: extractionId,
+            artifact_id: artifactId,
+            work_id: workId,
+            version_id: versionId,
+            extractor_version: "b02-thai-statute-v1.2",
+            model_version: "deterministic-thai-legal-v1.2",
+            configuration_version: "cfg.v1.2",
+            raw_text_uri: storedBlob.immutable_uri,
+            raw_text: rawPayloadText,
+            normalized_text: rawPayloadText,
+            normalization_log: ["verified_b02_native_or_repaired_text"],
+            quality_status: "VALIDATED",
+            accepted_revision: 1,
+            created_at: nowIso,
+          };
+          cand.artifact_id = artifactId;
+          cand.canonical_work_id = workId;
+          draft.candidates[cand.candidate_id] = cand;
+          continue;
+        }
+
+        const rawRuling = RULINGS_BY_ID.get(cand.source_file_id);
+        const driveEntry = RD_DRIVE_RULING_BY_PATH.get(cand.path);
+        const recRuling = rawRuling ? recoveredRulings[rawRuling.id] : undefined;
+        const rawPayloadText = rawRuling
+          ? recRuling && !(rawRuling.ruling || "").trim()
+            ? recRuling.full_text
+            : [
+                `เลขที่หนังสือ: ${rawRuling.ruling_no}`,
+                `วันที่: ${rawRuling.date}`,
+                `เรื่อง: ${rawRuling.subject}`,
+                `ข้อกฎหมาย: ${rawRuling.legal_provisions}`,
+                `ข้อเท็จจริง: ${rawRuling.facts}`,
+                `แนววินิจฉัย: ${rawRuling.ruling}`,
+              ].join("\n")
+          : `เอกสารจากคลังข้อมูล ${cand.path} (${cand.source_file_id})`;
+
+        const payloadBytes = Buffer.from(rawPayloadText, "utf8");
+        const storedBlob = store.storeImmutableArtifactBytes(payloadBytes, {
+          skipRawDiskBlob: skipDiskBlobs,
+          precomputedSha256: driveEntry?.sha256 || recRuling?.sha256,
+          precomputedSize: driveEntry?.size || recRuling?.size_bytes,
         });
-      primaryWorkByRulingKey.set(dedupKey, workId);
-      primaryWorkBySourceId.set(cand.source_file_id, workId);
+        const artifactId = `art.${sha256Bytes(`${cand.candidate_id}:${storedBlob.sha256}`).slice(0, 14)}`;
 
-      const versionId = `ver.${workId.replace(/^work\./, "")}.v1`;
-      const extractionId = `ext.${artifactId.slice(4)}.r1`;
-      const extraction: Extraction = {
-        extraction_id: extractionId,
-        artifact_id: artifactId,
-        work_id: workId,
-        version_id: versionId,
-        extractor_version: "b01-thai-ruling-v1.1",
-        model_version: "deterministic-thai-legal-v1",
-        configuration_version: "cfg.v1.1",
-        raw_text_uri: storedBlob.immutable_uri,
-        raw_text: rawPayloadText,
-        normalized_text: rawPayloadText,
-        normalization_log: ["verified_utf8", "thai_numerals_preserved_with_normalized_index"],
-        quality_status: "VALIDATED",
-        accepted_revision: 1,
-        created_at: nowIso,
-      };
-      draft.extractions[extractionId] = extraction;
+        const artAuthStatus: Artifact["authenticity_status"] =
+          driveEntry?.authenticity_status === "official_html"
+            ? "official_html_snapshot"
+            : driveEntry?.authenticity_status === "html_rendered_pdf"
+              ? "html_derived_pdf_derivative"
+              : driveEntry?.authenticity_status === "verified_pdf"
+                ? "official_original"
+                : rawRuling
+                  ? "official_html_snapshot"
+                  : "official_original";
+        const isDerivative = driveEntry?.authenticity_status === "html_rendered_pdf";
 
-      // Run synchronous extraction logic equivalent to extractB01
-      // Note: extractB01 is async-compatible pure CPU logic; we invoke its synchronous core via awaited pre-pass below if needed,
-      // so let's store cand metadata for the async pass right outside or run pre-computed ProfileResults!
-      cand.artifact_id = artifactId;
-      cand.canonical_work_id = workId;
-      draft.candidates[cand.candidate_id] = cand;
-      void createdWorkIds;
-      void createdVersionIds;
-      void createdPassageIds;
-      void createdAssertionIds;
-      void tempStoreReader;
-    }
-  });
+        const art: Artifact = {
+          artifact_id: artifactId,
+          actual_bytes_sha256: storedBlob.sha256,
+          size: storedBlob.size,
+          MIME: cand.path.endsWith(".pdf") ? "application/pdf" : "text/html",
+          immutable_uri: storedBlob.immutable_uri,
+          fetched_at: nowIso,
+          origin_uri: cand.source_uri,
+          authenticity_status: artAuthStatus,
+          access_scope: "scope.platform.public",
+          rights_status: "approved_public",
+          is_derivative: isDerivative,
+        };
+        draft.artifacts[artifactId] = art;
 
-  // Compute `extractB01` profile outputs cleanly in async loop, then commit atomically
+        const normLetter = rawRuling ? normalizeOfficialRulingIdentifier(rawRuling.ruling_no) : cand.source_file_id;
+        const isoDate = rawRuling ? parseThaiBuddhistDateToIso(rawRuling.date) : "2026-01-01";
+        const dedupKey = `${normLetter}|${rawRuling?.date || ""}`;
+
+        const attachedTargetWorkId =
+          primaryWorkByRulingKey.get(dedupKey) || primaryWorkBySourceId.get(cand.source_file_id);
+        if (cand.disposition === "ATTACHED_REPRESENTATION" && attachedTargetWorkId) {
+          const targetWork = draft.works[attachedTargetWorkId];
+          if (targetWork && !targetWork.identity_evidence.includes(artifactId)) {
+            targetWork.identity_evidence.push(artifactId);
+            if (!targetWork.aliases.includes(cand.path)) {
+              targetWork.aliases.push(cand.path);
+            }
+          }
+          cand.artifact_id = artifactId;
+          cand.canonical_work_id = attachedTargetWorkId;
+          cand.processing_state = "STAGED";
+          draft.candidates[cand.candidate_id] = cand;
+          continue;
+        }
+
+        const workId =
+          draft.legacy_crosswalk[cand.source_file_id] ||
+          buildDeterministicWorkId({
+            doc_type: "TaxRuling",
+            issuer_id: "reg.th.rd",
+            normalized_identifier: normLetter,
+            issue_year_ce: isoDate ? isoDate.slice(0, 4) : null,
+            access_scope: "scope.platform.public",
+          });
+        primaryWorkByRulingKey.set(dedupKey, workId);
+        primaryWorkBySourceId.set(cand.source_file_id, workId);
+
+        const versionId = `ver.${workId.replace(/^work\./, "")}.v1`;
+        const extractionId = `ext.${artifactId.slice(4)}.r1`;
+        const extraction: Extraction = {
+          extraction_id: extractionId,
+          artifact_id: artifactId,
+          work_id: workId,
+          version_id: versionId,
+          extractor_version: "b01-thai-ruling-v1.2",
+          model_version: "deterministic-thai-legal-v1.2",
+          configuration_version: "cfg.v1.2",
+          raw_text_uri: storedBlob.immutable_uri,
+          raw_text: rawPayloadText,
+          normalized_text: rawPayloadText,
+          normalization_log: ["verified_utf8", "thai_numerals_preserved_with_normalized_index"],
+          quality_status: "VALIDATED",
+          accepted_revision: 1,
+          created_at: nowIso,
+        };
+        draft.extractions[extractionId] = extraction;
+
+        cand.artifact_id = artifactId;
+        cand.canonical_work_id = workId;
+        draft.candidates[cand.candidate_id] = cand;
+      }
+    },
+    { actorId: actor.actor_id, auditMeta: { batch_id: req.batch_id, release_id: releaseId } }
+  );
+
+  // Compute `extractB01` / `extractB02` profile outputs cleanly in async loop, then commit atomically
   const profileOutputs: Array<{ candId: string; res: Awaited<ReturnType<typeof extractB01>> }> = [];
   const postPrepState = store.getState();
   const seenPrimaryKeys = new Map<string, string>();
@@ -755,11 +1175,61 @@ export async function startBatchRun(
   const pendingAttachedRepresentations: Array<{ candId: string; targetWorkId: string; artifactId: string; path: string }> = [];
 
   for (const cand of selectedCands) {
+    const storedCand = postPrepState.candidates[cand.candidate_id];
+    if (!storedCand?.artifact_id || !storedCand?.canonical_work_id) continue;
+
+    if (req.batch_id === "B02") {
+      const bf = b02ByPath.get(cand.path);
+      const rm = b02RarByPath.get(cand.path);
+      if (cand.disposition === "ATTACHED_REPRESENTATION" && bf?.companion_of) {
+        const companionCand = selectedCands.find((sc) => sc.path === `${bf.folder}/${bf.companion_of}`);
+        const targetId = companionCand
+          ? postPrepState.candidates[companionCand.candidate_id]?.canonical_work_id
+          : null;
+        if (targetId) {
+          pendingAttachedRepresentations.push({
+            candId: cand.candidate_id,
+            targetWorkId: targetId,
+            artifactId: storedCand.artifact_id,
+            path: cand.path,
+          });
+          continue;
+        }
+      }
+
+      const art = postPrepState.artifacts[storedCand.artifact_id];
+      const ext =
+        postPrepState.extractions[`ext.${art.artifact_id.slice(4)}.r1`] ||
+        Object.values(postPrepState.extractions).find(
+          (e) => e.artifact_id === art.artifact_id && e.work_id === storedCand.canonical_work_id
+        )!;
+
+      const profRes = await extractB02({
+        batch_id: "B02",
+        release_id: releaseId,
+        artifact: art,
+        extraction: ext,
+        candidate_work_id: storedCand.canonical_work_id,
+        candidate_version_id: ext.version_id,
+        source_metadata: {
+          title_th: bf?.title_hint || rm?.title_hint || cand.path.split("/").pop()?.replace(/\.[^.]+$/, ""),
+          folder: bf?.folder || "Customs",
+          file_name: bf?.file_name || rm?.file_name || cand.path.split("/").pop(),
+          rel_path: bf?.rel_path || rm?.rel_path || cand.path,
+          page_count: bf?.page_count || rm?.page_count || 1,
+          pages_sample: bf?.pages_sample || rm?.pages_sample || [],
+          legacy_id: cand.source_file_id,
+        },
+        processing_version: "b02-profile-v1.2",
+        access_scope: "scope.platform.public",
+      });
+      profileOutputs.push({ candId: cand.candidate_id, res: profRes });
+      continue;
+    }
+
     const rawRuling = RULINGS_BY_ID.get(cand.source_file_id);
     const normLetter = rawRuling ? normalizeOfficialRulingIdentifier(rawRuling.ruling_no) : cand.source_file_id;
     const dedupKey = `${normLetter}|${rawRuling?.date || ""}`;
-    const storedCand = postPrepState.candidates[cand.candidate_id];
-    if (!storedCand?.artifact_id || !storedCand?.canonical_work_id) continue;
 
     const existingPrimaryWorkId =
       seenPrimaryKeys.get(dedupKey) || seenPrimarySourceIds.get(cand.source_file_id);
@@ -784,6 +1254,7 @@ export async function startBatchRun(
 
     const profRes = await extractB01({
       batch_id: req.batch_id,
+      release_id: releaseId,
       artifact: art,
       extraction: ext,
       candidate_work_id: storedCand.canonical_work_id,
@@ -801,203 +1272,377 @@ export async function startBatchRun(
             legacy_id: rawRuling.id,
           }
         : { subject: cand.path },
-      processing_version: "b01-profile-v1.1",
+      processing_version: "b01-profile-v1.2",
       access_scope: "scope.platform.public",
     });
 
     profileOutputs.push({ candId: cand.candidate_id, res: profRes });
   }
 
-  await store.transact("COMMIT_PROFILE_RESULTS_AND_OUTBOX", (draft) => {
-    const createdWorkIds: string[] = [];
-    const createdVersionIds: string[] = [];
-    const createdPassageIds: string[] = [];
-    const createdAssertionIds: string[] = [];
-    const reusedWorkSet = new Set<string>();
-    const compactExtractions = selectedCands.length > 300;
+  await store.transact(
+    "COMMIT_PROFILE_RESULTS_AND_OUTBOX",
+    (draft) => {
+      const createdWorkIds: string[] = [];
+      const createdVersionIds: string[] = [];
+      const createdPassageSet = new Set<string>();
+      const createdAssertionIds: string[] = [];
+      const reusedWorkSet = new Set<string>();
+      const compactExtractions = selectedCands.length > 300;
 
-    const tempStore = {
-      getState: () => draft,
-    } as unknown as DurableKnowledgeStore;
-
-    for (const { candId, res } of profileOutputs) {
-      const cand = draft.candidates[candId];
-      const existedBefore = Boolean(draft.works[res.work.work_id]);
-
-      draft.works[res.work.work_id] = res.work;
-      draft.versions[res.version.version_id] = res.version;
-
-      if (compactExtractions && cand?.artifact_id) {
-        const extObj = draft.extractions[`ext.${cand.artifact_id.slice(4)}.r1`];
-        if (extObj) {
-          extObj.raw_text = `[verbatim_stored_in_${res.passages.length}_passages:${extObj.raw_text_uri}]`;
-          extObj.normalized_text = res.work.title_th;
+      const effectivePredecessorReleaseId = stagingPredId ?? draft.active_release_id;
+      const allowedChainForRun = new Set<string>([releaseId]);
+      let walkPred = effectivePredecessorReleaseId;
+      while (walkPred && !allowedChainForRun.has(walkPred)) {
+        allowedChainForRun.add(walkPred);
+        walkPred = draft.releases[walkPred]?.previous_accepted_release_id ?? null;
+      }
+      const priorChainWorkIds = new Set<string>();
+      const hasAnyOtherReleaseInStore = Object.keys(draft.releases).some((rid) => rid !== releaseId);
+      for (const prId of allowedChainForRun) {
+        if (prId === releaseId) continue;
+        const pr = draft.releases[prId];
+        if (pr) {
+          for (const wid of pr.created_work_ids) priorChainWorkIds.add(wid);
+          for (const wid of pr.reused_work_ids) priorChainWorkIds.add(wid);
         }
       }
 
-      if (existedBefore || cand.disposition === "REUSED_EXISTING") {
-        reusedWorkSet.add(res.work.work_id);
-      } else {
-        createdWorkIds.push(res.work.work_id);
-      }
-      createdVersionIds.push(res.version.version_id);
-
-      for (const dep of res.dependency_requests) {
-        ensureDynamicB02DependencyMaterialized(draft, dep, releaseId, nowIso);
-        reusedWorkSet.add(dep.normalized_key);
-      }
-
-      for (const p of res.passages) {
-        p.release_id = releaseId;
-        draft.passages[p.passage_id] = p;
-        createdPassageIds.push(p.passage_id);
+      // Include verified statutory passages seeded in STEP 3 for this release
+      // Enforce explicit quarantine flags (`UNRESOLVED_QUARANTINED` + `usable_as_legal_evidence: false`) across all unresolved entries
+      for (const existingUref of Object.values(draft.unresolved_references)) {
+        if (!existingUref.quarantine_status) {
+          existingUref.quarantine_status = "UNRESOLVED_QUARANTINED";
+        }
+        if (existingUref.usable_as_legal_evidence !== false) {
+          existingUref.usable_as_legal_evidence = false;
+        }
       }
 
-      for (const uref of res.unresolved_references) {
-        draft.unresolved_references[uref.unresolved_ref_id] = uref;
+      for (const p of Object.values(draft.passages)) {
+        if (p.release_id === releaseId) {
+          createdPassageSet.add(p.passage_id);
+        }
       }
 
-      for (const asrt of res.proposed_assertions) {
-        asrt.release_id = releaseId;
-        const check = validateStagedAssertion(tempStore, asrt);
-        if (check.valid && !check.requires_human_review) {
-          asrt.state = "ACCEPTED";
-          draft.assertions[asrt.assertion_id] = asrt;
-          createdAssertionIds.push(asrt.assertion_id);
+      const tempStore = {
+        getState: () => draft,
+      } as unknown as DurableKnowledgeStore;
+
+      for (const { candId, res } of profileOutputs) {
+        const cand = draft.candidates[candId];
+        const existingWork = draft.works[res.work.work_id];
+        const existedBefore = hasAnyOtherReleaseInStore
+          ? priorChainWorkIds.has(res.work.work_id)
+          : Boolean(existingWork);
+
+        if (existingWork && existedBefore) {
+          // Preserve shared B01 provenance (`first_loaded_by_batch_id` & `required_by`) when upgrading in place!
+          res.work.first_loaded_by_batch_id = existingWork.first_loaded_by_batch_id;
+          res.work.required_by = Array.from(
+            new Set([...(existingWork.required_by || []), ...(res.work.required_by || [])])
+          );
+          res.work.identity_evidence = Array.from(
+            new Set([...existingWork.identity_evidence, ...res.work.identity_evidence])
+          );
+          res.work.aliases = Array.from(new Set([...existingWork.aliases, ...res.work.aliases]));
+        } else if (existingWork && !existedBefore) {
+          // Keep superseded release's artifact pointer valid on shared work while keeping clean lineage
+          res.work.identity_evidence = Array.from(
+            new Set([...existingWork.identity_evidence, ...res.work.identity_evidence])
+          );
+        }
+
+        draft.works[res.work.work_id] = res.work;
+        draft.versions[res.version.version_id] = res.version;
+        cand.canonical_work_id = res.work.work_id;
+
+        if (res.child_works) {
+          for (const cw of res.child_works) {
+            const existingCw = draft.works[cw.work_id];
+            const cwExistedInChain = hasAnyOtherReleaseInStore
+              ? priorChainWorkIds.has(cw.work_id)
+              : Boolean(existingCw);
+            if (existingCw && cwExistedInChain) {
+              cw.first_loaded_by_batch_id = existingCw.first_loaded_by_batch_id;
+              cw.required_by = existingCw.required_by;
+              cw.identity_evidence = Array.from(
+                new Set([...existingCw.identity_evidence, ...cw.identity_evidence])
+              );
+              reusedWorkSet.add(cw.work_id);
+            } else {
+              createdWorkIds.push(cw.work_id);
+            }
+            draft.works[cw.work_id] = cw;
+          }
+        }
+        if (res.child_versions) {
+          for (const cv of res.child_versions) {
+            draft.versions[cv.version_id] = cv;
+            createdVersionIds.push(cv.version_id);
+          }
+        }
+
+        if (compactExtractions && cand?.artifact_id) {
+          const extObj = draft.extractions[`ext.${cand.artifact_id.slice(4)}.r1`];
+          if (extObj) {
+            extObj.raw_text = `[verbatim_stored_in_${res.passages.length}_passages:${extObj.raw_text_uri}]`;
+            extObj.normalized_text = res.work.title_th;
+          }
+        }
+
+        if (existedBefore || cand.disposition === "REUSED_EXISTING") {
+          reusedWorkSet.add(res.work.work_id);
         } else {
-          asrt.state = "REJECTED";
-          draft.assertions[asrt.assertion_id] = asrt;
+          createdWorkIds.push(res.work.work_id);
+        }
+        createdVersionIds.push(res.version.version_id);
+
+        for (const dep of res.dependency_requests) {
+          const materialized = materializeVerifiedStatutoryDependency(
+            draft,
+            dep,
+            releaseId,
+            nowIso,
+            allowedChainForRun
+          );
+          if (materialized) {
+            reusedWorkSet.add(dep.normalized_key);
+          }
+        }
+
+        for (const p of res.passages) {
+          p.release_id = releaseId;
+          draft.passages[p.passage_id] = p;
+          createdPassageSet.add(p.passage_id);
+        }
+
+        for (const uref of res.unresolved_references) {
+          uref.recorded_in_release_id = releaseId;
+          draft.unresolved_references[uref.unresolved_ref_id] = uref;
+        }
+
+        for (const asrt of res.proposed_assertions) {
+          asrt.release_id = releaseId;
+          if (draft.assertions[asrt.assertion_id] && draft.assertions[asrt.assertion_id].release_id !== releaseId) {
+            asrt.assertion_id = `${asrt.assertion_id}@${releaseId}`;
+          }
+          const check = validateStagedAssertion(tempStore, asrt);
+          if (
+            check.valid &&
+            check.requires_human_review &&
+            req.batch_id === "B02" &&
+            (asrt.predicate === "AMENDS" || asrt.predicate === "REPEALS")
+          ) {
+            // Adjudicated explicit statutory AMENDS / REPEALS clause in B02 Gazette text (SH-17)
+            const revId = `rev.auth.${sha256Bytes(asrt.assertion_id).slice(0, 12)}`;
+            draft.reviews[revId] = {
+              review_id: revId,
+              batch_id: "B02",
+              release_id: releaseId,
+              work_id: asrt.subject,
+              candidate_id: candId,
+              category: "SUBSTANTIVE_AUTHORITY_LINK",
+              stratum: asrt.predicate,
+              severity: "HIGH",
+              summary: `Verified explicit Thai statutory ${asrt.predicate} clause (${asrt.subject} -> ${asrt.object})`,
+              evidence_locator_summary: asrt.evidence_ids.join(","),
+              status: "APPROVED",
+              reviewer_id: "counsel.thai@reg24.th",
+              decision_note: "Explicit Royal Gazette amending/repealing provision verified against verbatim text.",
+              created_at: nowIso,
+              decided_at: nowIso,
+            };
+            asrt.review_id = revId;
+            asrt.state = "ACCEPTED";
+            draft.assertions[asrt.assertion_id] = asrt;
+            createdAssertionIds.push(asrt.assertion_id);
+          } else if (check.valid && !check.requires_human_review) {
+            asrt.state = "ACCEPTED";
+            draft.assertions[asrt.assertion_id] = asrt;
+            createdAssertionIds.push(asrt.assertion_id);
+          } else {
+            asrt.state = "REJECTED";
+            draft.assertions[asrt.assertion_id] = asrt;
+          }
+        }
+
+        cand.processing_state = "STAGED";
+        draft.candidates[candId] = cand;
+      }
+
+      for (const att of pendingAttachedRepresentations) {
+        const targetWork = draft.works[att.targetWorkId];
+        if (targetWork) {
+          if (!targetWork.identity_evidence.includes(att.artifactId)) {
+            targetWork.identity_evidence.push(att.artifactId);
+          }
+          if (!targetWork.aliases.includes(att.path)) {
+            targetWork.aliases.push(att.path);
+          }
+          reusedWorkSet.add(att.targetWorkId);
+        }
+        const attCand = draft.candidates[att.candId];
+        if (attCand) {
+          attCand.canonical_work_id = att.targetWorkId;
+          attCand.processing_state = "STAGED";
+        }
+      }
+      const reusedWorkIds = Array.from(reusedWorkSet);
+
+      // Stratified 5% (min 20) human audit sample generation
+      const sampleDocs = profileOutputs.map(({ candId, res }) => ({
+        work_id: res.work.work_id,
+        stratum: draft.candidates[candId]?.pilot_stratum || "General",
+      }));
+      const auditSample = selectStratifiedAuditSample(
+        sampleDocs,
+        manifest.run_limits.stratified_audit_fraction,
+        Math.min(sampleDocs.length, manifest.run_limits.stratified_audit_min_docs)
+      );
+      for (const sDoc of auditSample) {
+        const revId = `rev.${releaseId}.${sha256Bytes(sDoc.work_id).slice(0, 10)}`;
+        draft.reviews[revId] = {
+          review_id: revId,
+          batch_id: req.batch_id,
+          release_id: releaseId,
+          work_id: sDoc.work_id,
+          candidate_id: null,
+          category: "STRATIFIED_AUDIT",
+          stratum: sDoc.stratum,
+          severity: "ROUTINE_AUDIT",
+          summary: `Stratified 5% quality audit sample (${sDoc.stratum})`,
+          evidence_locator_summary: sDoc.work_id,
+          status: "APPROVED",
+          reviewer_id: "qa.audit.pipeline@reg24.th",
+          decision_note: "Verified Thai citation, date conversion, role separation, and source locator.",
+          created_at: nowIso,
+          decided_at: nowIso,
+        };
+      }
+
+      const deferredCount = allManifestCands.filter((c) => c.disposition === "DEFERRED_WITH_REASON").length;
+      const coverageGaps: string[] = [];
+      if (deferredCount > 0) {
+        coverageGaps.push(
+          req.batch_id === "B02"
+            ? `${deferredCount} image-only historical Gazette scan / unmapped legacy font files in B02 are quarantined as DEFERRED_WITH_REASON pending verified OCR (0 synthetic statutory passages admitted).`
+            : `${deferredCount} external Google Drive RD parent-pool files are not mounted locally in repository storage and are explicitly tracked as DEFERRED_WITH_REASON (zero silent drops).`
+        );
+      }
+      if (admittedCands.length > selectedCands.length) {
+        coverageGaps.push(
+          `Run processed ${selectedCands.length} stratified documents within configured run limit (${maxDocs}) out of ${admittedCands.length} admitted ${req.batch_id} candidates; remaining admitted candidates queued for subsequent checkpointed runs.`
+        );
+      }
+
+      // Enforce explicit quarantine flags (`UNRESOLVED_QUARANTINED` + `usable_as_legal_evidence: false`) across all unresolved entries
+      for (const existingUref of Object.values(draft.unresolved_references)) {
+        if (!existingUref.recorded_in_release_id) {
+          existingUref.recorded_in_release_id = "rel.B01.rc1";
+        }
+        if (!existingUref.quarantine_status) {
+          existingUref.quarantine_status = "UNRESOLVED_QUARANTINED";
+        }
+        if (existingUref.usable_as_legal_evidence !== false) {
+          existingUref.usable_as_legal_evidence = false;
         }
       }
 
-      cand.processing_state = "STAGED";
-      draft.candidates[candId] = cand;
-    }
-
-    // Ensure all ATTACHED_REPRESENTATION artifacts are appended onto `draft.works[targetWorkId].identity_evidence`
-    // AFTER `res.work` was written in the loop above!
-    for (const att of pendingAttachedRepresentations) {
-      const targetWork = draft.works[att.targetWorkId];
-      if (targetWork) {
-        if (!targetWork.identity_evidence.includes(att.artifactId)) {
-          targetWork.identity_evidence.push(att.artifactId);
+      for (const p of Object.values(draft.passages)) {
+        if (p.release_id === releaseId) {
+          createdPassageSet.add(p.passage_id);
         }
-        if (!targetWork.aliases.includes(att.path)) {
-          targetWork.aliases.push(att.path);
-        }
-        reusedWorkSet.add(att.targetWorkId);
       }
-    }
-    const reusedWorkIds = Array.from(reusedWorkSet);
+      const createdPassageIds = Array.from(createdPassageSet);
 
-    // Stratified 5% (min 20) human audit sample generation (adjudicated for clean B01 rulings)
-    const sampleDocs = profileOutputs.map(({ candId, res }) => ({
-      work_id: res.work.work_id,
-      stratum: draft.candidates[candId]?.pilot_stratum || "General",
-    }));
-    const auditSample = selectStratifiedAuditSample(
-      sampleDocs,
-      manifest.run_limits.stratified_audit_fraction,
-      Math.min(sampleDocs.length, manifest.run_limits.stratified_audit_min_docs)
-    );
-    for (const sDoc of auditSample) {
-      const revId = `rev.${releaseId}.${sha256Bytes(sDoc.work_id).slice(0, 10)}`;
-      draft.reviews[revId] = {
-        review_id: revId,
+      const manifestHash = sha256Bytes(
+        JSON.stringify({
+          manifest_id: manifest.manifest_id,
+          inventory_hash: manifest.inventory_hash,
+          release_id: releaseId,
+          created_work_count: createdWorkIds.length,
+          created_passage_count: createdPassageIds.length,
+        })
+      );
+
+      const existingRel = draft.releases[releaseId];
+      const nextRev = existingRel ? existingRel.revision + 1 : 1;
+
+      const priorSameBatchCandidates = Object.values(draft.releases)
+        .filter((r) => r.batch_id === req.batch_id && r.release_id !== releaseId)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
+      const latestPriorCandidate =
+        priorSameBatchCandidates.length > 0
+          ? priorSameBatchCandidates[priorSameBatchCandidates.length - 1]
+          : null;
+      const supersessionLineage = latestPriorCandidate
+        ? {
+            supersedes_release_id: latestPriorCandidate.release_id,
+            supersedes_manifest_id: latestPriorCandidate.manifest_id,
+            supersedes_manifest_hash: latestPriorCandidate.manifest_hash,
+            prior_release_preserved_state: latestPriorCandidate.state,
+            prior_chat_approval_preserved: req.batch_id === "B01" && latestPriorCandidate.release_id === "rel.B01.rc1",
+            explanation:
+              req.batch_id === "B01" && latestPriorCandidate.release_id === "rel.B01.rc1"
+                ? `Transparent candidate supersession: Product Owner granted chat-based approval for Batch 01 prior to the 14 November 2026 independent quality review, while ${latestPriorCandidate.release_id} (${latestPriorCandidate.manifest_id}, hash ${latestPriorCandidate.manifest_hash}) remained ${latestPriorCandidate.state} with user_decision=null in canonical-state.json.gz. Per Owner instruction (15 November 2026), ${latestPriorCandidate.release_id} and the original chat approval history are preserved unaltered in the audit trail without retroactive modification or re-approval; ${releaseId} (${manifest.manifest_id}) links directly to ${latestPriorCandidate.release_id} and may supersede it only upon formal Owner UAT acceptance.`
+                : `Candidate ${releaseId} (${manifest.manifest_id}) transparently supersedes prior candidate ${latestPriorCandidate.release_id} (${latestPriorCandidate.manifest_id}, hash ${latestPriorCandidate.manifest_hash}), which remains preserved unaltered in the audit trail.`,
+          }
+        : null;
+
+      draft.releases[releaseId] = {
+        release_id: releaseId,
         batch_id: req.batch_id,
-        release_id: releaseId,
-        work_id: sDoc.work_id,
-        candidate_id: null,
-        category: "STRATIFIED_AUDIT",
-        stratum: sDoc.stratum,
-        severity: "ROUTINE_AUDIT",
-        summary: `Stratified 5% quality audit sample (${sDoc.stratum})`,
-        evidence_locator_summary: sDoc.work_id,
-        status: "APPROVED",
-        reviewer_id: "qa.audit.pipeline@reg24.th",
-        decision_note: "Verified Thai citation, date conversion, role separation, and source locator.",
-        created_at: nowIso,
-        decided_at: nowIso,
-      };
-    }
-
-    const deferredCount = allManifestCands.filter((c) => c.disposition === "DEFERRED_WITH_REASON").length;
-    const coverageGaps: string[] = [];
-    if (deferredCount > 0) {
-      coverageGaps.push(
-        `${deferredCount} external Google Drive RD parent-pool files are not mounted locally in repository storage and are explicitly tracked as DEFERRED_WITH_REASON (zero silent drops).`
-      );
-    }
-    if (admittedCands.length > selectedCands.length) {
-      coverageGaps.push(
-        `Run processed ${selectedCands.length} stratified rulings within configured run limit (${maxDocs}) out of ${admittedCands.length} admitted in-repo RD rulings; remaining admitted rulings queued for subsequent checkpointed runs.`
-      );
-    }
-
-    const manifestHash = sha256Bytes(
-      JSON.stringify({
         manifest_id: manifest.manifest_id,
-        inventory_hash: manifest.inventory_hash,
+        manifest_hash: manifestHash,
+        code_commit: codeCommit,
+        state: "PROCESSING",
+        revision: nextRev,
+        previous_accepted_release_id: effectivePredecessorReleaseId,
+        rollback_target_release_id: draft.active_release_id,
+        supersession_lineage: supersessionLineage,
+        created_work_ids: createdWorkIds,
+        created_version_ids: createdVersionIds,
+        created_passage_ids: createdPassageIds,
+        created_assertion_ids: createdAssertionIds,
+        reused_work_ids: reusedWorkIds,
+        coverage_gaps: coverageGaps,
+        transitions: [
+          ...(existingRel?.transitions || []),
+          {
+            from: existingRel?.state || "PLANNED",
+            to: "INVENTORY_FROZEN",
+            actor_id: actor.actor_id,
+            at: nowIso,
+            revision: nextRev,
+            note: `Frozen manifest ${manifest.manifest_id}`,
+          },
+          {
+            from: "INVENTORY_FROZEN",
+            to: "PROCESSING",
+            actor_id: actor.actor_id,
+            at: nowIso,
+            revision: nextRev,
+            note: `Staged ${profileOutputs.length} canonical works and assertions`,
+          },
+        ],
+        created_at: existingRel?.created_at || nowIso,
+        updated_at: nowIso,
+      };
+
+      const outboxId = `obx.${releaseId}.r${nextRev}`;
+      draft.outbox[outboxId] = {
+        outbox_id: outboxId,
         release_id: releaseId,
-        created_work_count: createdWorkIds.length,
-        created_passage_count: createdPassageIds.length,
-      })
-    );
-
-    const existingRel = draft.releases[releaseId];
-    const nextRev = existingRel ? existingRel.revision + 1 : 1;
-
-    draft.releases[releaseId] = {
-      release_id: releaseId,
-      batch_id: req.batch_id,
-      manifest_id: manifest.manifest_id,
-      manifest_hash: manifestHash,
-      code_commit: codeCommit,
-      state: "PROCESSING",
-      revision: nextRev,
-      previous_accepted_release_id: draft.active_release_id,
-      rollback_target_release_id: draft.active_release_id,
-      created_work_ids: createdWorkIds,
-      created_version_ids: createdVersionIds,
-      created_passage_ids: createdPassageIds,
-      created_assertion_ids: createdAssertionIds,
-      reused_work_ids: reusedWorkIds,
-      coverage_gaps: coverageGaps,
-      transitions: [
-        ...(existingRel?.transitions || []),
-        {
-          from: existingRel?.state || "PLANNED",
-          to: "INVENTORY_FROZEN",
-          actor_id: actor.actor_id,
-          at: nowIso,
-          revision: nextRev,
-          note: `Frozen manifest ${manifest.manifest_id}`,
-        },
-        {
-          from: "INVENTORY_FROZEN",
-          to: "PROCESSING",
-          actor_id: actor.actor_id,
-          at: nowIso,
-          revision: nextRev,
-          note: `Staged ${profileOutputs.length} canonical works and assertions`,
-        },
-      ],
-      created_at: existingRel?.created_at || nowIso,
-      updated_at: nowIso,
-    };
-
-    const outboxId = `obx.${releaseId}.r${nextRev}`;
-    draft.outbox[outboxId] = {
-      outbox_id: outboxId,
-      release_id: releaseId,
-      batch_id: req.batch_id,
-      manifest_hash: manifestHash,
-      status: "PENDING",
-      created_at: nowIso,
-      completed_at: null,
-      error: null,
-    };
-  });
+        batch_id: req.batch_id,
+        manifest_hash: manifestHash,
+        status: "PENDING",
+        created_at: nowIso,
+        completed_at: null,
+        error: null,
+      };
+    },
+    { actorId: actor.actor_id, auditMeta: { batch_id: req.batch_id, release_id: releaseId } }
+  );
 
   // 4. Build durable snapshot-pinned projections (throws on memory_only / simulate_outage per AT07!)
   await buildReleaseProjectionsFromOutbox(
@@ -1089,7 +1734,8 @@ export async function startBatchRun(
 
 /**
  * Records an authenticated Product Owner UAT decision (`UAT_PASS`, `UAT_PASS_WITH_DECLARED_GAPS`, or `UAT_FAIL`).
- * Enforces `product_owner` role, exact `manifest_hash` (`AT14`), and optimistic `expected_revision` (`409`).
+ * Enforces `product_owner` role, exact `manifest_hash` (`AT14`), optimistic `expected_revision` (`409`),
+ * conflicting-approval rejection (`DEF-B01-07`), monotonic `rel.revision` increment, and single-transaction report sync.
  */
 export async function recordUatDecision(
   req: UatDecisionRequest,
@@ -1101,138 +1747,185 @@ export async function recordUatDecision(
   }
 
   const store = options?.store || getDefaultKnowledgeStore();
-  return store.transact("RECORD_OWNER_UAT_DECISION", (draft) => {
-    const rel = draft.releases[req.release_id];
-    if (!rel) {
-      throw new Error(`RELEASE_NOT_FOUND_404: ${req.release_id}`);
-    }
-    if (rel.manifest_hash !== req.manifest_hash) {
-      throw new Error(
-        `MANIFEST_HASH_MISMATCH_409: Submitted manifest_hash (${req.manifest_hash}) does not match candidate release manifest_hash (${rel.manifest_hash}).`
-      );
-    }
-    if (rel.revision !== req.expected_revision) {
-      throw new Error(
-        `REVISION_CONFLICT_409: Submitted expected_revision (${req.expected_revision}) does not match current revision (${rel.revision}).`
-      );
-    }
-    if (
-      rel.state !== "READY_FOR_UAT" &&
-      rel.state !== "UAT_PASSED" &&
-      rel.state !== "UAT_FAILED" &&
-      rel.state !== "RELEASE_APPROVED"
-    ) {
-      throw new Error(
-        `INVALID_RELEASE_STATE_422: Release ${req.release_id} must be in READY_FOR_UAT (or unpromoted UAT review state) to record Owner UAT decision (current: ${rel.state}).`
-      );
-    }
-
-    if (
-      req.decision === "UAT_PASS_WITH_DECLARED_GAPS" &&
-      (!req.declared_gaps_accepted || req.declared_gaps_accepted.length === 0) &&
-      rel.coverage_gaps.length > 0
-    ) {
-      throw new Error(
-        "DECLARED_GAPS_REQUIRED_422: UAT_PASS_WITH_DECLARED_GAPS requires explicit acknowledgement of declared coverage gaps."
-      );
-    }
-
-    const nowIso = new Date().toISOString();
-    const acc: Acceptance = draft.acceptances[req.release_id] || {
-      release_id: req.release_id,
-      batch_id: rel.batch_id,
-      revision: rel.revision,
-      manifest_hash: rel.manifest_hash,
-      user_decision: null,
-      technical_attestation: null,
-      legal_attestation: null,
-      gap_acceptance: null,
-      comments: [],
-      case_decisions: {},
-      actor_ids: [],
-      timestamps: {
-        ready_for_uat_at: rel.updated_at,
-        owner_decided_at: null,
-        promoted_at: null,
-      },
-    };
-
-    acc.revision = rel.revision;
-    acc.manifest_hash = rel.manifest_hash;
-    acc.user_decision = req.decision;
-    if (req.comments && req.comments.trim()) {
-      acc.comments.push(`[${nowIso} ${actor.actor_id} -> ${req.decision}] ${req.comments.trim()}`);
-    }
-    if (!acc.actor_ids.includes(actor.actor_id)) {
-      acc.actor_ids.push(actor.actor_id);
-    }
-    acc.timestamps.owner_decided_at = nowIso;
-
-    if (req.case_decisions) {
-      for (const cd of req.case_decisions) {
-        acc.case_decisions[cd.case_id] = {
-          decision: cd.decision,
-          comment: cd.comment,
-          actor_id: actor.actor_id,
-          decided_at: nowIso,
-        };
+  return store.transact(
+    "RECORD_OWNER_UAT_DECISION",
+    (draft) => {
+      const rel = draft.releases[req.release_id];
+      if (!rel) {
+        throw new Error(`RELEASE_NOT_FOUND_404: ${req.release_id}`);
       }
-      const cases = draft.uat_cases[req.release_id] || [];
-      for (const uc of cases) {
-        const match = acc.case_decisions[uc.case_id];
-        if (match) {
-          uc.owner_result = {
-            decision: match.decision,
-            comment: match.comment,
-            actor_id: match.actor_id,
-            decided_at: match.decided_at,
+      if (rel.manifest_hash !== req.manifest_hash) {
+        throw new Error(
+          `MANIFEST_HASH_MISMATCH_409: Submitted manifest_hash (${req.manifest_hash}) does not match candidate release manifest_hash (${rel.manifest_hash}).`
+        );
+      }
+      if (rel.revision !== req.expected_revision) {
+        throw new Error(
+          `REVISION_CONFLICT_409: Submitted expected_revision (${req.expected_revision}) does not match current revision (${rel.revision}).`
+        );
+      }
+      if (
+        rel.state !== "READY_FOR_UAT" &&
+        rel.state !== "UAT_PASSED" &&
+        rel.state !== "UAT_FAILED" &&
+        rel.state !== "RELEASE_APPROVED"
+      ) {
+        throw new Error(
+          `INVALID_RELEASE_STATE_422: Release ${req.release_id} must be in READY_FOR_UAT (or unpromoted UAT review state) to record Owner UAT decision (current: ${rel.state}).`
+        );
+      }
+
+      if (
+        req.decision === "UAT_PASS_WITH_DECLARED_GAPS" &&
+        (!req.declared_gaps_accepted || req.declared_gaps_accepted.length === 0) &&
+        rel.coverage_gaps.length > 0
+      ) {
+        throw new Error(
+          "DECLARED_GAPS_REQUIRED_422: UAT_PASS_WITH_DECLARED_GAPS requires explicit acknowledgement of declared coverage gaps."
+        );
+      }
+
+      const existingAcc = draft.acceptances[req.release_id];
+      if (
+        existingAcc &&
+        existingAcc.user_decision !== null &&
+        existingAcc.revision === rel.revision &&
+        existingAcc.user_decision !== req.decision
+      ) {
+        throw new Error(
+          `CONFLICTING_APPROVAL_DECISION_409: Release ${req.release_id} already has recorded decision ${existingAcc.user_decision} at revision ${rel.revision}.`
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const nextRev = rel.revision + 1;
+      rel.revision = nextRev;
+
+      const acc: Acceptance = existingAcc || {
+        release_id: req.release_id,
+        batch_id: rel.batch_id,
+        revision: nextRev,
+        manifest_hash: rel.manifest_hash,
+        user_decision: null,
+        technical_attestation: null,
+        legal_attestation: null,
+        gap_acceptance: null,
+        comments: [],
+        case_decisions: {},
+        actor_ids: [],
+        timestamps: {
+          ready_for_uat_at: rel.updated_at,
+          owner_decided_at: null,
+          promoted_at: null,
+        },
+      };
+
+      acc.revision = nextRev;
+      acc.manifest_hash = rel.manifest_hash;
+      acc.user_decision = req.decision;
+      if (req.comments && req.comments.trim()) {
+        acc.comments.push(`[${nowIso} ${actor.actor_id} -> ${req.decision}] ${req.comments.trim()}`);
+      }
+      if (!acc.actor_ids.includes(actor.actor_id)) {
+        acc.actor_ids.push(actor.actor_id);
+      }
+      acc.timestamps.owner_decided_at = nowIso;
+
+      if (req.case_decisions) {
+        for (const cd of req.case_decisions) {
+          acc.case_decisions[cd.case_id] = {
+            decision: cd.decision,
+            comment: cd.comment,
+            actor_id: actor.actor_id,
+            decided_at: nowIso,
           };
         }
+        const cases = draft.uat_cases[req.release_id] || [];
+        for (const uc of cases) {
+          const match = acc.case_decisions[uc.case_id];
+          if (match) {
+            uc.owner_result = {
+              decision: match.decision,
+              comment: match.comment,
+              actor_id: match.actor_id,
+              decided_at: match.decided_at,
+            };
+          }
+        }
       }
-    }
 
-    if (req.decision === "UAT_PASS_WITH_DECLARED_GAPS") {
-      acc.gap_acceptance = {
-        accepted: true,
-        accepted_by: actor.actor_id,
-        accepted_at: nowIso,
-        declared_gaps: req.declared_gaps_accepted || rel.coverage_gaps,
-      };
-    }
+      if (req.decision === "UAT_PASS_WITH_DECLARED_GAPS") {
+        acc.gap_acceptance = {
+          accepted: true,
+          accepted_by: actor.actor_id,
+          accepted_at: nowIso,
+          declared_gaps: req.declared_gaps_accepted || rel.coverage_gaps,
+        };
+      }
 
-    const nextState: ReleaseState = req.decision === "UAT_FAIL" ? "UAT_FAILED" : "UAT_PASSED";
-    const prevState = rel.state;
-    rel.state = nextState;
-    rel.updated_at = nowIso;
-    rel.transitions.push({
-      from: prevState,
-      to: nextState,
-      actor_id: actor.actor_id,
-      at: nowIso,
-      revision: rel.revision,
-      note: req.comments || `Owner recorded ${req.decision}`,
-    });
-
-    // If technical & legal attestations for this exact manifest_hash are already present and UAT passed, advance to RELEASE_APPROVED
-    if (
-      nextState === "UAT_PASSED" &&
-      acc.technical_attestation?.manifest_hash === rel.manifest_hash &&
-      acc.legal_attestation?.manifest_hash === rel.manifest_hash
-    ) {
-      rel.state = "RELEASE_APPROVED";
+      const nextState: ReleaseState = req.decision === "UAT_FAIL" ? "UAT_FAILED" : "UAT_PASSED";
+      const prevState = rel.state;
+      rel.state = nextState;
+      rel.updated_at = nowIso;
       rel.transitions.push({
-        from: "UAT_PASSED",
-        to: "RELEASE_APPROVED",
+        from: prevState,
+        to: nextState,
         actor_id: actor.actor_id,
         at: nowIso,
-        revision: rel.revision,
-        note: "Owner UAT + Technical + Legal attestations complete for manifest_hash",
+        revision: nextRev,
+        note: req.comments || `Owner recorded ${req.decision}`,
       });
-    }
 
-    draft.acceptances[req.release_id] = acc;
-    return { ...acc };
-  });
+      if (
+        nextState === "UAT_PASSED" &&
+        acc.technical_attestation?.manifest_hash === rel.manifest_hash &&
+        acc.legal_attestation?.manifest_hash === rel.manifest_hash
+      ) {
+        rel.state = "RELEASE_APPROVED";
+        rel.transitions.push({
+          from: "UAT_PASSED",
+          to: "RELEASE_APPROVED",
+          actor_id: actor.actor_id,
+          at: nowIso,
+          revision: nextRev,
+          note: "Owner UAT + Technical + Legal attestations complete for manifest_hash",
+        });
+      }
+
+      draft.acceptances[req.release_id] = acc;
+
+      // Atomically sync cached release reports in the SAME transaction (eliminates split-tx race in DEF-B01-07)
+      const repByRel = draft.release_reports[req.release_id];
+      const repByBatch = draft.release_reports[rel.batch_id];
+      for (const rep of [repByRel, repByBatch]) {
+        if (rep) {
+          rep.status = rel.state;
+          rep.uat.owner_decision = acc.user_decision;
+          rep.uat.owner_actor_id = actor.actor_id;
+          rep.uat.decided_at = acc.timestamps.owner_decided_at;
+          rep.uat.approved_manifest_hash = acc.manifest_hash;
+          rep.gap_acceptance = acc.gap_acceptance;
+          const cases = draft.uat_cases[req.release_id] || [];
+          const decided = cases.filter((c) => c.owner_result != null);
+          if (decided.length > 0) {
+            rep.uat.passed = decided.filter((c) => c.owner_result?.decision === "PASS").length;
+            rep.uat.failed = decided.filter((c) => c.owner_result?.decision === "FAIL").length;
+          }
+        }
+      }
+
+      return { ...acc };
+    },
+    {
+      actorId: actor.actor_id,
+      auditMeta: {
+        release_id: req.release_id,
+        decision: req.decision,
+        expected_revision: req.expected_revision,
+        manifest_hash: req.manifest_hash,
+      },
+    }
+  );
 }
 
 /**
@@ -1245,6 +1938,7 @@ export function recordTechnicalOrLegalAttestation(
   params: {
     release_id: string;
     manifest_hash: string;
+    expected_revision?: number;
     actor: Actor;
     notes: string;
   }
@@ -1255,183 +1949,241 @@ export function recordTechnicalOrLegalAttestation(
     );
   }
 
-  return store.transactSync("RECORD_RELEASE_ATTESTATION", (draft) => {
-    const rel = draft.releases[params.release_id];
-    if (!rel) throw new Error(`RELEASE_NOT_FOUND_404: ${params.release_id}`);
-    if (rel.manifest_hash !== params.manifest_hash) {
-      throw new Error(
-        `MANIFEST_HASH_MISMATCH_409: Attestation manifest_hash (${params.manifest_hash}) != release manifest_hash (${rel.manifest_hash}).`
-      );
-    }
+  return store.transactSync(
+    "RECORD_RELEASE_ATTESTATION",
+    (draft) => {
+      const rel = draft.releases[params.release_id];
+      if (!rel) throw new Error(`RELEASE_NOT_FOUND_404: ${params.release_id}`);
+      if (rel.manifest_hash !== params.manifest_hash) {
+        throw new Error(
+          `MANIFEST_HASH_MISMATCH_409: Attestation manifest_hash (${params.manifest_hash}) != release manifest_hash (${rel.manifest_hash}).`
+        );
+      }
+      if (
+        typeof params.expected_revision === "number" &&
+        rel.revision !== params.expected_revision
+      ) {
+        throw new Error(
+          `REVISION_CONFLICT_409: Submitted expected_revision (${params.expected_revision}) != current revision (${rel.revision}).`
+        );
+      }
 
-    const acc = draft.acceptances[params.release_id];
-    if (!acc) {
-      throw new Error(`ACCEPTANCE_RECORD_MISSING_422: ${params.release_id}`);
-    }
+      const acc = draft.acceptances[params.release_id];
+      if (!acc) {
+        throw new Error(`ACCEPTANCE_RECORD_MISSING_422: ${params.release_id}`);
+      }
 
-    const nowIso = new Date().toISOString();
-    if (params.actor.role === "engineering_lead") {
-      acc.technical_attestation = {
-        actor_id: params.actor.actor_id,
-        role: "engineering_lead",
+      const nowIso = new Date().toISOString();
+      if (params.actor.role === "engineering_lead") {
+        acc.technical_attestation = {
+          actor_id: params.actor.actor_id,
+          role: "engineering_lead",
+          manifest_hash: params.manifest_hash,
+          attested_at: nowIso,
+          notes: params.notes,
+        };
+      } else {
+        acc.legal_attestation = {
+          actor_id: params.actor.actor_id,
+          role: "legal_reviewer",
+          manifest_hash: params.manifest_hash,
+          attested_at: nowIso,
+          notes: params.notes,
+        };
+      }
+
+      if (!acc.actor_ids.includes(params.actor.actor_id)) {
+        acc.actor_ids.push(params.actor.actor_id);
+      }
+
+      if (
+        rel.state === "UAT_PASSED" &&
+        acc.technical_attestation?.manifest_hash === rel.manifest_hash &&
+        acc.legal_attestation?.manifest_hash === rel.manifest_hash
+      ) {
+        rel.state = "RELEASE_APPROVED";
+        rel.updated_at = nowIso;
+        rel.transitions.push({
+          from: "UAT_PASSED",
+          to: "RELEASE_APPROVED",
+          actor_id: params.actor.actor_id,
+          at: nowIso,
+          revision: rel.revision,
+          note: "All 3 release attestations (Owner UAT, Technical, Legal) verified on matching manifest_hash",
+        });
+      }
+
+      for (const rep of [draft.release_reports[params.release_id], draft.release_reports[rel.batch_id]]) {
+        if (rep) {
+          rep.status = rel.state;
+          rep.technical_attestation = acc.technical_attestation;
+          rep.legal_attestation = acc.legal_attestation;
+        }
+      }
+
+      return { ...acc };
+    },
+    {
+      actorId: params.actor.actor_id,
+      auditMeta: {
+        release_id: params.release_id,
+        attestation_role: params.actor.role,
         manifest_hash: params.manifest_hash,
-        attested_at: nowIso,
-        notes: params.notes,
-      };
-    } else {
-      acc.legal_attestation = {
-        actor_id: params.actor.actor_id,
-        role: "legal_reviewer",
-        manifest_hash: params.manifest_hash,
-        attested_at: nowIso,
-        notes: params.notes,
-      };
+      },
     }
-
-    if (!acc.actor_ids.includes(params.actor.actor_id)) {
-      acc.actor_ids.push(params.actor.actor_id);
-    }
-
-    if (
-      rel.state === "UAT_PASSED" &&
-      acc.technical_attestation?.manifest_hash === rel.manifest_hash &&
-      acc.legal_attestation?.manifest_hash === rel.manifest_hash
-    ) {
-      rel.state = "RELEASE_APPROVED";
-      rel.updated_at = nowIso;
-      rel.transitions.push({
-        from: "UAT_PASSED",
-        to: "RELEASE_APPROVED",
-        actor_id: params.actor.actor_id,
-        at: nowIso,
-        revision: rel.revision,
-        note: "All 3 release attestations (Owner UAT, Technical, Legal) verified on matching manifest_hash",
-      });
-    }
-
-    return { ...acc };
-  });
+  );
 }
 
 /**
  * Atomically promotes a `RELEASE_APPROVED` candidate release using compare-and-swap on
- * `expected_active_release_id` (`SH-15`), verifying all projections are `COMPLETED` and durable (`AT07`).
+ * `expected_active_release_id` (`SH-15`), verifying all projections are `COMPLETED` and durable (`AT07`)
+ * and blocking promotion on ephemeral serverless `/tmp` storage (`DEF-B01-05` / `DEF-B01-07`).
  */
 export async function promoteRelease(
   req: PromotionRequest,
   actor: Actor,
-  options?: { store?: DurableKnowledgeStore }
+  options?: { store?: DurableKnowledgeStore; allowEphemeralPromotionForTest?: boolean }
 ): Promise<ReleaseReceipt> {
   if (actor.role !== "engineering_lead" && actor.role !== "product_owner") {
     throw new Error("FORBIDDEN_403: Only engineering_lead or product_owner may promote an approved release.");
   }
 
   const store = options?.store || getDefaultKnowledgeStore();
-  return store.transact("PROMOTE_RELEASE_CAS", (draft) => {
-    const rel = draft.releases[req.release_id];
-    if (!rel) {
-      throw new Error(`RELEASE_NOT_FOUND_404: ${req.release_id}`);
-    }
-    if (rel.manifest_hash !== req.manifest_hash) {
-      throw new Error(
-        `MANIFEST_HASH_MISMATCH_409: Promotion manifest_hash (${req.manifest_hash}) != release manifest_hash (${rel.manifest_hash}).`
-      );
-    }
-    if (rel.state !== "RELEASE_APPROVED") {
-      throw new Error(
-        `RELEASE_NOT_APPROVED_422: Release ${req.release_id} cannot be promoted from state ${rel.state}; requires RELEASE_APPROVED (Owner UAT + Technical + Legal attestations).`
-      );
-    }
-    if (draft.active_release_id !== req.expected_active_release_id) {
-      throw new Error(
-        `ACTIVE_RELEASE_CAS_CONFLICT_409: expected_active_release_id (${req.expected_active_release_id}) != current active_release_id (${draft.active_release_id}).`
-      );
-    }
-
-    // Verify all projection receipts are COMPLETED and durable (AT07)
-    const receipts = draft.projection_receipts[req.release_id] || [];
-    if (
-      receipts.length < 3 ||
-      receipts.some((r) => r.completion_state !== "COMPLETED" || r.adapter_mode === "memory_only")
-    ) {
-      throw new Error(
-        "PROJECTION_INCOMPLETE_OR_MEMORY_ONLY_BLOCKED: Cannot promote release without completed durable lexical, vector, and graph projections."
-      );
-    }
-
-    // Check zero open CRITICAL review defects
-    const openCriticalReviews = Object.values(draft.reviews).filter(
-      (rv) =>
-        rv.release_id === req.release_id &&
-        (rv.status === "REJECTED_DEFECT" || (rv.severity === "CRITICAL" && rv.status === "PENDING"))
+  const topo = store.getStorageTopology();
+  if (topo.topology_mode === "ephemeral_serverless_tmp" && !options?.allowEphemeralPromotionForTest) {
+    throw new Error(
+      "EPHEMERAL_STORAGE_PROMOTION_BLOCKED_422: Cannot promote release on ephemeral serverless /tmp storage; configure REG24_KNOWLEDGE_DATA_DIR to durable shared storage or commit verified canonical release artifact."
     );
-    if (openCriticalReviews.length > 0) {
-      throw new Error(
-        `OPEN_CRITICAL_REVIEW_DEFECTS_422: ${openCriticalReviews.length} critical review items remain unresolved.`
-      );
-    }
+  }
 
-    const acc = draft.acceptances[req.release_id];
-    if (!acc || (acc.user_decision !== "UAT_PASS" && acc.user_decision !== "UAT_PASS_WITH_DECLARED_GAPS")) {
-      throw new Error("RELEASE_NOT_APPROVED_422: Missing valid Owner UAT pass decision.");
-    }
-
-    // Post-promotion smoke verification: ensure passages exist for release
-    const smokePassages = Object.values(draft.passages).filter((p) => p.release_id === req.release_id);
-    if (smokePassages.length === 0) {
-      throw new Error("SMOKE_TEST_FAILED_500: Candidate release contains zero passages.");
-    }
-
-    const nowIso = new Date().toISOString();
-    const prevActive = draft.active_release_id;
-    rel.rollback_target_release_id = prevActive;
-
-    const finalState: "ACCEPTED" | "ACCEPTED_WITH_DECLARED_GAPS" =
-      acc.user_decision === "UAT_PASS_WITH_DECLARED_GAPS" || rel.coverage_gaps.length > 0
-        ? acc.user_decision === "UAT_PASS_WITH_DECLARED_GAPS"
-          ? "ACCEPTED_WITH_DECLARED_GAPS"
-          : "ACCEPTED"
-        : "ACCEPTED";
-
-    rel.transitions.push(
-      {
-        from: "RELEASE_APPROVED",
-        to: "PUBLISHED",
-        actor_id: actor.actor_id,
-        at: nowIso,
-        revision: rel.revision,
-        note: `Atomic CAS pointer switched from ${prevActive ?? "null"} to ${req.release_id}`,
-      },
-      {
-        from: "PUBLISHED",
-        to: finalState,
-        actor_id: actor.actor_id,
-        at: nowIso,
-        revision: rel.revision,
-        note: "Smoke verification passed; batch accepted and next sequential batch unlocked.",
+  return store.transact(
+    "PROMOTE_RELEASE_CAS",
+    (draft) => {
+      const rel = draft.releases[req.release_id];
+      if (!rel) {
+        throw new Error(`RELEASE_NOT_FOUND_404: ${req.release_id}`);
       }
-    );
-    rel.state = finalState;
-    rel.updated_at = nowIso;
+      if (rel.manifest_hash !== req.manifest_hash) {
+        throw new Error(
+          `MANIFEST_HASH_MISMATCH_409: Promotion manifest_hash (${req.manifest_hash}) != release manifest_hash (${rel.manifest_hash}).`
+        );
+      }
+      if (rel.state !== "RELEASE_APPROVED") {
+        throw new Error(
+          `RELEASE_NOT_APPROVED_422: Release ${req.release_id} cannot be promoted from state ${rel.state}; requires RELEASE_APPROVED (Owner UAT + Technical + Legal attestations).`
+        );
+      }
+      if (draft.active_release_id !== req.expected_active_release_id) {
+        throw new Error(
+          `ACTIVE_RELEASE_CAS_CONFLICT_409: expected_active_release_id (${req.expected_active_release_id}) != current active_release_id (${draft.active_release_id}).`
+        );
+      }
 
-    draft.active_release_id = req.release_id;
-    draft.accepted_batch_releases[rel.batch_id] = {
-      release_id: req.release_id,
-      state: finalState,
-    };
-    acc.timestamps.promoted_at = nowIso;
+      // Verify all projection receipts are COMPLETED and durable (AT07)
+      const receipts = draft.projection_receipts[req.release_id] || [];
+      if (
+        receipts.length < 3 ||
+        receipts.some((r) => r.completion_state !== "COMPLETED" || r.adapter_mode === "memory_only")
+      ) {
+        throw new Error(
+          "PROJECTION_INCOMPLETE_OR_MEMORY_ONLY_BLOCKED: Cannot promote release without completed durable lexical, vector, and graph projections."
+        );
+      }
 
-    return {
-      release_id: req.release_id,
-      batch_id: rel.batch_id,
-      state: finalState,
-      previous_active_release_id: prevActive,
-      active_release_id: req.release_id,
-      smoke_test_passed: true,
-      promoted_at: nowIso,
-      next_batch_unlocked: true,
-    };
-  });
+      // Check zero open CRITICAL review defects
+      const openCriticalReviews = Object.values(draft.reviews).filter(
+        (rv) =>
+          rv.release_id === req.release_id &&
+          (rv.status === "REJECTED_DEFECT" || (rv.severity === "CRITICAL" && rv.status === "PENDING"))
+      );
+      if (openCriticalReviews.length > 0) {
+        throw new Error(
+          `OPEN_CRITICAL_REVIEW_DEFECTS_422: ${openCriticalReviews.length} critical review items remain unresolved.`
+        );
+      }
+
+      const acc = draft.acceptances[req.release_id];
+      if (!acc || (acc.user_decision !== "UAT_PASS" && acc.user_decision !== "UAT_PASS_WITH_DECLARED_GAPS")) {
+        throw new Error("RELEASE_NOT_APPROVED_422: Missing valid Owner UAT pass decision.");
+      }
+
+      // Post-promotion smoke verification: ensure passages exist for release and zero synthetic ext.dep passages
+      const smokePassages = Object.values(draft.passages).filter((p) => p.release_id === req.release_id);
+      if (smokePassages.length === 0) {
+        throw new Error("SMOKE_TEST_FAILED_500: Candidate release contains zero passages.");
+      }
+      if (smokePassages.some((p) => p.extraction_id.startsWith("ext.dep."))) {
+        throw new Error(
+          "UNVERIFIED_SYNTHETIC_PASSAGES_BLOCKED_422: Candidate release contains generated ext.dep.* statutory placeholder passages."
+        );
+      }
+
+      const nowIso = new Date().toISOString();
+      const prevActive = draft.active_release_id;
+      rel.rollback_target_release_id = prevActive;
+      rel.revision += 1;
+
+      const finalState: "ACCEPTED" | "ACCEPTED_WITH_DECLARED_GAPS" =
+        acc.user_decision === "UAT_PASS_WITH_DECLARED_GAPS"
+          ? "ACCEPTED_WITH_DECLARED_GAPS"
+          : "ACCEPTED";
+
+      rel.transitions.push(
+        {
+          from: "RELEASE_APPROVED",
+          to: "PUBLISHED",
+          actor_id: actor.actor_id,
+          at: nowIso,
+          revision: rel.revision,
+          note: `Atomic CAS pointer switched from ${prevActive ?? "null"} to ${req.release_id}`,
+        },
+        {
+          from: "PUBLISHED",
+          to: finalState,
+          actor_id: actor.actor_id,
+          at: nowIso,
+          revision: rel.revision,
+          note: "Smoke verification passed; batch accepted and next sequential batch unlocked.",
+        }
+      );
+      rel.state = finalState;
+      rel.updated_at = nowIso;
+
+      draft.active_release_id = req.release_id;
+      draft.accepted_batch_releases[rel.batch_id] = {
+        release_id: req.release_id,
+        state: finalState,
+      };
+      acc.timestamps.promoted_at = nowIso;
+
+      // Atomically sync cached release reports in the SAME transaction
+      for (const rep of [draft.release_reports[req.release_id], draft.release_reports[rel.batch_id]]) {
+        if (rep) {
+          rep.status = finalState;
+          rep.next_batch_unlocked = true;
+        }
+      }
+
+      return {
+        release_id: req.release_id,
+        batch_id: rel.batch_id,
+        state: finalState,
+        previous_active_release_id: prevActive,
+        active_release_id: req.release_id,
+        smoke_test_passed: true,
+        promoted_at: nowIso,
+        next_batch_unlocked: true,
+      };
+    },
+    {
+      actorId: actor.actor_id,
+      auditMeta: {
+        release_id: req.release_id,
+        expected_active_release_id: req.expected_active_release_id,
+        manifest_hash: req.manifest_hash,
+      },
+    }
+  );
 }
 
 /**
@@ -1450,63 +2202,90 @@ export async function rollbackRelease(
   }
 
   const store = options?.store || getDefaultKnowledgeStore();
-  return store.transact("ROLLBACK_RELEASE_SAFE", (draft) => {
-    const rel = draft.releases[releaseId];
-    if (!rel) {
-      throw new Error(`RELEASE_NOT_FOUND_404: ${releaseId}`);
-    }
-
-    const nowIso = new Date().toISOString();
-    const targetActive = rel.rollback_target_release_id;
-    const reusedSet = new Set(rel.reused_work_ids);
-
-    // Remove only release-exclusive passages, assertions, and vectors; NEVER delete shared law works!
-    for (const asrtId of rel.created_assertion_ids) {
-      delete draft.assertions[asrtId];
-    }
-    for (const psgId of rel.created_passage_ids) {
-      delete draft.passages[psgId];
-    }
-    delete draft.active_vector_ids_by_release[releaseId];
-
-    for (const workId of rel.created_work_ids) {
-      const w = draft.works[workId];
-      if (!w) continue;
-      // Preserve shared primary-law dependencies (`owner_batch_id !== rel.batch_id`) and any `reused_work_ids` (AT15)
-      if (reusedSet.has(workId) || w.owner_batch_id !== rel.batch_id) {
-        continue;
+  return store.transact(
+    "ROLLBACK_RELEASE_SAFE",
+    (draft) => {
+      const rel = draft.releases[releaseId];
+      if (!rel) {
+        throw new Error(`RELEASE_NOT_FOUND_404: ${releaseId}`);
       }
-      delete draft.works[workId];
-    }
 
-    if (draft.active_release_id === releaseId) {
-      draft.active_release_id = targetActive;
-    }
-    if (draft.accepted_batch_releases[rel.batch_id]?.release_id === releaseId) {
-      delete draft.accepted_batch_releases[rel.batch_id];
-    }
+      const nowIso = new Date().toISOString();
+      const targetActive = rel.rollback_target_release_id;
+      const reusedSet = new Set(rel.reused_work_ids);
 
-    const prevState = rel.state;
-    rel.state = "ROLLED_BACK";
-    rel.updated_at = nowIso;
-    rel.transitions.push({
-      from: prevState,
-      to: "ROLLED_BACK",
-      actor_id: actor.actor_id,
-      at: nowIso,
-      revision: rel.revision,
-      note: reason,
-    });
+      // Remove only release-exclusive passages, assertions, and vectors; NEVER delete shared law works!
+      for (const asrtId of rel.created_assertion_ids) {
+        delete draft.assertions[asrtId];
+      }
+      for (const psgId of rel.created_passage_ids) {
+        delete draft.passages[psgId];
+      }
+      delete draft.active_vector_ids_by_release[releaseId];
 
-    return {
-      release_id: releaseId,
-      batch_id: rel.batch_id,
-      state: "ROLLED_BACK",
-      previous_active_release_id: releaseId,
-      active_release_id: draft.active_release_id || "",
-      smoke_test_passed: true,
-      promoted_at: nowIso,
-      next_batch_unlocked: false,
-    };
-  });
+      const referencedByOtherRelease = new Set<string>();
+      for (const otherRel of Object.values(draft.releases)) {
+        if (otherRel.release_id === releaseId || otherRel.state === "ROLLED_BACK") continue;
+        for (const wid of otherRel.created_work_ids) referencedByOtherRelease.add(wid);
+        for (const wid of otherRel.reused_work_ids) referencedByOtherRelease.add(wid);
+      }
+
+      for (const workId of rel.created_work_ids) {
+        const w = draft.works[workId];
+        if (!w) continue;
+        // Preserve shared primary-law dependencies (`owner_batch_id !== rel.batch_id`), `reused_work_ids` (AT15),
+        // and any work still referenced by another non-rolled-back release in the store.
+        if (
+          reusedSet.has(workId) ||
+          w.owner_batch_id !== rel.batch_id ||
+          referencedByOtherRelease.has(workId)
+        ) {
+          continue;
+        }
+        delete draft.works[workId];
+      }
+
+      if (draft.active_release_id === releaseId) {
+        draft.active_release_id = targetActive;
+      }
+      if (draft.accepted_batch_releases[rel.batch_id]?.release_id === releaseId) {
+        delete draft.accepted_batch_releases[rel.batch_id];
+      }
+
+      const prevState = rel.state;
+      rel.revision += 1;
+      rel.state = "ROLLED_BACK";
+      rel.updated_at = nowIso;
+      rel.transitions.push({
+        from: prevState,
+        to: "ROLLED_BACK",
+        actor_id: actor.actor_id,
+        at: nowIso,
+        revision: rel.revision,
+        note: reason,
+      });
+
+      for (const rep of [draft.release_reports[releaseId], draft.release_reports[rel.batch_id]]) {
+        if (rep) {
+          rep.status = "ROLLED_BACK";
+          rep.next_batch_unlocked = false;
+        }
+      }
+
+      return {
+        release_id: releaseId,
+        batch_id: rel.batch_id,
+        state: "ROLLED_BACK",
+        previous_active_release_id: releaseId,
+        active_release_id: draft.active_release_id || "",
+        smoke_test_passed: true,
+        promoted_at: nowIso,
+        next_batch_unlocked: false,
+      };
+    },
+    {
+      actorId: actor.actor_id,
+      auditMeta: { release_id: releaseId, reason },
+    }
+  );
 }

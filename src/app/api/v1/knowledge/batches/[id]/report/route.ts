@@ -47,11 +47,13 @@ export async function GET(
       };
     });
 
-    return NextResponse.json(
+      return NextResponse.json(
       {
         ok: true,
         batch_id: batchId,
         active_release_id: st.active_release_id,
+        store_revision: st.store_revision,
+        storage_topology: store.getStorageTopology(),
         release_record: releaseRecord,
         report: bundle.report,
         evaluation: bundle.evaluation,

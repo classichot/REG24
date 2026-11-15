@@ -5,6 +5,7 @@ import {
   runMigrationAndReconciliation,
 } from "@/core/graph/graph-migrator";
 import { NEO4J_SCHEMA_VERSION } from "@/core/graph/graph-schema";
+import { getDefaultKnowledgeStore } from "@/core/knowledge/store";
 
 /**
  * REG-NEO-003 — Graph Database Connection Health & Diagnostics API
@@ -21,6 +22,8 @@ export async function GET(req: NextRequest) {
   const isAdmin = roleHeader === "Platform Administrator";
 
   const health = await neo4jConnectionManager.checkHealth();
+  const knStore = getDefaultKnowledgeStore();
+  const knTopo = knStore.getStorageTopology();
 
   // Public sanitized health payload (REG-NEO-003)
   const publicResponse = {
@@ -36,6 +39,13 @@ export async function GET(req: NextRequest) {
     live_relationship_count: health.live_relationship_count,
     latency_ms: health.latency_ms,
     sanitized_error: health.sanitized_error,
+    canonical_store_topology: {
+      topology_mode: knTopo.topology_mode,
+      cross_process_locking: knTopo.cross_process_locking,
+      durable_across_cold_starts: knTopo.durable_across_cold_starts,
+      durable_across_horizontal_instances: knTopo.durable_across_horizontal_instances,
+      warning: knTopo.warning,
+    },
     checked_at: health.checked_at,
   };
 

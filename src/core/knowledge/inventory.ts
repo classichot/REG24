@@ -6,7 +6,9 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { RD_DRIVE_MANIFEST } from "../data/rd-drive-manifest-loader";
+import { getB02DriveManifest } from "../data/b02-drive-manifest-loader";
 import { TAX_EXPANSION_SOURCES } from "../data/tax-ruling-subreg-corpus";
+import { classifyB02InstrumentAndStatus, resolveCanonicalB02WorkId } from "./profiles/B02";
 import type { KnowledgeEntityType } from "../graph/graph-schema";
 import {
   normalizeOfficialRulingIdentifier,
@@ -87,13 +89,23 @@ export async function freezeInventory(
     store?: DurableKnowledgeStore;
     syntheticInventoryOverride?: SyntheticInventoryInput;
     sourceCutoffAt?: string;
+    predecessorReleaseId?: string;
   }
 ): Promise<{ manifest: BatchManifest; candidates: Candidate[] }> {
   const store = options?.store || getDefaultKnowledgeStore();
+  const stBefore = store.getState();
   const cfg = loadBatchConfigFile(batchId);
   const cutoff = options?.sourceCutoffAt || new Date().toISOString();
-  const snapshotId = `inv.${batchId.toLowerCase()}.${Date.now().toString(36)}`;
-  const manifestId = `mfst.${batchId.toLowerCase()}.${snapshotId.slice(-8)}`;
+  let snapshotId = `inv.${batchId.toLowerCase()}.${Date.now().toString(36)}`;
+  let manifestId = `mfst.${batchId.toLowerCase()}.${snapshotId.slice(-8)}`;
+  while (stBefore.manifests[manifestId]) {
+    snapshotId = `inv.${batchId.toLowerCase()}.${(Date.now() + Math.floor(Math.random() * 1000) + 1).toString(36)}`;
+    manifestId = `mfst.${batchId.toLowerCase()}.${snapshotId.slice(-8)}`;
+  }
+  const hasPriorManifestForBatch = Object.values(stBefore.manifests).some(
+    (m) => m.batch_id === batchId
+  );
+  const candManifestSuffix = hasPriorManifestForBatch ? `.${manifestId.split(".").pop()}` : "";
 
   const emptyFolders: string[] = [];
   const shortcutCycles: string[] = [];
@@ -248,7 +260,7 @@ export async function freezeInventory(
       const padIdx = String(idx + 1).padStart(4, "0");
 
       candidates.push({
-        candidate_id: `cand.b01.drv.${padIdx}.${shortCode}`,
+        candidate_id: `cand.b01.drv.${padIdx}.${shortCode}${candManifestSuffix}`,
         manifest_id: manifestId,
         source_file_id: rf.corpus_id,
         source_revision: rf.sha256.slice(0, 16),
@@ -272,7 +284,7 @@ export async function freezeInventory(
       const padIdx = String(idx + 1).padStart(3, "0");
       const isRootIndex = nrf.folder === "ROOT_INDEX";
       candidates.push({
-        candidate_id: `cand.b01.oos.${padIdx}.${nrf.sha256.slice(0, 10)}`,
+        candidate_id: `cand.b01.oos.${padIdx}.${nrf.sha256.slice(0, 10)}${candManifestSuffix}`,
         manifest_id: manifestId,
         source_file_id: `rd_oos_${nrf.sha256.slice(0, 16)}`,
         source_revision: nrf.sha256.slice(0, 16),
@@ -292,11 +304,126 @@ export async function freezeInventory(
         review_ids: [],
       });
     }
+  } else if (batchId === "B02") {
+    // Full zero-silent-drop physical inventory reconciliation over all 7,323 B02 files
+    // across Council of State, Parliament, Customs, Excise, and RD non-ruling folders
+    // + 12 unpacked Customs RAR member PDFs:
+    // - Machine-readable verified files (`text_excerpt.length >= 30`) -> PUBLISHED_NEW / REUSED_EXISTING / ATTACHED_REPRESENTATION
+    // - Image-only historical Gazette scans / unmapped legacy fonts without verified OCR -> DEFERRED_WITH_REASON (quarantined; 0 placeholder passages)
+    // - Non-legal index sheets, archive container wrappers, Myanmar foreign laws -> REJECTED_OUT_OF_SCOPE
+    const b02Manifest = getB02DriveManifest();
+    const existingWorks = stBefore.works;
+    const predRelId = options?.predecessorReleaseId ?? stBefore.active_release_id;
+    const predRel = predRelId ? stBefore.releases[predRelId] : undefined;
+    const allowedPredWorkIds = predRel
+      ? new Set<string>([...predRel.created_work_ids, ...predRel.reused_work_ids])
+      : null;
+
+    for (let idx = 0; idx < b02Manifest.files.length; idx++) {
+      const bf = b02Manifest.files[idx];
+      const padIdx = String(idx + 1).padStart(4, "0");
+      const fullPath = `${bf.folder}/${bf.rel_path}`;
+      if (bf.page_count > cfg.run_limits.max_source_pages_per_run) {
+        oversizedRuns.push(fullPath);
+      }
+
+      const rawTitle = bf.title_hint || bf.file_name.replace(/\.[^.]+$/, "");
+      const cls = classifyB02InstrumentAndStatus(rawTitle, bf.text_excerpt || "", bf.folder, bf.file_name);
+      const predictedWorkId = resolveCanonicalB02WorkId({
+        titleTh: rawTitle,
+        fullText: bf.text_excerpt || "",
+        folderHint: bf.folder,
+        fileNameHint: bf.file_name,
+        entityType: cls.entityType,
+        issuerId: cls.issuerId,
+        publicationYearCe: null,
+        accessScope: "scope.platform.public",
+      });
+
+      let disposition: CandidateDisposition = bf.disposition;
+      let idAction: IdentityAction | null =
+        bf.disposition === "ATTACHED_REPRESENTATION"
+          ? "ATTACH_REPRESENTATION"
+          : bf.disposition === "PUBLISHED_NEW"
+            ? "CREATE_NEW_WORK"
+            : bf.disposition === "REJECTED_OUT_OF_SCOPE"
+              ? "SKIP_UNCHANGED"
+              : null;
+
+      if (
+        disposition === "PUBLISHED_NEW" &&
+        existingWorks[predictedWorkId] &&
+        (!allowedPredWorkIds || allowedPredWorkIds.has(predictedWorkId))
+      ) {
+        disposition = "REUSED_EXISTING";
+        idAction = "NEW_EXTRACTION_REVISION";
+      }
+
+      candidates.push({
+        candidate_id: `cand.b02.drv.${padIdx}.${bf.sha256.slice(0, 10)}${candManifestSuffix}`,
+        manifest_id: manifestId,
+        source_file_id: `b02_${bf.sha256.slice(0, 16)}`,
+        source_revision: bf.sha256.slice(0, 16),
+        path: fullPath,
+        owner_batch_id: "B02",
+        source_uri: `https://drive.google.com/drive/folders/b02#${encodeURIComponent(fullPath)}`,
+        artifact_id: null,
+        canonical_work_id: disposition === "REUSED_EXISTING" ? predictedWorkId : null,
+        processing_state:
+          disposition === "DEFERRED_WITH_REASON"
+            ? "DEFERRED"
+            : disposition === "REJECTED_OUT_OF_SCOPE"
+              ? "VALIDATED"
+              : "DISCOVERED",
+        identity_action: idAction,
+        disposition,
+        reasons: [
+          bf.reason ||
+            (disposition === "REUSED_EXISTING"
+              ? `Upgrades existing B02-owned dependency ${predictedWorkId} first loaded in B01`
+              : `Verified readable B02 statutory/regulatory source (${bf.file_route})`),
+        ],
+        review_ids: [],
+      });
+    }
+
+    for (let rIdx = 0; rIdx < b02Manifest.rar_expanded_members.length; rIdx++) {
+      const rm = b02Manifest.rar_expanded_members[rIdx];
+      const padIdx = String(rIdx + 1).padStart(2, "0");
+      const hasText = Boolean(rm.text_excerpt && rm.text_excerpt.trim().length >= 30);
+      const rarPath = `Customs/RAR_UNPACKED/${rm.parent_rar}/${rm.rel_path}`;
+      candidates.push({
+        candidate_id: `cand.b02.rar.${padIdx}.${rm.sha256.slice(0, 10)}${candManifestSuffix}`,
+        manifest_id: manifestId,
+        source_file_id: `b02_rar_${rm.sha256.slice(0, 16)}`,
+        source_revision: rm.sha256.slice(0, 16),
+        path: rarPath,
+        owner_batch_id: "B02",
+        source_uri: `archive://customs/${encodeURIComponent(rm.parent_rar)}/${encodeURIComponent(rm.rel_path)}`,
+        artifact_id: null,
+        canonical_work_id: null,
+        processing_state: hasText ? "DISCOVERED" : "DEFERRED",
+        identity_action: hasText ? "CREATE_NEW_WORK" : null,
+        disposition: hasText ? "PUBLISHED_NEW" : "DEFERRED_WITH_REASON",
+        reasons: [
+          hasText
+            ? `Unpacked Customs RAR member PDF (${rm.file_route}) from ${rm.parent_rar}`
+            : `Unpacked Customs RAR scan-only member PDF quarantined pending verified OCR`,
+        ],
+        review_ids: [],
+      });
+    }
   }
 
   const inventoryHash = sha256Bytes(
     candidates
-      .map((c) => `${c.candidate_id}:${c.source_file_id}:${c.disposition}`)
+      .map((c) => {
+        const baseCandId =
+          candManifestSuffix && c.candidate_id.endsWith(candManifestSuffix)
+            ? c.candidate_id.slice(0, -candManifestSuffix.length)
+            : c.candidate_id;
+        return `${baseCandId}:${c.source_file_id}:${c.disposition}`;
+      })
       .join("\n")
   );
 
@@ -311,7 +438,7 @@ export async function freezeInventory(
     dependency_manifest_id: `dep.${batchId.toLowerCase()}.${inventoryHash.slice(0, 8)}`,
     run_limits: cfg.run_limits,
     source_cutoff_at: cutoff,
-    expected_previous_release_id: st.active_release_id,
+    expected_previous_release_id: options?.predecessorReleaseId ?? st.active_release_id,
     frozen_at: new Date().toISOString(),
     frozen_by: actor.actor_id,
     empty_folders_detected: emptyFolders,
