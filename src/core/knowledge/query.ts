@@ -321,12 +321,39 @@ export async function queryKnowledge(
     );
   }
 
-  // Collect conditions & exceptions from matched graph assertions
+  const isComparisonMode =
+    req.mode === "comparison" ||
+    (req.comparison_work_ids && req.comparison_work_ids.length >= 2) ||
+    bundle.explicit_ruling_ids_in_query.length >= 2 ||
+    /เปรียบเทียบ/.test(req.question);
+
+  // Scope conditions & exceptions strictly to the primary work(s) being answered so Hop-2 neighbor rulings never leak unrelated company facts
+  const conditionScopeWorkIds = new Set<string>(
+    isComparisonMode
+      ? availablePassages.slice(0, 4).map((p) => p.work_id)
+      : availablePassages[0]
+        ? [
+            (
+              availablePassages.find(
+                (p) =>
+                  p.statement_role === "official_conclusion" ||
+                  p.statement_role === "statutory_text"
+              ) || availablePassages[0]
+            ).work_id,
+          ]
+        : []
+  );
   const extractedConditions = new Set<string>();
   const extractedExceptions = new Set<string>();
+  const isFalsePrefixFragment = (s: string) => /^หาก(?:ำไร|ฎหมาย)/.test(s.trim());
   for (const a of bundle.matched_assertions) {
-    for (const c of a.qualifications.conditions || []) extractedConditions.add(c);
-    for (const e of a.qualifications.exceptions || []) extractedExceptions.add(e);
+    if (!conditionScopeWorkIds.has(a.subject)) continue;
+    for (const c of a.qualifications.conditions || []) {
+      if (!isFalsePrefixFragment(c)) extractedConditions.add(c);
+    }
+    for (const e of a.qualifications.exceptions || []) {
+      if (!isFalsePrefixFragment(e)) extractedExceptions.add(e);
+    }
   }
 
   // 4. Missing material facts check (AT12b, B01-U09)
@@ -336,12 +363,6 @@ export async function queryKnowledge(
       explicitMissingFactQuestions.push(`เงื่อนไขตามแนววินิจฉัยที่ต้องตรวจสอบ: ${cond}`);
     }
   }
-
-  const isComparisonMode =
-    req.mode === "comparison" ||
-    (req.comparison_work_ids && req.comparison_work_ids.length >= 2) ||
-    bundle.explicit_ruling_ids_in_query.length >= 2 ||
-    /เปรียบเทียบ/.test(req.question);
 
   const claims: ClaimLedgerItem[] = [];
   const answerSections: string[] = [];
@@ -559,11 +580,22 @@ export async function queryKnowledge(
       `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${primaryVer?.raw_date_text ? ` — ${primaryVer.raw_date_text}` : ""})**:\n${primaryOfficial.exact_text}`
     );
 
-    // When answering a B01 TaxRuling and an upgraded B02 statutory provision passage is in availablePassages, surface it explicitly (B02-U09)!
+    // When answering a B01 TaxRuling and an upgraded B02 statutory provision passage ACTUALLY linked (`INTERPRETS`/`CITES`) by this ruling is in availablePassages, surface it explicitly (B02-U09)!
     if (primaryWork?.type === "TaxRuling") {
+      const primaryLinkedTargets = new Set(
+        store
+          .getAcceptedAssertionsForRelease(releaseId)
+          .filter(
+            (a) =>
+              a.subject === primaryOfficial.work_id &&
+              (a.predicate === "INTERPRETS" || a.predicate === "CITES")
+          )
+          .map((a) => a.object)
+      );
       const linkedStatPsg = availablePassages.find(
         (p) =>
           p.work_id !== primaryOfficial.work_id &&
+          primaryLinkedTargets.has(p.work_id) &&
           p.statement_role === "statutory_text" &&
           !p.extraction_id.startsWith("ext.dep.")
       );

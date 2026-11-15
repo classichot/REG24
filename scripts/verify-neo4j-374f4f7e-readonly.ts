@@ -138,12 +138,15 @@ export function validateAuditTarget(input: {
   username: string;
   password: string;
   database: string;
+  expectedInstanceId?: string;
 }): ValidatedAuditTarget {
   const errors: string[] = [];
   const rawUri = (input.uri || "").trim();
   const username = (input.username || "").trim();
   const password = (input.password || "").trim();
   const database = (input.database || "").trim();
+  const expectedId = (input.expectedInstanceId || EXPECTED_AURA_INSTANCE_ID).trim().toLowerCase();
+  const expectedHost = `${expectedId}.databases.neo4j.io`;
 
   if (!rawUri) {
     errors.push(
@@ -198,14 +201,17 @@ export function validateAuditTarget(input: {
     auraInstanceId = auraMatch ? auraMatch[1].toLowerCase() : null;
 
     if (input.targetMode === "live-374f4f7e") {
-      if (host !== EXPECTED_AURA_HOST || auraInstanceId !== EXPECTED_AURA_INSTANCE_ID) {
+      if (host !== expectedHost || auraInstanceId !== expectedId) {
         errors.push(
-          `Target host '${host}' (instance='${auraInstanceId ?? "non-aura"}') does NOT match authorized Aura instance '${EXPECTED_AURA_INSTANCE_ID}' ('${EXPECTED_AURA_HOST}').`
+          `Target host '${host}' (instance='${auraInstanceId ?? "non-aura"}') does NOT match authorized Aura instance '${expectedId}' ('${expectedHost}').`
         );
       }
-      if (database && database !== EXPECTED_AURA_INSTANCE_ID) {
+      const allowedDbNames = input.expectedInstanceId
+        ? new Set([expectedId, "neo4j"])
+        : new Set([expectedId]);
+      if (database && !allowedDbNames.has(database)) {
         errors.push(
-          `Configured database '${database}' does NOT match authorized Aura database '${EXPECTED_AURA_INSTANCE_ID}'.`
+          `Configured database '${database}' does NOT match authorized Aura database '${expectedId}'.`
         );
       }
     } else {
@@ -618,6 +624,7 @@ export async function runCliAudit(argv = process.argv.slice(2)): Promise<Record<
 
   const backupFileArg = getCliArg(argv, "--backup-file");
   const expectedShaArg = getCliArg(argv, "--expected-sha256");
+  const expectedInstanceArg = getCliArg(argv, "--expected-instance-id");
 
   const hasAuraCloudApiCreds = Boolean(
     process.env.AURA_CLI_CLIENT_ID ||
@@ -632,6 +639,7 @@ export async function runCliAudit(argv = process.argv.slice(2)): Promise<Record<
     username,
     password,
     database,
+    expectedInstanceId: expectedInstanceArg,
   });
 
   const backupVerification = backupFileArg

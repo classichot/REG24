@@ -65,7 +65,18 @@ const PRESERVATION_FORBIDDEN_WRITE_CYPHER =
 
 export function isNeo4jPreservationWriteLockActive(): boolean {
   const flag = (process.env.NEO4J_PRESERVATION_READ_ONLY || "").trim().toLowerCase();
-  return flag === "true" || flag === "1" || flag === "yes";
+  if (flag === "false" || flag === "0" || flag === "no") {
+    return false;
+  }
+  if (flag === "true" || flag === "1" || flag === "yes") {
+    return true;
+  }
+  // Automatically enforce strict Neo4j write/DDL lockout on Vercel Preview and isolated staging preview stores
+  // so exploratory testing can never overwrite or mutate the live REG24 AuraDB instance.
+  return (
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.REG24_USE_B01_RC2_PREVIEW_STORE === "1"
+  );
 }
 
 /**

@@ -16,6 +16,7 @@ import {
 import {
   computeDeterministicLegalEmbedding,
   cosineSimilarity,
+  loadGraphProjectionSnapshot,
   loadLexicalProjectionSnapshot,
   loadVectorProjectionSnapshot,
   tokenizeThaiLegalForIndex,
@@ -135,6 +136,7 @@ export function retrieveAuthorizedKnowledge(
     applicable_date?: string | null;
     comparison_work_ids?: string[];
     strategy?: RetrievalStrategy;
+    graph_source?: "graph_projection_snapshot" | "canonical_assertions";
     max_passages?: number;
   }
 ): RetrievalBundle {
@@ -449,9 +451,30 @@ export function retrieveAuthorizedKnowledge(
   }
 
   // Stage 4: Bounded <=2-hop Graph Expansion (`INTERPRETS`, `CITES`, `HAS_CONDITION`, `HAS_EXCEPTION`, co-interpreted provisions)
-  const acceptedAssertions = store
-    .getAcceptedAssertionsForRelease(params.release_id)
-    .filter((a) => a.scope === "scope.platform.public" || params.actor.authorized_scopes.includes(a.scope));
+  const graphSource = params.graph_source ?? "graph_projection_snapshot";
+  const diskGraphSnap =
+    graphSource === "graph_projection_snapshot"
+      ? loadGraphProjectionSnapshot(store, params.release_id)
+      : null;
+
+  const acceptedAssertions: Assertion[] = diskGraphSnap
+    ? diskGraphSnap.edges
+        .filter(
+          (e) =>
+            (e.scope === "scope.platform.public" ||
+              params.actor.authorized_scopes.includes(e.scope)) &&
+            state.assertions[e.assertion_id]?.state === "ACCEPTED" &&
+            !state.withdrawals[e.subject]?.active &&
+            !state.withdrawals[e.object]?.active
+        )
+        .map((e) => state.assertions[e.assertion_id])
+    : store
+        .getAcceptedAssertionsForRelease(params.release_id)
+        .filter(
+          (a) =>
+            a.scope === "scope.platform.public" ||
+            params.actor.authorized_scopes.includes(a.scope)
+        );
 
   if (strategy === "hybrid_with_graph" && scoreMap.size > 0) {
     const sortedInitial = Array.from(scoreMap.entries()).sort((a, b) => b[1].score - a[1].score);

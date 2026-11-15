@@ -1,0 +1,57 @@
+{
+  "verified_at": "2026-11-15T20:22:46.848Z",
+  "candidate_release_id": "rel.B01.rc2",
+  "manifest_id": "mfst.b01.mwi46hrg",
+  "manifest_hash": "467cdb91862fb4537c721cef993fc324dfd7812e9b29d5d9b9f29092760e4692",
+  "snapshot_graph_metrics": {
+    "node_count": 11222,
+    "edge_count": 33366,
+    "predicate_breakdown": {
+      "ISSUED_BY": 4561,
+      "ADDRESSES_ISSUE": 5874,
+      "CONSIDERS_FACT_PATTERN": 4475,
+      "INTERPRETS": 7980,
+      "CITES": 7980,
+      "HAS_CONDITION": 2156,
+      "HAS_EXCEPTION": 340
+    },
+    "quarantined_edges_in_active_graph": 0,
+    "ruling_sibling_fact_conclusion_pairs_verified": 4561,
+    "unsplit_facts_equals_conclusion_defects": 0
+  },
+  "empirical_equivalence_benchmark": {
+    "total_queries_tested": 28,
+    "bound_uat_cases": 20,
+    "exploratory_prompts": 8,
+    "disk_snapshot_vs_canonical_top_hits_exact_match": "28/28",
+    "evidence_card_edges_vs_cypher_adjacency_exact_match": "28/28",
+    "verified_or_clean_abstention_rate": "28/28",
+    "avg_three_pass_test_bundle_ms": 464.76,
+    "known_non_equivalences_vs_live_neo4j": [
+      "Bounded to <=2-hop traversal (TaxRuling <-> Provision/SubordinateRegulation <-> co-interpreting TaxRuling); arbitrary >2-hop path queries (e.g. MATCH p=(a)-[*3..6]->(b)) require Cypher or multi-hop graph engine.",
+      "No ad-hoc server-side Cypher analytical aggregations or GDS centrality across batches B01-B10.",
+      "Snapshot file is immutable per release candidate; live concurrent graph writes require transactional DB + outbox."
+    ]
+  },
+  "rebuild_and_replay_benchmark": {
+    "cold_projection_rebuild_wall_clock_ms": 7554.82,
+    "rebuilt_edges_verified": 33366,
+    "deterministic_triple_identity_verified": true,
+    "cypher_unwind_500_batch_count": 67,
+    "local_cypher_batch_serialization_ms": 0.11,
+    "cloud_neo4j_network_ingestion_status": "UNTESTED_CLOUD_NETWORK_ESTIMATE — 67 parameterized UNWIND batches (33,366 edges) serialized locally; actual AuraDB Bolt network write time will be measured against an isolated target only after configuration approval (never against the preserved live REG24 graph)."
+  },
+  "disposable_rollback_verification": {
+    "rollback_wall_clock_ms": 3192.84,
+    "post_rollback_state": "ROLLED_BACK",
+    "b02_shared_primary_works_before": 551,
+    "b02_shared_primary_works_after": 551,
+    "preserved_rc1_intact": true,
+    "remaining_rc2_assertions_after_rollback": 0
+  },
+  "protected_assets_integrity": {
+    "production_canonical_sha256_unchanged": true,
+    "staging_preview_canonical_sha256_unchanged": true,
+    "rag24_touched": false
+  }
+}

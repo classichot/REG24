@@ -1,0 +1,37 @@
+{
+  "checked_at": "2026-11-15T20:05:30.807Z",
+  "local_time_bangkok": "2026-11-16T03:05:30+07:00",
+  "mode": "STRICT_READ_ONLY_ZERO_MUTATION",
+  "live_running_reg24_graph_on_vercel": {
+    "source_endpoint": "GET https://reg24-theta.vercel.app/api/v1/infrastructure/graph/health",
+    "connected": true,
+    "availability": "healthy",
+    "database_engine": "Neo4j AuraDB",
+    "environment": "production",
+    "schema_version": "reg24.neo4j.schema.v2.1.0",
+    "graph_data_readiness": "ready_persisted",
+    "live_node_count": 9818,
+    "live_relationship_count": 9649,
+    "latency_ms": 2848,
+    "uri_disclosed_in_public_health": false,
+    "note": "Public health endpoint intentionally redacts NEO4J_URI and credentials per REG-NEO-003. Confirms the Owner's report that the existing REG24 AuraDB graph is live and running with 9,818 nodes and 9,649 relationships."
+  },
+  "local_workspace_env_discrepancy": {
+    "local_env_uri_redacted": "neo4j+s://374f4f7e.databases.neo4j.io:7687",
+    "local_dns_resolution": "NXDOMAIN (stale URI in local .env.local; Vercel project prj_U39EKeaoVKDOCRF9dIhlWpcPqs9x holds the active running AuraDB credentials)"
+  },
+  "backup_export_verification_status": {
+    "workspace_backup_files_found": 0,
+    "separate_aura_export_verified": false,
+    "reason": "AuraDB does not permit remote neo4j-admin dump over Bolt (port 7687); binary .dump / .backup snapshots must be exported from the Neo4j Aura Console UI (Instance -> Snapshots -> Export) by an Aura Console admin, then verified locally in isolated loopback Docker.",
+    "write_protection_enforced_on_preview": true,
+    "preview_write_lock_mechanism": "isNeo4jPreservationWriteLockActive() in src/core/graph/neo4j-client.ts now defaults to true automatically whenever VERCEL_ENV=preview or REG24_USE_B01_RC2_PREVIEW_STORE=1, preventing exploratory testing from ever writing to the live REG24 AuraDB."
+  },
+  "trial_postgresql_backup_distinction": {
+    "local_sqlite_wal_drill_status": "VERIFIED_LOCAL_SIMULATION_ONLY (backups/local-drill-receipt.json — 28/28 records restored locally)",
+    "hosted_postgresql_pitr_drill_status": "NOT_YET_TESTED — No paid Neon PostgreSQL project has been provisioned yet per Owner instruction; real hosted PG pg_dump + PITR branch restore must be executed and verified before opening external trial traffic."
+  },
+  "rag24_boundary_check": {
+    "rag24_touched": false
+  }
+}
