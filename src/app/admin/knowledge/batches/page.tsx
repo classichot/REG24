@@ -72,17 +72,93 @@ interface ResolvedDrawerEvidence {
   };
 }
 
+const EXPLORATORY_B01_REPRESENTATIVE_QUESTIONS: Array<{
+  id: string;
+  label: string;
+  question: string;
+  mode: "standard" | "exact_lookup" | "comparison";
+  date: string | null;
+  cmp?: string[];
+}> = [
+  {
+    id: "Q1",
+    label: "1. Exact Ruling (กค 0702/636 · 0% VAT Foreign Grant)",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
+    mode: "exact_lookup",
+    date: null,
+  },
+  {
+    id: "Q2",
+    label: "2. Facts vs Ruling Separation (กค 0702/1494 · มาตรา 47 ทวิ)",
+    question:
+      "ในหนังสือตอบข้อหารือ กค 0702/1494 ข้อเท็จจริงของกองมรดกผู้ขอคืนภาษีคืออะไร และกรมสรรพากรวินิจฉัยเรื่องเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ อย่างไร",
+    mode: "standard",
+    date: null,
+  },
+  {
+    id: "Q3",
+    label: "3. Royal Decree 244 Fix (กค 0811/13980 · มาตรา 3 (5))",
+    question:
+      "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/13980 เรื่องการยกเว้นภาษีเงินได้ตามพระราชกฤษฎีกา ฉบับที่ 244 มาตรา 3 (5)",
+    mode: "standard",
+    date: null,
+  },
+  {
+    id: "Q4",
+    label: "4. Multi-Ruling VAT Comparison (กค 0702/1903 vs กค 0702/634)",
+    question:
+      "เปรียบเทียบการเสียภาษีมูลค่าเพิ่มระหว่างการขายสารเสริมสำหรับสัตว์ใน กค 0702/1903 กับการขายทองรูปพรรณความบริสุทธิ์ร้อยละ 96.5 ใน กค 0702/634",
+    mode: "comparison",
+    date: null,
+  },
+  {
+    id: "Q5",
+    label: "5. Multi-Installment Lease & ท.ป. Orders (กค 0702/1248)",
+    question:
+      "ตามหนังสือตอบข้อหารือ กค 0702/1248 การให้เช่าที่ดินระยะเวลา 30 ปี มูลค่า 1,470,993,502.74 บาท ต้องรับรู้รายได้เพื่อเสียภาษีเงินได้นิติบุคคลตามมาตรา 65 และคำสั่งกรมสรรพากรใด",
+    mode: "standard",
+    date: null,
+  },
+  {
+    id: "Q6",
+    label: "6. Historical Statute @ 2018-06-30 (มาตรา 65 ตรี v1_pre2019)",
+    question: "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
+    mode: "standard",
+    date: "2018-06-30",
+  },
+  {
+    id: "Q7",
+    label: "7. Quarantined External Law Control (กค 0702/1493 · พ.ร.ฎ. 736)",
+    question:
+      "แสดงแนววินิจฉัยในหนังสือตอบข้อหารือ กค 0702/1493 กรณีการยกเว้นภาษีธุรกิจเฉพาะและอากรแสตมป์จากการเวนคืนอสังหาริมทรัพย์",
+    mode: "standard",
+    date: null,
+  },
+  {
+    id: "Q8",
+    label: "8. Nonexistent Ruling Abstention (กค 0702/999999)",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999",
+    mode: "exact_lookup",
+    date: null,
+  },
+];
+
 export default function KnowledgeBatchesUatPage() {
-  const [selectedBatch, setSelectedBatch] = useState<string>("B02");
+  const [selectedBatch, setSelectedBatch] = useState<string>("B01");
+  const [exploratoryMode, setExploratoryMode] = useState<boolean>(false);
   const [data, setData] = useState<ReportApiResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [apiBanner, setApiBanner] = useState<{ kind: "info" | "ok" | "err"; text: string } | null>(null);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const qBatch = new URLSearchParams(window.location.search).get("batch");
+      const params = new URLSearchParams(window.location.search);
+      const qBatch = params.get("batch");
       if (qBatch && /^B\d{2}$/.test(qBatch)) {
         setSelectedBatch(qBatch);
+      }
+      if (params.get("mode") === "exploratory") {
+        setExploratoryMode(true);
       }
     }
   }, []);
@@ -446,6 +522,32 @@ export default function KnowledgeBatchesUatPage() {
           </div>
         </header>
 
+        {exploratoryMode && (
+          <div
+            style={{
+              padding: "14px 18px",
+              border: "1px solid rgba(163, 230, 53, 0.55)",
+              background: "rgba(163, 230, 53, 0.08)",
+              fontSize: "13px",
+              lineHeight: 1.6,
+              color: "#ecfccb",
+            }}
+          >
+            <div style={{ fontWeight: 800, color: "#a3e635", marginBottom: "4px" }}>
+              EXPLORATORY OWNER TESTING MODE — ISOLATED NON-PRODUCTION CANDIDATE ({rep?.release_id || "rel.B01.rc2"})
+            </div>
+            <div>
+              Serving remediated candidate <code>{rep?.release_id || "rel.B01.rc2"}</code> (
+              <strong>4,578</strong> physical RD tax rulings + <strong>326</strong> verified Revenue Code sections +{" "}
+              <strong>155</strong> verified subordinate/amendment instruments;{" "}
+              <strong>{data?.dependency_manifest?.unresolved_external_references_count ?? 1381}</strong> unverified
+              external statutory citations strictly suppressed with <code>usable_as_legal_evidence: false</code>).
+              Formal UAT sign-off buttons are intentionally locked in exploratory mode so testing cannot mutate
+              acceptance state or promote to production.
+            </div>
+          </div>
+        )}
+
         {apiBanner && (
           <div
             style={{
@@ -768,6 +870,53 @@ export default function KnowledgeBatchesUatPage() {
                   {queryLoading ? "Querying…" : "Ask Candidate B01"}
                 </button>
               </div>
+
+              {selectedBatch === "B01" && (
+                <div
+                  style={{
+                    background: "#0d1117",
+                    border: "1px solid #23272f",
+                    padding: "12px 14px",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                  }}
+                >
+                  <div style={{ fontSize: "12px", fontWeight: 700, color: "#a3e635" }}>
+                    Representative Exploratory Test Questions (Click any prompt to run &amp; inspect source citations):
+                  </div>
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                    {EXPLORATORY_B01_REPRESENTATIVE_QUESTIONS.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setQuestion(item.question);
+                          setApplicableDate(item.date || "");
+                          setQueryMode(item.mode);
+                          setComparisonIds(item.cmp || []);
+                          void runLiveQuery({
+                            q: item.question,
+                            date: item.date,
+                            mode: item.mode,
+                            cmp: item.cmp || [],
+                          });
+                        }}
+                        style={{
+                          background: "#172033",
+                          color: "#e2e8f0",
+                          border: "1px solid #334155",
+                          padding: "6px 10px",
+                          fontSize: "12px",
+                          cursor: "pointer",
+                          textAlign: "left",
+                        }}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center", fontSize: "12px" }}>
                 <span style={{ color: "#9ca3af" }}>Quick Thai/Arabic Digit Parity Check:</span>
@@ -1196,28 +1345,27 @@ export default function KnowledgeBatchesUatPage() {
                   </label>
                 )}
 
-                <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-                  <button
-                    disabled={submittingDecision}
-                    onClick={() => void submitOwnerDecision("UAT_PASS")}
+                {exploratoryMode ? (
+                  <div
                     style={{
-                      background: "#16a34a",
-                      color: "#fff",
-                      border: "none",
-                      padding: "10px 18px",
-                      fontWeight: 800,
+                      padding: "12px 14px",
+                      border: "1px solid #374151",
+                      background: "#0d1117",
+                      color: "#fde047",
                       fontSize: "13px",
-                      cursor: "pointer",
                     }}
                   >
-                    Approve Batch (UAT_PASS)
-                  </button>
-                  {rep.coverage_gaps.length > 0 && (
+                    🔒 <strong>Exploratory Mode Active:</strong> Formal <code>UAT_PASS</code> / <code>UAT_FAIL</code>{" "}
+                    sign-off is disabled on <code>?mode=exploratory</code> so Dodo and Owner exploratory testing cannot
+                    alter release acceptance or unlock Batch B02.
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
                     <button
                       disabled={submittingDecision}
-                      onClick={() => void submitOwnerDecision("UAT_PASS_WITH_DECLARED_GAPS")}
+                      onClick={() => void submitOwnerDecision("UAT_PASS")}
                       style={{
-                        background: "#ca8a04",
+                        background: "#16a34a",
                         color: "#fff",
                         border: "none",
                         padding: "10px 18px",
@@ -1226,25 +1374,42 @@ export default function KnowledgeBatchesUatPage() {
                         cursor: "pointer",
                       }}
                     >
-                      Approve w/ Declared Gaps (UAT_PASS_WITH_DECLARED_GAPS)
+                      Approve Batch (UAT_PASS)
                     </button>
-                  )}
-                  <button
-                    disabled={submittingDecision}
-                    onClick={() => void submitOwnerDecision("UAT_FAIL")}
-                    style={{
-                      background: "#dc2626",
-                      color: "#fff",
-                      border: "none",
-                      padding: "10px 18px",
-                      fontWeight: 800,
-                      fontSize: "13px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Reject Candidate (UAT_FAIL — Block B02)
-                  </button>
-                </div>
+                    {rep.coverage_gaps.length > 0 && (
+                      <button
+                        disabled={submittingDecision}
+                        onClick={() => void submitOwnerDecision("UAT_PASS_WITH_DECLARED_GAPS")}
+                        style={{
+                          background: "#ca8a04",
+                          color: "#fff",
+                          border: "none",
+                          padding: "10px 18px",
+                          fontWeight: 800,
+                          fontSize: "13px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        Approve w/ Declared Gaps (UAT_PASS_WITH_DECLARED_GAPS)
+                      </button>
+                    )}
+                    <button
+                      disabled={submittingDecision}
+                      onClick={() => void submitOwnerDecision("UAT_FAIL")}
+                      style={{
+                        background: "#dc2626",
+                        color: "#fff",
+                        border: "none",
+                        padding: "10px 18px",
+                        fontWeight: 800,
+                        fontSize: "13px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Reject Candidate (UAT_FAIL — Block B02)
+                    </button>
+                  </div>
+                )}
               </div>
             </section>
           </>

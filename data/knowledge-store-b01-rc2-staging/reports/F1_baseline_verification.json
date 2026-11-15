@@ -1,0 +1,111 @@
+{
+  "baseline": {
+    "snapshot_id": "baseline_3f1da6e_c08f9820",
+    "captured_at": "2026-11-14T14:54:20.834Z",
+    "code_commit": "3f1da6e243625f551d658a17d0c786c13dc74562",
+    "schema_version": "reg24.neo4j.schema.v2.1.0",
+    "snapshot_uri": "D:\\Code\\REG24\\data\\knowledge-store\\baseline\\baseline_3f1da6e_c08f9820.json",
+    "snapshot_sha256": "c08f9820da7319282e29761d0f8e43ef709f3a9787cecc3e6e480809af40c37f",
+    "canonical_counts": {
+      "thai_tax_rulings_rows": 4650,
+      "resource_master_rows": 2312,
+      "seed_graph_nodes": 352,
+      "seed_graph_relationships": 501,
+      "declared_neo4j_constraints": 18
+    },
+    "live_neo4j_status": {
+      "configured": false,
+      "connected": false,
+      "live_node_count": null,
+      "live_relationship_count": null,
+      "sanitized_error": "Live probe skipped in fast local mode"
+    },
+    "duplicate_ruling_candidates": [
+      {
+        "normalized_ruling_no": "กค 0702/6221",
+        "date_raw": "25 กันยายน 2560",
+        "legacy_ids": [
+          "ruling.th.rd.27748",
+          "ruling.th.rd.27761"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0702/2107",
+        "date_raw": "12 มีนาคม 2555",
+        "legacy_ids": [
+          "ruling.th.rd.46409",
+          "ruling.th.rd.48423"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0706/11976",
+        "date_raw": "3 ธันวาคม 2550",
+        "legacy_ids": [
+          "ruling.th.rd.37195",
+          "ruling.th.rd.37196"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0706/7020",
+        "date_raw": "22 สิงหาคม 2548",
+        "legacy_ids": [
+          "ruling.th.rd.29280",
+          "ruling.th.rd.29281"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0706(กม.04)/643",
+        "date_raw": "20 กรกฎาคม 2547",
+        "legacy_ids": [
+          "ruling.th.rd.24370",
+          "ruling.th.rd.24371"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0706/6793",
+        "date_raw": "19 กรกฎาคม 2547",
+        "legacy_ids": [
+          "ruling.th.rd.24373",
+          "ruling.th.rd.24374"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0706/2901",
+        "date_raw": "22 มีนาคม 2547",
+        "legacy_ids": [
+          "ruling.th.rd.24458",
+          "ruling.th.rd.24459"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0811/พ./7446",
+        "date_raw": "1 สิงหาคม 2546",
+        "legacy_ids": [
+          "ruling.th.rd.24641",
+          "ruling.th.rd.24643"
+        ]
+      },
+      {
+        "normalized_ruling_no": "กค 0811/2827",
+        "date_raw": "10 เมษายน 2543",
+        "legacy_ids": [
+          "ruling.th.rd.23888",
+          "ruling.th.rd.23890"
+        ]
+      }
+    ],
+    "constraint_conflicts": []
+  },
+  "isolated_restore_verification": {
+    "checksum_matches": true,
+    "expected_sha256": "c08f9820da7319282e29761d0f8e43ef709f3a9787cecc3e6e480809af40c37f",
+    "actual_sha256": "c08f9820da7319282e29761d0f8e43ef709f3a9787cecc3e6e480809af40c37f",
+    "restored_counts": {
+      "thai_tax_rulings_rows": 4650,
+      "resource_master_rows": 2312,
+      "seed_graph_nodes": 352,
+      "seed_graph_relationships": 501,
+      "declared_neo4j_constraints": 18
+    }
+  }
+}

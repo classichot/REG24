@@ -61,9 +61,18 @@ export async function queryKnowledge(
   const store = options?.store || getDefaultKnowledgeStore();
   const state = store.getState();
 
-  const fallbackCandidateRel = Object.values(state.releases).find(
-    (r) => r.state === "READY_FOR_UAT" || r.state === "ACCEPTED" || r.state === "ACCEPTED_WITH_DECLARED_GAPS"
-  )?.release_id;
+  const fallbackCandidateRel = Object.values(state.releases)
+    .filter(
+      (r) =>
+        r.state === "READY_FOR_UAT" ||
+        r.state === "ACCEPTED" ||
+        r.state === "ACCEPTED_WITH_DECLARED_GAPS"
+    )
+    .sort(
+      (a, b) =>
+        b.updated_at.localeCompare(a.updated_at) ||
+        b.release_id.localeCompare(a.release_id)
+    )[0]?.release_id;
 
   const releaseId = req.release_id || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
   const releaseRec = state.releases[releaseId];

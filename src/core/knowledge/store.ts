@@ -329,7 +329,13 @@ export class DurableKnowledgeStore {
       };
     }
 
-    const repoDir = path.join(process.cwd(), "data", "knowledge-store");
+    const usePreviewB01Rc2 =
+      process.env.VERCEL_ENV === "preview" ||
+      process.env.REG24_USE_B01_RC2_PREVIEW_STORE === "1";
+    const previewRepoDir = path.join(process.cwd(), "data", "knowledge-store-b01-rc2-staging");
+    const defaultRepoDir = path.join(process.cwd(), "data", "knowledge-store");
+    const selectPreviewStore = usePreviewB01Rc2 && fs.existsSync(previewRepoDir);
+    const repoDir = selectPreviewStore ? previewRepoDir : defaultRepoDir;
     try {
       fs.mkdirSync(repoDir, { recursive: true });
       const probeFile = path.join(repoDir, `.write-probe-${process.pid}-${Math.random().toString(36).slice(2, 6)}`);
@@ -347,8 +353,11 @@ export class DurableKnowledgeStore {
         },
       };
     } catch {
-      // Read-only serverless deployment (e.g. Vercel /var/task): seed /tmp from committed data/knowledge-store
-      const tmpFallback = path.join(os.tmpdir(), "reg24-knowledge-store");
+      // Read-only serverless deployment (e.g. Vercel /var/task): seed /tmp from committed store snapshot
+      const tmpDirName = selectPreviewStore
+        ? "reg24-knowledge-store-b01-rc2-preview"
+        : "reg24-knowledge-store";
+      const tmpFallback = path.join(os.tmpdir(), tmpDirName);
       const hasTmpState =
         fs.existsSync(path.join(tmpFallback, "canonical-state.json")) ||
         fs.existsSync(path.join(tmpFallback, "canonical-state.json.gz"));

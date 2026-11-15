@@ -1,0 +1,9 @@
+{
+  "batch_id": "B01",
+  "release_id": "rel.B01.rc2",
+  "archives_discovered_count": 0,
+  "unpacked_members_count": 0,
+  "members": [],
+  "note": "B01 RD rulings corpus consists of individual HTML/PDF ruling records; archive unpacker verified via AT21/AT22.",
+  "generated_at": "2026-11-15T17:36:03.860Z"
+}

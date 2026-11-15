@@ -1,0 +1,12 @@
+{
+  "batch_id": "B01",
+  "release_id": "rel.B01.rc2",
+  "measurement_basis": "physical_drive_pdf_and_html_pages_with_100p_5route_benchmark",
+  "staged_canonical_records": 4944,
+  "staged_physical_files": 4578,
+  "total_source_pages": 6804,
+  "native_pages": 6545,
+  "noncontent_confirmed_pages": 259,
+  "unresolved_pages": 0,
+  "generated_at": "2026-11-15T17:36:03.860Z"
+}

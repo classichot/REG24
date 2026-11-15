@@ -1,0 +1,13 @@
+{
+  "batch_id": "B01",
+  "release_id": "rel.B01.rc1",
+  "total_source_pages": 6804,
+  "native": 6545,
+  "repaired": 0,
+  "ocr": 0,
+  "mixed": 0,
+  "noncontent_confirmed": 259,
+  "unresolved": 0,
+  "sum_matches": true,
+  "generated_at": "2026-11-14T15:04:50.616Z"
+}

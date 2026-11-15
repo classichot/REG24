@@ -1,0 +1,9 @@
+{
+  "batch_id": "B01",
+  "release_id": "rel.B01.rc1",
+  "accepted_assertions": 35805,
+  "graph_evidence_integrity": 1,
+  "graph_semantic_precision": 1,
+  "orphan_interpretations": 0,
+  "generated_at": "2026-11-14T15:04:50.616Z"
+}

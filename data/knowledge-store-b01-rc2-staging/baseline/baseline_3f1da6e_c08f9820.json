@@ -1,0 +1,91 @@
+{
+  "code_commit": "3f1da6e243625f551d658a17d0c786c13dc74562",
+  "schema_version": "reg24.neo4j.schema.v2.1.0",
+  "captured_at": "2026-11-14T14:54:20.834Z",
+  "canonical_counts": {
+    "thai_tax_rulings_rows": 4650,
+    "resource_master_rows": 2312,
+    "seed_graph_nodes": 352,
+    "seed_graph_relationships": 501,
+    "declared_neo4j_constraints": 18
+  },
+  "rulings_digest": "285f96c166b49be3f4f17131c399219d06a8888b3d1855dedb3e05aff0084847",
+  "lrm_digest": "d342da474726f2445d17666a6316b49ab40ff78e578b8426dc9d9ee8911faf6f",
+  "seed_graph_digest": "543852b3d3514df0992775857d0c08e03a2d2178f19b176e536df7d8f863f6e4",
+  "crosswalk_entries_count": 7314,
+  "duplicate_ruling_candidates": [
+    {
+      "normalized_ruling_no": "กค 0702/6221",
+      "date_raw": "25 กันยายน 2560",
+      "legacy_ids": [
+        "ruling.th.rd.27748",
+        "ruling.th.rd.27761"
+      ]
+    },
+    {
+      "normalized_ruling_no": "กค 0702/2107",
+      "date_raw": "12 มีนาคม 2555",
+      "legacy_ids": [
+        "ruling.th.rd.46409",
+        "ruling.th.rd.48423"
+      ]
+    },
+    {
+      "normalized_ruling_no": "กค 0706/11976",
+      "date_raw": "3 ธันวาคม 2550",
+      "legacy_ids": [
+        "ruling.th.rd.37195",
+        "ruling.th.rd.37196"
+      ]
+    },
+    {
+      "normalized_ruling_no": "กค 0706/7020",
+      "date_raw": "22 สิงหาคม 2548",
+      "legacy_ids": [
+        "ruling.th.rd.29280",
+        "ruling.th.rd.29281"
+      ]
+    },
+    {
+      "normalized_ruling_no": "กค 0706(กม.04)/643",
+      "date_raw": "20 กรกฎาคม 2547",
+      "legacy_ids": [
+        "ruling.th.rd.24370",
+        "ruling.th.rd.24371"
+      ]
+    },
+    {
+      "normalized_ruling_no": "กค 0706/6793",
+      "date_raw": "19 กรกฎาคม 2547",
+      "legacy_ids": [
+        "ruling.th.rd.24373",
+        "ruling.th.rd.24374"
+      ]
+    },
+    {
+      "normalized_ruling_no": "กค 0706/2901",
+      "date_raw": "22 มีนาคม 2547",
+      "legacy_ids": [
+        "ruling.th.rd.24458",
+        "ruling.th.rd.24459"
+      ]
+    },
+    {
+      "normalized_ruling_no": "กค 0811/พ./7446",
+      "date_raw": "1 สิงหาคม 2546",
+      "legacy_ids": [
+        "ruling.th.rd.24641",
+        "ruling.th.rd.24643"
+      ]
+    },
+    {
+      "normalized_ruling_no": "กค 0811/2827",
+      "date_raw": "10 เมษายน 2543",
+      "legacy_ids": [
+        "ruling.th.rd.23888",
+        "ruling.th.rd.23890"
+      ]
+    }
+  ],
+  "constraint_conflicts": []
+}

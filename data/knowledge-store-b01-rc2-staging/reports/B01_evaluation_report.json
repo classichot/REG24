@@ -1,0 +1,74 @@
+{
+  "evaluation_id": "eval.rel.B01.rc1.18d3a288",
+  "release_id": "rel.B01.rc1",
+  "batch_id": "B01",
+  "suite_id": "suite.B01.300families.v1.1",
+  "development_families": 200,
+  "holdout_families": 100,
+  "metrics": {
+    "candidate_accounting_reconciled": true,
+    "critical_defects_open": 0,
+    "citation_resolution": 1,
+    "exact_identifier_lookup": 1,
+    "evidence_recall_at_20": 0.9889,
+    "complete_decisive_evidence_recall": 0.9889,
+    "graph_evidence_integrity": 1,
+    "graph_semantic_precision": 1,
+    "claim_support": 1,
+    "attempted_answer_correctness": 0.9778,
+    "attempted_count": 90,
+    "answerable_holdout_count": 90,
+    "useful_answer_coverage": 0.9778,
+    "abstention_count": 10,
+    "prior_batch_regression_passed": true
+  },
+  "confidence_intervals_95": {
+    "attempted_answer_correctness": [
+      0.9226,
+      0.9939
+    ],
+    "useful_answer_coverage": [
+      0.9226,
+      0.9939
+    ],
+    "evidence_recall_at_20": [
+      0.9397,
+      0.998
+    ]
+  },
+  "ablation_comparison": {
+    "exact_lexical_recall": 0.9444,
+    "hybrid_no_graph_recall": 0.9444,
+    "hybrid_with_graph_recall": 0.9889,
+    "graph_improves_or_preserves_accuracy": true
+  },
+  "slice_breakdown": {
+    "exact_identifier_lookup": {
+      "total": 25,
+      "passed": 25,
+      "recall_at_20": 1
+    },
+    "fact_pattern_ruling": {
+      "total": 35,
+      "passed": 35,
+      "recall_at_20": 1
+    },
+    "provision_to_ruling_graph": {
+      "total": 20,
+      "passed": 18,
+      "recall_at_20": 0.95
+    },
+    "temporal_version_selection": {
+      "total": 10,
+      "passed": 10,
+      "recall_at_20": 1
+    },
+    "abstention_and_missing_facts": {
+      "total": 10,
+      "passed": 10,
+      "recall_at_20": 1
+    }
+  },
+  "all_automated_gates_passed": true,
+  "evaluated_at": "2026-11-14T15:04:50.616Z"
+}

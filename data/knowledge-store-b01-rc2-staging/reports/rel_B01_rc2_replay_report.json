@@ -1,0 +1,9 @@
+{
+  "batch_id": "B01",
+  "release_id": "rel.B01.rc2",
+  "idempotent_replay_verified": true,
+  "duplicate_canonical_works_on_replay": 0,
+  "duplicate_passages_on_replay": 0,
+  "duplicate_vectors_on_replay": 0,
+  "verified_at": "2026-11-15T17:36:03.860Z"
+}

@@ -1,0 +1,347 @@
+{
+  "generated_at": "2026-11-15T17:37:40.778Z",
+  "protected_live_canonical_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
+  "protected_live_canonical_untouched": true,
+  "preview_store_dir": "data/knowledge-store-b01-rc2-staging",
+  "preserved_rc1_state": "READY_FOR_UAT",
+  "candidate_rc2_state": "READY_FOR_UAT",
+  "candidate_rc2_manifest_id": "mfst.b01.mwi46hrg",
+  "candidate_rc2_manifest_hash": "467cdb91862fb4537c721cef993fc324dfd7812e9b29d5d9b9f29092760e4692",
+  "active_release_id": null,
+  "owner_decision": null,
+  "inventory": {
+    "total_candidates": 5150,
+    "published_new": 4563,
+    "reused_existing": 2,
+    "attached_representation": 13,
+    "rejected_out_of_scope": 572,
+    "deferred_with_reason": 0,
+    "failed": 0,
+    "accounting_matches": true
+  },
+  "knowledge": {
+    "canonical_works_new": 4563,
+    "works_reused": 381,
+    "legal_versions_new": 4565,
+    "extraction_revisions_new": 4936,
+    "accepted_passages": 10665,
+    "accepted_assertions": 33366,
+    "active_vectors": 10665
+  },
+  "quarantined_external_references": 1381,
+  "uat_precheck_passed": 20,
+  "blind_validation_passed": "20/20",
+  "smoke_results": [
+    {
+      "id": "Q1_exact_0702_636",
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
+      "release_id": "rel.B01.rc2",
+      "status": "ANSWERED",
+      "latency_ms": 1088,
+      "evidence_count": 4,
+      "citations": [
+        {
+          "passage_id": "psg.bf1ba0ea86ded7",
+          "work_id": "work.th.rd.gk_0702_636_2026_ec1b79d8",
+          "official_identifier": "กค 0702/636",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68302.html"
+        },
+        {
+          "passage_id": "psg.ddbb0de2948cb6",
+          "work_id": "work.th.rd.gk_0702_636_2012_394a3877",
+          "official_identifier": "กค 0702/636",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/46391.html"
+        },
+        {
+          "passage_id": "psg.272d5b90830e16",
+          "work_id": "work.th.rd.gk_0702_636_2026_ec1b79d8",
+          "official_identifier": "กค 0702/636",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68302.html"
+        },
+        {
+          "passage_id": "psg.a5c81b7f72052e",
+          "work_id": "work.th.rd.gk_0702_636_2012_394a3877",
+          "official_identifier": "กค 0702/636",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/46391.html"
+        }
+      ],
+      "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\nกรณีหน่วยงานของรัฐ ก. ได้รับเงินสนับสนุนจากองค์การ A เพื่อนำมาใช้ในโครงการต่าง ๆ ตามความร่วมมือทางการเงินโดยตรง ซึ่งอยู่ภายใต้กรอบความตกลงระหว่างรัฐบาลแห่งประเทศไทย กับองค์กา"
+    },
+    {
+      "id": "Q2_role_separation_0702_1494",
+      "question": "ในหนังสือตอบข้อหารือ กค 0702/1494 ข้อเท็จจริงของกองมรดกผู้ขอคืนภาษีคืออะไร และกรมสรรพากรวินิจฉัยเรื่องเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ อย่างไร",
+      "release_id": "rel.B01.rc2",
+      "status": "ANSWERED",
+      "latency_ms": 144,
+      "evidence_count": 12,
+      "citations": [
+        {
+          "passage_id": "psg.3cf6360772fa63",
+          "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
+          "official_identifier": "กค 0702/1494",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "passage_id": "psg.b794a17e00d7e9",
+          "work_id": "prov.th.rc.47_ทวิ",
+          "official_identifier": "มาตรา 47 ทวิ",
+          "statement_role": "statutory_text",
+          "authenticity_status": "official_html_snapshot",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        },
+        {
+          "passage_id": "psg.ab316d86473e48",
+          "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
+          "official_identifier": "กค 0702/1494",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "passage_id": "psg.e5e9db7eed77fd",
+          "work_id": "prov.th.rc.47_ทวิ",
+          "official_identifier": "มาตรา 47 ทวิ",
+          "statement_role": "statutory_text",
+          "authenticity_status": "official_html_snapshot",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        }
+      ],
+      "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\nกองมรดก ก. ได้รับเงินได้พึงประเมินเป็นเงินปันผลตามมาตรา 40 (4) (ข) แห่งประมวลรัษฎากร และยื่นแบบแสดงรายการภาษีเงินได้บุคคลธรรมดา (ภ.ง.ด.90) สำหรับปีภาษี 2559 โดยแสดงความประสงค"
+    },
+    {
+      "id": "Q3_rd244_fix_0811_13980",
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/13980 เรื่องการยกเว้นภาษีเงินได้ตามพระราชกฤษฎีกา ฉบับที่ 244 มาตรา 3 (5)",
+      "release_id": "rel.B01.rc2",
+      "status": "ANSWERED",
+      "latency_ms": 122,
+      "evidence_count": 12,
+      "citations": [
+        {
+          "passage_id": "psg.9358c85291f5cc",
+          "work_id": "work.th.rd.gk_0811_13980_1997_74b835fc",
+          "official_identifier": "กค 0811/13980",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/22874.html"
+        },
+        {
+          "passage_id": "psg.e386a9cba80872",
+          "work_id": "work.th.rd.gk_0811_13980_1997_74b835fc",
+          "official_identifier": "กค 0811/13980",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/22874.html"
+        },
+        {
+          "passage_id": "psg.c5754dfb31d1c3",
+          "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
+          "official_identifier": "กค 0702/4825",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        },
+        {
+          "passage_id": "psg.125b65df7afe4c",
+          "work_id": "work.th.rd.gk_0811_02557_1999_25d226ee",
+          "official_identifier": "กค 0811/02557",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/23475.html"
+        }
+      ],
+      "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\nบริษัทฯ ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ประเภทให้เช่าเครื่องจักรและอุปกรณ์ ได้ขายฝากที่ดินเมื่อวันที่ 5 กันยายน 2540 ซึ่งได้มาโดยการซื้อเมื่อปี พ.ศ. 2518 กรณีดัง กล่าว 1"
+    },
+    {
+      "id": "Q4_comparison_1903_vs_634",
+      "question": "เปรียบเทียบการเสียภาษีมูลค่าเพิ่มระหว่างการขายสารเสริมสำหรับสัตว์ใน กค 0702/1903 กับการขายทองรูปพรรณความบริสุทธิ์ร้อยละ 96.5 ใน กค 0702/634",
+      "release_id": "rel.B01.rc2",
+      "status": "ANSWERED",
+      "latency_ms": 124,
+      "evidence_count": 12,
+      "citations": [
+        {
+          "passage_id": "psg.001dc1c932f138",
+          "work_id": "work.th.rd.gk_0702_634_2026_a3ba2d58",
+          "official_identifier": "กค 0702/634",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68308.html"
+        },
+        {
+          "passage_id": "psg.a444dda384050a",
+          "work_id": "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "official_identifier": "กค 0702/1903",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68482.html"
+        },
+        {
+          "passage_id": "psg.c27e1b3e51235b",
+          "work_id": "work.th.rd.gk_0702_634_2026_a3ba2d58",
+          "official_identifier": "กค 0702/634",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68308.html"
+        },
+        {
+          "passage_id": "psg.d120db8316c31e",
+          "work_id": "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "official_identifier": "กค 0702/1903",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68482.html"
+        }
+      ],
+      "answer_excerpt": "### การเปรียบเทียบแนววินิจฉัยและรุ่นบทบัญญัติกฎหมายตามช่วงเวลา/ข้อเท็จจริง\n\n- **กรณี/รุ่นที่ 1: กค 0702/634 — ภาษีมูลค่าเพิ่ม กรณีการนำเข้าทองรูปพรรณจากต่างประเทศ (`v1`) [ช่วงใช้บังคับ: 2026-02-05 ถึง ปัจจุบัน]**\n  - *ข้อเท็จจริงของผู้หารือ*: การนำเข้าทองรูปพร"
+    },
+    {
+      "id": "Q5_lease_1248_numeric_tp",
+      "question": "ตามหนังสือตอบข้อหารือ กค 0702/1248 การให้เช่าที่ดินระยะเวลา 30 ปี มูลค่า 1,470,993,502.74 บาท ต้องรับรู้รายได้เพื่อเสียภาษีเงินได้นิติบุคคลตามมาตรา 65 และคำสั่งกรมสรรพากรใด",
+      "release_id": "rel.B01.rc2",
+      "status": "ANSWERED",
+      "latency_ms": 159,
+      "evidence_count": 12,
+      "citations": [
+        {
+          "passage_id": "psg.c8a37bcfc290df",
+          "work_id": "work.th.rd.gk_0702_1248_2026_b8bef81c",
+          "official_identifier": "กค 0702/1248",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68464.html"
+        },
+        {
+          "passage_id": "psg.3c8a15810877a1",
+          "work_id": "work.th.rd.gk_0702_1248_2014_1b114329",
+          "official_identifier": "กค 0702/1248",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/52540.html"
+        },
+        {
+          "passage_id": "psg.7e554a9eaa5315",
+          "work_id": "work.th.rd.gk_0702_1248_2026_b8bef81c",
+          "official_identifier": "กค 0702/1248",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68464.html"
+        },
+        {
+          "passage_id": "psg.c267d2891f7f57",
+          "work_id": "work.th.rd.gk_0702_1248_2014_1b114329",
+          "official_identifier": "กค 0702/1248",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/52540.html"
+        }
+      ],
+      "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\n1. บริษัท ก. ได้ทำสัญญาให้เช่าที่ดินระยะยาวกับบริษัท ข. (ผู้เช่า) เป็นระยะเวลา 30 ปี ตั้งแต่วันที่ 30 พฤษภาคม 2571 ถึงวันที่ 29 พฤษภาคม 2601 มูลค่าการเช่าที่ดินตามสัญญาทั้งสิ"
+    },
+    {
+      "id": "Q6_temporal_65tri_2018",
+      "question": "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
+      "release_id": "rel.B01.rc2",
+      "status": "ANSWERED",
+      "latency_ms": 118,
+      "evidence_count": 12,
+      "citations": [
+        {
+          "passage_id": "psg.8e7a736d111982",
+          "work_id": "prov.th.rc.65_ตรี",
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "authenticity_status": "official_html_snapshot",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "passage_id": "psg.912161a8457d6f",
+          "work_id": "prov.th.rc.65_ตรี",
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "authenticity_status": "official_html_snapshot",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "passage_id": "psg.2c1003344efea3",
+          "work_id": "work.th.rd.gk_0811_15738_1998_2e2ee579",
+          "official_identifier": "กค 0811/15738",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/23261.html"
+        },
+        {
+          "passage_id": "psg.2958bb7a360496",
+          "work_id": "work.th.rd.0811_กม_02_931_2000_c017335f",
+          "official_identifier": "0811(กม.02)/931",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/23965.html"
+        }
+      ],
+      "answer_excerpt": "**ขอบเขตวันที่มีผลบังคับใช้ที่พิจารณา**: `2018-06-30` (อ้างอิงรุ่นกฎหมาย `ver.th.rc.65_ตรี.v1_pre2019`)\n\n**การแยกวันประกาศและวันเริ่มใช้บังคับ**: วันประกาศในราชกิจจานุเบกษา `1939-03-31` | วันที่มีผลเริ่มใช้บังคับ `1939-04-01` (ใช้บังคับสำหรับรอบระยะเวลาบัญชีแล"
+    },
+    {
+      "id": "Q7_quarantined_rd736_0702_1493",
+      "question": "แสดงแนววินิจฉัยในหนังสือตอบข้อหารือ กค 0702/1493 กรณีการยกเว้นภาษีธุรกิจเฉพาะและอากรแสตมป์จากการเวนคืนอสังหาริมทรัพย์",
+      "release_id": "rel.B01.rc2",
+      "status": "ANSWERED",
+      "latency_ms": 132,
+      "evidence_count": 12,
+      "citations": [
+        {
+          "passage_id": "psg.d36f79b7f5266f",
+          "work_id": "work.th.rd.gk_0702_1493_2026_c76989ef",
+          "official_identifier": "กค 0702/1493",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68494.html"
+        },
+        {
+          "passage_id": "psg.d045935d60a70c",
+          "work_id": "work.th.rd.gk_0702_1493_2026_c76989ef",
+          "official_identifier": "กค 0702/1493",
+          "statement_role": "requester_facts",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/68494.html"
+        },
+        {
+          "passage_id": "psg.fa6aca85e79ea9",
+          "work_id": "work.th.rd.gk_0702_3734_2008_6695206a",
+          "official_identifier": "กค 0702/3734",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/38810.html"
+        },
+        {
+          "passage_id": "psg.7fb56a01693b4b",
+          "work_id": "work.th.rd.gk_0811_05104_1998_a46c22a4",
+          "official_identifier": "กค 0811/05104",
+          "statement_role": "official_conclusion",
+          "authenticity_status": "html_derived_pdf_derivative",
+          "origin_uri": "https://www.rd.go.th/23035.html"
+        }
+      ],
+      "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\nห้างหุ้นส่วนจำกัด ก. ถูกเวนคืนที่ดิน ตามพระราชบัญญัติว่าด้วยการเวนคืนอสังหาริมทรัพย์ พ.ศ. 2530 ตามบันทึกการแบ่งขายที่ดิน ลงวันที่ 13 ธันวาคม พ.ศ. 2561 ต่อมาพระราชบัญญัติฉบับด"
+    },
+    {
+      "id": "Q8_nonexistent_abstention",
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999",
+      "release_id": "rel.B01.rc2",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "latency_ms": 84,
+      "evidence_count": 0,
+      "citations": [],
+      "answer_excerpt": "ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/999999 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc2) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือแนววินิจฉัยขึ้นเอง"
+    }
+  ]
+}

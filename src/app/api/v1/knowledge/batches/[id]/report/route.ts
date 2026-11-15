@@ -25,8 +25,13 @@ export async function GET(
     const relId = bundle.report?.release_id || `rel.${batchId}.rc1`;
     const releaseRecord = st.releases[relId] || null;
     const acceptance = st.acceptances[relId] || null;
-    const dependencyManifest = store.readReportArtifact(`${batchId}_dependency_manifest.json`);
-    const extractionBenchmark = store.readReportArtifact(`${batchId}_extraction_benchmark_report.json`);
+    const relPrefix = relId !== `rel.${batchId}.rc1` ? relId.replace(/\./g, "_") : batchId;
+    const dependencyManifest =
+      store.readReportArtifact(`${relPrefix}_dependency_manifest.json`) ||
+      store.readReportArtifact(`${batchId}_dependency_manifest.json`);
+    const extractionBenchmark =
+      store.readReportArtifact(`${relPrefix}_extraction_benchmark_report.json`) ||
+      store.readReportArtifact(`${batchId}_extraction_benchmark_report.json`);
 
     const batchGateBoard = FIXED_BATCH_ORDER.map((bid, idx) => {
       const pred = idx === 0 ? null : FIXED_BATCH_ORDER[idx - 1];
@@ -36,7 +41,16 @@ export async function GET(
         predAcc?.state === "ACCEPTED" ||
         predAcc?.state === "ACCEPTED_WITH_DECLARED_GAPS";
       const curAcc = st.accepted_batch_releases[bid];
-      const curRel = Object.values(st.releases).find((r) => r.batch_id === bid);
+      const latestBatchReportRelId = st.release_reports[bid]?.release_id;
+      const curRel =
+        (latestBatchReportRelId ? st.releases[latestBatchReportRelId] : undefined) ||
+        Object.values(st.releases)
+          .filter((r) => r.batch_id === bid)
+          .sort(
+            (a, b) =>
+              b.updated_at.localeCompare(a.updated_at) ||
+              b.release_id.localeCompare(a.release_id)
+          )[0];
 
       return {
         batch_id: bid,

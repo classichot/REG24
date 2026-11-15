@@ -1,0 +1,674 @@
+[
+  {
+    "case_id": "B01-U01A",
+    "template_id": "B01-U01",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "legal_lookup",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68302"
+    ],
+    "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "กค 0702/636",
+      "5 กุมภาพันธ์ 2569",
+      "มาตรา 80/1 (4)",
+      "ร้อยละ 0"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_636_2026_ec1b79d8"
+    ],
+    "forbidden_claims": [
+      "กค 0702/999999"
+    ],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.dfb5f446e747ae",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U01B",
+    "template_id": "B01-U01",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "legal_lookup",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68302"
+    ],
+    "question": "ค้นหาหนังสือตอบข้อหารือเลขไทย กค ๐๗๐๒ / ๖๓๖",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "กค 0702/636",
+      "5 กุมภาพันธ์ 2569",
+      "มาตรา 80/1 (4)",
+      "ร้อยละ 0"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_636_2026_ec1b79d8"
+    ],
+    "forbidden_claims": [
+      "กค 0702/999999"
+    ],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.0e5b91dff24d93",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U02A",
+    "template_id": "B01-U02",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "fact_pattern",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68302"
+    ],
+    "question": "หน่วยงานของรัฐได้รับเงินช่วยเหลือจากต่างประเทศตามความตกลงความร่วมมือทางเศรษฐกิจหรือทางเทคนิคกับองค์การระหว่างประเทศ นำไปซื้อสินค้าหรือบริการจากผู้ประกอบการจดทะเบียนในปี 2569 มีแนววินิจฉัยใดเกี่ยวข้อง",
+    "applicable_date": "2026-03-01",
+    "expected_status": [
+      "ANSWERED",
+      "CONDITIONAL"
+    ],
+    "expected_claims": [
+      "กค 0702/636",
+      "มาตรา 80/1 (4)",
+      "ฉบับที่ 28",
+      "ร้อยละ 0"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_636_2026_ec1b79d8"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.a0872430b799ee",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U02B",
+    "template_id": "B01-U02",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "fact_pattern",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68470"
+    ],
+    "question": "กิจการร่วมค้าสร้างภาพยนตร์ในไทยแล้วโอนลิขสิทธิ์ให้ผู้ซื้อในต่างประเทศดาวน์โหลดไฟล์ผ่านอินเทอร์เน็ต มีแนววินิจฉัยภาษีมูลค่าเพิ่มอย่างไร",
+    "applicable_date": "2026-03-10",
+    "expected_status": [
+      "ANSWERED",
+      "CONDITIONAL"
+    ],
+    "expected_claims": [
+      "กค 0702/1230",
+      "มาตรา 77/1 (10)",
+      "มาตรา 80/1 (2)",
+      "ร้อยละ 0"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1230_2026_60f73017"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.9c2d6e9dfc00a8",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U03A",
+    "template_id": "B01-U03",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "comparison",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68482",
+      "ruling.th.rd.68308"
+    ],
+    "comparison_target_ids": [
+      "work.th.rd.gk_0702_1903_2026_b1d563eb",
+      "work.th.rd.gk_0702_634_2026_a3ba2d58"
+    ],
+    "question": "เปรียบเทียบแนววินิจฉัย กค 0702/1903 (นำเข้าอาหารเสริมสำหรับสัตว์ที่ขึ้นทะเบียนกับกรมปศุสัตว์) กับ กค 0702/634 (นำเข้าทองรูปพรรณความบริสุทธิ์ 96.5%) ว่าผลทางภาษีมูลค่าเพิ่มต่างกันอย่างไร",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "กค 0702/1903",
+      "ยกเว้นภาษีมูลค่าเพิ่ม",
+      "กค 0702/634",
+      "ต้องเสียภาษีมูลค่าเพิ่ม"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1903_2026_b1d563eb",
+      "work.th.rd.gk_0702_634_2026_a3ba2d58"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.78fd1069215df3",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U03B",
+    "template_id": "B01-U03",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "comparison",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68482",
+      "ruling.th.rd.68500"
+    ],
+    "comparison_target_ids": [
+      "work.th.rd.gk_0702_1903_2026_b1d563eb",
+      "work.th.rd.gk_0702_1603_2026_4e9d294a"
+    ],
+    "question": "เปรียบเทียบ กค 0702/1903 และ กค 0702/1603 เกี่ยวกับเงื่อนไขการขึ้นทะเบียนและการรับรองจากกรมปศุสัตว์สำหรับการยกเว้นภาษีมูลค่าเพิ่มนำเข้าอาหารสัตว์",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "กค 0702/1903",
+      "กค 0702/1603",
+      "กรมปศุสัตว์",
+      "มาตรา 81 (2) (ก)"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1903_2026_b1d563eb",
+      "work.th.rd.gk_0702_1603_2026_4e9d294a"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.24891036455277",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U04A",
+    "template_id": "B01-U04",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "role_separation",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68536"
+    ],
+    "question": "ในหนังสือตอบข้อหารือ กค 0702/1494 ข้อเท็จจริงของกองมรดกผู้ขอคืนภาษีคืออะไร และกรมสรรพากรวินิจฉัยเรื่องเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ อย่างไร",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "ข้อเท็จจริงและประเด็นของผู้ขอหารือ",
+      "แนววินิจฉัยของกรมสรรพากร",
+      "มาตรา 47 ทวิ",
+      "กองมรดก"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1494_2026_f445ed1a"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.cb69296d719eb7",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U04B",
+    "template_id": "B01-U04",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "role_separation",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68488"
+    ],
+    "question": "ในหนังสือตอบข้อหารือ กค 0702/1491 ข้อเท็จจริงโครงการส่วนลดค่าเครื่องโทรศัพท์ของผู้หารือเป็นอย่างไร และกรมสรรพากรวินิจฉัยฐานภาษีตามมาตรา 79 อย่างไร",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "ข้อเท็จจริงและประเด็นของผู้ขอหารือ",
+      "แนววินิจฉัยของกรมสรรพากร",
+      "มาตรา 79"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1491_2026_469a306d"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.e10cab7fcc4e49",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U05A",
+    "template_id": "B01-U05",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "temporal_applicability",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "prov.th.rc.65_ตรี"
+    ],
+    "question": "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
+    "applicable_date": "2018-06-30",
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "v1_pre2019",
+      "ก่อนวันที่ 20 มีนาคม 2562"
+    ],
+    "required_evidence": [
+      "prov.th.rc.65_ตรี"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.7388818bc9320c",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U05B",
+    "template_id": "B01-U05",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "temporal_applicability",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "prov.th.rc.65_ตรี",
+      "ruling.th.rd.68530"
+    ],
+    "question": "ประมวลรัษฎากร มาตรา 65 ตรี ณ วันที่ 2025-01-15 ใช้บทบัญญัติรุ่นปัจจุบันใดบังคับ",
+    "applicable_date": "2025-01-15",
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "v2_current",
+      "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562"
+    ],
+    "required_evidence": [
+      "prov.th.rc.65_ตรี"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.967551ea3c4b27",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U06A",
+    "template_id": "B01-U06",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "provision_navigation",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68464"
+    ],
+    "question": "แสดงบทบัญญัติกฎหมายและคำสั่งกรมสรรพากรที่ใช้สนับสนุนแนววินิจฉัยการเฉลี่ยรับรู้รายได้ค่าเช่าที่ดิน 30 ปี ใน กค 0702/1248",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "มาตรา 65",
+      "ท.ป. 1/2528",
+      "ท.ป. 299/2561"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1248_2026_b8bef81c"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.53a976c2e94097",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U06B",
+    "template_id": "B01-U06",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "provision_navigation",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [
+      "ruling.th.rd.68494"
+    ],
+    "question": "แสดงกฎหมายที่อ้างอิงใน กค 0702/1493 กรณีการยกเว้นภาษีธุรกิจเฉพาะและอากรแสตมป์จากการเวนคืนอสังหาริมทรัพย์",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "พระราชกฤษฎีกา",
+      "ฉบับที่ 736",
+      "พ.ศ. 2564"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1493_2026_c76989ef"
+    ],
+    "forbidden_claims": [],
+    "severity": "P1",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.a39b5c9f2a9936",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U07A",
+    "template_id": "B01-U07",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "duplicate_provenance",
+    "exercises_source_fidelity": true,
+    "fixture_ids": [
+      "work.th.rd.gk_0706_2901_2004_11456594"
+    ],
+    "question": "ค้นหาแนววินิจฉัย กค 0706/2901 และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "กค 0706/2901"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0706_2901_2004_11456594"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.59339891ce9f66",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U07B",
+    "template_id": "B01-U07",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "duplicate_provenance",
+    "exercises_source_fidelity": true,
+    "fixture_ids": [
+      "ruling.th.rd.68470"
+    ],
+    "question": "ตรวจสอบแหล่งที่มาและสถานะความแท้จริงของต้นฉบับ (authenticity_status) ของ กค 0702/1230 ว่าไม่นำไฟล์อนุพันธ์มาสวมรอยเป็นต้นฉบับ",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "กค 0702/1230",
+      "33,588,678"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1230_2026_60f73017"
+    ],
+    "forbidden_claims": [],
+    "severity": "P1",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.dd9014f4e5b136",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U08A",
+    "template_id": "B01-U08",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "source_fidelity",
+    "exercises_source_fidelity": true,
+    "fixture_ids": [
+      "ruling.th.rd.68308"
+    ],
+    "question": "แสดงถ้อยคำต้นฉบับของแนววินิจฉัยและคำปฏิเสธสิทธิยกเว้นใน กค 0702/634 กรณีการนำเข้าทองรูปพรรณ",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "ไม่เข้าลักษณะเป็นการประกอบกิจการค้าทองคำที่จะได้รับยกเว้นภาษีมูลค่าเพิ่ม",
+      "จึงต้องเสียภาษีมูลค่าเพิ่ม"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_634_2026_a3ba2d58"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.e2b4732c0031eb",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U08B",
+    "template_id": "B01-U08",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "source_fidelity",
+    "exercises_source_fidelity": true,
+    "fixture_ids": [
+      "ruling.th.rd.68464"
+    ],
+    "question": "แสดงถ้อยคำต้นฉบับและตัวเลขจำนวนเงินแบ่งชำระ 3 งวด ใน กค 0702/1248 ว่าไม่เกิดความคลาดเคลื่อนของตัวเลขและข้อย่อย",
+    "applicable_date": null,
+    "expected_status": [
+      "ANSWERED"
+    ],
+    "expected_claims": [
+      "1,470,993,502.74",
+      "150,000,000",
+      "20,000,000",
+      "80,000,000",
+      "50,000,000"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1248_2026_b8bef81c"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.d275178b3efd6a",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U09A",
+    "template_id": "B01-U09",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "missing_facts",
+    "exercises_source_fidelity": true,
+    "fixture_ids": [
+      "ruling.th.rd.68302"
+    ],
+    "question": "หน่วยงานของรัฐได้รับเงินสนับสนุนจากต่างประเทศไปซื้อสินค้าจากผู้ประกอบการจดทะเบียน จะเสียภาษีมูลค่าเพิ่มร้อยละ 0 หรือไม่ โดยไม่ทราบว่าเงินสนับสนุนดังกล่าวอยู่ภายใต้ความตกลงความร่วมมือทางเศรษฐกิจหรือทางเทคนิคกับองค์การระหว่างประเทศตามประกาศอธิบดีฯ ฉบับที่ 28 หรือไม่",
+    "applicable_date": null,
+    "expected_status": [
+      "NEEDS_CLARIFICATION",
+      "CONDITIONAL"
+    ],
+    "expected_claims": [
+      "NEEDS_CLARIFICATION"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_636_2026_ec1b79d8"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.9520c3f3e9789a",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U09B",
+    "template_id": "B01-U09",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "missing_facts",
+    "exercises_source_fidelity": true,
+    "fixture_ids": [
+      "ruling.th.rd.68482"
+    ],
+    "question": "บริษัทนำเข้าสินค้าโซเดียม ไบซัลเฟต เพ็ท (SODIUM BISULFATE, PET) ใช้เป็นอาหารเสริมสำหรับสัตว์เลี้ยง ชนิดอาหารเสริมแร่ธาตุ จะได้รับยกเว้นภาษีมูลค่าเพิ่มตามมาตรา 81 (2) (ก) ทันทีหรือไม่ โดยไม่ทราบว่าสินค้าดังกล่าวได้รับการขึ้นทะเบียนหรือรับรองจากกรมปศุสัตว์ว่าเป็นอาหารสัตว์หรือไม่",
+    "applicable_date": null,
+    "expected_status": [
+      "NEEDS_CLARIFICATION",
+      "CONDITIONAL"
+    ],
+    "expected_claims": [
+      "NEEDS_CLARIFICATION"
+    ],
+    "required_evidence": [
+      "work.th.rd.gk_0702_1903_2026_b1d563eb"
+    ],
+    "forbidden_claims": [],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.9bdb2a16fb6734",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U10A",
+    "template_id": "B01-U10",
+    "variant": "A",
+    "batch_id": "B01",
+    "category": "nonexistent_lookup",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [],
+    "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999",
+    "applicable_date": null,
+    "expected_status": [
+      "INSUFFICIENT_EVIDENCE"
+    ],
+    "expected_claims": [
+      "ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/999999"
+    ],
+    "required_evidence": [],
+    "forbidden_claims": [
+      "วินิจฉัยว่าได้รับยกเว้นตาม กค 0702/999999"
+    ],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.7e73f0d29c0687",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  },
+  {
+    "case_id": "B01-U10B",
+    "template_id": "B01-U10",
+    "variant": "B",
+    "batch_id": "B01",
+    "category": "nonexistent_lookup",
+    "exercises_source_fidelity": false,
+    "fixture_ids": [],
+    "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค ๐๗๐๒/๘๘๘๘๘๘",
+    "applicable_date": null,
+    "expected_status": [
+      "INSUFFICIENT_EVIDENCE"
+    ],
+    "expected_claims": [
+      "ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/888888"
+    ],
+    "required_evidence": [],
+    "forbidden_claims": [
+      "วินิจฉัยว่าได้รับยกเว้นตาม กค 0702/888888"
+    ],
+    "severity": "P0",
+    "evaluator_results": {
+      "automated_precheck_passed": true,
+      "citation_resolved": true,
+      "trace_id": "trc.eb31a4ec9c5c86",
+      "verified_at": "2026-11-15T17:36:03.860Z"
+    },
+    "owner_result": null
+  }
+]
