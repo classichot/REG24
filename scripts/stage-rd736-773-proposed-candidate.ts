@@ -65,10 +65,12 @@ async function main(): Promise<void> {
   // Verify source store remains untouched and suppressed
   const sourceStoreReadOnlyCheck = new DurableKnowledgeStore(sourceStagingDir);
   const srcState = sourceStoreReadOnlyCheck.getState();
-  const srcRd736Uref =
-    srcState.unresolved_references["uref.subreg.th.rc.royal_decree.736.work.th.rd.137028199402e798"];
-  const srcRd773Uref =
-    srcState.unresolved_references["uref.subreg.th.rc.royal_decree.773.work.th.rd.1a52a8a4a6e3e371"];
+  const srcRd736Uref = Object.values(srcState.unresolved_references).find(
+    (u) => u.target_hint === "subreg.th.rc.royal_decree.736"
+  );
+  const srcRd773Uref = Object.values(srcState.unresolved_references).find(
+    (u) => u.target_hint === "subreg.th.rc.royal_decree.773"
+  );
   if (!srcRd736Uref || srcRd736Uref.usable_as_legal_evidence !== false) {
     throw new Error(
       "Source store invariant failed: RD 736 quarantine record missing or usable_as_legal_evidence !== false"
@@ -116,10 +118,24 @@ async function main(): Promise<void> {
         throw new Error("Verified Gazette PDF artifacts for RD 736 / RD 773 not found in B02 store.");
       }
 
+      const q736 = Object.values(draft.unresolved_references).find(
+        (u) => u.target_hint === "subreg.th.rc.royal_decree.736"
+      );
+      const q773 = Object.values(draft.unresolved_references).find(
+        (u) => u.target_hint === "subreg.th.rc.royal_decree.773"
+      );
+      if (!q736 || !q773) {
+        throw new Error("Quarantine records for RD 736 / RD 773 missing!");
+      }
+
       const ruling68494WorkId =
-        draft.legacy_crosswalk["ruling.th.rd.68494"] || "work.th.rd.137028199402e798";
+        q736.source_work_id ||
+        draft.legacy_crosswalk["ruling.th.rd.68494"] ||
+        "work.th.rd.gk_0702_1493_2026_c76989ef";
       const ruling68053WorkId =
-        draft.legacy_crosswalk["ruling.th.rd.68053"] || "work.th.rd.1a52a8a4a6e3e371";
+        q773.source_work_id ||
+        draft.legacy_crosswalk["ruling.th.rd.68053"] ||
+        "work.th.rd.gk_0702_6077_2025_47ed9f4a";
 
       const ruling68494ConclusionPsg = Object.values(draft.passages).find(
         (p) =>
@@ -296,7 +312,10 @@ async function main(): Promise<void> {
         },
       ];
 
-      const newWorkIds: string[] = [];
+      const newWorkIds: string[] = [
+        "subreg.th.rc.royal_decree.736",
+        "subreg.th.rc.royal_decree.773",
+      ];
       const newVersionIds: string[] = [v736GazId, v773GazId];
       const newPassageIds: string[] = [];
 
@@ -613,17 +632,6 @@ async function main(): Promise<void> {
       };
 
       // STRICT GOVERNANCE CHECK: Quarantine records MUST remain `usable_as_legal_evidence: false`!
-      const q736 =
-        draft.unresolved_references[
-          "uref.subreg.th.rc.royal_decree.736.work.th.rd.137028199402e798"
-        ];
-      const q773 =
-        draft.unresolved_references[
-          "uref.subreg.th.rc.royal_decree.773.work.th.rd.1a52a8a4a6e3e371"
-        ];
-      if (!q736 || !q773) {
-        throw new Error("Quarantine records for RD 736 / RD 773 missing!");
-      }
       q736.quarantine_status = "UNRESOLVED_QUARANTINED";
       q736.usable_as_legal_evidence = false;
       q773.quarantine_status = "UNRESOLVED_QUARANTINED";

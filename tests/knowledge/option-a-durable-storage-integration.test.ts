@@ -18,7 +18,7 @@ const { DatabaseSync } = nodeRequire("node:sqlite") as {
  * hash-chained `audit_log_chain`, transactional outbox, and cold-restart recovery are
  * integration-tested end-to-end against real ACID SQL storage.
  */
-function initializeOptionADurableSqlDb(dbFilePath: string): DatabaseSync {
+function initializeOptionADurableSqlDb(dbFilePath: string): DatabaseSyncType {
   const db = new DatabaseSync(dbFilePath);
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA synchronous = FULL;");
@@ -65,7 +65,7 @@ function initializeOptionADurableSqlDb(dbFilePath: string): DatabaseSync {
 }
 
 function appendHashChainedAuditRow(
-  db: DatabaseSync,
+  db: DatabaseSyncType,
   action: string,
   actorId: string,
   payload: Record<string, unknown>
@@ -92,7 +92,7 @@ function appendHashChainedAuditRow(
 }
 
 function commitOwnerUatApprovalTx(
-  db: DatabaseSync,
+  db: DatabaseSyncType,
   params: {
     approvalId: string;
     releaseId: string;

@@ -628,21 +628,11 @@ export async function extractB02(input: ProfileInput): Promise<ProfileResult> {
   const fullText = (input.extraction.normalized_text || input.extraction.raw_text || "").trim();
   const folderHint = meta.folder || "";
   const fileNameHint = meta.file_name || meta.rel_path || "";
-  const metaTitle = (meta.title_th || "").trim();
-  const formalCitationTitleMatch = fullText
-    .slice(0, 1800)
-    .match(/เรียกว่า\s*[“"]([^”"]{12,260})[”"]/);
-  const formalCitationTitle = formalCitationTitleMatch
-    ? thaiDigitsToArabic(formalCitationTitleMatch[1].replace(/\s+/g, " ").trim())
-    : "";
   const rawTitle =
-    formalCitationTitle &&
-    (!metaTitle || (!/พ\.ศ\.\s*[0-9๐-๙]{4}/.test(metaTitle) && /พ\.ศ\.\s*[0-9]{4}/.test(formalCitationTitle)))
-      ? formalCitationTitle
-      : metaTitle ||
-        fullText.split("\n")[0]?.slice(0, 180).trim() ||
-        fileNameHint ||
-        "ตราสารกฎหมายไทย";
+    (meta.title_th || "").trim() ||
+    fullText.split("\n")[0]?.slice(0, 180).trim() ||
+    fileNameHint ||
+    "ตราสารกฎหมายไทย";
 
   const cls = classifyB02InstrumentAndStatus(rawTitle, fullText, folderHint, fileNameHint);
   const temporal = extractPublicationAndCommencement(fullText, meta.date_hint);
