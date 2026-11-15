@@ -25,6 +25,10 @@ import {
   buildCodePointIndexMap,
   normalizeThaiLegalTextV2,
 } from "./thai-normalizer";
+import {
+  compareDualOcrPassages,
+  parseTyphoonV2StructuredResponse,
+} from "./typhoon-v2-parser";
 
 export interface OcrProviderDescriptor {
   provider_id: string;
@@ -69,35 +73,34 @@ export interface OcrRoutingPolicy {
 export const PINNED_OCR_PROVIDERS: OcrProviderDescriptor[] = [
   {
     provider_id: "openthai-2.0-markdown",
-    display_name: "OpenThai 2.0 OCR Markdown (Self-Hosted Thai Legal Profile)",
-    upstream_model_id: "iapp/OpenThai2.0-OCR-Markdown",
-    model_revision: "rev-2026-11-01-9f2c4b8e",
+    display_name: "OpenThai 2.0 OCR Text/Markdown (Pinned Local ONNX CPU)",
+    upstream_model_id: "iapp/OpenThai2.0-OCR-Text",
+    model_revision: "39fa41bdd49f067ba41b1d9de79c06ab506d67d4",
     adapter_version: "rag24-openthai-adapter/2.0.0",
     execution_boundary: "self_hosted_approved",
     allowed_privacy_classes: ["public", "internal", "confidential", "restricted"],
     capabilities: {
       thai_printed_legal: true,
       english_bilingual: true,
-      tables: true,
+      tables: false,
       headers_footers_footnotes: true,
       bounding_polygons: "supported",
-      calibrated_confidence: "uncalibrated_raw",
+      calibrated_confidence: "none",
       handwriting: "unsupported_flagged",
     },
-    cost_micros_per_page: 4500, // 0.0045 THB compute micro-units
+    cost_micros_per_page: 4500,
     currency: "THB",
     worker_available: true,
     caution_notes: [
-      "Explicit Thai numeral preservation check required (๒๕๖๙ vs 2569).",
-      "Merged table cells require partial-structure review before automated cell use.",
-      "Handwritten annotations/endorsements flagged as unsupported-content issues.",
+      "Pinned offline ONNX weights verified on local worker (39fa41bdd49f067ba41b1d9de79c06ab506d67d4).",
+      "Lower accuracy on complex Gazette tables and historical handset scans; use Typhoon OCR 2 as primary.",
     ],
   },
   {
     provider_id: "typhoon-ocr2-2b",
-    display_name: "Typhoon OCR 2 (2B) — Full Structured Element Adapter",
+    display_name: "Typhoon OCR 2 (2B) — Pinned Self-Hosted Open Weights",
     upstream_model_id: "typhoon-ai/typhoon-ocr2-2b",
-    model_revision: "rev-2026-11-05-4a8d71e9",
+    model_revision: "3ea2e5e3d92bf999a64e82a92b11c7b73eae45b0",
     adapter_version: "rag24-typhoon-structured-json/2.0.0",
     execution_boundary: "self_hosted_approved",
     allowed_privacy_classes: ["public", "internal", "confidential", "restricted"],
@@ -106,15 +109,66 @@ export const PINNED_OCR_PROVIDERS: OcrProviderDescriptor[] = [
       english_bilingual: true,
       tables: true,
       headers_footers_footnotes: true,
-      bounding_polygons: "optional_model_dependent",
-      calibrated_confidence: "uncalibrated_raw",
+      bounding_polygons: "supported",
+      calibrated_confidence: "none",
       handwriting: "unsupported_flagged",
     },
     cost_micros_per_page: 3800,
     currency: "THB",
     worker_available: true,
     caution_notes: [
-      "Uses rag24-typhoon-structured-json/2.0.0 to preserve header, footer, and page_footnote elements; default Markdown truncation is disabled.",
+      "Pinned Apache-2.0 open weights (HuggingFace commit 3ea2e5e3d92bf999a64e82a92b11c7b73eae45b0); distinct from hosted api.opentyphoon.ai.",
+      "Preserves header, footer, and page_footnote JSON elements and maps 0..1000 bbox coordinates to normalized polygons.",
+    ],
+  },
+  {
+    provider_id: "typhoon-ocr-v2-hosted",
+    display_name: "Typhoon OCR V2 Hosted API (api.opentyphoon.ai — Public Docs Only)",
+    upstream_model_id: "typhoon-ocr-v2",
+    model_revision: "typhoon-ocr-v2@vllm-0.33.0-9030f50b",
+    adapter_version: "rag24-typhoon-hosted-v2/2.0.0",
+    execution_boundary: "cloud_allowlisted",
+    allowed_privacy_classes: ["public"], // Strictly PUBLIC ONLY: api.opentyphoon.ai retains prompts for model improvement (non-ZDR)!
+    capabilities: {
+      thai_printed_legal: true,
+      english_bilingual: true,
+      tables: true,
+      headers_footers_footnotes: true,
+      bounding_polygons: "supported",
+      calibrated_confidence: "none",
+      handwriting: "unsupported_flagged",
+    },
+    cost_micros_per_page: 3800,
+    currency: "THB",
+    worker_available: true,
+    caution_notes: [
+      "Public research showcase endpoint (2 req/s, 20 req/min); inputs may be used for model improvement.",
+      "Strictly prohibited for internal, confidential, and restricted documents (use self-hosted typhoon-ocr2-2b instead).",
+    ],
+  },
+  {
+    provider_id: "gemini-3.8-flash-ocr",
+    display_name: "Google Gemini 3.8 Flash Multimodal Fallback (store=false)",
+    upstream_model_id: "gemini-3.8-flash",
+    model_revision: "gemini-3.8-flash@api-rev-2026-05-20",
+    adapter_version: "rag24-gemini-interactions-ocr/2.0.0",
+    execution_boundary: "cloud_allowlisted",
+    allowed_privacy_classes: ["public", "internal"], // Confidential requires verified paid/Vertex ZDR project; never restricted!
+    capabilities: {
+      thai_printed_legal: true,
+      english_bilingual: true,
+      tables: true,
+      headers_footers_footnotes: true,
+      bounding_polygons: "none",
+      calibrated_confidence: "none",
+      handwriting: "unsupported_flagged",
+    },
+    cost_micros_per_page: 18500,
+    currency: "THB",
+    worker_available: true,
+    caution_notes: [
+      "Selective fallback / dual-OCR cross-checker for flagged pages (store=false, thinking_level='low').",
+      "May return HTTP 400 recitation block on memorized portal texts; never used as sole primary OCR.",
     ],
   },
   {
@@ -194,7 +248,7 @@ export const PINNED_OCR_PROVIDERS: OcrProviderDescriptor[] = [
 
 export const DEFAULT_LEGAL_OCR_POLICY: OcrRoutingPolicy = {
   policy_id: "pol.reg24.thai_legal.default",
-  policy_revision: "polrev.2026-11-14.v1",
+  policy_revision: "polrev.2026-11-15.v2",
   etag: 'W/"polrev-1"',
   purpose: "thai_legal_source_linked_publication",
   currency: "THB",
@@ -203,16 +257,40 @@ export const DEFAULT_LEGAL_OCR_POLICY: OcrRoutingPolicy = {
   max_document_remediation_cycles: 1,
   tenant_budget_ceiling_micros: 50_000_000, // 50 THB micro-units default test ceiling
   allowed_providers_by_privacy: {
-    public: ["native", "openthai-2.0-markdown", "typhoon-ocr2-2b", "mistral-ocr"],
-    internal: ["native", "openthai-2.0-markdown", "typhoon-ocr2-2b", "mistral-ocr"],
-    confidential: ["native", "openthai-2.0-markdown", "typhoon-ocr2-2b", "mistral-ocr"],
-    restricted: ["native", "openthai-2.0-markdown", "typhoon-ocr2-2b"], // Strictly self-hosted!
+    public: [
+      "native",
+      "typhoon-ocr2-2b",
+      "typhoon-ocr-v2-hosted",
+      "gemini-3.8-flash-ocr",
+      "openthai-2.0-markdown",
+      "mistral-ocr",
+    ],
+    internal: ["native", "typhoon-ocr2-2b", "gemini-3.8-flash-ocr", "openthai-2.0-markdown", "mistral-ocr"],
+    confidential: ["native", "typhoon-ocr2-2b", "openthai-2.0-markdown", "mistral-ocr"],
+    restricted: ["native", "typhoon-ocr2-2b", "openthai-2.0-markdown"], // Strictly self-hosted!
   },
   preferred_thai_ocr_provider: "typhoon-ocr2-2b",
-  comparison_thai_ocr_provider: "openthai-2.0-markdown",
-  updated_at: "2026-11-14T00:00:00Z",
+  comparison_thai_ocr_provider: "gemini-3.8-flash-ocr",
+  updated_at: "2026-11-15T00:00:00Z",
   updated_by: "principal.policy_admin.01",
 };
+
+export interface RealProviderPageExtractionInput {
+  provider_id: string;
+  model_revision: string;
+  adapter_version?: string;
+  raw_response_content: string;
+  raw_response_sha256: string;
+  raw_response_ref?: string;
+  format: "typhoon_v2_json" | "markdown_or_text";
+  secondary_comparison_text?: string;
+  measured_confidence?: {
+    value: number;
+    scale: string;
+    meaning: string;
+    calibration_id: string | null;
+  } | null;
+}
 
 export interface SimulatedProviderBehaviorOverride {
   /** Simulate provider omitting pages (e.g., Scenario 3: 23-page opinion returning 22 pages) */
@@ -458,6 +536,8 @@ export class Rag24ContinuityAdapter {
     policy: OcrRoutingPolicy;
     pages_manifest: RenderedPageEvidence[];
     routing_override_provider_id?: string;
+    disable_continuity_adapter?: boolean;
+    real_provider_pages?: Record<number, RealProviderPageExtractionInput>;
     simulation?: SimulatedProviderBehaviorOverride;
   }):
     | {
@@ -466,25 +546,43 @@ export class Rag24ContinuityAdapter {
         issues: OCRIssue[];
         consumed_micros: number;
         selected_ocr_provider_id: string | null;
+        execution_mode: "real_ocr" | "native_only" | "simulated_continuity_fixture";
+        usable_as_verified_text: boolean;
       }
     | {
         ok: false;
-        code: "POLICY_BLOCKED" | "PROVIDER_UNAVAILABLE";
+        code: "POLICY_BLOCKED" | "PROVIDER_UNAVAILABLE" | "FEATURE_DISABLED" | "RATE_LIMITED";
         message: string;
         consumed_micros: number;
       } {
+    const continuityDisabled =
+      params.disable_continuity_adapter === true ||
+      process.env.OCR_V2_DISABLE_CONTINUITY_ADAPTER === "true";
+
     const pages: OCRPage[] = [];
     const issues: OCRIssue[] = [];
     let consumedMicros = 0;
     let selectedOcrProvider: OcrProviderDescriptor | null = null;
+    let usedRealOcr = false;
+    let usedSimulatedFixture = false;
 
     const nativeProvider = this.providers.get("native")!;
     const omitSet = new Set(params.simulation?.omit_page_numbers ?? []);
     const handwrittenSet = new Set(params.simulation?.handwritten_seal_pages ?? []);
 
     for (const pageEv of params.pages_manifest) {
-      // Scenario 3: Provider omits a page -> page MUST be recorded as `unresolved`, NEVER silently blank!
+      const realPage = params.real_provider_pages?.[pageEv.page_number];
+
       if (omitSet.has(pageEv.page_number)) {
+        if (continuityDisabled) {
+          return {
+            ok: false,
+            code: "FEATURE_DISABLED",
+            message: "OCR_V2_DISABLE_CONTINUITY_ADAPTER=true blocks simulated provider overrides",
+            consumed_micros: consumedMicros,
+          };
+        }
+        usedSimulatedFixture = true;
         const unresolvedIssueId = `iss.${params.document_id}.p${pageEv.page_number}.missing_page`;
         issues.push({
           issue_id: unresolvedIssueId,
@@ -517,8 +615,10 @@ export class Rag24ContinuityAdapter {
             attempt_id: `att.${params.job_id}.p${pageEv.page_number}.1`,
             provider_id: selectedOcrProvider?.provider_id ?? params.policy.preferred_thai_ocr_provider,
             model_revision: selectedOcrProvider?.model_revision ?? "unresolved",
-            adapter_version: selectedOcrProvider?.adapter_version ?? "rag24-continuity/2.0.0",
+            adapter_version: "rag24-simulated-continuity-fixture/2.0.0",
             raw_response_ref: null,
+            is_simulated: true,
+            usable_as_verified_text: false,
           },
           confidence: null,
           issue_ids: [unresolvedIssueId],
@@ -526,11 +626,11 @@ export class Rag24ContinuityAdapter {
         continue;
       }
 
-      // Per-page native PDF eligibility check (unless explicit OCR provider override requested)
       const eligibility = assessNativePageEligibility(pageEv, params.document_id);
-      consumedMicros += nativeProvider.cost_micros_per_page; // Native check consumes measured compute
+      consumedMicros += nativeProvider.cost_micros_per_page;
 
       if (
+        !realPage &&
         !params.routing_override_provider_id &&
         eligibility.eligible_for_native_bypass &&
         !params.simulation?.ocr_page_text_override?.[pageEv.page_number] &&
@@ -565,15 +665,15 @@ export class Rag24ContinuityAdapter {
             model_revision: nativeProvider.model_revision,
             adapter_version: nativeProvider.adapter_version,
             raw_response_ref: `evraw:${params.job_id}:p${pageEv.page_number}:native`,
+            is_simulated: false,
+            usable_as_verified_text: true,
           },
-          confidence: null, // Native PDF parser has no probabilistic confidence -> remains `null`
+          confidence: null,
           issue_ids: [],
         });
         continue;
       }
 
-      // Record any native layer mismatch diagnostic issues (e.g., Scenario 2: Gazette PDF hidden text layer omits paragraph)
-      // Note: Once routed to Thai OCR, we keep native mismatch as auditable warning/evidence or open issue if OCR also needs review
       for (const natIss of eligibility.issues) {
         issues.push({
           ...natIss,
@@ -582,12 +682,21 @@ export class Rag24ContinuityAdapter {
         });
       }
 
-      // Resolve authorized OCR provider within privacy boundary
+      // Enforce `OCR_V2_DISABLE_CONTINUITY_ADAPTER`: block simulated/reference-text OCR when no real provider payload is supplied!
+      if (!realPage && continuityDisabled) {
+        return {
+          ok: false,
+          code: "FEATURE_DISABLED",
+          message: `OCR_V2_DISABLE_CONTINUITY_ADAPTER=true: continuity fixture adapter is disabled and no real OCR worker output was supplied for page ${pageEv.page_number}`,
+          consumed_micros: consumedMicros,
+        };
+      }
+
       if (!selectedOcrProvider) {
         const resolved = this.resolveAuthorizedOcrProvider({
           privacy_class: params.privacy_class,
           policy: params.policy,
-          routing_override_provider_id: params.routing_override_provider_id,
+          routing_override_provider_id: realPage?.provider_id ?? params.routing_override_provider_id,
         });
         if (!resolved.ok) {
           return {
@@ -601,17 +710,98 @@ export class Rag24ContinuityAdapter {
       }
 
       consumedMicros += selectedOcrProvider.cost_micros_per_page;
-
-      const rawText =
-        params.simulation?.ocr_page_text_override?.[pageEv.page_number] ??
-        pageEv.rendered_reference_text ??
-        pageEv.native_pdf_text ??
-        "";
-
-      const norm = normalizeThaiLegalTextV2(rawText, `norm.${params.job_id}.p${pageEv.page_number}`);
       const pageIssueIds: string[] = eligibility.issues.map((i) => i.issue_id);
 
-      // Flag combining-mark anomalies without silently stripping or reordering them
+      let rawText = "";
+      let markdownText: string | null = null;
+      let blocks: OCRBlock[] = [];
+      let pageTables: OCRTable[] = [];
+
+      if (realPage) {
+        usedRealOcr = true;
+        if (realPage.format === "typhoon_v2_json") {
+          const parsedV2 = parseTyphoonV2StructuredResponse({
+            documentId: params.document_id,
+            pageNumber: pageEv.page_number,
+            imageSha256: pageEv.image_sha256,
+            rawContent: realPage.raw_response_content,
+            keepHeaderFooter: true,
+          });
+          rawText = parsedV2.raw_text;
+          markdownText = parsedV2.markdown;
+          blocks = parsedV2.blocks;
+          pageTables = parsedV2.tables;
+          for (const pIss of parsedV2.issues) {
+            issues.push(pIss);
+            pageIssueIds.push(pIss.issue_id);
+          }
+        } else {
+          rawText = realPage.raw_response_content;
+          markdownText = realPage.raw_response_content;
+          blocks = segmentStructuredBlocksFromRawText(
+            pageEv.page_number,
+            rawText,
+            pageEv.image_sha256,
+            false // Never synthesize fake polygons for non-bbox models!
+          );
+        }
+
+        if (realPage.secondary_comparison_text) {
+          const dualIssues = compareDualOcrPassages({
+            documentId: params.document_id,
+            pageNumber: pageEv.page_number,
+            imageSha256: pageEv.image_sha256,
+            primaryText: rawText,
+            secondaryText: realPage.secondary_comparison_text,
+          });
+          for (const dIss of dualIssues) {
+            issues.push(dIss);
+            pageIssueIds.push(dIss.issue_id);
+          }
+        }
+      } else {
+        usedSimulatedFixture = true;
+        rawText =
+          params.simulation?.ocr_page_text_override?.[pageEv.page_number] ??
+          pageEv.rendered_reference_text ??
+          pageEv.native_pdf_text ??
+          "";
+        markdownText = rawText;
+        const supportsPolygons = selectedOcrProvider.capabilities.bounding_polygons === "supported";
+        blocks = segmentStructuredBlocksFromRawText(
+          pageEv.page_number,
+          rawText,
+          pageEv.image_sha256,
+          supportsPolygons
+        );
+        pageTables = (params.simulation?.ocr_page_tables_override?.[pageEv.page_number] ?? []).map(
+          (tbl) => {
+            const tblIssueIds = [...tbl.issue_ids];
+            if (tbl.structure_status === "partial" || tbl.structure_status === "unsupported") {
+              const tblIssId = `iss.${params.document_id}.p${pageEv.page_number}.tbl_${tbl.table_id}`;
+              if (!tblIssueIds.includes(tblIssId)) {
+                tblIssueIds.push(tblIssId);
+              }
+              issues.push({
+                issue_id: tblIssId,
+                code: "UNCERTAIN_TABLE_STRUCTURE_MERGED_CELLS",
+                severity: "blocking",
+                page_number: pageEv.page_number,
+                block_id: tbl.block_id,
+                message: `Table '${tbl.table_id}' on page ${pageEv.page_number} has ${tbl.structure_status} structure (merged/cross-page cells); critical cell values blocked until reviewed`,
+                evidence_refs: [`img:${pageEv.image_sha256}`],
+                detector_version: THAI_DETECTOR_VERSION_V2,
+                resolution: "open",
+              });
+              pageIssueIds.push(tblIssId);
+            }
+            return { ...tbl, issue_ids: tblIssueIds };
+          }
+        );
+      }
+
+      const norm = normalizeThaiLegalTextV2(rawText, `norm.${params.job_id}.p${pageEv.page_number}`);
+
       for (const anom of norm.combining_anomalies) {
         const issId = `iss.${params.document_id}.p${pageEv.page_number}.cp_${anom.code_point_index}`;
         issues.push({
@@ -628,7 +818,6 @@ export class Rag24ContinuityAdapter {
         pageIssueIds.push(issId);
       }
 
-      // Flag handwritten/seal regions explicitly rather than hallucinating text
       if (handwrittenSet.has(pageEv.page_number)) {
         const hwId = `iss.${params.document_id}.p${pageEv.page_number}.handwriting`;
         issues.push({
@@ -645,55 +834,16 @@ export class Rag24ContinuityAdapter {
         pageIssueIds.push(hwId);
       }
 
-      const supportsPolygons = selectedOcrProvider.capabilities.bounding_polygons === "supported";
-      const blocks = segmentStructuredBlocksFromRawText(
-        pageEv.page_number,
-        rawText,
-        pageEv.image_sha256,
-        supportsPolygons
-      );
-
-      const pageTables = (params.simulation?.ocr_page_tables_override?.[pageEv.page_number] ?? []).map(
-        (tbl) => {
-          const tblIssueIds = [...tbl.issue_ids];
-          if (tbl.structure_status === "partial" || tbl.structure_status === "unsupported") {
-            const tblIssId = `iss.${params.document_id}.p${pageEv.page_number}.tbl_${tbl.table_id}`;
-            if (!tblIssueIds.includes(tblIssId)) {
-              tblIssueIds.push(tblIssId);
-            }
-            issues.push({
-              issue_id: tblIssId,
-              code: "UNCERTAIN_TABLE_STRUCTURE_MERGED_CELLS",
-              severity: "blocking",
-              page_number: pageEv.page_number,
-              block_id: tbl.block_id,
-              message: `Table '${tbl.table_id}' on page ${pageEv.page_number} has ${tbl.structure_status} structure (merged/cross-page cells); critical cell values blocked until reviewed`,
-              evidence_refs: [`img:${pageEv.image_sha256}`],
-              detector_version: THAI_DETECTOR_VERSION_V2,
-              resolution: "open",
-            });
-            pageIssueIds.push(tblIssId);
-          }
-          return { ...tbl, issue_ids: tblIssueIds };
-        }
-      );
-
-      const confidence =
-        selectedOcrProvider.capabilities.calibrated_confidence === "none"
-          ? null
-          : {
-              value: 0.984,
-              scale: "0..1",
-              meaning: "mean_token_logprob_uncalibrated_adapter_output",
-              calibration_id: null,
-            };
+      // Never represent a hardcoded score as measured confidence! `confidence` is `null` unless genuinely measured.
+      const confidence = realPage?.measured_confidence ?? null;
+      const pageFailedInvalid = blocks.length === 0 && pageIssueIds.some((id) => id.endsWith(".invalid_typhoon_json"));
 
       pages.push({
         page_number: pageEv.page_number,
-        state: "extracted",
+        state: pageFailedInvalid ? "failed" : "extracted",
         image_sha256: pageEv.image_sha256,
         raw_text: rawText,
-        markdown: rawText,
+        markdown: markdownText,
         normalized_text: norm.normalized_text,
         normalization: {
           ruleset: norm.ruleset,
@@ -701,18 +851,41 @@ export class Rag24ContinuityAdapter {
         },
         blocks,
         tables: pageTables,
-        provenance: {
-          method: "ocr",
-          attempt_id: `att.${params.job_id}.p${pageEv.page_number}.1`,
-          provider_id: selectedOcrProvider.provider_id,
-          model_revision: selectedOcrProvider.model_revision,
-          adapter_version: selectedOcrProvider.adapter_version,
-          raw_response_ref: `evraw:${params.job_id}:p${pageEv.page_number}:${selectedOcrProvider.provider_id}:adapter_assembled`,
-        },
+        provenance: realPage
+          ? {
+              method: "ocr",
+              attempt_id: `att.${params.job_id}.p${pageEv.page_number}.1`,
+              provider_id: selectedOcrProvider.provider_id,
+              model_revision: realPage.model_revision || selectedOcrProvider.model_revision,
+              adapter_version: realPage.adapter_version ?? selectedOcrProvider.adapter_version,
+              raw_response_ref:
+                realPage.raw_response_ref ??
+                `evraw:${params.job_id}:p${pageEv.page_number}:${selectedOcrProvider.provider_id}:${realPage.raw_response_sha256.slice(0, 16)}`,
+              raw_response_sha256: realPage.raw_response_sha256,
+              is_simulated: false,
+              usable_as_verified_text: !pageFailedInvalid,
+            }
+          : {
+              method: "ocr",
+              attempt_id: `att.${params.job_id}.p${pageEv.page_number}.1`,
+              provider_id: selectedOcrProvider.provider_id,
+              model_revision: selectedOcrProvider.model_revision,
+              adapter_version: "rag24-simulated-continuity-fixture/2.0.0",
+              raw_response_ref: `simulated-fixture:${params.job_id}:p${pageEv.page_number}`,
+              raw_response_sha256: null,
+              is_simulated: true,
+              usable_as_verified_text: false,
+            },
         confidence,
         issue_ids: pageIssueIds,
       });
     }
+
+    const executionMode = usedSimulatedFixture
+      ? "simulated_continuity_fixture"
+      : usedRealOcr
+        ? "real_ocr"
+        : "native_only";
 
     return {
       ok: true,
@@ -720,6 +893,8 @@ export class Rag24ContinuityAdapter {
       issues,
       consumed_micros: consumedMicros,
       selected_ocr_provider_id: selectedOcrProvider?.provider_id ?? null,
+      execution_mode: executionMode,
+      usable_as_verified_text: !usedSimulatedFixture,
     };
   }
 }

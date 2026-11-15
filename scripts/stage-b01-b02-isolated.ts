@@ -21,6 +21,11 @@ import { runBlindSourceToAnswerValidation } from "../src/core/knowledge/blind-au
 import { loadGraphProjectionSnapshot } from "../src/core/knowledge/projections";
 import { getB02DriveManifest } from "../src/core/data/b02-drive-manifest-loader";
 import { getVerifiedStatutoryCorpus } from "../src/core/data/verified-statutory-loader";
+import {
+  matchCandidateAgainstQuarantinedCitation,
+  parseLegalInstrumentIdentity,
+  type ParsedLegalInstrumentIdentity,
+} from "../src/core/knowledge/instrument-matcher";
 import type { Actor } from "../src/core/knowledge/contracts";
 
 const PROTECTED_CANONICAL_SHA256 =
@@ -344,8 +349,14 @@ async function main(): Promise<void> {
   > = {};
   const byReason: Record<string, number> = {};
   const byReleaseOrigin: Record<string, number> = {};
-  const quarantinedRoyalDecreeNumbers = new Set<string>();
-  const quarantinedMinisterialRegNumbers = new Set<string>();
+  const parsedQuarantinedTargets: Array<{
+    unresolved_ref_id: string;
+    ledger_index: number;
+    raw_citation_text: string;
+    governing_instrument: string;
+    target_hint: string;
+    parsed_identity: ParsedLegalInstrumentIdentity;
+  }> = [];
 
   const itemisedQuarantineEntries = allUnresolved.map((u, idx) => {
     const inst = u.governing_instrument || "UNKNOWN_INSTRUMENT";
@@ -372,10 +383,17 @@ async function main(): Promise<void> {
     const relOrig = u.recorded_in_release_id || "rel.B01.rc1";
     byReleaseOrigin[relOrig] = (byReleaseOrigin[relOrig] || 0) + 1;
 
-    const rdMatch = `${inst} ${u.target_hint} ${u.raw_citation_text}`.match(/(?:พระราชกฤษฎีกา|พรฎ\.?|royal_decree\.)[^\d]*(\d{1,4})/i);
-    if (rdMatch) quarantinedRoyalDecreeNumbers.add(rdMatch[1]);
-    const mrMatch = `${inst} ${u.target_hint} ${u.raw_citation_text}`.match(/(?:กฎกระทรวง|ministerial_reg\.)[^\d]*(\d{1,4})/i);
-    if (mrMatch) quarantinedMinisterialRegNumbers.add(mrMatch[1]);
+    parsedQuarantinedTargets.push({
+      unresolved_ref_id: u.unresolved_ref_id,
+      ledger_index: idx + 1,
+      raw_citation_text: u.raw_citation_text,
+      governing_instrument: inst,
+      target_hint: u.target_hint,
+      parsed_identity: parseLegalInstrumentIdentity({
+        titleOrCitation: `${inst} ${u.raw_citation_text}`,
+        targetWorkHint: u.target_hint,
+      }),
+    });
 
     const srcWork = stFinal.works[u.source_work_id];
     const srcPassage = stFinal.passages[u.source_passage_id];
@@ -623,48 +641,141 @@ async function main(): Promise<void> {
       | "P2_SECTORAL_PRIMARY_LAW"
       | "P3_HISTORICAL_GAZETTE_GENERAL";
     priority_rationale: string;
+    parsed_identity: ParsedLegalInstrumentIdentity;
+    matched_quarantine_ref_ids: string[];
+    rejected_homonym_quarantine_ref_ids: string[];
+    amendment_review_quarantine_ref_ids: string[];
+    ocr_alone_releases_quarantine: false;
   } => {
     const combined = `${candPath} ${fileName} ${titleHint}`;
-    const rdMatch = combined.match(/(?:พระราชกฤษฎีกา|พรฎ\.?|RD[_-\s]|Royal\s*Decree)[^\d]{0,25}(\d{1,4})/i);
-    if (rdMatch && quarantinedRoyalDecreeNumbers.has(rdMatch[1])) {
+    const candIdentity = parseLegalInstrumentIdentity({
+      titleOrCitation: titleHint || fileName,
+      fileNameHint: `${candPath} ${fileName}`,
+    });
+
+    const matchedRefs: string[] = [];
+    const rejectedHomonymRefs: string[] = [];
+    const amendmentReviewRefs: string[] = [];
+
+    if (candIdentity.instrument_kind !== "OTHER") {
+      for (const qt of parsedQuarantinedTargets) {
+        if (qt.parsed_identity.instrument_kind !== candIdentity.instrument_kind) continue;
+        const m = matchCandidateAgainstQuarantinedCitation(candIdentity, qt.parsed_identity);
+        if (m.matched) {
+          matchedRefs.push(qt.unresolved_ref_id);
+        } else if (m.match_status === "AMENDMENT_ACT_REQUIRES_SECTION_CHECK") {
+          amendmentReviewRefs.push(qt.unresolved_ref_id);
+        } else if (
+          (m.match_status === "REJECTED_DIFFERENT_GOVERNING_LAW" ||
+            m.match_status === "REJECTED_DIFFERENT_ENACTMENT_YEAR") &&
+          candIdentity.instrument_number &&
+          candIdentity.instrument_number === qt.parsed_identity.instrument_number
+        ) {
+          rejectedHomonymRefs.push(qt.unresolved_ref_id);
+        }
+      }
+    }
+
+    if (matchedRefs.length > 0) {
       return {
         priority_tier: "P0_UNLOCKS_QUARANTINED_CITATION",
-        priority_rationale: `Matches Royal Decree No. ${rdMatch[1]} cited in quarantined B01/B02 unresolved ledger`,
+        priority_rationale: `Compound identity match (${candIdentity.instrument_kind}, ${candIdentity.governing_law_family}, B.E. ${
+          candIdentity.enactment_year_be ?? "unspecified"
+        }) against ${matchedRefs.length} quarantined citation(s) [${matchedRefs.slice(0, 4).join(", ")}]; OCR alone does NOT release quarantine without section/version/effective-date verification`,
+        parsed_identity: candIdentity,
+        matched_quarantine_ref_ids: matchedRefs,
+        rejected_homonym_quarantine_ref_ids: rejectedHomonymRefs,
+        amendment_review_quarantine_ref_ids: amendmentReviewRefs,
+        ocr_alone_releases_quarantine: false,
       };
     }
-    const mrMatch = combined.match(/(?:กฎกระทรวง|MR[_-\s]|Ministerial\s*Regulation)[^\d]{0,25}(\d{1,4})/i);
-    if (mrMatch && quarantinedMinisterialRegNumbers.has(mrMatch[1])) {
-      return {
-        priority_tier: "P0_UNLOCKS_QUARANTINED_CITATION",
-        priority_rationale: `Matches Ministerial Regulation No. ${mrMatch[1]} cited in quarantined B01/B02 unresolved ledger`,
-      };
-    }
+
     if (/(ประมวลรัษฎากร|สรรพากร|ภาษี|ศุลกากร|สรรพสามิต|บริษัทมหาชน|แพ่งและพาณิชย์|ล้มละลาย|หลักทรัพย์|คุ้มครองแรงงาน|ส่งเสริมการลงทุน)/i.test(combined)) {
+      const homonymNote =
+        rejectedHomonymRefs.length > 0
+          ? ` (homonym number collision rejected against [${rejectedHomonymRefs.slice(0, 3).join(", ")}]: different governing law/year)`
+          : "";
       return {
         priority_tier: "P1_CORE_TAX_CORPORATE_STATUTE",
-        priority_rationale: "Core Thai tax, customs, excise, corporate, commercial, insolvency, labor, or capital-markets instrument",
+        priority_rationale: `Core Thai tax, customs, excise, corporate, commercial, insolvency, labor, or capital-markets instrument${homonymNote}`,
+        parsed_identity: candIdentity,
+        matched_quarantine_ref_ids: [],
+        rejected_homonym_quarantine_ref_ids: rejectedHomonymRefs,
+        amendment_review_quarantine_ref_ids: amendmentReviewRefs,
+        ocr_alone_releases_quarantine: false,
       };
     }
     if (/^Primary Law\//i.test(candPath) && /(พระราชบัญญัติ|พระราชกำหนด|Act)/i.test(combined)) {
       return {
         priority_tier: "P2_SECTORAL_PRIMARY_LAW",
         priority_rationale: "Enacted Act / Emergency Decree in Primary Law collection",
+        parsed_identity: candIdentity,
+        matched_quarantine_ref_ids: [],
+        rejected_homonym_quarantine_ref_ids: rejectedHomonymRefs,
+        amendment_review_quarantine_ref_ids: amendmentReviewRefs,
+        ocr_alone_releases_quarantine: false,
       };
     }
     return {
       priority_tier: "P3_HISTORICAL_GAZETTE_GENERAL",
-      priority_rationale: "Historical Royal Gazette scan or general subordinate instrument",
+      priority_rationale:
+        amendmentReviewRefs.length > 0
+          ? `Amending Act candidate requiring manual section check against [${amendmentReviewRefs.slice(0, 3).join(", ")}]`
+          : "Historical Royal Gazette scan or general subordinate instrument",
+      parsed_identity: candIdentity,
+      matched_quarantine_ref_ids: [],
+      rejected_homonym_quarantine_ref_ids: rejectedHomonymRefs,
+      amendment_review_quarantine_ref_ids: amendmentReviewRefs,
+      ocr_alone_releases_quarantine: false,
     };
   };
 
+  // Pre-compute priority per item & pre-index SHA-256 duplicate groups ordered by highest priority tier (P0 < P1 < P2 < P3), then queueIndex!
+  const priorityRank = (tier: string): number =>
+    tier.startsWith("P0") ? 0 : tier.startsWith("P1") ? 1 : tier.startsWith("P2") ? 2 : 3;
+  const precomputedPrios = deferredB02Cands.map((c) => {
+    const dm = b02EntryByPath.get(c.path);
+    const fileName = dm?.file_name || path.basename(c.path);
+    return classifyOcrPriority(c.path, fileName, dm?.title_hint || "");
+  });
+  const queueIndicesBySha = new Map<string, number[]>();
+  deferredB02Cands.forEach((c, idx) => {
+    const dm = b02EntryByPath.get(c.path);
+    const sha = dm?.sha256 || c.source_revision;
+    const arr = queueIndicesBySha.get(sha) ?? [];
+    arr.push(idx + 1);
+    queueIndicesBySha.set(sha, arr);
+  });
+  for (const arr of queueIndicesBySha.values()) {
+    arr.sort(
+      (a, b) =>
+        priorityRank(precomputedPrios[a - 1].priority_tier) -
+          priorityRank(precomputedPrios[b - 1].priority_tier) || a - b
+    );
+  }
+
+  let uniqueDeferredFiles = 0;
+  let uniqueDeferredBytes = 0;
+  let uniqueDeferredPages = 0;
+  let uniqueDeferredOcrPages = 0;
+  let uniqueDeferredCorruptPages = 0;
+  let uniqueDeferredNativePages = 0;
+  const uniqueByPriority: Record<string, { unique_files: number; unique_pages: number; unique_ocr_or_corrupt_pages: number; unique_bytes: number }> = {};
+
   const ocrRecoveryQueueItems = deferredB02Cands.map((c, idx) => {
+    const queueIndex = idx + 1;
     const dm = b02EntryByPath.get(c.path);
     const folder = dm?.folder || (c.path.includes("/") ? c.path.split("/")[0] : "ROOT");
     const fileName = dm?.file_name || path.basename(c.path);
     const byteSize = dm?.size ?? 0;
     const pageCount = dm?.page_count ?? 0;
+    const sha = dm?.sha256 || c.source_revision;
     const routes = dm?.routes ?? { native: 0, repaired: 0, ocr: pageCount, corrupt: 0, noncontent: 0 };
-    const prio = classifyOcrPriority(c.path, fileName, dm?.title_hint || "");
+    const prio = precomputedPrios[idx];
+
+    const shaGroup = queueIndicesBySha.get(sha) ?? [queueIndex];
+    const canonicalRepIndex = shaGroup[0];
+    const isCanonicalHashRep = canonicalRepIndex === queueIndex;
 
     totalDeferredBytes += byteSize;
     totalDeferredPages += pageCount;
@@ -672,6 +783,22 @@ async function main(): Promise<void> {
     totalDeferredCorruptPages += routes.corrupt;
     totalDeferredNativePages += routes.native;
     totalDeferredNoncontentPages += routes.noncontent;
+
+    if (isCanonicalHashRep) {
+      uniqueDeferredFiles += 1;
+      uniqueDeferredBytes += byteSize;
+      uniqueDeferredPages += pageCount;
+      uniqueDeferredOcrPages += routes.ocr;
+      uniqueDeferredCorruptPages += routes.corrupt;
+      uniqueDeferredNativePages += routes.native;
+      if (!uniqueByPriority[prio.priority_tier]) {
+        uniqueByPriority[prio.priority_tier] = { unique_files: 0, unique_pages: 0, unique_ocr_or_corrupt_pages: 0, unique_bytes: 0 };
+      }
+      uniqueByPriority[prio.priority_tier].unique_files += 1;
+      uniqueByPriority[prio.priority_tier].unique_pages += pageCount;
+      uniqueByPriority[prio.priority_tier].unique_ocr_or_corrupt_pages += routes.ocr + routes.corrupt;
+      uniqueByPriority[prio.priority_tier].unique_bytes += byteSize;
+    }
 
     if (!ocrByFolder[folder]) {
       ocrByFolder[folder] = { files: 0, total_bytes: 0, total_pages: 0, ocr_pages: 0, corrupt_pages: 0, native_pages: 0 };
@@ -692,35 +819,49 @@ async function main(): Promise<void> {
     ocrByPriority[prio.priority_tier].total_bytes += byteSize;
 
     const recommendedPipelineRoute =
-      routes.corrupt > 0 && routes.ocr === 0
-        ? "STAGE_3_LEGACY_FONT_REPAIR_THEN_SELECTIVE_OCR_FALLBACK"
-        : routes.native > 0 && (routes.ocr > 0 || routes.corrupt > 0)
-          ? "STAGE_4_MIXED_KEEP_NATIVE_PAGES_AND_OCR_FAILED_PAGES_ONLY"
-          : "STAGE_4_FULL_IMAGE_SCAN_THAI_ENGLISH_LEGAL_OCR";
+      !isCanonicalHashRep
+        ? "DEDUP_REUSE_CANONICAL_SHA256_EXTRACTION_PRESERVE_AUDIT_LINEAGE"
+        : routes.corrupt > 0 && routes.ocr === 0
+          ? "STAGE_3_LEGACY_FONT_REPAIR_THEN_SELECTIVE_OCR_FALLBACK"
+          : routes.native > 0 && (routes.ocr > 0 || routes.corrupt > 0)
+            ? "STAGE_4_MIXED_KEEP_NATIVE_PAGES_AND_OCR_FAILED_PAGES_ONLY"
+            : "STAGE_4_FULL_IMAGE_SCAN_THAI_ENGLISH_LEGAL_OCR";
 
     return {
-      queue_index: idx + 1,
+      queue_index: queueIndex,
       candidate_id: c.candidate_id,
       manifest_id: c.manifest_id,
       source_file_id: c.source_file_id,
       source_uri: c.source_uri,
+      canonical_sha256_urn: `urn:sha256:${sha}`,
+      physical_corpus_rel_path: c.path,
       folder,
       path: c.path,
       file_name: fileName,
       title_hint: dm?.title_hint || null,
-      sha256: dm?.sha256 || c.source_revision,
+      sha256: sha,
       byte_size: byteSize,
       physical_page_count: pageCount,
+      is_canonical_hash_representative: isCanonicalHashRep,
+      duplicate_of_queue_index: isCanonicalHashRep ? null : canonicalRepIndex,
+      companion_duplicate_queue_indices: shaGroup.length > 1 ? shaGroup : [],
       file_route: dm?.file_route || "ocr_required",
       measured_page_routes: routes,
       deferral_reason: c.reasons[0] || dm?.reason || "HISTORICAL_SCAN_OR_LEGACY_FONT_REQUIRES_VERIFIED_OCR",
       priority_tier: prio.priority_tier,
       priority_rationale: prio.priority_rationale,
+      parsed_instrument_identity: prio.parsed_identity,
+      matched_quarantine_ref_ids: prio.matched_quarantine_ref_ids,
+      rejected_homonym_quarantine_ref_ids: prio.rejected_homonym_quarantine_ref_ids,
+      amendment_review_quarantine_ref_ids: prio.amendment_review_quarantine_ref_ids,
+      ocr_alone_releases_quarantine: false,
       recommended_recovery_route: recommendedPipelineRoute,
       fabricated_or_inferred_text_admitted: false,
       verification_gate_required: "DUAL_CONTROL_SPAN_AND_CRITICAL_TOKEN_CHECK_BEFORE_INGESTION",
     };
   });
+
+  const duplicateHashGroupsCount = Array.from(queueIndicesBySha.values()).filter((g) => g.length > 1).length;
 
   const ocrRecoveryQueueSummary = {
     generated_at: new Date().toISOString(),
@@ -728,8 +869,12 @@ async function main(): Promise<void> {
     manifest_id: fB02.manifest.manifest_id,
     policy_verified: {
       total_deferred_files: ocrRecoveryQueueItems.length,
+      all_duplicate_audit_records_preserved: ocrRecoveryQueueItems.length === 5275,
       zero_fabricated_or_inferred_text: ocrRecoveryQueueItems.every(
         (i) => i.fabricated_or_inferred_text_admitted === false
+      ),
+      ocr_alone_never_releases_quarantine: ocrRecoveryQueueItems.every(
+        (i) => i.ocr_alone_releases_quarantine === false
       ),
       all_marked_deferred_with_reason: deferredB02Cands.length === 5275,
     },
@@ -742,6 +887,18 @@ async function main(): Promise<void> {
       pages_needing_legacy_font_repair_or_ocr: totalDeferredCorruptPages,
       pages_with_reusable_native_text_in_mixed_docs: totalDeferredNativePages,
       pages_confirmed_noncontent_blank_or_cover: totalDeferredNoncontentPages,
+    },
+    deduplicated_unique_workload: {
+      unique_sha256_files_count: uniqueDeferredFiles,
+      duplicate_hash_groups_count: duplicateHashGroupsCount,
+      duplicate_extra_file_entries_preserved_in_audit: ocrRecoveryQueueItems.length - uniqueDeferredFiles,
+      duplicate_extra_pages_eliminated_from_ocr_budget: totalDeferredPages - uniqueDeferredPages,
+      unique_total_bytes: uniqueDeferredBytes,
+      unique_total_physical_pages: uniqueDeferredPages,
+      unique_pages_needing_image_ocr: uniqueDeferredOcrPages,
+      unique_pages_needing_legacy_font_repair_or_ocr: uniqueDeferredCorruptPages,
+      unique_pages_with_reusable_native_text: uniqueDeferredNativePages,
+      unique_by_priority_tier: uniqueByPriority,
     },
     by_priority_tier: ocrByPriority,
     by_source_folder: ocrByFolder,

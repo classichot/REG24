@@ -4,6 +4,7 @@
 
 export * from "./contract";
 export * from "./thai-normalizer";
+export * from "./typhoon-v2-parser";
 export * from "./providers";
 export * from "./benchmark";
 export * from "./service";

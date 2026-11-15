@@ -232,12 +232,59 @@ export function resolveCanonicalB02WorkId(params: {
     return "statute.th.revenue_code";
   }
 
+  // Detect explicit non-Revenue-Code parent statutes so RD/CIT or RD/* folder hints never misroute
+  // Petroleum Income Tax, Signboard Tax, Inheritance Tax, Export Tax Compensation, or Top-Up Tax instruments
+  // onto `subreg.th.rc.*` canonical IDs!
+  const probeParentStatute = `${normTitle} ${normBodyHead}`;
+  const isPetroleumIncomeTax = /ภาษีเงินได้ปิโตรเลียม|Petroleum\s*Income\s*Tax/i.test(probeParentStatute);
+  const isSignboardTax = /ภาษีป้าย|Signboard\s*Tax/i.test(probeParentStatute);
+  const isInheritanceTax = /ภาษีการรับมรดก/i.test(probeParentStatute);
+  const isExportTaxComp = /ชดเชยค่าภาษีอากรสินค้าส่งออก/i.test(probeParentStatute);
+  const isTopUpTax = /ภาษีส่วนเพิ่ม\s*พ\.ศ\.\s*2567/i.test(probeParentStatute);
+  const isOutboundTravelTax = /ภาษีการเดินทางออกนอกราชอาณาจักร/i.test(probeParentStatute);
+  const hasExplicitNonRcParent =
+    isPetroleumIncomeTax ||
+    isSignboardTax ||
+    isInheritanceTax ||
+    isExportTaxComp ||
+    isTopUpTax ||
+    isOutboundTravelTax;
+
+  // Law-scoped canonical IDs for Petroleum Income Tax & Signboard Tax subordinate regulations
+  if (/พระราชกฤษฎีกา|RoyalDecree|Royal-Decree|_RD_/i.test(normTitle) && isPetroleumIncomeTax) {
+    const rdNum =
+      normTitle.match(/\(ฉบับที่\s*([0-9]+)\)/)?.[1] ||
+      params.fileNameHint.match(/(?:_RD_|RoyalDecree_|Royal-Decree_)([0-9]{1,4})(?:_|\b)/i)?.[1];
+    if (rdNum) {
+      return `subreg.th.petroleum_tax.royal_decree.${rdNum}`;
+    }
+  }
+  if (/กฎกระทรวง|_MR_|MinReg/i.test(normTitle) && isPetroleumIncomeTax) {
+    const mrNum =
+      normTitle.match(/ฉบับที่\s*([0-9]+)/)?.[1] ||
+      normBodyHead.match(/กฎกระทรวง\s*ฉบับที่\s*([0-9]+)/)?.[1] ||
+      params.fileNameHint.match(/(?:_MR_|MinReg_)([0-9]{1,4})(?:_|\b)/i)?.[1];
+    if (mrNum) {
+      return `subreg.th.petroleum_tax.min_reg.${mrNum}`;
+    }
+  }
+  if (/กฎกระทรวง|_MR_|MinReg/i.test(normTitle) && isSignboardTax) {
+    const mrNum =
+      normTitle.match(/ฉบับที่\s*([0-9]+)/)?.[1] ||
+      normBodyHead.match(/กฎกระทรวง\s*ฉบับที่\s*([0-9]+)/)?.[1] ||
+      params.fileNameHint.match(/(?:_MR_|MinReg_)([0-9]{1,4})(?:_|\b)/i)?.[1];
+    if (mrNum) {
+      return `subreg.th.signboard_tax.min_reg.${mrNum}`;
+    }
+  }
+
   // Royal Decree under Revenue Code (`พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ... (ฉบับที่ N)`)
   if (
     /พระราชกฤษฎีกา|RoyalDecree|Royal-Decree|_RD_/i.test(normTitle) &&
+    !hasExplicitNonRcParent &&
     (/ประมวลรัษฎากร/.test(normTitle) ||
       /ประมวลรัษฎากร/.test(normBodyHead) ||
-      params.folderHint.startsWith("RD/"))
+      (params.folderHint.startsWith("RD/") && params.folderHint !== "RD/General & Other Taxes"))
   ) {
     const rdNum =
       normTitle.match(/\(ฉบับที่\s*([0-9]+)\)/)?.[1] ||
@@ -278,6 +325,7 @@ export function resolveCanonicalB02WorkId(params: {
   // Ministerial Regulation under Revenue Code (`กฎกระทรวง ฉบับที่ N (...) ออกตามความในประมวลรัษฎากร`)
   if (
     /กฎกระทรวง|_MR_|MinReg/i.test(normTitle) &&
+    !hasExplicitNonRcParent &&
     (/ประมวลรัษฎากร/.test(normTitle) ||
       /ประมวลรัษฎากร/.test(normBodyHead) ||
       (params.folderHint.startsWith("RD/") && params.folderHint !== "RD/General & Other Taxes"))
@@ -285,7 +333,7 @@ export function resolveCanonicalB02WorkId(params: {
     const mrNum =
       normTitle.match(/ฉบับที่\s*([0-9]+)/)?.[1] ||
       normBodyHead.match(/กฎกระทรวง\s*ฉบับที่\s*([0-9]+)/)?.[1] ||
-      params.fileNameHint.match(/(?:_MR_|MinReg_)([0-9]{2,4})(?:_|\b)/i)?.[1];
+      params.fileNameHint.match(/(?:_MR_|MinReg_)([0-9]{1,4})(?:_|\b)/i)?.[1];
     if (mrNum) {
       return `subreg.th.rc.min_reg.${mrNum}`;
     }
@@ -439,19 +487,28 @@ export function extractEnablingAndAmendmentLinks(
   schedulesAndFootnotes: string[];
 } {
   const norm = thaiDigitsToArabic(`${titleTh}\n${fullText}`);
+  // Collapse soft line-wraps within paragraphs while preserving clause boundaries (`ข้อ N`, `มาตรา N`, `;`)
+  // so multi-line Gazette citations like `ให้ยกเลิกกฎกระทรวง ฉบับที่ 5 (พ.ศ. 2535)\nออกตามความในพระราชบัญญัติภาษีป้าย พ.ศ. 2510`
+  // are never truncated mid-title at `\n`.
+  const normUnwrapped = norm
+    .replace(/\r/g, "")
+    .replace(/\n(?=\s*(?:ข้อ|มาตรา)\s*[0-9]+\b)/g, " ; ")
+    .replace(/([\u0E00-\u0E7F])\s*\n\s*([\u0E00-\u0E7F])/g, "$1$2")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ");
 
   // 1. Enabling law (`MADE_UNDER`): `อาศัยอำนาจตามความในมาตรา ... แห่งพระราชบัญญัติ...` or `ออกตามความในประมวลรัษฎากร`
   let enablingCitation: string | null = null;
   let enablingWorkId: string | null = null;
 
-  const madeUnderMatch = norm.match(
-    /อาศัยอำนาจตามความใน\s*(มาตรา\s*[0-9]+[^\n]{0,120}?แห่ง(?:พระราชบัญญัติ|พระราชกำหนด|ประมวลรัษฎากร)[^\n(]{0,80}(?:พ\.ศ\.\s*[0-9]{4})?)/
+  const madeUnderMatch = normUnwrapped.match(
+    /อาศัยอำนาจตามความใน\s*(มาตรา\s*[0-9]+[^;]{0,140}?แห่ง(?:พระราชบัญญัติ|พระราชกำหนด|ประมวลรัษฎากร)[^;(]{0,90}?(?:พ\.ศ\.\s*[0-9]{4})?)(?=\s*(?:ซึ่งแก้ไข|รัฐมนตรี|อธิบดี|คณะรัฐมนตรี|จึงทรง|ออก|;|$))/
   );
   if (madeUnderMatch?.[1]) {
     enablingCitation = madeUnderMatch[1].replace(/\s+/g, " ").trim();
-  } else if (/ออกตามความในประมวลรัษฎากร/.test(norm)) {
+  } else if (/ออกตามความในประมวลรัษฎากร/.test(normUnwrapped)) {
     enablingCitation = "ประมวลรัษฎากร";
-  } else if (/ตามความใน.*แห่งพระราชกำหนดภาษีส่วนเพิ่ม\s*พ\.ศ\.\s*2567/.test(norm)) {
+  } else if (/ตามความใน.*แห่งพระราชกำหนดภาษีส่วนเพิ่ม\s*พ\.ศ\.\s*2567/.test(normUnwrapped)) {
     enablingCitation = "พระราชกำหนดภาษีส่วนเพิ่ม พ.ศ. 2567";
   }
 
@@ -495,10 +552,11 @@ export function extractEnablingAndAmendmentLinks(
     }
   }
 
-  // Explicit Repeals (`ให้ยกเลิกพระราชบัญญัติ...` / `พระราชบัญญัติยกเลิก...`)
+  // Explicit Repeals (`ให้ยกเลิกพระราชบัญญัติ...` / `ให้ยกเลิกกฎกระทรวง...`)
+  // Match against `normUnwrapped` so multi-line Gazette repeal clauses capture the full governing parent statute!
   const repealMatches =
-    norm.match(
-      /ให้ยกเลิก\s*((?:พระราชบัญญัติ|พระราชกำหนด|พระราชกฤษฎีกา|กฎกระทรวง|ประกาศคณะปฏิวัติ)[^\n;]{6,110}(?:พ\.ศ\.\s*[0-9]{4}|ลงวันที่\s*[0-9]{1,2}\s+[^\s]+\s+[0-9]{4}))/g
+    normUnwrapped.match(
+      /ให้ยกเลิก\s*((?:พระราชบัญญัติ|พระราชกำหนด|พระราชกฤษฎีกา|กฎกระทรวง|ประกาศคณะปฏิวัติ)[^;]{4,150}?(?:พ\.ศ\.\s*[0-9]{4}\)?|ลงวันที่\s*[0-9]{1,2}\s+[^\s]+\s+[0-9]{4}|ออกตามความใน\s*(?:พระราชบัญญัติ|พระราชกำหนด|ประมวลรัษฎากร)(?:[^;]{0,90}?พ\.ศ\.\s*[0-9]{4})?)(?:\s*ออกตามความใน\s*(?:พระราชบัญญัติ|พระราชกำหนด|ประมวลรัษฎากร)(?:[^;]{0,90}?พ\.ศ\.\s*[0-9]{4})?)?)/g
     ) || [];
   for (const rm of repealMatches.slice(0, 6)) {
     const targetRaw = rm.replace(/^ให้ยกเลิก\s*/, "").replace(/\s+/g, " ").trim();

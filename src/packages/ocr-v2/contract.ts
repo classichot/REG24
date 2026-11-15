@@ -120,6 +120,9 @@ export interface OCRPage {
     model_revision: string;
     adapter_version: string;
     raw_response_ref: string | null;
+    raw_response_sha256?: string | null;
+    is_simulated?: boolean;
+    usable_as_verified_text?: boolean;
   };
   confidence: {
     value: number;
@@ -152,6 +155,8 @@ export interface ExtractionManifest {
   pages_ref: string;
   issues: OCRIssue[];
   predecessor_extraction_version_id?: string | null;
+  execution_mode?: "real_ocr" | "native_only" | "simulated_continuity_fixture";
+  usable_as_verified_text?: boolean;
 }
 
 export interface OCRJob {
@@ -606,6 +611,7 @@ export interface OcrV2FeatureFlags {
   ocr_v2_review_enabled: boolean;
   ocr_v2_publication_enabled: boolean;
   shadow_mode_only: boolean;
+  ocr_v2_disable_continuity_adapter?: boolean;
 }
 
 export const DEFAULT_OCR_V2_FEATURE_FLAGS: OcrV2FeatureFlags = {
@@ -613,6 +619,7 @@ export const DEFAULT_OCR_V2_FEATURE_FLAGS: OcrV2FeatureFlags = {
   ocr_v2_review_enabled: process.env.OCR_V2_REVIEW_ENABLED !== "false",
   ocr_v2_publication_enabled: process.env.OCR_V2_PUBLICATION_ENABLED !== "false",
   shadow_mode_only: process.env.OCR_V2_SHADOW_MODE_ONLY === "true",
+  ocr_v2_disable_continuity_adapter: process.env.OCR_V2_DISABLE_CONTINUITY_ADAPTER === "true",
 };
 
 // ============================================================================

@@ -45,6 +45,7 @@ import {
   OcrProviderDescriptor,
   OcrRoutingPolicy,
   Rag24ContinuityAdapter,
+  RealProviderPageExtractionInput,
   SimulatedProviderBehaviorOverride,
   segmentStructuredBlocksFromRawText,
 } from "./providers";
@@ -182,9 +183,16 @@ export class Reg24OcrV2Service {
 
   private seqCounter = 1000;
   private fencingCounter = 1;
+  private allowSimulatedFixturesInTestHarness: boolean;
 
-  constructor(options?: { seedFixtures?: boolean; flags?: Partial<OcrV2FeatureFlags> }) {
+  constructor(options?: {
+    seedFixtures?: boolean;
+    allowSimulatedTestFixtures?: boolean;
+    flags?: Partial<OcrV2FeatureFlags>;
+  }) {
     this.flags = { ...DEFAULT_OCR_V2_FEATURE_FLAGS, ...(options?.flags ?? {}) };
+    this.allowSimulatedFixturesInTestHarness =
+      options?.allowSimulatedTestFixtures ?? (options?.seedFixtures !== false);
     this.adapter = new Rag24ContinuityAdapter();
     this.policies.set(DEFAULT_LEGAL_OCR_POLICY.policy_id, {
       ...DEFAULT_LEGAL_OCR_POLICY,
@@ -258,6 +266,13 @@ export class Reg24OcrV2Service {
 
   public getFeatureFlags(): OcrV2FeatureFlags {
     return { ...this.flags };
+  }
+
+  public isContinuityAdapterDisabled(): boolean {
+    return (
+      Boolean(this.flags.ocr_v2_disable_continuity_adapter) ||
+      process.env.OCR_V2_DISABLE_CONTINUITY_ADAPTER === "true"
+    );
   }
 
   public setProviderWorkerAvailability(providerId: string, available: boolean): void {
@@ -667,10 +682,19 @@ export class Reg24OcrV2Service {
     routing_override_provider_id?: string;
     parent_job_id?: string | null;
     defer_worker_execution?: boolean; // Used to test queued/running/cancel/fencing races!
+    real_provider_pages?: Record<number, RealProviderPageExtractionInput>;
     simulation?: SimulatedProviderBehaviorOverride;
   }): HttpServiceResult<OCRJob> {
     if (!this.flags.ocr_v2_ingestion_enabled) {
       return this.errorResponse(503, "FEATURE_DISABLED", "ocr_v2_ingestion_enabled flag is disabled", true);
+    }
+    if (this.isContinuityAdapterDisabled() && !params.real_provider_pages && !params.defer_worker_execution) {
+      return this.errorResponse(
+        503,
+        "FEATURE_DISABLED",
+        "OCR_V2_DISABLE_CONTINUITY_ADAPTER=true: simulated continuity OCR adapter is disabled; supply real_provider_pages from the external OCR worker",
+        true
+      );
     }
     const sv = this.sourceVersions.get(params.source_version_id);
     if (!sv || sv.document_id !== params.document_id) {
@@ -785,7 +809,12 @@ export class Reg24OcrV2Service {
         this.emitOutboxEvent(job, "ocr.job.updated");
 
         if (!params.defer_worker_execution) {
-          this.runWorkerExtractionSync(jobId, params.routing_override_provider_id, params.simulation);
+          this.runWorkerExtractionSync(
+            jobId,
+            params.routing_override_provider_id,
+            params.simulation,
+            params.real_provider_pages
+          );
         }
 
         return {
@@ -837,6 +866,7 @@ export class Reg24OcrV2Service {
     job_id: string;
     fencing_token: number;
     routing_override_provider_id?: string;
+    real_provider_pages?: Record<number, RealProviderPageExtractionInput>;
     simulation?: SimulatedProviderBehaviorOverride;
     incurred_micros_override?: number;
   }): {
@@ -886,6 +916,8 @@ export class Reg24OcrV2Service {
       policy,
       pages_manifest: sv.pages_manifest,
       routing_override_provider_id: params.routing_override_provider_id,
+      disable_continuity_adapter: this.isContinuityAdapterDisabled(),
+      real_provider_pages: params.real_provider_pages,
       simulation: params.simulation,
     });
 
@@ -961,6 +993,8 @@ export class Reg24OcrV2Service {
       pages_ref: `pages:${extractionVersionId}`,
       issues: allIssues,
       predecessor_extraction_version_id: null,
+      execution_mode: execResult.execution_mode,
+      usable_as_verified_text: execResult.usable_as_verified_text,
     };
 
     const contentDigest = computeOcrDigestV1(manifestDraft, execResult.pages);
@@ -1062,7 +1096,8 @@ export class Reg24OcrV2Service {
   private runWorkerExtractionSync(
     jobId: string,
     routingOverrideProviderId?: string,
-    simulation?: SimulatedProviderBehaviorOverride
+    simulation?: SimulatedProviderBehaviorOverride,
+    realProviderPages?: Record<number, RealProviderPageExtractionInput>
   ): void {
     const lease = this.acquireWorkerLease(jobId);
     if (lease.ok && lease.fencing_token !== undefined) {
@@ -1070,6 +1105,7 @@ export class Reg24OcrV2Service {
         job_id: jobId,
         fencing_token: lease.fencing_token,
         routing_override_provider_id: routingOverrideProviderId,
+        real_provider_pages: realProviderPages,
         simulation,
       });
     }
@@ -1320,7 +1356,7 @@ export class Reg24OcrV2Service {
       body: {
         policy_id: policy.policy_id,
         policy_revision: policy.policy_revision,
-        continuity_adapter_active: process.env.OCR_V2_DISABLE_CONTINUITY_ADAPTER !== "true",
+        continuity_adapter_active: !this.isContinuityAdapterDisabled(),
         providers: this.adapter.listProvidersForPolicy(policy, params.privacy_class),
       },
     };
@@ -2342,6 +2378,19 @@ export class Reg24OcrV2Service {
             409,
             "QUALITY_REVIEW_REQUIRED",
             "Documents with unresolved blocking issues or uncertain/missing pages cannot be published"
+          );
+        }
+
+        // Guard: Simulated continuity fixture extractions can NEVER enter verified production publication!
+        const hasSimulatedPage = pages.some((p) => p.provenance.is_simulated === true);
+        if (
+          (manifest.execution_mode === "simulated_continuity_fixture" || hasSimulatedPage) &&
+          (!this.allowSimulatedFixturesInTestHarness || this.isContinuityAdapterDisabled())
+        ) {
+          return this.errorResponse(
+            403,
+            "POLICY_BLOCKED",
+            "Simulated continuity fixture extractions (is_simulated=true) cannot be presented as real OCR or enter production as verified text"
           );
         }
 
@@ -3498,6 +3547,7 @@ export class Reg24OcrV2Service {
 
 export function createReg24OcrV2Service(options?: {
   seedFixtures?: boolean;
+  allowSimulatedTestFixtures?: boolean;
   flags?: Partial<OcrV2FeatureFlags>;
 }): Reg24OcrV2Service {
   return new Reg24OcrV2Service(options);
