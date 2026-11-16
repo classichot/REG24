@@ -1,0 +1,80 @@
+{
+  "updated_at": "2026-11-16T13:42:00.000Z",
+  "candidate_release_id": "rel.B01.rc4",
+  "governance_separation": {
+    "technical_checks_establish_substantive_legal_accuracy": false,
+    "external_trial_launch_requires_human_thai_tax_counsel_signoff": true,
+    "exploratory_owner_and_dodo_testing_permitted_in_parallel": true
+  },
+  "reviewer_guidance_corrections_applied": [
+    {
+      "spotcheck_id": "LSC-02",
+      "ruling_no": "กค 0702/1903",
+      "official_source": "https://www.rd.go.th/68482.html",
+      "prior_incorrect_guidance": "Cited Revenue Code Section 81(1)(ฉ) (fertilizer VAT exemption).",
+      "corrected_guidance": "Revenue Code Section 81(2)(ก) juncto Section 81(1)(ง) (import VAT exemption for animal feed / feed supplements certified by the Department of Livestock Development under the Animal Feed Quality Control Act B.E. 2558).",
+      "answer_text_was_affected": false,
+      "notes": "REG24's retrieved passage and rendered answer already cited `มาตรา 81 (2) (ก) ประกอบกับมาตรา 81 (1) (ง)` accurately; the error was in the spot-check harness's `legal_check_focus` prompt metadata."
+    },
+    {
+      "spotcheck_id": "LSC-06",
+      "ruling_no": "กค 0702/6077",
+      "official_source": "https://www.rd.go.th/68053.html",
+      "prior_incorrect_guidance": "Described only CIT conclusion.",
+      "corrected_guidance": "Covers both Point 1 VAT tax-base & credit-note ineligibility (`มาตรา 79`, `มาตรา 79 (1)`, `มาตรา 82/10 (1)`) on post-sale dealer rebates and Point 2 CIT exemption (`พระราชกฤษฎีกาฯ (ฉบับที่ 773) พ.ศ. 2566 มาตรา 3`, with quarantined standalone decree status disclosed)."
+    },
+    {
+      "spotcheck_id": "LSC-10",
+      "ruling_no": "กค 0811/02557",
+      "official_source": "https://www.rd.go.th/23475.html",
+      "prior_incorrect_guidance": "Described property sale-with-right-of-redemption (`ขายฝาก`, which belongs to LSC-07 `กค 0811/13980`).",
+      "corrected_guidance": "Covers statutory separation of life and non-life insurance businesses into a new company and CIT net-profit computation under Revenue Code Sections 65, 65 bis, and 65 ter."
+    }
+  ],
+  "material_answer_quality_fixes_verified_against_sources": [
+    {
+      "issue_id": "QUAL-B01-COND-220",
+      "description": "Separate condition (`เงื่อนไขสำคัญ`) and exception (`ข้อยกเว้น / ข้อจำกัด`) bullets were previously extracted via `[^。\\n]{10,220}` in `B01.ts`, cutting mid-syllable at 220 characters and triggering on substring `ต่างหาก` or historical dates `เมื่อวันที่ ...`.",
+      "resolution": "Replaced in `B01.ts` and `query.ts` with numbered-segment, word-boundary-safe complete Thai clause extraction (`cleanCompleteThaiLegalClause`): preserves complete conditions/exceptions up to clean consequence pivots (`ดังนั้น`, `กรณีดังกล่าวจึง`, etc.) and suppresses any summary clause that cannot terminate cleanly without mid-sentence truncation while preserving 100% of the verbatim RD conclusion above."
+    },
+    {
+      "issue_id": "QUAL-B01-MULTIUNIT-STATUTE",
+      "description": "Linked B02 statutory sections rendered beneath a ruling (e.g., `มาตรา 47 ทวิ` in `LSC-01`) previously rendered `Unit 1` only, omitting `Unit 2` (`วรรคสาม` non-domicile restriction).",
+      "resolution": "Updated `query.ts` to call `reassembleOrderedSectionUnits` on linked B02 statutory sections so all paragraphs (`Unit 1..N`) render end-to-end."
+    },
+    {
+      "issue_id": "QUAL-B01-INCOMPLETE-LAW-DISCLOSURE",
+      "description": "Rulings citing quarantined external statutes/Royal Decrees (`usable_as_legal_evidence: false`, e.g. Royal Decrees 530/595 in `LSC-04`, 773 in `LSC-06`, 736 in `LSC-17`, CCC in `LSC-01`) previously put quarantine notices only in `coverage_warnings` while returning `ANSWERED` on general questions.",
+      "resolution": "Added explicit inline `ข้อจำกัดความครบถ้วนของหลักฐานกฎหมายประกอบ` inside `answer` text whenever quarantined external laws are referenced, and set `status = CONDITIONAL` on non-`exact_lookup` questions so REG24 never implies unconditional legal certainty where supporting statutory text is unverified."
+    },
+    {
+      "issue_id": "QUAL-B01-STATUTE-1939-HEADER-AND-COMPARISON",
+      "description": "Compiled `rd.go.th` Revenue Code sections (`มาตรา 47 ทวิ`, `มาตรา 70`) previously displayed `1939-04-01` as if every amended paragraph took effect in 1939, and `LSC-11` comparison mode appended an unrequested 3rd ruling (`กค 0811/6874`).",
+      "resolution": "Replaced `1939-04-01` header on compiled `rd.go.th` sections with an accurate compiled-text provenance note directing readers to paragraph-level amendment notes; scoped comparison mode strictly to the explicitly requested rulings when >= 2 identifiers are specified."
+    }
+  ],
+  "representative_source_verification_sample": [
+    { "ruling_no": "กค 0702/1494", "source_url": "https://www.rd.go.th/68536.html", "points_in_source": 3, "source_alignment": "VERIFIED_COMPLETE_WITH_QUARANTINE_NOTICE", "notes": "All 3 points (estate tax unit under Sec. 57 bis/62, Sec. 47 bis para 3 domicile rule, and Sec. 42 CCC special tax domicile -> Sec. 47 bis & 48 credit) + full Sec. 47 bis statute rendered; CCC quarantine explicitly disclosed." },
+    { "ruling_no": "กค 0702/1903", "source_url": "https://www.rd.go.th/68482.html", "points_in_source": 1, "source_alignment": "VERIFIED_COMPLETE", "notes": "Sec. 81(2)(ก) juncto Sec. 81(1)(ง) VAT import exemption & DLD certification condition complete." },
+    { "ruling_no": "กค 0702/634", "source_url": "https://www.rd.go.th/68308.html", "points_in_source": 1, "source_alignment": "VERIFIED_COMPLETE", "notes": "96.5% gold jewelry import taxable on full import value under Sec. 77/1(12) & 78/2(1); exception bullet under RD 311/367 & DG VAT Notification cleanly terminated at `พ.ศ. 2543`." },
+    { "ruling_no": "กค 0702/4825", "source_url": "https://www.rd.go.th/65296.html", "points_in_source": 4, "source_alignment": "VERIFIED_COMPLETE_WITH_QUARANTINE_NOTICE", "notes": "All 4 numbered points rendered through RD 595 Sec. 4 (B.E. 2559 cap); quarantined RD 530 & RD 595 standalone text explicitly disclosed." },
+    { "ruling_no": "กค 0702/6077", "source_url": "https://www.rd.go.th/68053.html", "points_in_source": 2, "source_alignment": "VERIFIED_COMPLETE_WITH_QUARANTINE_NOTICE", "notes": "Both VAT rebate point (Sec. 79, 82/10(1)) and EV subsidy CIT exemption point (RD 773 Sec. 3) rendered in full with RD 773 quarantine disclosure." },
+    { "ruling_no": "กค 0702/2994", "source_url": "https://www.rd.go.th/52912.html", "points_in_source": 4, "source_alignment": "VERIFIED_COMPLETE", "notes": "6,036-char 4-chunk VAT/CIT ruling reassembled in exact order through Sec. 82/4 and Sec. 65 ter (6 bis)." },
+    { "ruling_no": "กค 0702/2794", "source_url": "https://www.rd.go.th/48429.html", "points_in_source": 4, "source_alignment": "VERIFIED_COMPLETE", "notes": "5,004-char 4-chunk cross-border VAT/CIT ruling reassembled in exact order through DG VAT Notification No. 181." },
+    { "ruling_no": "กค 0702/7731", "source_url": "https://www.rd.go.th/48862.html", "points_in_source": 3, "source_alignment": "VERIFIED_COMPLETE", "notes": "3,706-char 3-chunk SBT & CIT land valuation/cost ruling complete through land-cost deduction rule." },
+    { "ruling_no": "กค 0702/1693", "source_url": "https://www.rd.go.th/52614.html", "points_in_source": 3, "source_alignment": "VERIFIED_COMPLETE", "notes": "3,910-char 3-chunk ruling complete through 100% CIT deduction under RD 297." },
+    { "ruling_no": "กค 0706/10072", "source_url": "https://www.rd.go.th/30677.html", "points_in_source": 0, "source_alignment": "SAFELY_WITHDRAWN", "notes": "Official rd.go.th page has `แนววินิจฉัย: -` (inquiry only); safely withdrawn so REG24 abstains with `INSUFFICIENT_EVIDENCE`." }
+  ],
+  "minor_non_blocking_backlog_items": [
+    {
+      "backlog_id": "MINOR-B01-01",
+      "description": "Some 2568–2569 HTML-derived PDFs retain the inline header string `ภาษีอากร กค ... เลขที่หนังสือ...` at the start of `ข้อเท็จจริงและประเด็นของผู้ขอหารือ`.",
+      "impact": "Cosmetic only; does not alter facts, legal citations, or RD conclusions."
+    },
+    {
+      "backlog_id": "MINOR-B01-02",
+      "description": "Legacy 2541–2546 `rd.go.th` HTML pages contain occasional extra spaces inside Thai phrases from original government HTML line wraps.",
+      "impact": "Cosmetic only; verbatim characters and numbers match official `rd.go.th` pages."
+    }
+  ]
+}

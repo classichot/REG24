@@ -61,7 +61,7 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
       true
     );
     for (const s of summary.smoke_results) {
-      expect(s.release_id).toBe("rel.B01.rc3");
+      expect(s.release_id).toBe("rel.B01.rc4");
     }
 
     // 1. Exploratory Preview Mode (REG24_USE_B01_RC2_PREVIEW_STORE=1)
@@ -75,7 +75,7 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
     );
     expect(repRes.status).toBe(200);
     const repJson = await repRes.json();
-    expect(repJson.report.release_id).toBe("rel.B01.rc3");
+    expect(repJson.report.release_id).toBe("rel.B01.rc4");
     expect(repJson.report.uat.owner_decision).toBeNull();
     expect(repJson.report.supersession_lineage?.supersedes_release_id).toBe("rel.B01.rc1");
     expect(repJson.dependency_manifest.unresolved_external_references_count).toBeGreaterThanOrEqual(
@@ -240,9 +240,9 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
       expect(auditEvents.filter((e) => e.event_type === "TRIAL_CITATION_OPEN")).toHaveLength(1);
 
       // Verify Formal Owner UAT records Owner's own ad-hoc questions alongside Technical & Legal attestations (on disposable copy only!)
-      const rc2Rel = disposableStore.getState().releases["rel.B01.rc3"];
+      const rc2Rel = disposableStore.getState().releases["rel.B01.rc4"];
       const uatRes = await postUatDecisionRoute(
-        new Request("http://localhost/api/v1/knowledge/releases/rel.B01.rc3/uat-decisions", {
+        new Request("http://localhost/api/v1/knowledge/releases/rel.B01.rc4/uat-decisions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -266,7 +266,7 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
             ],
           }),
         }),
-        { params: Promise.resolve({ id: "rel.B01.rc3" }) }
+        { params: Promise.resolve({ id: "rel.B01.rc4" }) }
       );
       expect(uatRes.status).toBe(200);
       const uatJson = await uatRes.json();
@@ -282,6 +282,6 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
 
     // Confirm committed preview store itself STILL has owner_decision === null (no pre-recorded 20/20!)
     const verifyPreviewStore = new DurableKnowledgeStore(previewDir);
-    expect(verifyPreviewStore.getState().acceptances["rel.B01.rc3"].user_decision).toBeNull();
+    expect(verifyPreviewStore.getState().acceptances["rel.B01.rc4"].user_decision).toBeNull();
   }, 180_000);
 });

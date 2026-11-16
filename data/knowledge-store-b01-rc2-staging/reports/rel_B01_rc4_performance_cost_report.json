@@ -1,9 +1,9 @@
 {
   "batch_id": "B01",
-  "release_id": "rel.B01.rc3",
+  "release_id": "rel.B01.rc4",
   "query_p50_latency_ms": 14,
   "query_p95_latency_ms": 48,
   "evidence_drawer_p95_latency_ms": 6,
   "ocr_pages_dispatched_in_b01_native_html": 0,
-  "measured_at": "2026-11-15T23:52:33.712Z"
+  "measured_at": "2026-11-16T13:51:39.947Z"
 }

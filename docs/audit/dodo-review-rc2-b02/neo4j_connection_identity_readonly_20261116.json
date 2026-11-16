@@ -1,6 +1,8 @@
 {
-  "verified_at": "2026-11-15T23:59:00.000Z",
-  "verification_scope": "Read-only private connection-identity & Vercel environment metadata audit for REG24 Production vs. stale local .env.local (374f4f7e). Zero credentials, tokens, or raw URIs logged or stored; zero write queries executed; RAG24 completely untouched.",
+  "verified_at": "2026-11-16T13:38:00.000Z",
+  "production_to_374f4f7e_identity_status": "UNVERIFIED",
+  "verification_scope": "Read-only private connection-identity & Vercel environment metadata audit for REG24 Production vs. local .env.local (374f4f7e). Zero credentials, tokens, or raw URIs logged or stored; zero write queries executed; RAG24 completely untouched.",
+  "why_identity_remains_unverified": "Vercel Production stores `NEO4J_URI` (`env_id: lOymi3K3YZaPkTHr`, `target: [\"production\"]`) with `type: \"sensitive\"`, making its value write-only and non-exportable via `vercel env pull` or Vercel REST API, while Production `main` (`https://reg24-theta.vercel.app/api/v1/infrastructure/graph/health`) intentionally omits the hostname (`REG-NEO-003`). Because the Production hostname itself is unavailable externally, workstation-local DNS resolution failure (`NXDOMAIN` on `374f4f7e.databases.neo4j.io`) and matching graph counts (`9,818` nodes / `9,649` relationships) do NOT by themselves prove whether Production connects to `374f4f7e` or a different AuraDB instance.",
   "vercel_project_env_metadata": {
     "project_id": "prj_U39EKeaoVKDOCRF9dIhlWpcPqs9x",
     "project_name": "reg24",
@@ -39,33 +41,26 @@
         "configured_in_preview_or_development": false,
         "created_at_utc": "2026-10-20T05:10:23.489Z"
       }
-    ],
-    "why_cli_env_pull_does_not_return_uri": "Vercel marks `type: sensitive` environment variables as write-only / non-exportable across `vercel env pull` and REST API `GET /v9/projects/.../env/:id`; their decrypted values exist only inside the Vercel Production serverless runtime."
+    ]
   },
-  "divergence_vs_local_env_374f4f7e": {
-    "local_env_file_last_modified_utc": "2026-10-20T05:09:42.000Z",
-    "local_env_masked_instance_id": "374***7e",
-    "local_env_dns_status_2026_11_16": "NXDOMAIN (instance paused/deleted or retired)",
-    "production_app_endpoint": "https://reg24-theta.vercel.app/api/v1/infrastructure/graph/health",
-    "production_app_status_2026_11_16": {
-      "connected": true,
-      "availability": "healthy",
-      "database_engine": "Neo4j AuraDB",
-      "schema_version": "reg24.neo4j.schema.v2.1.0",
-      "live_node_count": 9818,
-      "live_relationship_count": 9649,
-      "last_ingestion_at_utc": "2026-10-20T05:12:17.000Z"
-    },
-    "proven_conclusion": "Vercel Production (`reg24-theta.vercel.app`) is NOT connected to `374f4f7e` (which is NXDOMAIN). It connects to an active AuraDB instance provisioned/configured at `2026-10-20T05:10:14Z` and last ingested at `2026-10-20T05:12:17Z`. However, because Vercel `sensitive` variables cannot be exported via CLI and `main` intentionally omits `NEO4J_URI` from public JSON (`REG-NEO-003`), matching counts (`9,818` / `9,649`) alone do not prove which active Aura Console instance ID corresponds to `lOymi3K3YZaPkTHr` without matching the `2026-10-20 ~05:10 UTC` Aura Console instance (and optionally comparing a non-secret SHA-256 hostname fingerprint)."
+  "observed_production_health_2026_11_16": {
+    "endpoint": "https://reg24-theta.vercel.app/api/v1/infrastructure/graph/health",
+    "connected": true,
+    "availability": "healthy",
+    "database_engine": "Neo4j AuraDB",
+    "schema_version": "reg24.neo4j.schema.v2.1.0",
+    "live_node_count": 9818,
+    "live_relationship_count": 9649,
+    "last_ingestion_at_utc": "2026-10-20T05:12:17.000Z"
   },
   "preview_isolation_confirmation": {
     "preview_has_neo4j_credentials": false,
     "preview_can_mutate_live_neo4j": false,
     "rag24_touched": false
   },
-  "separate_backup_and_isolated_restore_protocol": {
-    "step_1_identify_in_aura_console": "Open Neo4j Aura Console -> locate the active REG24 instance (strictly excluding RAG24) created on 2026-10-20 around 05:05-05:12 UTC (12:05-12:12 ICT) showing ~9,818 nodes / ~9,649 relationships.",
-    "step_2_export_snapshot": "In Aura Console -> Snapshots -> Take Snapshot -> Export archive (.backup / .dump) to local encrypted storage outside git and record its SHA-256 checksum.",
-    "step_3_isolated_loopback_restore": "Load archive into disposable local Docker Neo4j 5 container bound strictly to 127.0.0.1:17687 (`--network none` during `neo4j-admin database load`) and run read-only `scripts/verify-neo4j-374f4f7e-readonly.ts --mode=isolated-restored` to verify node/edge/constraint parity without touching live REG24 AuraDB or RAG24."
+  "zero_credential_private_confirmation_and_backup_protocol": {
+    "step_1_private_console_confirmation": "Without exposing any password or URI: open Neo4j Aura Console (`console.neo4j.io`) under the REG24 account (strictly excluding `RAG24`), check which REG24 Aura instance is currently `Running` (provisioned ~2026-10-20 05:10 UTC), and observe its live query counter / last-active timestamp immediately upon calling read-only `GET https://reg24-theta.vercel.app/api/v1/infrastructure/graph/health`. Note whether its 8-character instance ID equals `374f4f7e` or another ID. (In addition, staging `/api/v1/infrastructure/graph/health?detailed=true&candidate_instance_id=<id>` now supports an authenticated in-memory boolean check without returning credentials or raw URIs.)",
+    "step_2_separate_export": "Once confirmed in Aura Console, export a current snapshot (`.backup` / `.dump`) from Aura Console -> Snapshots -> Export to encrypted local storage outside git, and record its SHA-256 checksum without pausing, resetting, or overwriting the live REG24 graph.",
+    "step_3_isolated_loopback_restore": "Load the exported archive into a disposable local Docker Neo4j 5 container bound strictly to `127.0.0.1:17687` (`--network none` during `neo4j-admin database load`) and run read-only `scripts/verify-neo4j-374f4f7e-readonly.ts --mode=isolated-restored --expected-instance-id=<confirmed_id>` to verify node/edge/constraint parity."
   }
 }

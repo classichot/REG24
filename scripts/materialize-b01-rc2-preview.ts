@@ -18,7 +18,7 @@ import { resolveAuthorizedEvidence, withdrawKnowledgeTarget } from "../src/core/
 import { THAI_TAX_RULINGS_CORPUS } from "../src/core/data/thai-tax-rulings-loader";
 import type { Actor } from "../src/core/knowledge/contracts";
 
-export const CURRENT_B01_PREVIEW_RELEASE_ID = "rel.B01.rc3";
+export const CURRENT_B01_PREVIEW_RELEASE_ID = "rel.B01.rc4";
 
 const PROTECTED_CANONICAL_SHA256 =
   "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9";
@@ -115,10 +115,21 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
     const stExisting = store.getState();
     if (stExisting.releases[CURRENT_B01_PREVIEW_RELEASE_ID]) {
       ensureInquiryOnlyWorksWithdrawn(store);
-      releaseReport = stExisting.release_reports[CURRENT_B01_PREVIEW_RELEASE_ID];
       uatPrecheckPassed = (stExisting.uat_cases[CURRENT_B01_PREVIEW_RELEASE_ID] || []).filter(
         (c) => c.evaluator_results?.automated_precheck_passed
       ).length;
+      if (uatPrecheckPassed < 20) {
+        const reEval = await evaluateRelease(
+          CURRENT_B01_PREVIEW_RELEASE_ID,
+          "suite.B01.300families.v1.2",
+          ENG_ACTOR,
+          { store }
+        );
+        uatPrecheckPassed = reEval.uat_cases.filter(
+          (c) => c.evaluator_results?.automated_precheck_passed
+        ).length;
+      }
+      releaseReport = store.getState().release_reports[CURRENT_B01_PREVIEW_RELEASE_ID];
       const blindExisting = await runBlindSourceToAnswerValidation(
         CURRENT_B01_PREVIEW_RELEASE_ID,
         LEGAL_ACTOR,
@@ -142,7 +153,7 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
       {
         batch_id: "B01",
         manifest_id: fB01.manifest.manifest_id,
-        idempotency_key: "isolated-preview-rel-b01-rc3-completeness-remediated",
+        idempotency_key: "isolated-preview-rel-b01-rc4-conditions-remediated",
         max_documents: 5000,
       },
       ENG_ACTOR,
@@ -401,6 +412,12 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
         manifest_id: "mfst.b01.mwi46hrg",
         reason:
           "Superseded prior to Owner UAT after Dodo identified source snippet & multi-chunk conclusion truncation (DEF-B01-05).",
+      },
+      {
+        release_id: "rel.B01.rc3",
+        manifest_id: "mfst.b01.mwihl1gx",
+        reason:
+          "Superseded after fixing 220-character condition/exception bullet mid-sentence truncation, multi-unit linked statutory sections, and LSC-02/06/10 legal review guidance.",
       },
     ],
     current_candidate_release_id: CURRENT_B01_PREVIEW_RELEASE_ID,

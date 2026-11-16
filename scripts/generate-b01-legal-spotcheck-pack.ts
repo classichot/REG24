@@ -54,7 +54,8 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1903",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "Animal feed supplement importer facts separated from Section 81(1)(ฉ) VAT exemption conclusion.",
+    legal_check_focus:
+      "Animal feed supplement importer facts separated from Section 81(2)(ก) juncto Section 81(1)(ง) VAT import exemption conclusion (subject to Department of Livestock Development animal-feed certification).",
   },
   {
     spotcheck_id: "LSC-03",
@@ -87,7 +88,8 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/6077",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "EV subsidy facts separated from complete CIT conclusion.",
+    legal_check_focus:
+      "EV motorcycle subsidy & dealer-rebate facts separated from 2-point VAT (Sections 79, 79(1), 82/10(1)) and CIT exemption (Royal Decree 773 Section 3, quarantined external decree disclosed) conclusion.",
   },
 
   // Stratum 2: Subordinate Law & Royal Decree Precision (5 cases)
@@ -123,7 +125,8 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/02557",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "Verify property sale-with-right-of-redemption tax ruling citations.",
+    legal_check_focus:
+      "Mandatory insurance business separation (life vs. non-life) CIT net-profit computation under Sections 65, 65 bis, and 65 ter.",
   },
   {
     spotcheck_id: "LSC-11",
@@ -306,11 +309,13 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
     storeDir || path.resolve(process.cwd(), "data", "knowledge-store-b01-rc2-staging");
   const store = new DurableKnowledgeStore(dir);
   const st = store.getState();
-  const targetReleaseId = st.releases["rel.B01.rc3"]
-    ? "rel.B01.rc3"
-    : st.releases["rel.B01.rc2"]
-      ? "rel.B01.rc2"
-      : Object.keys(st.releases).sort().pop() || "rel.B01.rc3";
+  const targetReleaseId = st.releases["rel.B01.rc4"]
+    ? "rel.B01.rc4"
+    : st.releases["rel.B01.rc3"]
+      ? "rel.B01.rc3"
+      : st.releases["rel.B01.rc2"]
+        ? "rel.B01.rc2"
+        : Object.keys(st.releases).sort().pop() || "rel.B01.rc4";
   const rel = st.releases[targetReleaseId];
   const allRelPassages = store.getPassagesForRelease(targetReleaseId);
 
@@ -374,6 +379,19 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
       );
     }
 
+    const bulletLines = (ans.answer || "")
+      .split("\n")
+      .filter((line) => line.startsWith("- ") && !line.startsWith("- **กรณี/รุ่นที่"));
+    const cutoffBulletCount = bulletLines.filter((b) => {
+      const text = b.slice(2).trim();
+      // Flag any legacy 220-char slice, dangling leading Thai vowel, or false date/word trigger
+      return (
+        /[\u0E40-\u0E44\u0E31]$/u.test(text) ||
+        /^(?:หากำไร|หากฎหมาย|เมื่อ\s*(?:วันที่|วัน|เดือน|ปี|พ\.ศ\.|ใด(?:\s|$)))/u.test(text) ||
+        (text.length >= 218 && text.length <= 242 && !/(?:รัษฎากร|ดังกล่าว|ได้|ต่อไป|เท่านั้น|แล้วแต่กรณี|\)|[0-9]{4})$/u.test(text))
+      );
+    }).length;
+
     items.push({
       ...spec,
       observed_release_id: ans.release_id,
@@ -389,6 +407,8 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
         source_full_conclusion_chars: sourceFullConclusionChars,
         full_conclusion_tail_rendered_in_answer: sourceFinalTailIncludedInAnswer,
         source_final_100_chars: sourceFinal100Chars,
+        rendered_condition_or_exception_bullets: bulletLines.length,
+        cutoff_condition_or_exception_bullets: cutoffBulletCount,
       },
       citations,
       answer_text: ans.answer,
@@ -421,6 +441,9 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
         .every((i) => i.observed_status === "INSUFFICIENT_EVIDENCE"),
       all_22_answered_cases_render_complete_source_tail: answeredItemsWithSource.every(
         (i) => i.technical_response_checks.full_conclusion_tail_rendered_in_answer === true
+      ),
+      zero_cutoff_condition_bullets_across_all_30: items.every(
+        (i) => i.technical_response_checks.cutoff_condition_or_exception_bullets === 0
       ),
     },
     cases: items,

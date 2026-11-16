@@ -58,16 +58,33 @@ export async function GET(req: NextRequest) {
     });
   }
 
-  // Detailed administrator diagnostic report
+  // Detailed administrator diagnostic report (never exposes credentials or raw URI)
   const reconciliation = await runMigrationAndReconciliation({
     executeLiveMigration: false,
   });
   const observability = neo4jConnectionManager.getObservabilityMetrics();
+  const envCfg = neo4jConnectionManager.getEnvConfig();
+  const hostMatch = envCfg.uri.match(/^[a-z0-9+.-]+:\/\/([^:/?#]+)/i);
+  const rawHost = hostMatch ? hostMatch[1].toLowerCase() : null;
+  const auraIdMatch = rawHost ? rawHost.match(/^([a-z0-9-]+)\.databases\.neo4j\.io$/i) : null;
+  const auraId = auraIdMatch ? auraIdMatch[1].toLowerCase() : null;
+  const candidateInstanceId = (searchParams.get("candidate_instance_id") || "").trim().toLowerCase();
+  const maskShortId = (v: string | null) =>
+    !v ? null : v.length <= 4 ? `${v[0]}***` : `${v.slice(0, 3)}***${v.slice(-2)}`;
 
   return NextResponse.json({
     ...publicResponse,
     admin_diagnostics: {
       authorized_role: "Platform Administrator",
+      target_identity_verification: {
+        configured: envCfg.configured,
+        is_aura_cloud_host: Boolean(auraId),
+        aura_instance_id_masked: maskShortId(auraId),
+        database_name_masked: maskShortId(envCfg.database),
+        matches_candidate_instance_id: candidateInstanceId
+          ? auraId === candidateInstanceId
+          : null,
+      },
       reconciliation_report: reconciliation,
       observability_metrics: observability,
     },

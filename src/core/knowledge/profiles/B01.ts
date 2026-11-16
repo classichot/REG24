@@ -235,22 +235,102 @@ function splitRequesterFactsQuestionAndProposal(factsText: string): {
   };
 }
 
-function extractConditionsAndExceptions(rulingText: string): {
+function cleanCompleteThaiLegalClause(rawClause: string, isException: boolean): string | null {
+  const collapsed = rawClause.replace(/\s+/g, " ").trim();
+  if (collapsed.length < 18) return null;
+
+  // Reject false lexical triggers (`หากำไร`, `หากฎหมาย`, `เมื่อใด`, `เมื่อวันที่ ...`)
+  if (/^(?:หากำไร|หากฎหมาย|เมื่อ\s*(?:วันที่|วัน|เดือน|ปี|พ\.ศ\.|คราว|ครั้ง|ใด(?:\s|$)))/u.test(collapsed)) {
+    return null;
+  }
+
+  // For exceptions (`เว้นแต่ ... ดังนั้น ...`), prefer stopping cleanly before a new consequence sentence (`ดังนั้น ...`)
+  if (isException) {
+    const excPivot = collapsed.match(
+      /^([\s\S]{18,480}?)(?=\s+(?:ดังนั้น|กรณีดังกล่าวจึง|ฉะนั้น|อย่างไรก็ดี|อย่างไรก็ตาม|ส่วนกรณี|สำหรับกรณี|อนึ่ง|[0-9]+\.\s+(?:กรณี|ตาม|การ|บริษัท|ห้าง)))/u
+    );
+    if (excPivot && excPivot[1].trim().length >= 18) {
+      const candidate = excPivot[1].trim().replace(/[,;:\s]+$/u, "");
+      if (!/[\u0E40-\u0E44\u0E31\u0E34-\u0E3A\u0E47-\u0E4E]$/u.test(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  if (collapsed.length <= 540) {
+    if (/[\u0E40-\u0E44\u0E31]$/u.test(collapsed)) return null;
+    return collapsed;
+  }
+
+  // If longer than 540 chars, ONLY cut at a genuine Thai legal sentence/consequence pivot — NEVER mid-word or at an arbitrary char count
+  const cleanPivot = collapsed.match(
+    /^([\s\S]{25,540}?)(?=\s+(?:ดังนั้น|กรณีดังกล่าวจึง|ฉะนั้น|อย่างไรก็ดี|อย่างไรก็ตาม|ส่วนกรณี|สำหรับกรณี|อนึ่ง|[0-9]+\.\s+(?:กรณี|ตาม|การ|บริษัท|ห้าง)))/u
+  );
+  if (cleanPivot && cleanPivot[1].trim().length >= 25) {
+    const candidate = cleanPivot[1].trim().replace(/[,;:\s]+$/u, "");
+    if (!/[\u0E40-\u0E44\u0E31]$/u.test(candidate)) {
+      return candidate;
+    }
+  }
+
+  // Otherwise suppress incomplete summary rather than emitting a truncated bullet (full conclusion is preserved above)
+  return null;
+}
+
+export function extractConditionsAndExceptions(rulingText: string): {
   conditions: string[];
   exceptions: string[];
 } {
   const conditions: string[] = [];
   const exceptions: string[] = [];
 
-  const condRegex = /(?:หาก|เมื่อ|ทั้งนี้\s*ต้อง|โดยต้องปฏิบัติตาม|ภายใต้เงื่อนไข)[^。\n]{10,220}/g;
-  const excRegex = /(?:เว้นแต่|ยกเว้นกรณี|แต่ไม่รวมถึง|ไม่เข้าลักษณะเป็น)[^。\n]{10,220}/g;
+  const body = rulingText
+    .replace(/^ข้อกฎหมายที่อ้างอิง:[^\n]*\n?/u, "")
+    .replace(/^แนววินิจฉัย(?:ของ)?กรมสรรพากร:\s*/u, "")
+    .trim();
+  if (!body) return { conditions, exceptions };
 
-  for (const m of rulingText.match(condRegex) || []) {
-    conditions.push(m.trim());
+  // Split into numbered sub-rulings / paragraphs first so bullets never bleed across point 1 -> point 2
+  const segments = body
+    .split(/\n{2,}|(?=\s+[0-9]+\.\s+(?:กรณี|ตาม|การ|บริษัท|ห้าง|บุคคล|เมื่อ|หาก|เงิน|สำหรับ|ในกรณี|ส่วน))/u)
+    .map((s) => s.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  const condTriggerRe =
+    /(?:^|[\s()])((?:หาก(?!ำไร|ฎหมาย)|ในกรณีที่|เฉพาะกรณี(?:ที่)?|ทั้งนี้\s*(?:ต้อง|เฉพาะ)|โดยต้องปฏิบัติตาม|ภายใต้เงื่อนไข|ต่อเมื่อ|เมื่อ(?!(?:\s*(?:วันที่|วัน|เดือน|ปี|พ\.ศ\.|คราว|ครั้ง|ใด(?:\s|$)))))[\s\S]+)$/gu;
+  const excTriggerRe =
+    /(?:^|[\s()])((?:เว้นแต่|ยกเว้นกรณี|แต่ไม่รวมถึง|ไม่เข้าลักษณะเป็น|มิให้ใช้บังคับแก่)[\s\S]+)$/gu;
+
+  for (const seg of segments) {
+    // Walk all condition cue positions in this segment so a shorter concluding condition isn't shadowed by an 800-char opening narrative
+    const cueRegex =
+      /(?:^|[\s()])(หาก(?!ำไร|ฎหมาย)|ในกรณีที่|เฉพาะกรณี(?:ที่)?|ทั้งนี้\s*(?:ต้อง|เฉพาะ)|โดยต้องปฏิบัติตาม|ภายใต้เงื่อนไข|ต่อเมื่อ|เมื่อ(?!(?:\s*(?:วันที่|วัน|เดือน|ปี|พ\.ศ\.|คราว|ครั้ง|ใด(?:\s|$)))))/gu;
+    let cm: RegExpExecArray | null;
+    while ((cm = cueRegex.exec(seg)) !== null) {
+      const startIdx = cm.index + (cm[0].length - cm[1].length);
+      const cleaned = cleanCompleteThaiLegalClause(seg.slice(startIdx), false);
+      if (cleaned) {
+        conditions.push(cleaned);
+        break; // Keep at most 1 clean condition per sub-ruling segment to avoid nested duplicates
+      }
+    }
+
+    const excCueRegex =
+      /(?:^|[\s()])(เว้นแต่|ยกเว้นกรณี|แต่ไม่รวมถึง|ไม่เข้าลักษณะเป็น|มิให้ใช้บังคับแก่)/gu;
+    let em: RegExpExecArray | null;
+    while ((em = excCueRegex.exec(seg)) !== null) {
+      const startIdx = em.index + (em[0].length - em[1].length);
+      const cleaned = cleanCompleteThaiLegalClause(seg.slice(startIdx), true);
+      if (cleaned) {
+        exceptions.push(cleaned);
+        break;
+      }
+    }
   }
-  for (const m of rulingText.match(excRegex) || []) {
-    exceptions.push(m.trim());
-  }
+
+  void condTriggerRe;
+  void excTriggerRe;
+
   return {
     conditions: [...new Set(conditions)].slice(0, 6),
     exceptions: [...new Set(exceptions)].slice(0, 6),

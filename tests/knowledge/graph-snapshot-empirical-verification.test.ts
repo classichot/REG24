@@ -89,7 +89,11 @@ describe("Empirical Verification of Snapshot-Based Graph Retrieval, Rebuild & Ro
 
     const store = new DurableKnowledgeStore(previewDir);
     const state = store.getState();
-    const candRelId = state.releases["rel.B01.rc3"] ? "rel.B01.rc3" : "rel.B01.rc2";
+    const candRelId = state.releases["rel.B01.rc4"]
+      ? "rel.B01.rc4"
+      : state.releases["rel.B01.rc3"]
+        ? "rel.B01.rc3"
+        : "rel.B01.rc2";
 
     // -------------------------------------------------------------------------
     // PART A: Verify Graph Snapshot Structure & Legal Relationship Preservation

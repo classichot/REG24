@@ -13,10 +13,10 @@ const { DatabaseSync } = nodeRequire("node:sqlite") as {
 };
 
 describe("Non-Provisioning Trial Prep: 30-Case Legal Spot-Check Pack & SQL Backup/Restore Drill", () => {
-  it("Generates 30-case stratified rel.B01.rc3 legal spot-check pack with complete conclusions, zero synthetic placeholders, and strict abstentions", async () => {
+  it("Generates 30-case stratified rel.B01.rc4 legal spot-check pack with complete conclusions, zero cut-off condition bullets, zero synthetic placeholders, and strict abstentions", async () => {
     const pack = await buildB01LegalSpotCheckPack();
     expect(pack.total_cases).toBe(30);
-    expect(pack.release_id).toBe("rel.B01.rc3");
+    expect(pack.release_id).toBe("rel.B01.rc4");
     expect(pack.automated_tests_replace_independent_legal_review).toBe(false);
     expect(pack.automated_guard_summary.zero_synthetic_ext_dep_across_all_30).toBe(true);
     expect(pack.automated_guard_summary.stratum_6_abstentions_passed).toBe(true);
@@ -24,14 +24,23 @@ describe("Non-Provisioning Trial Prep: 30-Case Legal Spot-Check Pack & SQL Backu
     expect(pack.automated_guard_summary.all_22_answered_cases_render_complete_source_tail).toBe(
       true
     );
+    expect(pack.automated_guard_summary.zero_cutoff_condition_bullets_across_all_30).toBe(true);
     const lsc01 = pack.cases.find((c) => c.spotcheck_id === "LSC-01")!;
+    const lsc02 = pack.cases.find((c) => c.spotcheck_id === "LSC-02")!;
     const lsc04 = pack.cases.find((c) => c.spotcheck_id === "LSC-04")!;
+    expect(lsc02.legal_check_focus).toContain("Section 81(2)(ก) juncto Section 81(1)(ง)");
+    expect(lsc02.legal_check_focus).not.toContain("81(1)(ฉ)");
     expect(lsc01.answer_text).toContain(
       "จึงมีสิทธิได้รับเครดิตภาษีในการคำนวณภาษีเงินได้บุคคลธรรมดาตามมาตรา 47 ทวิ และมาตรา 48 แห่งประมวลรัษฎากร"
+    );
+    // Linked B02 Section 47 bis renders multi-unit text including paragraph 3 domicile rule
+    expect(lsc01.answer_text).toContain(
+      "มิให้ใช้บังคับแก่ผู้มีเงินได้ซึ่งมิได้มีภูมิลำเนาอยู่ในประเทศไทย"
     );
     expect(lsc04.answer_text).toContain(
       "ตามมาตรา 4 แห่งพระราชกฤษฎีกาฯ (ฉบับที่ 595) พ.ศ. 2558"
     );
+    expect(lsc04.answer_text).toContain("ข้อจำกัดความครบถ้วนของหลักฐานกฎหมายประกอบ");
     expect(pack.cases.every((c) => c.independent_legal_reviewer_verdict === null)).toBe(true);
   }, 60_000);
 
