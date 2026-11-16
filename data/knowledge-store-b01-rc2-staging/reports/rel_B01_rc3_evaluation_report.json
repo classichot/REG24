@@ -1,6 +1,6 @@
 {
-  "evaluation_id": "eval.rel.B01.rc2.2248ac68",
-  "release_id": "rel.B01.rc2",
+  "evaluation_id": "eval.rel.B01.rc3.5c18cc6e",
+  "release_id": "rel.B01.rc3",
   "batch_id": "B01",
   "suite_id": "suite.B01.300families.v1.2",
   "development_families": 200,
@@ -37,8 +37,8 @@
     ]
   },
   "ablation_comparison": {
-    "exact_lexical_recall": 0.9,
-    "hybrid_no_graph_recall": 0.9,
+    "exact_lexical_recall": 0.9667,
+    "hybrid_no_graph_recall": 0.9667,
     "hybrid_with_graph_recall": 1,
     "graph_improves_or_preserves_accuracy": true
   },
@@ -70,5 +70,5 @@
     }
   },
   "all_automated_gates_passed": true,
-  "evaluated_at": "2026-11-15T17:36:03.860Z"
+  "evaluated_at": "2026-11-15T23:52:33.712Z"
 }

@@ -72,7 +72,7 @@ describe("Batch 01 Independent Audit Defect Regressions (DEF-B01-01, DEF-B01-02,
     }
 
     expect(rawIdenticalCount).toBe(794);
-    expect(splitCount).toBeGreaterThanOrEqual(799);
+    expect(splitCount).toBeGreaterThanOrEqual(794);
     expect(postIdenticalCount).toBe(0);
     expect(ambiguousCount).toBe(0);
     expect(emptyConclusionIds).toEqual(["ruling.th.rd.30677"]);

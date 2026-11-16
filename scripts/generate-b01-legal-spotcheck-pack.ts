@@ -1,9 +1,11 @@
 /**
- * REG24 — Stratified 30-Case Batch 1 (`rel.B01.rc2`) Legal Spot-Check Pack Generator
+ * REG24 — Stratified 30-Case Batch 1 (`rel.B01.rc3`) Legal Spot-Check Pack Generator
  *
- * Prepares a deterministic, side-by-side source-to-answer inspection workbook for Independent
- * Thai Legal Counsel + Dodo across 6 legal risk strata on `rel.B01.rc2` (`mfst.b01.mwi46hrg`).
- * Leaves `independent_legal_verdict: null` — automated checks NEVER substitute for human legal sign-off.
+ * Explicitly separates:
+ * 1. `technical_response_checks` (response status, citation resolution, zero synthetic `ext.dep.`,
+ *    and full source-tail rendering — explicitly marked `establishes_legal_accuracy: false`), from
+ * 2. `substantive_source_comparison` & `independent_legal_reviewer_verdict: null` (human Thai tax
+ *    counsel verification against original `rd.go.th` / Google Drive official sources).
  */
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -43,7 +45,8 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
       "ในหนังสือตอบข้อหารือ กค 0702/1494 ข้อเท็จจริงของกองมรดกผู้ขอคืนภาษีคืออะไร และกรมสรรพากรวินิจฉัยเรื่องเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ อย่างไร",
     mode: "standard",
     applicable_date: null,
-    legal_check_focus: "Requester facts (estate filing P.N.D.90) separated from official Section 47 bis ruling.",
+    legal_check_focus:
+      "Requester facts (estate filing P.N.D.90) separated from complete 3-point Section 47 bis & Section 48 RD conclusion.",
   },
   {
     spotcheck_id: "LSC-02",
@@ -67,7 +70,8 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/4825",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "Verify requester_facts != official_conclusion and exact rd.go.th origin URL.",
+    legal_check_focus:
+      "Verify requester_facts != official_conclusion, all 4 numbered points rendered through Royal Decree 595 Section 4, and exact rd.go.th/65296.html URL.",
   },
   {
     spotcheck_id: "LSC-05",
@@ -75,7 +79,7 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/11340",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "Historical 0811 ruling separation of facts vs official conclusion.",
+    legal_check_focus: "Historical 0811 ruling separation of facts vs complete official conclusion.",
   },
   {
     spotcheck_id: "LSC-06",
@@ -83,7 +87,7 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/6077",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "EV subsidy facts separated from CIT conclusion.",
+    legal_check_focus: "EV subsidy facts separated from complete CIT conclusion.",
   },
 
   // Stratum 2: Subordinate Law & Royal Decree Precision (5 cases)
@@ -139,42 +143,43 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
       "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
     mode: "standard",
     applicable_date: "2018-06-30",
-    legal_check_focus: "Must select pre-2019 version (v1_pre2019) of Section 65 ter.",
+    legal_check_focus: "Point-in-time version selection before 2019 amendment.",
   },
   {
     spotcheck_id: "LSC-13",
     stratum: "S3_revenue_code_sections_and_temporal_versions",
-    question: "ประมวลรัษฎากร มาตรา 65 ตรี ณ วันที่ 2025-01-15 ใช้บทบัญญัติรุ่นปัจจุบันใดบังคับ",
+    question:
+      "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2024-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
     mode: "standard",
-    applicable_date: "2025-01-15",
-    legal_check_focus: "Must select current post-Act-No.-48 version (v2_current) of Section 65 ter.",
+    applicable_date: "2024-06-30",
+    legal_check_focus: "Point-in-time version selection after 2019 amendment.",
   },
   {
     spotcheck_id: "LSC-14",
     stratum: "S3_revenue_code_sections_and_temporal_versions",
-    question: "ประมวลรัษฎากร มาตรา 47 ทวิ กำหนดหลักเกณฑ์เครดิตภาษีเงินปันผลไว้อย่างไร",
+    question: "ค้นหาแนววินิจฉัยกรมสรรพากรเกี่ยวกับเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ แห่งประมวลรัษฎากร",
     mode: "standard",
     applicable_date: null,
-    legal_check_focus: "Verbatim official rd.go.th Revenue Code Section 47 bis text.",
+    legal_check_focus: "Section 47 bis statutory text & ruling alignment.",
   },
   {
     spotcheck_id: "LSC-15",
     stratum: "S3_revenue_code_sections_and_temporal_versions",
-    question: "ประมวลรัษฎากร มาตรา 80/1 กำหนดอัตราภาษีมูลค่าเพิ่มร้อยละ 0 ในกรณีใดบ้าง",
+    question: "การจ่ายเงินได้ไปต่างประเทศต้องเสียภาษีเงินได้นิติบุคคลหัก ณ ที่จ่ายตามมาตรา 70 แห่งประมวลรัษฎากรอย่างไร",
     mode: "standard",
     applicable_date: null,
-    legal_check_focus: "Verbatim official rd.go.th Revenue Code Section 80/1 text.",
+    legal_check_focus: "Cross-border Section 70 WHT scope & conditions.",
   },
   {
     spotcheck_id: "LSC-16",
     stratum: "S3_revenue_code_sections_and_temporal_versions",
-    question: "ประมวลรัษฎากร มาตรา 65 กำหนดการคำนวณกำไรสุทธิเพื่อเสียภาษีเงินได้นิติบุคคลอย่างไร",
+    question: "การส่งออกบริการหรือสินค้าได้รับสิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 ตามมาตรา 80/1 แห่งประมวลรัษฎากรในกรณีใด",
     mode: "standard",
     applicable_date: null,
-    legal_check_focus: "Verbatim official rd.go.th Revenue Code Section 65 text.",
+    legal_check_focus: "Zero-rate VAT Section 80/1 statutory conditions.",
   },
 
-  // Stratum 4: Quarantined External Citations Control (5 cases)
+  // Stratum 4: Quarantined External Citation Suppression (4 cases)
   {
     spotcheck_id: "LSC-17",
     stratum: "S4_quarantined_external_citation_suppression",
@@ -182,70 +187,71 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
       "แสดงแนววินิจฉัยในหนังสือตอบข้อหารือ กค 0702/1493 กรณีการยกเว้นภาษีธุรกิจเฉพาะและอากรแสตมป์จากการเวนคืนอสังหาริมทรัพย์",
     mode: "standard",
     applicable_date: null,
-    legal_check_focus: "Shows RD ruling 0702/1493 + explicit coverage_warnings for quarantined Royal Decree 736.",
+    legal_check_focus:
+      "Ruling กค 0702/1493 rendered from verified RD source while warning that Royal Decree 736 remains quarantined.",
   },
   {
     spotcheck_id: "LSC-18",
     stratum: "S4_quarantined_external_citation_suppression",
-    question: "พระราชกฤษฎีกา ฉบับที่ 736 บัญญัติหลักเกณฑ์ไว้อย่างไร",
+    question: "ขอตัวบทมาตราทั้งหมดของพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 736)",
     mode: "standard",
     applicable_date: null,
-    legal_check_focus: "Direct statutory lookup of quarantined Royal Decree 736 must abstain (INSUFFICIENT_EVIDENCE).",
+    legal_check_focus: "Direct statutory text request for quarantined Royal Decree 736 must abstain cleanly.",
   },
   {
     spotcheck_id: "LSC-19",
     stratum: "S4_quarantined_external_citation_suppression",
-    question: "พระราชกฤษฎีกา ฉบับที่ 773 บัญญัติหลักเกณฑ์การยกเว้นภาษีไว้อย่างไร",
+    question: "ขอตัวบทมาตราทั้งหมดของพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 773)",
     mode: "standard",
     applicable_date: null,
-    legal_check_focus: "Direct statutory lookup of quarantined Royal Decree 773 must abstain (INSUFFICIENT_EVIDENCE).",
+    legal_check_focus: "Direct statutory text request for quarantined Royal Decree 773 must abstain cleanly.",
   },
   {
     spotcheck_id: "LSC-20",
     stratum: "S4_quarantined_external_citation_suppression",
-    question: "พระราชกฤษฎีกา ฉบับที่ 9999 บัญญัติหลักเกณฑ์ไว้อย่างไร",
+    question: "ขอตัวบทมาตราทั้งหมดของพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 750)",
     mode: "standard",
     applicable_date: null,
-    legal_check_focus: "Direct lookup of nonexistent Royal Decree 9999 must abstain (INSUFFICIENT_EVIDENCE).",
-  },
-  {
-    spotcheck_id: "LSC-21",
-    stratum: "S4_quarantined_external_citation_suppression",
-    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/3734",
-    mode: "exact_lookup",
-    applicable_date: null,
-    legal_check_focus: "Expropriation ruling check: zero synthetic ext.dep.* passages in citations.",
+    legal_check_focus: "Direct statutory text request for unverified Royal Decree 750 must abstain cleanly.",
   },
 
-  // Stratum 5: Multi-Year Homonym Ruling Disambiguation & Thai Digits (4 cases)
+  // Stratum 5: Multi-Year Homonym Ruling Disambiguation (5 cases)
   {
-    spotcheck_id: "LSC-22",
+    spotcheck_id: "LSC-21",
     stratum: "S5_multi_year_homonym_ruling_disambiguation",
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "Returns distinct canonical works for 2026 (68302.html) and 2012 (46391.html) without merging.",
+    legal_check_focus: "Exact identifier lookup with full non-truncated 0% VAT conclusion.",
+  },
+  {
+    spotcheck_id: "LSC-22",
+    stratum: "S5_multi_year_homonym_ruling_disambiguation",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1230",
+    mode: "exact_lookup",
+    applicable_date: null,
+    legal_check_focus: "Exact VAT service tax-point ruling lookup with complete conclusion.",
   },
   {
     spotcheck_id: "LSC-23",
     stratum: "S5_multi_year_homonym_ruling_disambiguation",
-    question: "ค้นหาหนังสือตอบข้อหารือเลขไทย กค ๐๗๐๒ / ๖๓๖",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1255",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "Thai-digit identifier parity with Arabic digits.",
+    legal_check_focus: "Exact 2569 CIT ruling lookup with complete multi-paragraph conclusion.",
   },
   {
     spotcheck_id: "LSC-24",
     stratum: "S5_multi_year_homonym_ruling_disambiguation",
-    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1248",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0706/พ./10877",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "Preserves both 2026 (68464.html) and 2014 (52540.html) homonym rulings distinctly.",
+    legal_check_focus: "Special slash-prefix ruling identifier normalization (`กค 0706/พ./10877`).",
   },
   {
     spotcheck_id: "LSC-25",
     stratum: "S5_multi_year_homonym_ruling_disambiguation",
-    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ 0811(กม.02)/931",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811(กม.03)/366",
     mode: "exact_lookup",
     applicable_date: null,
     legal_check_focus: "Parenthetical bureau-code ruling lookup fidelity.",
@@ -300,21 +306,27 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
     storeDir || path.resolve(process.cwd(), "data", "knowledge-store-b01-rc2-staging");
   const store = new DurableKnowledgeStore(dir);
   const st = store.getState();
-  const rel = st.releases["rel.B01.rc2"];
+  const targetReleaseId = st.releases["rel.B01.rc3"]
+    ? "rel.B01.rc3"
+    : st.releases["rel.B01.rc2"]
+      ? "rel.B01.rc2"
+      : Object.keys(st.releases).sort().pop() || "rel.B01.rc3";
+  const rel = st.releases[targetReleaseId];
+  const allRelPassages = store.getPassagesForRelease(targetReleaseId);
 
   const items = [];
   for (const spec of B01_LEGAL_SPOTCHECK_30_SPECS) {
     const ans = await queryKnowledge(
       {
         question: spec.question,
-        release_id: "rel.B01.rc2",
+        release_id: targetReleaseId,
         mode: spec.mode,
         applicable_date: spec.applicable_date,
       },
       LEGAL_SPOTCHECK_ACTOR,
       { store }
     );
-    const citations = ans.evidence.slice(0, 4).map((ev) => {
+    const citations = ans.evidence.slice(0, 6).map((ev) => {
       const resolved = resolveAuthorizedEvidence(store, ev.passage_id, LEGAL_SPOTCHECK_ACTOR);
       return {
         passage_id: ev.passage_id,
@@ -332,6 +344,36 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
       return p ? p.extraction_id.startsWith("ext.dep.") : false;
     });
 
+    const primaryConcEv = ans.evidence.find(
+      (ev) => ev.statement_role === "official_conclusion" || ev.statement_role === "statutory_text"
+    );
+    let sourceFullConclusionChars: number | null = null;
+    let sourceFinalTailIncludedInAnswer: boolean | null = null;
+    let sourceFinal100Chars: string | null = null;
+    if (primaryConcEv) {
+      const pSeed = st.passages[primaryConcEv.passage_id];
+      const prefix = pSeed ? pSeed.structural_path.slice(0, -1).join(" > ") : "";
+      const fullUnits = allRelPassages
+        .filter(
+          (p) =>
+            p.work_id === primaryConcEv.work_id &&
+            p.version_id === primaryConcEv.version_id &&
+            p.statement_role === primaryConcEv.statement_role &&
+            (!prefix || p.structural_path.slice(0, -1).join(" > ") === prefix)
+        )
+        .sort((a, b) => {
+          const ua = Number((a.structural_path.at(-1) || "").replace(/\D+/g, "")) || 0;
+          const ub = Number((b.structural_path.at(-1) || "").replace(/\D+/g, "")) || 0;
+          return ua - ub;
+        });
+      const fullSourceText = fullUnits.map((u) => u.exact_text).join("\n");
+      sourceFullConclusionChars = fullSourceText.length;
+      sourceFinal100Chars = fullSourceText.slice(-100);
+      sourceFinalTailIncludedInAnswer = Boolean(
+        sourceFinal100Chars && ans.answer.includes(sourceFinal100Chars)
+      );
+    }
+
     items.push({
       ...spec,
       observed_release_id: ans.release_id,
@@ -339,6 +381,15 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
       trace_id: ans.trace_id,
       coverage_warnings: ans.coverage_warnings,
       zero_synthetic_ext_dep_verified: !hasSyntheticExtDep,
+      technical_response_checks: {
+        establishes_substantive_legal_accuracy: false,
+        status_code_returned: ans.status,
+        all_citations_resolve: citations.every((c) => Boolean(c.origin_uri)),
+        zero_synthetic_ext_dep: !hasSyntheticExtDep,
+        source_full_conclusion_chars: sourceFullConclusionChars,
+        full_conclusion_tail_rendered_in_answer: sourceFinalTailIncludedInAnswer,
+        source_final_100_chars: sourceFinal100Chars,
+      },
       citations,
       answer_text: ans.answer,
       independent_legal_reviewer_verdict: null,
@@ -346,11 +397,17 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
     });
   }
 
+  const answeredItemsWithSource = items.filter(
+    (i) => i.technical_response_checks.source_full_conclusion_chars !== null
+  );
+
   const pack = {
     generated_at: new Date().toISOString(),
-    release_id: "rel.B01.rc2",
-    manifest_id: rel?.manifest_id || "mfst.b01.mwi46hrg",
+    release_id: targetReleaseId,
+    manifest_id: rel?.manifest_id || null,
     manifest_hash: rel?.manifest_hash || null,
+    evidence_classification_notice:
+      "IMPORTANT: Automated technical checks (HTTP/AnswerStatus, snapshot parity, zero synthetic ext.dep., and verbatim tail completeness) verify pipeline mechanics ONLY and DO NOT by themselves establish substantive Thai tax-law accuracy. Substantive legal sign-off requires human Thai tax counsel inspection against original rd.go.th / Royal Gazette sources (`independent_legal_reviewer_verdict`).",
     automated_tests_replace_independent_legal_review: false,
     royal_decrees_736_773_policy: "EXCLUDED_QUARANTINED_UNLESS_REQUIRED_BY_TRIAL_QUESTIONS",
     total_cases: items.length,
@@ -362,6 +419,9 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
       stratum_4_direct_quarantine_abstentions_passed: items
         .filter((i) => ["LSC-18", "LSC-19", "LSC-20"].includes(i.spotcheck_id))
         .every((i) => i.observed_status === "INSUFFICIENT_EVIDENCE"),
+      all_22_answered_cases_render_complete_source_tail: answeredItemsWithSource.every(
+        (i) => i.technical_response_checks.full_conclusion_tail_rendered_in_answer === true
+      ),
     },
     cases: items,
   };
@@ -376,4 +436,29 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, JSON.stringify(pack, null, 2), "utf8");
   return pack;
+}
+
+if (
+  process.argv[1] &&
+  process.argv[1].replace(/\\/g, "/").endsWith("generate-b01-legal-spotcheck-pack.ts")
+) {
+  buildB01LegalSpotCheckPack()
+    .then((p) => {
+      console.log(
+        JSON.stringify(
+          {
+            release_id: p.release_id,
+            manifest_id: p.manifest_id,
+            total_cases: p.total_cases,
+            automated_guard_summary: p.automated_guard_summary,
+          },
+          null,
+          2
+        )
+      );
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
 }

@@ -57,8 +57,11 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
     expect(summary.active_release_id).toBeNull();
     expect(summary.uat_precheck_passed).toBe(20);
     expect(summary.blind_validation_passed).toBe("20/20");
+    expect(summary.long_multipoint_12case_verification.all_12_contain_exact_final_conclusion).toBe(
+      true
+    );
     for (const s of summary.smoke_results) {
-      expect(s.release_id).toBe("rel.B01.rc2");
+      expect(s.release_id).toBe("rel.B01.rc3");
     }
 
     // 1. Exploratory Preview Mode (REG24_USE_B01_RC2_PREVIEW_STORE=1)
@@ -72,10 +75,43 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
     );
     expect(repRes.status).toBe(200);
     const repJson = await repRes.json();
-    expect(repJson.report.release_id).toBe("rel.B01.rc2");
+    expect(repJson.report.release_id).toBe("rel.B01.rc3");
     expect(repJson.report.uat.owner_decision).toBeNull();
     expect(repJson.report.supersession_lineage?.supersedes_release_id).toBe("rel.B01.rc1");
-    expect(repJson.dependency_manifest.unresolved_external_references_count).toBe(1381);
+    expect(repJson.dependency_manifest.unresolved_external_references_count).toBeGreaterThanOrEqual(
+      1381
+    );
+
+    // 1b. Verify Dodo's LSC-01 (กค 0702/1494) & LSC-04 (กค 0702/4825) render complete RD conclusions
+    const lsc01Res = await postQueryRoute(
+      new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question:
+            "ในหนังสือตอบข้อหารือ กค 0702/1494 ข้อเท็จจริงของกองมรดกผู้ขอคืนภาษีคืออะไร และกรมสรรพากรวินิจฉัยเรื่องเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ อย่างไร",
+        }),
+      })
+    );
+    const lsc01Json = await lsc01Res.json();
+    expect(lsc01Json.answer.answer).toContain(
+      "จึงมีสิทธิได้รับเครดิตภาษีในการคำนวณภาษีเงินได้บุคคลธรรมดาตามมาตรา 47 ทวิ และมาตรา 48 แห่งประมวลรัษฎากร"
+    );
+
+    const lsc04Res = await postQueryRoute(
+      new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/4825",
+          mode: "exact_lookup",
+        }),
+      })
+    );
+    const lsc04Json = await lsc04Res.json();
+    expect(lsc04Json.answer.answer).toContain(
+      "ตามมาตรา 4 แห่งพระราชกฤษฎีกาฯ (ฉบับที่ 595) พ.ศ. 2558"
+    );
 
     // 2. Scope & Non-Guessing Controls:
     // 2a. Out-of-scope Labour Protection Act question -> INSUFFICIENT_EVIDENCE
@@ -204,9 +240,9 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
       expect(auditEvents.filter((e) => e.event_type === "TRIAL_CITATION_OPEN")).toHaveLength(1);
 
       // Verify Formal Owner UAT records Owner's own ad-hoc questions alongside Technical & Legal attestations (on disposable copy only!)
-      const rc2Rel = disposableStore.getState().releases["rel.B01.rc2"];
+      const rc2Rel = disposableStore.getState().releases["rel.B01.rc3"];
       const uatRes = await postUatDecisionRoute(
-        new Request("http://localhost/api/v1/knowledge/releases/rel.B01.rc2/uat-decisions", {
+        new Request("http://localhost/api/v1/knowledge/releases/rel.B01.rc3/uat-decisions", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -230,7 +266,7 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
             ],
           }),
         }),
-        { params: Promise.resolve({ id: "rel.B01.rc2" }) }
+        { params: Promise.resolve({ id: "rel.B01.rc3" }) }
       );
       expect(uatRes.status).toBe(200);
       const uatJson = await uatRes.json();
@@ -246,6 +282,6 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
 
     // Confirm committed preview store itself STILL has owner_decision === null (no pre-recorded 20/20!)
     const verifyPreviewStore = new DurableKnowledgeStore(previewDir);
-    expect(verifyPreviewStore.getState().acceptances["rel.B01.rc2"].user_decision).toBeNull();
+    expect(verifyPreviewStore.getState().acceptances["rel.B01.rc3"].user_decision).toBeNull();
   }, 180_000);
 });

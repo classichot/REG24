@@ -515,18 +515,30 @@ const BLIND_GOLD_CASES: readonly BlindGoldCaseSpec[] = [
 
 function buildAuthenticSourceTextPool(): Map<string, string> {
   const map = new Map<string, string>();
+  const idToUrl = new Map<string, string>();
   for (const r of THAI_TAX_RULINGS_CORPUS) {
     const combined = `${r.facts || ""}\n${r.ruling || ""}`
       .replace(/\s+/g, " ")
       .trim();
     if (combined) {
       map.set(r.id, combined);
+      if (r.source_url) {
+        idToUrl.set(r.id, r.source_url);
+        map.set(`origin:${r.source_url}`, combined);
+      }
     }
   }
   const recovered = getRecoveredB01RulingTexts();
   for (const [id, rec] of Object.entries(recovered)) {
     if (rec.full_text) {
-      map.set(id, rec.full_text.replace(/\s+/g, " ").trim());
+      const cleanedRec = rec.full_text.replace(/\s+/g, " ").trim();
+      const existing = map.get(id);
+      const merged = existing ? `${existing} ${cleanedRec}` : cleanedRec;
+      map.set(id, merged);
+      const url = idToUrl.get(id);
+      if (url) {
+        map.set(`origin:${url}`, merged);
+      }
     }
   }
   const verStat = getVerifiedStatutoryCorpus();
@@ -762,6 +774,7 @@ export async function runBlindSourceToAnswerValidation(
         const rawRef =
           (legId && authenticPool.get(legId)) ||
           authenticPool.get(psg.work_id) ||
+          authenticPool.get(`origin:${opened.locator.origin_uri}`) ||
           (art && authenticPool.get(`b02_sha:${art.actual_bytes_sha256}`)) ||
           extRec?.raw_text;
         if (rawRef) {
@@ -769,8 +782,10 @@ export async function runBlindSourceToAnswerValidation(
             .replace(/^ข้อกฎหมายที่อ้างอิง:[^\n]*\nแนววินิจฉัยกรมสรรพากร:\s*/u, "")
             .replace(/\s*\[ข้อเสนอของผู้หารือ:[\s\S]*$/u, "")
             .trim();
-          const probe = normalizeWs(cleanedPassageBody).slice(-44).trim();
-          const rawNorm = normalizeWs(`${rawRef} ${extRec?.raw_text || ""}`);
+          const normPunct = (v: string) =>
+            normalizeWs(v).replace(/\s*\(\s*/g, "(").replace(/\s*\)\s*/g, ")");
+          const probe = normPunct(cleanedPassageBody).slice(-44).trim();
+          const rawNorm = normPunct(`${rawRef} ${extRec?.raw_text || ""}`);
           if (probe.length >= 16 && !rawNorm.includes(probe)) {
             sourceOpenPassed = false;
             failureReasons.push(`VERBATIM_SUBSTRING_NOT_IN_RAW_SOURCE:${psg.passage_id}`);

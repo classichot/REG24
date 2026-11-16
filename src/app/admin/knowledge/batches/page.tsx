@@ -141,6 +141,21 @@ const EXPLORATORY_B01_REPRESENTATIVE_QUESTIONS: Array<{
     mode: "exact_lookup",
     date: null,
   },
+  {
+    id: "Q9",
+    label: "9. 4-Point SME Exemption Conclusion (กค 0702/4825 · พ.ร.ฎ. 530 & 595)",
+    question:
+      "ตามหนังสือตอบข้อหารือ กค 0702/4825 ห้างฯ ที่เคยมีทุนจดทะเบียน 30 ล้านบาทและลดทุนเหลือ 5 ล้านบาทในปี 2543 จะได้รับสิทธิยกเว้นภาษีเงินได้นิติบุคคลตามพระราชกฤษฎีกา (ฉบับที่ 595) หรือไม่",
+    mode: "standard",
+    date: null,
+  },
+  {
+    id: "Q10",
+    label: "10. Long 4-Chunk Multi-Point Ruling (กค 0702/2994 · Full Conclusion)",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/2994 และสรุปแนววินิจฉัยของกรมสรรพากรให้ครบทุกประเด็น",
+    mode: "standard",
+    date: null,
+  },
 ];
 
 export default function KnowledgeBatchesUatPage() {
@@ -546,10 +561,10 @@ export default function KnowledgeBatchesUatPage() {
             }}
           >
             <div style={{ fontWeight: 800, color: "#a3e635", marginBottom: "4px" }}>
-              EXPLORATORY OWNER TESTING MODE — ISOLATED NON-PRODUCTION CANDIDATE ({rep?.release_id || "rel.B01.rc2"})
+              EXPLORATORY OWNER TESTING MODE — ISOLATED NON-PRODUCTION CANDIDATE ({rep?.release_id || "rel.B01.rc3"})
             </div>
             <div>
-              Serving remediated candidate <code>{rep?.release_id || "rel.B01.rc2"}</code> (
+              Serving remediated candidate <code>{rep?.release_id || "rel.B01.rc3"}</code> (
               <strong>4,578</strong> physical RD tax rulings + <strong>326</strong> verified Revenue Code sections +{" "}
               <strong>155</strong> verified subordinate/amendment instruments;{" "}
               <strong>{data?.dependency_manifest?.unresolved_external_references_count ?? 1381}</strong> unverified

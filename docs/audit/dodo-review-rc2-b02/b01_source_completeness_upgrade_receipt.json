@@ -1,0 +1,50 @@
+{
+  "executed_at": "2026-11-15T23:39:26Z",
+  "duration_seconds": 48.28,
+  "upgraded_total_records": 3655,
+  "upgraded_750_950_records": 146,
+  "upgraded_180_260_records": 3364,
+  "cleaned_existing_full_records": 145,
+  "pre_stats": {
+    "total_corpus_records": 4650,
+    "facts_exact_750": 113,
+    "ruling_exact_950": 106,
+    "facts_exact_180": 3300,
+    "ruling_exact_260": 3338
+  },
+  "post_stats": {
+    "total_corpus_records": 4650,
+    "b01_drive_backed_records": 4569,
+    "b01_facts_exact_750": 1,
+    "b01_ruling_exact_950": 3,
+    "b01_facts_exact_180": 0,
+    "b01_ruling_exact_260": 2,
+    "b01_cut_vowel_end": 0
+  },
+  "verified_samples": {
+    "ruling.th.rd.68536": {
+      "ruling_no": "กค 0702/1494",
+      "facts_length": 1194,
+      "ruling_length": 3149,
+      "ruling_tail_160": " มีเงินได้เงินปันผลตามมาตรา 40 (4) (ข) แห่งประมวลรัษฎากร จึงมีสิทธิได้รับเครดิตภาษีในการคำนวณภาษีเงินได้บุคคลธรรมดาตามมาตรา 47 ทวิ และมาตรา 48 แห่งประมวลรัษฎากร"
+    },
+    "ruling.th.rd.65296": {
+      "ruling_no": "กค 0702/4825",
+      "facts_length": 1114,
+      "ruling_length": 2685,
+      "ruling_tail_160": "รสุทธิของรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2559 แต่ไม่เกินวันที่ 31 ธันวาคม พ.ศ. 2559 ตามมาตรา 4 แห่งพระราชกฤษฎีกาฯ (ฉบับที่ 595) พ.ศ. 2558"
+    },
+    "ruling.th.rd.25374": {
+      "ruling_no": "กค 0811/7275",
+      "facts_length": 2347,
+      "ruling_length": 1648,
+      "ruling_tail_160": " แห่ง คำสั่งกรมสรรพากร ที่ ท.ป. 4/2528 ฯ ลงวันที่ 26 กันยายน พ.ศ. 2528 ซึ่งแก้ไขเพิ่มเติมโดย คำสั่งกรมสรรพากร ที่ ท.ป. 101/2544 ฯ ลงวันที่ 27 มิถุนายน พ.ศ. 2544"
+    },
+    "ruling.th.rd.25071": {
+      "ruling_no": "กค 0811/3516",
+      "facts_length": 343,
+      "ruling_length": 1060,
+      "ruling_tail_160": "ดังกล่าวในราคาตลาดซึ่งสูงกว่ามูลค่าหุ้นที่ได้รับโอน มา ธนาคารต้องนำเอาส่วนต่างดังกล่าวมารวมคำนวณเพื่อเสียภาษีเงินได้นิติบุคคลตามมาตรา 65 แห่ง ประมวลรัษฎากร ด้วย"
+    }
+  }
+}

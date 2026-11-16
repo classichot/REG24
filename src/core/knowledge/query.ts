@@ -15,11 +15,121 @@ import { getDefaultKnowledgeStore, type DurableKnowledgeStore } from "./store";
 import type {
   Actor,
   AnswerStatus,
+  Assertion,
   ClaimLedgerItem,
+  EvidenceCard,
   GroundedAnswer,
   Passage,
   QueryRequest,
 } from "./contracts";
+
+function extractPassageUnitIndex(p: Passage): number {
+  const lastSeg = p.structural_path[p.structural_path.length - 1] || "";
+  const m = lastSeg.match(/Unit\s+(\d+)/i);
+  if (m) return Number(m[1]);
+  if (p.real_locator.kind === "text_byte_offset") return p.real_locator.byte_start ?? 0;
+  return 0;
+}
+
+function reassembleOrderedSectionUnits(
+  seed: Passage,
+  releasePassages: Passage[],
+  freshState: ReturnType<DurableKnowledgeStore["getState"]>,
+  actor: Actor
+): Passage[] {
+  const sectionPrefix = seed.structural_path.slice(0, -1).join(" > ");
+  const units = releasePassages
+    .filter(
+      (p) =>
+        p.work_id === seed.work_id &&
+        p.version_id === seed.version_id &&
+        p.extraction_id === seed.extraction_id &&
+        p.statement_role === seed.statement_role &&
+        p.structural_path.slice(0, -1).join(" > ") === sectionPrefix &&
+        isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+    )
+    .sort(
+      (a, b) =>
+        extractPassageUnitIndex(a) - extractPassageUnitIndex(b) ||
+        a.passage_id.localeCompare(b.passage_id)
+    );
+  return units.length > 0 ? units : [seed];
+}
+
+function findOrderedRequesterUnitsForWork(
+  seedOfficial: Passage,
+  releasePassages: Passage[],
+  freshState: ReturnType<DurableKnowledgeStore["getState"]>,
+  actor: Actor
+): Passage[] {
+  return releasePassages
+    .filter(
+      (p) =>
+        p.work_id === seedOfficial.work_id &&
+        p.version_id === seedOfficial.version_id &&
+        p.extraction_id === seedOfficial.extraction_id &&
+        p.statement_role.startsWith("requester_") &&
+        isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+    )
+    .sort(
+      (a, b) =>
+        extractPassageUnitIndex(a) - extractPassageUnitIndex(b) ||
+        a.passage_id.localeCompare(b.passage_id)
+    );
+}
+
+function ensureEvidenceCardsForPassages(
+  passagesToEnsure: Passage[],
+  liveEvidenceCards: EvidenceCard[],
+  freshState: ReturnType<DurableKnowledgeStore["getState"]>,
+  acceptedAssertions: Assertion[]
+): void {
+  const existingIds = new Set(liveEvidenceCards.map((ec) => ec.passage_id));
+  for (const p of passagesToEnsure) {
+    if (existingIds.has(p.passage_id)) continue;
+    existingIds.add(p.passage_id);
+    const work = freshState.works[p.work_id];
+    const ver = freshState.versions[p.version_id];
+    const art = freshState.artifacts[p.real_locator.artifact_id];
+    const relatedProvisions = acceptedAssertions
+      .filter(
+        (a) =>
+          a.subject === p.work_id &&
+          (a.predicate === "INTERPRETS" ||
+            a.predicate === "CITES" ||
+            a.predicate === "MADE_UNDER" ||
+            a.predicate === "AMENDS" ||
+            a.predicate === "REPEALS" ||
+            a.predicate === "ISSUED_BY")
+      )
+      .map((a) => {
+        const targetWork = freshState.works[a.object];
+        return {
+          work_id: a.object,
+          label: targetWork?.title_th || a.object,
+          predicate: a.predicate,
+          resolved: Boolean(targetWork || a.object_type === "Agency"),
+        };
+      });
+    liveEvidenceCards.push({
+      passage_id: p.passage_id,
+      work_id: p.work_id,
+      version_id: p.version_id,
+      official_identifier:
+        work?.official_identifiers[0]?.normalized || work?.title_th || p.work_id,
+      title_th: work?.title_th || p.contextualized_header,
+      authority_type: work?.type || "TaxRuling",
+      authenticity_status: art?.authenticity_status || "verified_corpus_mirror",
+      is_derivative: Boolean(art?.is_derivative),
+      statement_role: p.statement_role,
+      issue_or_effective_date:
+        ver?.decision_date || ver?.publication_date || ver?.legal_applicability?.[0]?.valid_from || null,
+      exact_excerpt: p.exact_text,
+      locator: p.real_locator,
+      related_provisions: relatedProvisions,
+    });
+  }
+}
 
 function detectMissingFactSignals(question: string): string[] {
   const questions: string[] = [];
@@ -366,6 +476,11 @@ export async function queryKnowledge(
 
   const claims: ClaimLedgerItem[] = [];
   const answerSections: string[] = [];
+  const allReleasePassages = store.getPassagesForRelease(releaseId);
+  const allAcceptedAssertions = store.getAcceptedAssertionsForRelease(releaseId);
+  const verificationPassageMap = new Map<string, Passage>(
+    availablePassages.map((p) => [p.passage_id, p])
+  );
 
   if (isComparisonMode) {
     // Group hits by canonical work_id OR by version_id when comparing two versions of the same statutory provision (B01-U03, B02-U03)
@@ -397,10 +512,31 @@ export async function queryKnowledge(
       const workId = workPassages[0].work_id;
       const work = freshState.works[workId];
       const ver = freshState.versions[workPassages[0].version_id];
-      const conclusionPsg =
+      const conclusionSeed =
         workPassages.find((p) => p.statement_role === "official_conclusion" || p.statement_role === "statutory_text") ||
         workPassages[0];
-      const factsPsg = workPassages.find((p) => p.statement_role.startsWith("requester_"));
+      const conclusionUnits = reassembleOrderedSectionUnits(
+        conclusionSeed,
+        allReleasePassages,
+        freshState,
+        actor
+      );
+      const requesterUnits =
+        work?.type === "TaxRuling"
+          ? findOrderedRequesterUnitsForWork(conclusionSeed, allReleasePassages, freshState, actor)
+          : workPassages.filter((p) => p.statement_role.startsWith("requester_"));
+      for (const u of [...conclusionUnits, ...requesterUnits]) {
+        verificationPassageMap.set(u.passage_id, u);
+      }
+      ensureEvidenceCardsForPassages(
+        [...conclusionUnits, ...requesterUnits],
+        liveEvidenceCards,
+        freshState,
+        allAcceptedAssertions
+      );
+
+      const fullConclusionText = conclusionUnits.map((u) => u.exact_text).join("\n");
+      const fullFactsText = requesterUnits.map((u) => u.exact_text).join("\n");
       const label = work?.official_identifiers[0]?.normalized || work?.title_th || workId;
       const appInterval = ver?.legal_applicability?.[0];
       const intervalNote =
@@ -410,22 +546,25 @@ export async function queryKnowledge(
             ? ` ลงวันที่ ${ver.raw_date_text}`
             : "";
 
-      const stmt = `[${label}${intervalNote}] ${work?.type === "TaxRuling" ? "แนววินิจฉัยกรมสรรพากร" : "บทบัญญัติกฎหมาย"}: ${conclusionPsg.exact_text}`;
+      const stmt = `[${label}${intervalNote}] ${work?.type === "TaxRuling" ? "แนววินิจฉัยกรมสรรพากร" : "บทบัญญัติกฎหมาย"}: ${fullConclusionText}`;
       const verCheck = verifyClaimAgainstPassages(
-        { statement: stmt, supporting_passage_ids: [conclusionPsg.passage_id] },
-        availablePassages
+        {
+          statement: stmt,
+          supporting_passage_ids: conclusionUnits.map((u) => u.passage_id),
+        },
+        Array.from(verificationPassageMap.values())
       );
 
       claims.push({
         claim_id: `clm.${traceId}.cmp.${idx + 1}`,
         statement: stmt,
         claim_type: "fact_distinction",
-        statement_role: conclusionPsg.statement_role,
+        statement_role: conclusionSeed.statement_role,
         supporting_passage_ids: [
-          conclusionPsg.passage_id,
-          ...(factsPsg ? [factsPsg.passage_id] : []),
+          ...conclusionUnits.map((u) => u.passage_id),
+          ...requesterUnits.map((u) => u.passage_id),
         ],
-        applicable_version_id: conclusionPsg.version_id,
+        applicable_version_id: conclusionSeed.version_id,
         factual_conditions: Array.from(extractedConditions).slice(0, 3),
         exceptions: Array.from(extractedExceptions).slice(0, 3),
         counterevidence_passage_ids: [],
@@ -433,9 +572,9 @@ export async function queryKnowledge(
       });
 
       answerSections.push(
-        `- **กรณี/รุ่นที่ ${idx + 1}: ${work?.title_th || label} (\`${ver?.version_label || conclusionPsg.version_id}\`)${intervalNote}**` +
-          (factsPsg ? `\n  - *ข้อเท็จจริงของผู้หารือ*: ${factsPsg.exact_text.slice(0, 280)}${factsPsg.exact_text.length > 280 ? "..." : ""}` : "") +
-          `\n  - *${work?.type === "TaxRuling" ? "แนววินิจฉัยของกรมสรรพากร" : "เนื้อหาบทบัญญัติ"}*: ${conclusionPsg.exact_text}`
+        `- **กรณี/รุ่นที่ ${idx + 1}: ${work?.title_th || label} (\`${ver?.version_label || conclusionSeed.version_id}\`)${intervalNote}**` +
+          (fullFactsText ? `\n  - *ข้อเท็จจริงของผู้หารือ*: ${fullFactsText}` : "") +
+          `\n  - *${work?.type === "TaxRuling" ? "แนววินิจฉัยของกรมสรรพากร" : "เนื้อหาบทบัญญัติ"}*: ${fullConclusionText}`
       );
       idx += 1;
     }
@@ -454,13 +593,45 @@ export async function queryKnowledge(
     const primaryIdLabel =
       primaryWork?.official_identifiers[0]?.normalized || primaryWork?.title_th || primaryOfficial.work_id;
 
-    const officialStatement = `[${primaryIdLabel}] ${primaryOfficial.exact_text}`;
+    // Reassemble ALL sequential units (Unit 1 .. Unit N) of the official conclusion / statutory section so multi-point rulings never truncate (DEF-B01-05)
+    const officialUnits = reassembleOrderedSectionUnits(
+      primaryOfficial,
+      allReleasePassages,
+      freshState,
+      actor
+    );
+    const officialUnitIds = officialUnits.map((u) => u.passage_id);
+    const fullOfficialText = officialUnits.map((u) => u.exact_text).join("\n");
+
+    const requesterUnitsFromStore =
+      primaryWork?.type === "TaxRuling"
+        ? findOrderedRequesterUnitsForWork(primaryOfficial, allReleasePassages, freshState, actor)
+        : [];
+    const fallbackRequester = requesterPassages.find((rp) => rp.work_id === primaryOfficial.work_id);
+    const requesterUnits =
+      requesterUnitsFromStore.length > 0
+        ? requesterUnitsFromStore
+        : fallbackRequester
+          ? [fallbackRequester]
+          : [];
+
+    for (const u of [...officialUnits, ...requesterUnits]) {
+      verificationPassageMap.set(u.passage_id, u);
+    }
+    ensureEvidenceCardsForPassages(
+      [...officialUnits, ...requesterUnits],
+      liveEvidenceCards,
+      freshState,
+      allAcceptedAssertions
+    );
+
+    const officialStatement = `[${primaryIdLabel}] ${fullOfficialText}`;
     const verCheck = verifyClaimAgainstPassages(
       {
         statement: officialStatement,
-        supporting_passage_ids: [primaryOfficial.passage_id],
+        supporting_passage_ids: officialUnitIds,
       },
-      availablePassages
+      Array.from(verificationPassageMap.values())
     );
 
     if (!verCheck.allow_confident_answer) {
@@ -476,7 +647,7 @@ export async function queryKnowledge(
             statement: officialStatement,
             claim_type: "abstention_notice",
             statement_role: primaryOfficial.statement_role,
-            supporting_passage_ids: [primaryOfficial.passage_id],
+            supporting_passage_ids: officialUnitIds,
             applicable_version_id: primaryOfficial.version_id,
             factual_conditions: [],
             exceptions: [],
@@ -489,7 +660,7 @@ export async function queryKnowledge(
         clarification_questions: [],
         coverage_warnings: coverageWarnings,
         applicable_date: req.applicable_date ?? null,
-        model_policy_version: "reg24-grounded-legal-v1.1",
+        model_policy_version: "reg24-grounded-legal-v1.2",
         trace_id: traceId,
         latency_ms: Math.max(1, Date.now() - startedAt),
       };
@@ -500,7 +671,7 @@ export async function queryKnowledge(
       statement: officialStatement,
       claim_type: "direct_source_statement",
       statement_role: primaryOfficial.statement_role,
-      supporting_passage_ids: [primaryOfficial.passage_id],
+      supporting_passage_ids: officialUnitIds,
       applicable_version_id: primaryOfficial.version_id,
       factual_conditions: Array.from(extractedConditions).slice(0, 4),
       exceptions: Array.from(extractedExceptions).slice(0, 4),
@@ -514,22 +685,22 @@ export async function queryKnowledge(
       );
     }
 
-    const matchingRequester = requesterPassages.find((rp) => rp.work_id === primaryOfficial.work_id);
-    if (matchingRequester) {
+    if (requesterUnits.length > 0) {
+      const fullRequesterText = requesterUnits.map((u) => u.exact_text).join("\n");
       claims.push({
         claim_id: `clm.${traceId}.requester.1`,
-        statement: `[ข้อเท็จจริง/ประเด็นของผู้ขอหารือ ใน ${primaryIdLabel}] ${matchingRequester.exact_text}`,
+        statement: `[ข้อเท็จจริง/ประเด็นของผู้ขอหารือ ใน ${primaryIdLabel}] ${fullRequesterText}`,
         claim_type: "direct_source_statement",
-        statement_role: matchingRequester.statement_role,
-        supporting_passage_ids: [matchingRequester.passage_id],
-        applicable_version_id: matchingRequester.version_id,
+        statement_role: requesterUnits[0].statement_role,
+        supporting_passage_ids: requesterUnits.map((u) => u.passage_id),
+        applicable_version_id: requesterUnits[0].version_id,
         factual_conditions: [],
         exceptions: [],
         counterevidence_passage_ids: [],
         verification_result: "VERIFIED",
       });
       answerSections.push(
-        `**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\n${matchingRequester.exact_text}`
+        `**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\n${fullRequesterText}`
       );
     }
 
@@ -577,7 +748,7 @@ export async function queryKnowledge(
     }
 
     answerSections.push(
-      `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${primaryVer?.raw_date_text ? ` — ${primaryVer.raw_date_text}` : ""})**:\n${primaryOfficial.exact_text}`
+      `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${primaryVer?.raw_date_text ? ` — ${primaryVer.raw_date_text}` : ""})**:\n${fullOfficialText}`
     );
 
     // When answering a B01 TaxRuling and an upgraded B02 statutory provision passage ACTUALLY linked (`INTERPRETS`/`CITES`) by this ruling is in availablePassages, surface it explicitly (B02-U09)!
