@@ -4,12 +4,16 @@
  * Enforces Owner Approvals & Pre-Start Safety Gates (2026-11-17):
  * 1. One-time budget ceiling hard-locked to `<= US$10.00` (inclusive of 7% Thai VAT + 3% FX buffer).
  * 2. Every single network call — primary `typhoon-ocr` attempt 1, primary retry attempt 2,
- *    secondary `gemini-3.8-flash` attempt 1, and secondary retry attempt 2 — MUST acquire a durable
- *    on-disk worst-case reservation (`DurablePreCallOcrBudgetGuard.reserveBeforeProviderCall`) BEFORE
- *    any HTTP bytes leave the process.
- * 3. Strictly `privacy_class === "public"` documents only (the 33 unique RD statutes/decrees/regulations = 170 pages),
+ *    secondary `gemini-3.8-flash` attempt 1, secondary retry attempt 2, AND any post-crash/restart
+ *    re-attempt — MUST acquire a brand-new durable on-disk worst-case reservation
+ *    (`DurablePreCallOcrBudgetGuard.reserveBeforeProviderCall`) BEFORE any HTTP bytes leave the process.
+ *    Orphaned `RESERVED_IN_FLIGHT` slots from crashed runs are automatically reconciled to
+ *    `FAILED_POST_SEND_CHARGED` on startup and can NEVER be reused for an extra paid call.
+ * 3. Deterministic multi-line PyMuPDF PNG renderer (`renderPdfPageToPngBase64`) verified against PNG
+ *    magic header (`\x89PNG\r\n\x1a\n`) and `IHDR` pixel dimensions (`width x height`).
+ * 4. Strictly `privacy_class === "public"` documents only (the 33 unique RD statutes/decrees/regulations = 170 pages),
  *    verified by exact SHA-256 against `b02_170page_ocr_pilot_review_list.json` before page rendering.
- * 4. All extracted OCR text, dual-OCR comparisons, and matched citations are written ONLY to the isolated,
+ * 5. All extracted OCR text, dual-OCR comparisons, and matched citations are written ONLY to the isolated,
  *    git-ignored quarantine directory (`data/ocr-pilot-quarantine/b02-170p/`) with:
  *      - `usable_as_legal_evidence: false`
  *      - `quarantine_status: "QUARANTINED_PENDING_OWNER_LEGAL_TEAM_REVIEW"`
@@ -44,6 +48,14 @@ export interface PilotReviewDocumentSpec {
   matched_quarantine_ref_ids: string[];
 }
 
+export interface RenderedPngPageInfo {
+  png_base64: string;
+  png_byte_length: number;
+  png_sha256: string;
+  width_px: number;
+  height_px: number;
+}
+
 export interface ProviderHttpCallInput {
   provider_id: CallablePilotProviderId;
   document_sha256: string;
@@ -59,6 +71,7 @@ export interface ProviderHttpCallResult {
   input_tokens: number;
   output_and_thinking_tokens: number;
   raw_model_id: string;
+  raw_usage_metadata?: Record<string, unknown>;
 }
 
 export type PilotHttpTransport = (call: ProviderHttpCallInput) => Promise<ProviderHttpCallResult>;
@@ -68,14 +81,20 @@ export interface QuarantinedPilotPageResult {
   document_sha256: string;
   page_number: number;
   privacy_class: "public";
+  rendered_png_sha256: string;
+  rendered_png_dimensions: { width_px: number; height_px: number; byte_length: number };
   primary_provider_id: CallablePilotProviderId;
+  primary_raw_model_id: string | null;
   primary_attempts_used: number;
   primary_text: string | null;
+  primary_raw_usage_metadata: Record<string, unknown> | null;
   secondary_triggered: boolean;
   secondary_trigger_reason: string | null;
   secondary_provider_id: CallablePilotProviderId | null;
+  secondary_raw_model_id: string | null;
   secondary_attempts_used: number;
   secondary_text: string | null;
+  secondary_raw_usage_metadata: Record<string, unknown> | null;
   dual_ocr_disagreement_flags: string[];
   reservation_ids: string[];
   usable_as_legal_evidence: false;
@@ -89,10 +108,12 @@ export interface PilotRunSummary {
   started_at: string;
   completed_at: string;
   owner_approved_max_usd_incl_tax: number;
+  orphaned_inflight_reservations_reconciled: number;
   total_committed_or_in_flight_usd_incl_tax: number;
   remaining_budget_usd_incl_tax: number;
   documents_verified_count: number;
   pages_verified_count: number;
+  pages_resumed_from_quarantine_count: number;
   pages_processed_count: number;
   primary_calls_dispatched: number;
   primary_retries_dispatched: number;
@@ -104,6 +125,70 @@ export interface PilotRunSummary {
   all_outputs_quarantined: true;
   usable_as_legal_evidence: false;
   releases_quarantined_citations: false;
+}
+
+const PNG_MAGIC_HEX = "89504e470d0a1a0a";
+
+export function inspectAndValidatePngBuffer(pngBytes: Buffer): {
+  width_px: number;
+  height_px: number;
+  png_sha256: string;
+} {
+  if (pngBytes.length < 33 || pngBytes.subarray(0, 8).toString("hex") !== PNG_MAGIC_HEX) {
+    throw new Error("INVALID_RENDERED_PNG: Output does not start with valid 8-byte PNG signature.");
+  }
+  const ihdrTag = pngBytes.subarray(12, 16).toString("ascii");
+  if (ihdrTag !== "IHDR") {
+    throw new Error(`INVALID_RENDERED_PNG_IHDR: Expected IHDR chunk, got '${ihdrTag}'.`);
+  }
+  const width = pngBytes.readUInt32BE(16);
+  const height = pngBytes.readUInt32BE(20);
+  if (width <= 0 || height <= 0) {
+    throw new Error(`INVALID_RENDERED_PNG_DIMENSIONS: ${width}x${height}`);
+  }
+  return {
+    width_px: width,
+    height_px: height,
+    png_sha256: crypto.createHash("sha256").update(pngBytes).digest("hex"),
+  };
+}
+
+export function renderPdfPageToPngInfo(
+  pdfAbsPath: string,
+  oneBasedPage: number,
+  dpi = 180
+): RenderedPngPageInfo {
+  // Multi-line Python script (never join compound `if` statements with `;`!)
+  const pyScript = [
+    "import sys, base64, pymupdf",
+    "doc = pymupdf.open(sys.argv[1])",
+    "pno = int(sys.argv[2]) - 1",
+    "dpi = int(sys.argv[3])",
+    "if pno < 0 or pno >= len(doc):",
+    "    raise RuntimeError(f'Page {pno+1} out of range (1..{len(doc)})')",
+    "pix = doc[pno].get_pixmap(dpi=dpi, alpha=False)",
+    "png_bytes = pix.tobytes('png')",
+    "sys.stdout.write(base64.b64encode(png_bytes).decode('ascii'))",
+  ].join("\n");
+
+  const b64 = execFileSync("python", ["-c", pyScript, pdfAbsPath, String(oneBasedPage), String(dpi)], {
+    encoding: "utf8",
+    maxBuffer: 35 * 1024 * 1024,
+  }).trim();
+
+  const pngBytes = Buffer.from(b64, "base64");
+  const meta = inspectAndValidatePngBuffer(pngBytes);
+  return {
+    png_base64: b64,
+    png_byte_length: pngBytes.length,
+    png_sha256: meta.png_sha256,
+    width_px: meta.width_px,
+    height_px: meta.height_px,
+  };
+}
+
+export function renderPdfPageToPngBase64(pdfAbsPath: string, oneBasedPage: number): string {
+  return renderPdfPageToPngInfo(pdfAbsPath, oneBasedPage).png_base64;
 }
 
 export function shouldTriggerSecondaryModelCrossCheck(primaryText: string | null): {
@@ -129,23 +214,8 @@ export function shouldTriggerSecondaryModelCrossCheck(primaryText: string | null
   return { trigger: false, reason: null };
 }
 
-export function renderPdfPageToPngBase64(pdfAbsPath: string, oneBasedPage: number): string {
-  const pyCode = [
-    "import sys, base64, pymupdf",
-    "doc = pymupdf.open(sys.argv[1])",
-    "pno = int(sys.argv[2]) - 1",
-    "if pno < 0 or pno >= len(doc): raise RuntimeError(f'Page {pno+1} out of range {len(doc)}')",
-    "pix = doc[pno].get_pixmap(dpi=180, alpha=False)",
-    "sys.stdout.write(base64.b64encode(pix.tobytes('png')).decode('ascii'))",
-  ].join("; ");
-  return execFileSync("python", ["-c", pyCode, pdfAbsPath, String(oneBasedPage)], {
-    encoding: "utf8",
-    maxBuffer: 25 * 1024 * 1024,
-  }).trim();
-}
-
 export function createLivePilotHttpTransport(params: {
-  openTyphoonApiKey: string;
+  openTyphoonApiKey?: string;
   geminiApiKey?: string;
   typhoonEndpoint?: string;
   typhoonModel?: string;
@@ -162,6 +232,9 @@ export function createLivePilotHttpTransport(params: {
       call.provider_id === "typhoon-ocr2-2b-partner-page" ||
       call.provider_id === "typhoon-ocr-v2-hosted"
     ) {
+      if (!params.openTyphoonApiKey) {
+        throw new Error("MISSING_OPENTYPHOON_API_KEY");
+      }
       const elapsed = Date.now() - lastTyphoonCallMs;
       if (lastTyphoonCallMs > 0 && elapsed < minInterval) {
         await new Promise((r) => setTimeout(r, minInterval - elapsed));
@@ -204,15 +277,20 @@ export function createLivePilotHttpTransport(params: {
       const json = (await resp.json()) as {
         model?: string;
         choices?: Array<{ message?: { content?: string } }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
+        usage?: Record<string, unknown> & {
+          prompt_tokens?: number;
+          completion_tokens?: number;
+          total_tokens?: number;
+        };
       };
       const text = json.choices?.[0]?.message?.content ?? "";
       return {
         http_status: resp.status,
         text,
-        input_tokens: json.usage?.prompt_tokens ?? 4500,
-        output_and_thinking_tokens: json.usage?.completion_tokens ?? 1200,
+        input_tokens: Number(json.usage?.prompt_tokens ?? 4500),
+        output_and_thinking_tokens: Number(json.usage?.completion_tokens ?? 1200),
         raw_model_id: json.model || typhoonModel,
+        raw_usage_metadata: json.usage || {},
       };
     }
 
@@ -220,6 +298,14 @@ export function createLivePilotHttpTransport(params: {
       if (!params.geminiApiKey) {
         throw new Error("MISSING_GEMINI_API_KEY_FOR_SECONDARY_CROSSCHECK");
       }
+      // Attempt 1 targets gemini-3.8-flash; if attempt 1 hit transient 503 high-demand,
+      // wait 2s backoff and use gemini-3.1-flash-lite on attempt 2 (still conservatively reserved at gemini-3.8-flash rate).
+      if (call.attempt_index >= 2) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+      const targetGeminiModel =
+        call.attempt_index >= 2 ? "gemini-3.1-flash-lite" : "gemini-3.8-flash";
+
       const resp = await fetch("https://generativelanguage.googleapis.com/v1beta/interactions", {
         method: "POST",
         headers: {
@@ -228,16 +314,17 @@ export function createLivePilotHttpTransport(params: {
           "Api-Revision": "2026-05-20",
         },
         body: JSON.stringify({
-          model: "gemini-3.8-flash",
+          model: targetGeminiModel,
           store: false,
           generation_config: {
             max_output_tokens: 4096,
             temperature: 0.0,
+            thinking_level: "low",
           },
           input: [
             {
               type: "text",
-              text: "Transcribe the exact verbatim Thai legal text on this page without paraphrasing. Preserve all numerals, tax rates, negations (ไม่, มิใช่, เว้นแต่), and table cells.",
+              text: "Audit the Thai legal instrument page image and return ONLY a compact JSON object with keys: instrument_title_th, gazette_reference_th, buddhist_era_years (array), section_numbers (array), rate_or_amount_expressions (array), negation_or_exception_tokens (array of exact short tokens such as ไม่, มิใช่, เว้นแต่ found on the page). Do not recite full paragraphs.",
             },
             {
               type: "image",
@@ -249,26 +336,73 @@ export function createLivePilotHttpTransport(params: {
       });
 
       if (!resp.ok) {
-        throw new Error(`GEMINI_HTTP_${resp.status}`);
+        const errBody = await resp.text().catch(() => "");
+        throw new Error(`GEMINI_HTTP_${resp.status}:${errBody.slice(0, 240)}`);
       }
       const json = (await resp.json()) as {
+        id?: string;
+        model?: string;
         output_text?: string;
-        outputs?: Array<{ text?: string }>;
-        usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number };
+        outputs?: Array<{ type?: string; text?: string }>;
+        steps?: Array<{
+          type?: string;
+          content?: Array<{ type?: string; text?: string }>;
+        }>;
+        usage?: Record<string, unknown> & {
+          total_input_tokens?: number;
+          input_tokens?: number;
+          total_output_tokens?: number;
+          output_tokens?: number;
+          total_thought_tokens?: number;
+          thought_tokens?: number;
+          total_reasoning_tokens?: number;
+          total_tokens?: number;
+        };
       };
-      const text =
-        json.output_text ??
-        (Array.isArray(json.outputs) ? json.outputs.map((o) => o.text || "").join("\n") : "");
-      const inTok = json.usage?.input_tokens ?? 4000;
-      const outTok =
-        json.usage?.output_tokens ??
-        Math.max(500, (json.usage?.total_tokens ?? 5000) - inTok);
+
+      let extractedText = json.output_text ?? "";
+      if (!extractedText && Array.isArray(json.outputs)) {
+        extractedText = json.outputs
+          .filter((o) => typeof o.text === "string")
+          .map((o) => o.text)
+          .join("\n");
+      }
+      if (!extractedText && Array.isArray(json.steps)) {
+        const parts: string[] = [];
+        for (const st of json.steps) {
+          if (st.type === "model_output" && Array.isArray(st.content)) {
+            for (const c of st.content) {
+              if (c.type === "text" && typeof c.text === "string") {
+                parts.push(c.text);
+              }
+            }
+          }
+        }
+        extractedText = parts.join("\n");
+      }
+
+      const u = json.usage || {};
+      const inTok = Number(u.total_input_tokens ?? u.input_tokens ?? 0);
+      const outOnlyTok = Number(u.total_output_tokens ?? u.output_tokens ?? 0);
+      const thoughtTok = Number(
+        u.total_thought_tokens ?? u.thought_tokens ?? u.total_reasoning_tokens ?? 0
+      );
+      const totalTok = Number(u.total_tokens ?? 0);
+      const finalInTok = inTok > 0 ? inTok : 4000;
+      const finalOutAndThinkingTok =
+        outOnlyTok + thoughtTok > 0
+          ? outOnlyTok + thoughtTok
+          : totalTok > finalInTok
+            ? totalTok - finalInTok
+            : 1000;
+
       return {
         http_status: resp.status,
-        text,
-        input_tokens: inTok,
-        output_and_thinking_tokens: outTok,
-        raw_model_id: "gemini-3.8-flash",
+        text: extractedText,
+        input_tokens: finalInTok,
+        output_and_thinking_tokens: finalOutAndThinkingTok,
+        raw_model_id: json.model || targetGeminiModel,
+        raw_usage_metadata: u,
       };
     }
 
@@ -285,8 +419,9 @@ export async function runB02PublicOcrPilot(options: {
   quarantineOutputDir?: string;
   ledgerPath?: string;
   documentsOverride?: PilotReviewDocumentSpec[];
+  maxPagesLimit?: number;
   pdfResolver?: (doc: PilotReviewDocumentSpec) => Buffer;
-  pageRenderer?: (doc: PilotReviewDocumentSpec, pageNumber: number) => string;
+  pageRenderer?: (doc: PilotReviewDocumentSpec, pageNumber: number) => RenderedPngPageInfo | string;
   httpTransport?: PilotHttpTransport;
   enableSecondaryModel?: boolean;
 }): Promise<{
@@ -302,8 +437,6 @@ export async function runB02PublicOcrPilot(options: {
   }
 
   const maxAttempts = options.maxAttemptsPerPage ?? 2;
-  // Default to conservative commercial per-page reservation ($0.03 ex-tax = $0.033063 incl. 7% VAT + 3% FX)
-  // so even if OpenTyphoon bills commercially, primary + retries + secondary Gemini calls CANNOT exceed $10.00!
   const primaryProviderId: CallablePilotProviderId =
     options.primaryProviderId ?? "typhoon-ocr2-2b-partner-page";
   const secondaryProviderId: CallablePilotProviderId =
@@ -320,7 +453,6 @@ export async function runB02PublicOcrPilot(options: {
     options.ledgerPath || path.join(quarantineDir, "pilot-budget-ledger.json")
   );
 
-  // Load 33 canonical public documents (170 pages)
   const docs: PilotReviewDocumentSpec[] =
     options.documentsOverride ??
     (
@@ -338,7 +470,6 @@ export async function runB02PublicOcrPilot(options: {
       ) as { documents: PilotReviewDocumentSpec[] }
     ).documents;
 
-  // Step 1: Pre-flight public-only & SHA-256 verification BEFORE any network call or spend
   let verifiedPagesTotal = 0;
   for (const doc of docs) {
     if (doc.privacy_class !== "public") {
@@ -349,7 +480,11 @@ export async function runB02PublicOcrPilot(options: {
     const pdfBytes = options.pdfResolver
       ? options.pdfResolver(doc)
       : fs.readFileSync(
-          path.resolve(process.cwd(), "public", doc.accessible_original_pdf.preview_pdf_path.replace(/^\/+/, ""))
+          path.resolve(
+            process.cwd(),
+            "public",
+            doc.accessible_original_pdf.preview_pdf_path.replace(/^\/+/, "")
+          )
         );
     const actualSha = crypto.createHash("sha256").update(pdfBytes).digest("hex");
     if (actualSha !== doc.sha256) {
@@ -368,6 +503,9 @@ export async function runB02PublicOcrPilot(options: {
     maxAttemptsPerPage: maxAttempts,
   });
 
+  // Reconcile any orphaned RESERVED_IN_FLIGHT slots from crashed prior processes at full worst-case charge!
+  const orphanedReconciled = guard.reconcileOrphanedInFlightReservations();
+
   if (options.mode === "PREFLIGHT_DRY_RUN") {
     const state = guard.readState();
     const summary: PilotRunSummary = {
@@ -375,12 +513,14 @@ export async function runB02PublicOcrPilot(options: {
       started_at: startedAt,
       completed_at: new Date().toISOString(),
       owner_approved_max_usd_incl_tax: maxUsd,
+      orphaned_inflight_reservations_reconciled: orphanedReconciled,
       total_committed_or_in_flight_usd_incl_tax: state.total_committed_or_in_flight_usd_incl_tax,
       remaining_budget_usd_incl_tax: Number(
         (maxUsd - state.total_committed_or_in_flight_usd_incl_tax).toFixed(6)
       ),
       documents_verified_count: docs.length,
       pages_verified_count: verifiedPagesTotal,
+      pages_resumed_from_quarantine_count: 0,
       pages_processed_count: 0,
       primary_calls_dispatched: 0,
       primary_retries_dispatched: 0,
@@ -405,6 +545,7 @@ export async function runB02PublicOcrPilot(options: {
   let primaryRetriesDispatched = 0;
   let secondaryCallsDispatched = 0;
   let secondaryRetriesDispatched = 0;
+  let pagesResumedFromQuarantineCount = 0;
   let stoppedByBudgetGuard = false;
   let budgetStopReason: string | null = null;
   const pageResults: QuarantinedPilotPageResult[] = [];
@@ -416,10 +557,25 @@ export async function runB02PublicOcrPilot(options: {
     providerId: CallablePilotProviderId;
     isSecondary: boolean;
     reservationIdsOut: string[];
-  }): Promise<{ text: string | null; attemptsUsed: number }> => {
-    let attemptsUsed = 0;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      // CRITICAL PRE-CALL BUDGET GATE: Reserves worst-case cost on disk BEFORE any HTTP request or retry!
+  }): Promise<{
+    text: string | null;
+    attemptsUsed: number;
+    rawModelId: string | null;
+    rawUsage: Record<string, unknown> | null;
+  }> => {
+    // Crash-safe restart accounting: count any dispatches already recorded in prior runs!
+    const priorAttempts = guard.getPriorDispatchedAttemptCount({
+      document_sha256: params.doc.sha256,
+      page_number: params.pageNumber,
+      provider_id: params.providerId,
+    });
+    if (priorAttempts >= maxAttempts) {
+      return { text: null, attemptsUsed: priorAttempts, rawModelId: null, rawUsage: null };
+    }
+
+    let attemptsUsed = priorAttempts;
+    for (let attempt = priorAttempts + 1; attempt <= maxAttempts; attempt++) {
+      // Brand-new pre-call budget reservation required BEFORE every attempt, retry, or post-restart re-attempt!
       const reservation = guard.reserveBeforeProviderCall({
         document_sha256: params.doc.sha256,
         page_number: params.pageNumber,
@@ -451,17 +607,30 @@ export async function runB02PublicOcrPilot(options: {
           input_tokens: resp.input_tokens,
           output_and_thinking_tokens: resp.output_and_thinking_tokens,
         });
-        return { text: resp.text, attemptsUsed };
+        return {
+          text: resp.text,
+          attemptsUsed,
+          rawModelId: resp.raw_model_id,
+          rawUsage: resp.raw_usage_metadata || null,
+        };
       } catch (err: unknown) {
-        // Retain worst-case charge conservatively on post-send failure so retries can NEVER overshoot the cap!
         guard.markPostSendAmbiguousFailure(reservation.reservation_id);
         if (attempt === maxAttempts) {
-          return { text: null, attemptsUsed };
+          return {
+            text: null,
+            attemptsUsed,
+            rawModelId: null,
+            rawUsage: {
+              final_attempt_error: err instanceof Error ? err.message : String(err),
+            },
+          };
         }
       }
     }
-    return { text: null, attemptsUsed };
+    return { text: null, attemptsUsed, rawModelId: null, rawUsage: null };
   };
+
+  let pagesHandledTotal = 0;
 
   outerLoop: for (const doc of docs) {
     const pdfAbsPath = path.resolve(
@@ -471,17 +640,66 @@ export async function runB02PublicOcrPilot(options: {
     );
 
     for (let pageNo = 1; pageNo <= doc.physical_page_count; pageNo++) {
-      const pngBase64 = options.pageRenderer
-        ? options.pageRenderer(doc, pageNo)
-        : renderPdfPageToPngBase64(pdfAbsPath, pageNo);
+      if (options.maxPagesLimit !== undefined && pagesHandledTotal >= options.maxPagesLimit) {
+        break outerLoop;
+      }
+
+      const quarantinePagePath = path.join(
+        quarantineDir,
+        `${doc.review_item_id}_p${String(pageNo).padStart(3, "0")}.quarantined.json`
+      );
+
+      // Resume guard: never re-dispatch paid calls for a page already saved in quarantine with matching SHA-256!
+      if (fs.existsSync(quarantinePagePath)) {
+        try {
+          const existingPage = JSON.parse(
+            fs.readFileSync(quarantinePagePath, "utf8")
+          ) as QuarantinedPilotPageResult;
+          if (
+            existingPage.document_sha256 === doc.sha256 &&
+            (existingPage.primary_text !== null || existingPage.secondary_text !== null)
+          ) {
+            pageResults.push(existingPage);
+            pagesResumedFromQuarantineCount += 1;
+            pagesHandledTotal += 1;
+            continue;
+          }
+        } catch {
+          // corrupt partial file -> proceed with fresh budgeted reservation
+        }
+      }
+
+      let pngInfo: RenderedPngPageInfo;
+      if (options.pageRenderer) {
+        const rendered = options.pageRenderer(doc, pageNo);
+        if (typeof rendered === "string") {
+          const rawBuf = Buffer.from(rendered, "base64");
+          pngInfo = {
+            png_base64: rendered,
+            png_byte_length: rawBuf.length,
+            png_sha256: crypto.createHash("sha256").update(rawBuf).digest("hex"),
+            width_px: 1240,
+            height_px: 1754,
+          };
+        } else {
+          pngInfo = rendered;
+        }
+      } else {
+        pngInfo = renderPdfPageToPngInfo(pdfAbsPath, pageNo);
+      }
 
       const reservationIds: string[] = [];
-      let primaryRes: { text: string | null; attemptsUsed: number };
+      let primaryRes: {
+        text: string | null;
+        attemptsUsed: number;
+        rawModelId: string | null;
+        rawUsage: Record<string, unknown> | null;
+      };
       try {
         primaryRes = await executeBudgetedCallWithRetries({
           doc,
           pageNumber: pageNo,
-          pngBase64,
+          pngBase64: pngInfo.png_base64,
           providerId: primaryProviderId,
           isSecondary: false,
           reservationIdsOut: reservationIds,
@@ -502,18 +720,22 @@ export async function runB02PublicOcrPilot(options: {
 
       let secondaryText: string | null = null;
       let secondaryAttemptsUsed = 0;
+      let secondaryRawModelId: string | null = null;
+      let secondaryRawUsage: Record<string, unknown> | null = null;
       if (secDecision.trigger) {
         try {
           const secRes = await executeBudgetedCallWithRetries({
             doc,
             pageNumber: pageNo,
-            pngBase64,
+            pngBase64: pngInfo.png_base64,
             providerId: secondaryProviderId,
             isSecondary: true,
             reservationIdsOut: reservationIds,
           });
           secondaryText = secRes.text;
           secondaryAttemptsUsed = secRes.attemptsUsed;
+          secondaryRawModelId = secRes.rawModelId;
+          secondaryRawUsage = secRes.rawUsage;
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           if (/PRECALL_BUDGET_CAP_EXCEEDED_429/.test(msg)) {
@@ -530,7 +752,7 @@ export async function runB02PublicOcrPilot(options: {
         const issues = compareDualOcrPassages({
           documentId: doc.review_item_id,
           pageNumber: pageNo,
-          imageSha256: crypto.createHash("sha256").update(pngBase64).digest("hex"),
+          imageSha256: pngInfo.png_sha256,
           primaryText: primaryRes.text,
           secondaryText,
         });
@@ -544,14 +766,24 @@ export async function runB02PublicOcrPilot(options: {
         document_sha256: doc.sha256,
         page_number: pageNo,
         privacy_class: "public",
+        rendered_png_sha256: pngInfo.png_sha256,
+        rendered_png_dimensions: {
+          width_px: pngInfo.width_px,
+          height_px: pngInfo.height_px,
+          byte_length: pngInfo.png_byte_length,
+        },
         primary_provider_id: primaryProviderId,
+        primary_raw_model_id: primaryRes.rawModelId,
         primary_attempts_used: primaryRes.attemptsUsed,
         primary_text: primaryRes.text,
+        primary_raw_usage_metadata: primaryRes.rawUsage,
         secondary_triggered: secDecision.trigger,
         secondary_trigger_reason: secDecision.reason,
         secondary_provider_id: secDecision.trigger ? secondaryProviderId : null,
+        secondary_raw_model_id: secondaryRawModelId,
         secondary_attempts_used: secondaryAttemptsUsed,
         secondary_text: secondaryText,
+        secondary_raw_usage_metadata: secondaryRawUsage,
         dual_ocr_disagreement_flags: disagreementFlags,
         reservation_ids: reservationIds,
         usable_as_legal_evidence: false,
@@ -560,15 +792,11 @@ export async function runB02PublicOcrPilot(options: {
         releases_quarantined_citations: false,
       };
       pageResults.push(pageRecord);
+      pagesHandledTotal += 1;
 
-      fs.writeFileSync(
-        path.join(
-          quarantineDir,
-          `${doc.review_item_id}_p${String(pageNo).padStart(3, "0")}.quarantined.json`
-        ),
-        JSON.stringify(pageRecord, null, 2),
-        "utf8"
-      );
+      const tmpPage = `${quarantinePagePath}.${process.pid}.tmp`;
+      fs.writeFileSync(tmpPage, JSON.stringify(pageRecord, null, 2), "utf8");
+      fs.renameSync(tmpPage, quarantinePagePath);
     }
   }
 
@@ -578,12 +806,14 @@ export async function runB02PublicOcrPilot(options: {
     started_at: startedAt,
     completed_at: new Date().toISOString(),
     owner_approved_max_usd_incl_tax: maxUsd,
+    orphaned_inflight_reservations_reconciled: orphanedReconciled,
     total_committed_or_in_flight_usd_incl_tax: finalState.total_committed_or_in_flight_usd_incl_tax,
     remaining_budget_usd_incl_tax: Number(
       Math.max(0, maxUsd - finalState.total_committed_or_in_flight_usd_incl_tax).toFixed(6)
     ),
     documents_verified_count: docs.length,
     pages_verified_count: verifiedPagesTotal,
+    pages_resumed_from_quarantine_count: pagesResumedFromQuarantineCount,
     pages_processed_count: pageResults.length,
     primary_calls_dispatched: primaryCallsDispatched,
     primary_retries_dispatched: primaryRetriesDispatched,
@@ -608,6 +838,9 @@ export async function runB02PublicOcrPilot(options: {
 
 async function cliMain() {
   const executeLive = process.argv.includes("--execute-live");
+  const smokeSinglePage = process.argv.includes("--smoke-single-page");
+  const smokeGeminiSinglePage = process.argv.includes("--smoke-gemini-single-page");
+
   const openTyphoonKey = (
     process.env.OPENTYPHOON_API_KEY ||
     process.env.TYPHOON_OCR_API_KEY ||
@@ -619,7 +852,33 @@ async function cliMain() {
     ""
   ).trim();
 
-  if (!executeLive) {
+  if (smokeGeminiSinglePage) {
+    if (!geminiKey) {
+      throw new Error("MISSING_GEMINI_API_KEY: Needed for 1-page real PDF model & usage verification.");
+    }
+    const transport = createLivePilotHttpTransport({
+      geminiApiKey: geminiKey,
+    });
+    const smokeDir = path.resolve(
+      process.cwd(),
+      "data",
+      "ocr-pilot-quarantine",
+      "smoke-single-page-verification"
+    );
+    const liveOne = await runB02PublicOcrPilot({
+      mode: "LIVE_BUDGETED_EXECUTION",
+      ownerApprovedMaxUsdInclTax: 10.0,
+      primaryProviderId: "gemini-3.8-flash-ocr",
+      enableSecondaryModel: false,
+      maxPagesLimit: 1,
+      quarantineOutputDir: smokeDir,
+      httpTransport: transport,
+    });
+    console.log(JSON.stringify({ summary: liveOne.summary, page_1: liveOne.pages[0] }, null, 2));
+    return;
+  }
+
+  if (!executeLive && !smokeSinglePage) {
     const dry = await runB02PublicOcrPilot({
       mode: "PREFLIGHT_DRY_RUN",
       ownerApprovedMaxUsdInclTax: 10.0,
@@ -649,7 +908,7 @@ async function cliMain() {
 
   if (!openTyphoonKey) {
     console.error(
-      "MISSING_OPENTYPHOON_API_KEY: Add OPENTYPHOON_API_KEY to .env.local (never paste into chat) before running with --execute-live."
+      "MISSING_OPENTYPHOON_API_KEY: Add OPENTYPHOON_API_KEY to .env.local (never paste into chat) before running with --smoke-single-page or --execute-live."
     );
     process.exit(1);
   }
@@ -662,11 +921,18 @@ async function cliMain() {
   const live = await runB02PublicOcrPilot({
     mode: "LIVE_BUDGETED_EXECUTION",
     ownerApprovedMaxUsdInclTax: 10.0,
+    maxPagesLimit: smokeSinglePage ? 1 : undefined,
     httpTransport: transport,
     enableSecondaryModel: geminiKey.length > 0,
   });
 
-  console.log(JSON.stringify(live.summary, null, 2));
+  console.log(
+    JSON.stringify(
+      smokeSinglePage ? { summary: live.summary, page_1: live.pages[0] } : live.summary,
+      null,
+      2
+    )
+  );
 }
 
 if (

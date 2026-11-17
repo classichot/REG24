@@ -154,13 +154,34 @@ function main() {
     "| :--- | :--- | :--- | :--- | :---: | :--- |",
   ];
 
+  const quarantinedStatuteReviewerPdfs: Record<string, { label: string; relPath: string }> = {
+    "LSC-18": {
+      label: "พ.ร.ฎ. (ฉบับที่ 736) พ.ศ. 2564 (Reviewer Gazette PDF)",
+      relPath: "/ocr-pilot-review-pdfs/LSC-18-RD-736.pdf",
+    },
+    "LSC-19": {
+      label: "พ.ร.ฎ. (ฉบับที่ 773) พ.ศ. 2566 (Reviewer Gazette PDF)",
+      relPath: "/ocr-pilot-review-pdfs/LSC-19-RD-773.pdf",
+    },
+    "LSC-20": {
+      label: "พ.ร.ฎ. (ฉบับที่ 750) พ.ศ. 2565 (Reviewer Gazette PDF)",
+      relPath: "/ocr-pilot-review-pdfs/LSC-20-RD-750.pdf",
+    },
+  };
+
   for (const c of pack.cases) {
     const uniqueRefs = Array.from(new Set(c.citations.map((x) => x.official_identifier))).slice(0, 3);
     const refStr = c.is_synthetic_test_reference
       ? "กค 0702/999999 *(เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง)*"
       : uniqueRefs.join(", ") || "*(Abstention — no source cited)*";
     const uniqueLinks = Array.from(new Set(c.citations.map((x) => x.origin_uri))).slice(0, 2);
-    const linkStr = uniqueLinks.length > 0 ? uniqueLinks.map((u) => `[source](${u})`).join(" · ") : "—";
+    const qPdf = quarantinedStatuteReviewerPdfs[c.spotcheck_id];
+    const linkStr =
+      uniqueLinks.length > 0
+        ? uniqueLinks.map((u) => `[Open RD Source](${u})`).join(" · ")
+        : qPdf
+          ? `[Open Original Royal Decree PDF](${previewBaseUrl}${qPdf.relPath}?_vercel_share=${previewShareToken})`
+          : "*(Out-of-scope / synthetic abstention)*";
     b01MdLines.push(
       `| **${c.spotcheck_id}** | \`${c.stratum}\` | ${refStr} | ${linkStr} | \`${c.observed_status}\` | \`[ ] PASS  [ ] CORRECT  [ ] EXCLUDE\` |`
     );
@@ -194,6 +215,12 @@ function main() {
       }
     } else {
       b01MdLines.push(`- **Cited Original Sources**: *(None — clean abstention)*`);
+      const qPdf = quarantinedStatuteReviewerPdfs[c.spotcheck_id];
+      if (qPdf) {
+        b01MdLines.push(
+          `- **Original Quarantined Instrument PDF (for Legal Reviewer Verification)**: [${qPdf.label}](${previewBaseUrl}${qPdf.relPath}?_vercel_share=${previewShareToken})`
+        );
+      }
     }
     if (c.coverage_warnings.length > 0) {
       b01MdLines.push(`- **Quarantined / Coverage Disclosure**: ${c.coverage_warnings.join(" | ")}`);
@@ -323,9 +350,8 @@ function main() {
     `- **Scope**: **\`${pilotUniqueDocs.length}\` unique public Thai legal instruments (\`${totalUniquePages}\` unique pages)**:`,
     `  - **Tier \`P0\` (\`2\` Acts, \`55\` pages)**: Primary statutes directly matching quarantined citations (\`usable_as_legal_evidence: false\` until reviewed).`,
     `  - **Tier \`P1\` (\`31\` Royal Decrees / Ministerial Regulations / Notifications, \`115\` pages)**: Core Revenue Department CIT/PIT/VAT/SBT/General public tax legislation with scanned pages (\`151\` pages) or corrupt legacy PDF fonts (\`19\` pages).`,
-    "- **Accessible Original Source PDFs & Royal Gazette Cross-Check**:",
-    `  - Every row below includes a direct **[Open Original PDF]** link served over the authenticated REG24 Vercel Preview (\`33/33\` byte-for-byte SHA-256 verified against the official Revenue Department public PDFs).`,
-    `  - Official Royal Gazette cross-check portal: https://ratchakitcha.soc.go.th *(exact Thai search title included per row in \`b02_170page_ocr_pilot_review_list.json\`)*.`,
+    "- **Direct Links to Each Specific Original Document (`33/33` Verified)**:",
+    `  - Every row below links directly to its **specific original Royal Gazette / Revenue Department PDF** (\`OCR-REV-01.pdf\` – \`OCR-REV-33.pdf\`, \`33/33\` byte-for-byte SHA-256 verified against the source corpus) served over the authenticated REG24 Vercel Preview.`,
     "- **Evidence Quarantine Rule**: Every OCR output and every matched citation remains strictly quarantined (`usable_as_legal_evidence: false`, `applicability_status: \"not_assessed\"`) until your legal team verifies:",
     "  1. **Instrument Identity & Governing Act** (exact number, title, and enabling Act — no number-only homonym matching),",
     "  2. **Enactment Year & Royal Gazette Citation** (volume, part, publication date, and effective-date clause),",
@@ -334,7 +360,7 @@ function main() {
     "",
     "## Part A — Tier `P0` Instruments Unlocking Quarantined Citations (`2` Docs · `55` Pages)",
     "",
-    "| ID | Original PDF & Gazette | File Path (`RD - Revenue Department/...`) | Pages (OCR / Font) | Governing Law & Year | Matched Quarantined Refs | Legal Team Verdict |",
+    "| ID | Specific Original Source PDF | File Path (`RD - Revenue Department/...`) | Pages (OCR / Font) | Governing Law & Year | Matched Quarantined Refs | Legal Team Verdict |",
     "| :--- | :--- | :--- | :---: | :--- | :--- | :--- |",
   ];
 
@@ -344,7 +370,7 @@ function main() {
       doc.matched_quarantine_ref_ids.length > 0
         ? `${doc.matched_quarantine_ref_ids.length} refs (\`${doc.matched_quarantine_ref_ids.slice(0, 2).join("`, `")}\`${doc.matched_quarantine_ref_ids.length > 2 ? ", …" : ""})`
         : "—";
-    const pdfLinks = `[Open Original PDF](${doc.accessible_original_pdf.preview_pdf_url}) · [Gazette](${doc.accessible_original_pdf.royal_gazette_portal_url})`;
+    const pdfLinks = `[Open ${doc.review_item_id}.pdf](${doc.accessible_original_pdf.preview_pdf_url})`;
     ocrMdLines.push(
       `| **${doc.review_item_id}** | ${pdfLinks} | \`${doc.physical_corpus_rel_path}\` *(sha256: \`${doc.sha256.slice(0, 10)}…\`)* | **${doc.physical_page_count}** (${doc.ocr_image_pages} scan / ${doc.corrupt_font_pages} font) | ${idInfo} | ${qRefs} | \`[ ] ADMIT  [ ] HIST  [ ] HOLD\` |`
     );
@@ -354,7 +380,7 @@ function main() {
     "",
     "## Part B — Tier `P1` Core Public Tax Subordinate Legislation (`31` Docs · `115` Pages)",
     "",
-    "| ID | Original PDF & Gazette | File Path (`RD - Revenue Department/...`) | Pages (OCR / Font) | Instrument Kind, No. & Governing Law | Amendment / Quarantine Notes | Legal Team Verdict |",
+    "| ID | Specific Original Source PDF | File Path (`RD - Revenue Department/...`) | Pages (OCR / Font) | Instrument Kind, No. & Governing Law | Amendment / Quarantine Notes | Legal Team Verdict |",
     "| :--- | :--- | :--- | :---: | :--- | :--- | :--- |"
   );
 
@@ -370,7 +396,7 @@ function main() {
     if (doc.duplicate_companion_indices.length > 0) {
       noteParts.push(`+${doc.duplicate_companion_indices.length} byte-dup`);
     }
-    const pdfLinks = `[Open Original PDF](${doc.accessible_original_pdf.preview_pdf_url}) · [Gazette](${doc.accessible_original_pdf.royal_gazette_portal_url})`;
+    const pdfLinks = `[Open ${doc.review_item_id}.pdf](${doc.accessible_original_pdf.preview_pdf_url})`;
     ocrMdLines.push(
       `| **${doc.review_item_id}** | ${pdfLinks} | \`${doc.physical_corpus_rel_path}\` *(sha256: \`${doc.sha256.slice(0, 10)}…\`)* | **${doc.physical_page_count}** (${doc.ocr_image_pages} scan / ${doc.corrupt_font_pages} font) | ${idInfo} | ${noteParts.join("; ") || "Quarantined (`usable_as_legal_evidence: false`)"} | \`[ ] ADMIT  [ ] HIST  [ ] HOLD\` |`
     );

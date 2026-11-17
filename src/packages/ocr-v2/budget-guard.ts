@@ -99,6 +99,8 @@ export const VERIFIED_PILOT_PROVIDER_PRICING: Readonly<
 
 export interface BudgetReservationRecord {
   reservation_id: string;
+  dispatch_sequence: number;
+  created_by_pid: number;
   idempotency_call_key: string;
   document_sha256: string;
   page_number: number;
@@ -124,6 +126,7 @@ export interface PersistedOcrBudgetLedgerState {
   tax_multiplier: number;
   fx_and_fee_safety_multiplier: number;
   max_attempts_per_page: number;
+  next_dispatch_sequence?: number;
   total_committed_or_in_flight_usd_incl_tax: number;
   reservations: Record<string, BudgetReservationRecord>;
   updated_at: string;
@@ -208,6 +211,7 @@ export class DurablePreCallOcrBudgetGuard {
     allowPaidDispatch?: boolean;
     ownerApprovedMaxUsdInclTax?: number;
     maxAttemptsPerPage?: number;
+    reconcileOrphanedOnInit?: boolean;
   }) {
     this.ledgerPath = path.resolve(params.ledgerPath);
     this.lockPath = `${this.ledgerPath}.lock`;
@@ -222,11 +226,14 @@ export class DurablePreCallOcrBudgetGuard {
         tax_multiplier: THAI_VAT_MULTIPLIER,
         fx_and_fee_safety_multiplier: 1.03,
         max_attempts_per_page: params.maxAttemptsPerPage ?? 2,
+        next_dispatch_sequence: 1,
         total_committed_or_in_flight_usd_incl_tax: 0,
         reservations: {},
         updated_at: new Date().toISOString(),
       };
       this.writeStateAtomic(initial);
+    } else if (params.reconcileOrphanedOnInit) {
+      this.reconcileOrphanedInFlightReservations();
     }
   }
 
@@ -277,12 +284,53 @@ export class DurablePreCallOcrBudgetGuard {
   }
 
   /**
-   * Reserves worst-case cost BEFORE dispatching any OCR provider HTTP request (including retries).
-   * Throws deterministically before network I/O if:
-   * - `privacy_class !== "public"`
-   * - paid dispatch is not yet approved (`allow_paid_dispatch === false` and worstCase > 0)
-   * - `attempt_index > max_attempts_per_page`
-   * - `current_committed_or_in_flight + worst_case > owner_approved_max_usd_incl_tax`
+   * Marks any orphaned `RESERVED_IN_FLIGHT` records left over from a prior crashed/terminated process
+   * as `FAILED_POST_SEND_CHARGED` at full worst-case cost so a restart can NEVER reuse an in-flight slot
+   * or under-count ambiguous upstream spend.
+   */
+  public reconcileOrphanedInFlightReservations(): number {
+    return this.withFileLock(() => {
+      const state = this.readState();
+      let reconciled = 0;
+      const nowIso = new Date().toISOString();
+      for (const rec of Object.values(state.reservations)) {
+        if (rec.status === "RESERVED_IN_FLIGHT") {
+          rec.charged_usd_incl_tax = rec.reserved_worst_case_usd_incl_tax;
+          rec.status = "FAILED_POST_SEND_CHARGED";
+          rec.updated_at = nowIso;
+          reconciled += 1;
+        }
+      }
+      if (reconciled > 0) {
+        this.writeStateAtomic(state);
+      }
+      return reconciled;
+    });
+  }
+
+  /**
+   * Returns how many non-released dispatches have already been reserved for `(document, page, provider)`
+   * across the current and any prior restarted runs.
+   */
+  public getPriorDispatchedAttemptCount(params: {
+    document_sha256: string;
+    page_number: number;
+    provider_id: CallablePilotProviderId;
+  }): number {
+    const state = this.readState();
+    return Object.values(state.reservations).filter(
+      (r) =>
+        r.document_sha256 === params.document_sha256 &&
+        r.page_number === params.page_number &&
+        r.provider_id === params.provider_id &&
+        r.status !== "RELEASED_PRE_SEND"
+    ).length;
+  }
+
+  /**
+   * Reserves worst-case cost BEFORE dispatching any OCR provider HTTP request (including retries & restarts).
+   * NEVER reuses an existing reservation — every outbound HTTP call MUST acquire a brand-new reservation_id
+   * and pass the cumulative budget ceiling check.
    */
   public reserveBeforeProviderCall(params: {
     document_sha256: string;
@@ -305,12 +353,24 @@ export class DurablePreCallOcrBudgetGuard {
         );
       }
 
-      const callKey = `${params.document_sha256}:p${params.page_number}:a${params.attempt_index}:${params.provider_id}`;
-      const existing = Object.values(state.reservations).find(
-        (r) => r.idempotency_call_key === callKey && r.status !== "RELEASED_PRE_SEND"
+      const priorForPageProvider = Object.values(state.reservations).filter(
+        (r) =>
+          r.document_sha256 === params.document_sha256 &&
+          r.page_number === params.page_number &&
+          r.provider_id === params.provider_id &&
+          r.status !== "RELEASED_PRE_SEND"
       );
-      if (existing) {
-        return existing;
+
+      if (priorForPageProvider.some((r) => r.attempt_index === params.attempt_index)) {
+        throw new Error(
+          `DUPLICATE_ATTEMPT_REQUIRES_NEW_RESERVATION_409: Attempt ${params.attempt_index} for ${params.document_sha256}:p${params.page_number}:${params.provider_id} was already reserved/dispatched; a retry or restart cannot reuse a prior reservation and must advance attempt_index with a fresh budget reservation.`
+        );
+      }
+
+      if (priorForPageProvider.length >= state.max_attempts_per_page) {
+        throw new Error(
+          `MAX_PAGE_ATTEMPTS_EXCEEDED_429: ${priorForPageProvider.length} dispatches already recorded for ${params.document_sha256}:p${params.page_number}:${params.provider_id} (max=${state.max_attempts_per_page}).`
+        );
       }
 
       const worstCaseUsd = computeWorstCaseCallCostUsdInclTax(params.provider_id, {
@@ -333,10 +393,16 @@ export class DurablePreCallOcrBudgetGuard {
         );
       }
 
+      const seq = (state.next_dispatch_sequence ?? Object.keys(state.reservations).length + 1);
+      state.next_dispatch_sequence = seq + 1;
+
+      const callKey = `${params.document_sha256}:p${params.page_number}:a${params.attempt_index}:${params.provider_id}:seq${seq}`;
       const nowIso = new Date().toISOString();
       const spec = VERIFIED_PILOT_PROVIDER_PRICING[params.provider_id];
       const rec: BudgetReservationRecord = {
-        reservation_id: `rsv.${crypto.createHash("sha256").update(callKey).digest("hex").slice(0, 16)}`,
+        reservation_id: `rsv.s${seq}.${crypto.createHash("sha256").update(callKey).digest("hex").slice(0, 12)}`,
+        dispatch_sequence: seq,
+        created_by_pid: process.pid,
         idempotency_call_key: callKey,
         document_sha256: params.document_sha256,
         page_number: params.page_number,

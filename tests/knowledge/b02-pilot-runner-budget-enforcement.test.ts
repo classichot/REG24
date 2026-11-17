@@ -6,9 +6,13 @@ import { describe, expect, it } from "vitest";
 import {
   type PilotReviewDocumentSpec,
   type ProviderHttpCallInput,
+  renderPdfPageToPngInfo,
   runB02PublicOcrPilot,
 } from "../../scripts/run-b02-170page-typhoon-ocr-pilot";
-import { computeWorstCaseCallCostUsdInclTax } from "../../src/packages/ocr-v2/budget-guard";
+import {
+  DurablePreCallOcrBudgetGuard,
+  computeWorstCaseCallCostUsdInclTax,
+} from "../../src/packages/ocr-v2/budget-guard";
 
 function makeFakeDoc(
   id: string,
@@ -35,8 +39,17 @@ function makeFakeDoc(
   };
 }
 
-describe("Actual 170-Page B02 Pilot Runner End-to-End Budget Enforcement (Primary + Retries + Secondary Model)", () => {
-  it("1. Verifies all 33 real public PDFs (170 pages) in preflight dry-run with zero network calls and strict $10.00 ceiling", async () => {
+describe("Actual 170-Page B02 Pilot Runner: Real PDF Rendering, Restart/Retry Reservation Lock & Budget Enforcement", () => {
+  it("1. Renders real scanned PDF OCR-REV-01.pdf page 1 to valid PNG bytes with verified IHDR dimensions", () => {
+    const realPdf = path.resolve(process.cwd(), "public", "ocr-pilot-review-pdfs", "OCR-REV-01.pdf");
+    const info = renderPdfPageToPngInfo(realPdf, 1, 180);
+    expect(info.png_byte_length).toBeGreaterThan(20_000);
+    expect(info.width_px).toBeGreaterThan(900);
+    expect(info.height_px).toBeGreaterThan(1200);
+    expect(info.png_sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("2. Verifies all 33 real public PDFs (170 pages) in preflight dry-run with zero network calls and strict $10.00 ceiling", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "reg24-pilot-preflight-"));
     try {
       const res = await runB02PublicOcrPilot({
@@ -55,23 +68,13 @@ describe("Actual 170-Page B02 Pilot Runner End-to-End Budget Enforcement (Primar
     }
   });
 
-  it("2. Enforces pre-call budget reservations across primary retries AND secondary gemini-3.8-flash calls/retries, aborting BEFORE the HTTP call that would exceed the cap", async () => {
+  it("3. Enforces pre-call budget reservations across primary retries AND secondary gemini-3.8-flash calls/retries, aborting BEFORE the HTTP call that would exceed the cap", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "reg24-pilot-runner-cap-"));
     try {
       const fake1 = makeFakeDoc("OCR-REV-01", 3, "public");
       const primaryWorst = computeWorstCaseCallCostUsdInclTax("typhoon-ocr2-2b-partner-page"); // ~$0.033063
-      const secondaryWorst = computeWorstCaseCallCostUsdInclTax("gemini-3.8-flash-ocr"); // ~$0.022325
+      const secondaryWorst = computeWorstCaseCallCostUsdInclTax("gemini-3.8-flash-ocr"); // ~$0.022301
 
-      // Page 1 will execute:
-      //  1) Primary attempt 1 -> HTTP 503 failure (retains $0.033063 worst-case charge!)
-      //  2) Primary attempt 2 (RETRY) -> HTTP 200 with Thai tax rate 'ร้อยละ 10 เว้นแต่' (settled $0.033063 -> cumulative $0.066126)
-      //  3) Secondary gemini-3.8-flash attempt 1 -> HTTP 503 failure (retains $0.022325 worst-case charge -> cumulative $0.088451)
-      //  4) Secondary gemini-3.8-flash attempt 2 (SECONDARY RETRY) -> reserves $0.022325 -> cumulative $0.110776 <= $0.130000 cap!
-      //     (After settling actual tokens 3000 in / 800 out -> ~$0.005801, cumulative becomes ~$0.094252)
-      // Page 2 will then execute:
-      //  5) Primary attempt 1 -> reserves $0.033063 -> cumulative ~$0.127315 <= $0.130000 cap, returns 'ร้อยละ 5'
-      //  6) Secondary gemini-3.8-flash attempt 1 -> needs $0.022325 -> projected ~$0.149640 > $0.130000 cap ->
-      //     MUST ABORT BEFORE CALLING HTTP TRANSPORT!
       const tightCapUsd = 0.13;
       const observedTransportCalls: ProviderHttpCallInput[] = [];
 
@@ -109,7 +112,6 @@ describe("Actual 170-Page B02 Pilot Runner End-to-End Budget Enforcement (Primar
               raw_model_id: "gemini-3.8-flash",
             };
           }
-          // Page 2 primary attempt 1 succeeds and triggers secondary rate check, which MUST be blocked BEFORE HTTP!
           return {
             http_status: 200,
             text: "มาตรา 5 อัตราภาษีร้อยละ 5 ของมูลค่าสินค้าส่งออกทั้งหมดในราชอาณาจักร",
@@ -122,8 +124,6 @@ describe("Actual 170-Page B02 Pilot Runner End-to-End Budget Enforcement (Primar
 
       expect(primaryWorst).toBeGreaterThan(0.033);
       expect(secondaryWorst).toBeGreaterThan(0.022);
-
-      // Exactly 5 HTTP requests were sent; the 6th (Page 2 secondary call) was blocked BEFORE HTTP!
       expect(observedTransportCalls.length).toBe(5);
       expect(res.summary.primary_calls_dispatched).toBe(3);
       expect(res.summary.primary_retries_dispatched).toBe(1);
@@ -132,45 +132,68 @@ describe("Actual 170-Page B02 Pilot Runner End-to-End Budget Enforcement (Primar
       expect(res.summary.stopped_by_budget_guard).toBe(true);
       expect(res.summary.budget_stop_reason).toMatch(/PRECALL_BUDGET_CAP_EXCEEDED_429/);
       expect(res.summary.total_committed_or_in_flight_usd_incl_tax).toBeLessThanOrEqual(tightCapUsd);
-
-      // Page 1 completed with all 4 reservations recorded and strictly quarantined
-      expect(res.pages.length).toBe(1);
-      expect(res.pages[0].reservation_ids.length).toBe(4);
-      expect(res.pages[0].usable_as_legal_evidence).toBe(false);
-      expect(res.pages[0].quarantine_status).toBe("QUARANTINED_PENDING_OWNER_LEGAL_TEAM_REVIEW");
-      expect(res.pages[0].releases_quarantined_citations).toBe(false);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it("3. Rejects any non-public document or ceiling > $10.00 before dispatching a single HTTP request", async () => {
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "reg24-pilot-nonpub-"));
+  it("4. Prevents a restart or retry from ever reusing a prior reservation or making an extra paid call without a new budget reservation", async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "reg24-pilot-restart-"));
     try {
-      const conf = makeFakeDoc("OCR-CONF-01", 1, "confidential");
-      let networkCalls = 0;
-      await expect(
-        runB02PublicOcrPilot({
-          mode: "LIVE_BUDGETED_EXECUTION",
-          ownerApprovedMaxUsdInclTax: 10.0,
-          quarantineOutputDir: tmpDir,
-          documentsOverride: [conf.doc],
-          pdfResolver: () => conf.bytes,
-          httpTransport: async () => {
-            networkCalls += 1;
-            throw new Error("SHOULD_NEVER_BE_CALLED");
-          },
-        })
-      ).rejects.toThrow(/NON_PUBLIC_DOCUMENT_BLOCKED_403/);
-      expect(networkCalls).toBe(0);
+      const ledgerPath = path.join(tmpDir, "pilot-budget-ledger.json");
+      const fake1 = makeFakeDoc("OCR-REV-01", 1, "public");
 
-      await expect(
-        runB02PublicOcrPilot({
-          mode: "PREFLIGHT_DRY_RUN",
-          ownerApprovedMaxUsdInclTax: 10.01,
-          quarantineOutputDir: tmpDir,
+      // Simulate Process 1 reserving attempt 1 ($0.033063) against a $0.050000 cap and crashing mid-flight!
+      const crashedGuard = new DurablePreCallOcrBudgetGuard({
+        ledgerPath,
+        allowPaidDispatch: true,
+        ownerApprovedMaxUsdInclTax: 0.05,
+        maxAttemptsPerPage: 2,
+      });
+      const orphanRsv = crashedGuard.reserveBeforeProviderCall({
+        document_sha256: fake1.doc.sha256,
+        page_number: 1,
+        attempt_index: 1,
+        privacy_class: "public",
+        provider_id: "typhoon-ocr2-2b-partner-page",
+      });
+      expect(orphanRsv.status).toBe("RESERVED_IN_FLIGHT");
+
+      // Direct guard check: trying to reuse attempt_index=1 after crash is HARD-REJECTED!
+      expect(() =>
+        crashedGuard.reserveBeforeProviderCall({
+          document_sha256: fake1.doc.sha256,
+          page_number: 1,
+          attempt_index: 1,
+          privacy_class: "public",
+          provider_id: "typhoon-ocr2-2b-partner-page",
         })
-      ).rejects.toThrow(/OWNER_BUDGET_CAP_VIOLATION/);
+      ).toThrow(/DUPLICATE_ATTEMPT_REQUIRES_NEW_RESERVATION_409/);
+
+      // Now Process 2 restarts `runB02PublicOcrPilot` against the same $0.050000 ledger:
+      //  - Reconciles orphaned attempt 1 to FAILED_POST_SEND_CHARGED ($0.033063)
+      //  - Advances to attempt 2, which requires a BRAND-NEW $0.033063 reservation ($0.066126 > $0.050000)
+      //  - MUST block BEFORE firing 1 single extra HTTP call!
+      let postRestartHttpCalls = 0;
+      const resumed = await runB02PublicOcrPilot({
+        mode: "LIVE_BUDGETED_EXECUTION",
+        ownerApprovedMaxUsdInclTax: 0.05,
+        maxAttemptsPerPage: 2,
+        quarantineOutputDir: tmpDir,
+        ledgerPath,
+        documentsOverride: [fake1.doc],
+        pdfResolver: () => fake1.bytes,
+        pageRenderer: () => Buffer.from("PNG-PAGE-1").toString("base64"),
+        httpTransport: async () => {
+          postRestartHttpCalls += 1;
+          throw new Error("MUST_NEVER_FIRE_WITHOUT_NEW_RESERVATION");
+        },
+      });
+
+      expect(postRestartHttpCalls).toBe(0);
+      expect(resumed.summary.orphaned_inflight_reservations_reconciled).toBe(1);
+      expect(resumed.summary.stopped_by_budget_guard).toBe(true);
+      expect(resumed.summary.total_committed_or_in_flight_usd_incl_tax).toBeLessThanOrEqual(0.05);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

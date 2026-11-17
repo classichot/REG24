@@ -1,0 +1,132 @@
+{
+  "verified_at": "2026-11-17T17:05:47.751Z",
+  "note": "Live 1-page real-PDF verification on OCR-REV-01.pdf page 1 (Petroleum Income Tax Act B.E. 2514, Royal Gazette Vol. 88 Part 43). Primary Hosted Typhoon awaits OPENTYPHOON_API_KEY in .env.local (--smoke-single-page ready).",
+  "summary": {
+    "mode": "LIVE_BUDGETED_EXECUTION",
+    "started_at": "2026-11-17T17:05:13.771Z",
+    "completed_at": "2026-11-17T17:05:18.530Z",
+    "owner_approved_max_usd_incl_tax": 10,
+    "orphaned_inflight_reservations_reconciled": 0,
+    "total_committed_or_in_flight_usd_incl_tax": 0.024268,
+    "remaining_budget_usd_incl_tax": 9.975732,
+    "documents_verified_count": 33,
+    "pages_verified_count": 170,
+    "pages_resumed_from_quarantine_count": 0,
+    "pages_processed_count": 1,
+    "primary_calls_dispatched": 2,
+    "primary_retries_dispatched": 1,
+    "secondary_calls_dispatched": 0,
+    "secondary_retries_dispatched": 0,
+    "stopped_by_budget_guard": false,
+    "budget_stop_reason": null,
+    "quarantine_output_dir": "D:\\Code\\REG24\\data\\ocr-pilot-quarantine\\smoke-single-page-verification",
+    "all_outputs_quarantined": true,
+    "usable_as_legal_evidence": false,
+    "releases_quarantined_citations": false
+  },
+  "page_1": {
+    "review_item_id": "OCR-REV-01",
+    "document_sha256": "4ae672281808899e7cfb27fad1bc8cde2fba6bf9f098ba2524e00602e703957c",
+    "page_number": 1,
+    "privacy_class": "public",
+    "rendered_png_sha256": "a1af5261ac410c9e72883f24ffa5807b87b9ce65843b8bdfc1ba521d74590ce0",
+    "rendered_png_dimensions": {
+      "width_px": 960,
+      "height_px": 1485,
+      "byte_length": 136698
+    },
+    "primary_provider_id": "gemini-3.8-flash-ocr",
+    "primary_raw_model_id": "gemini-3.1-flash-lite",
+    "primary_attempts_used": 2,
+    "primary_text": "```json\n{\n  \"instrument_title_th\": \"พระราชบัญญัติภาษีเงินได้ปิโตรเลียม\",\n  \"gazette_reference_th\": \"เล่ม ๘๘ ตอนที่ ๔๓\",\n  \"buddhist_era_years\": [\n    \"๒๕๑๔\",\n    \"๒๕๑๔\"\n  ],\n  \"section_numbers\": [],\n  \"rate_or_amount_expressions\": [],\n  \"negation_or_exception_tokens\": []\n}\n```",
+    "primary_raw_usage_metadata": {
+      "total_tokens": 1400,
+      "total_input_tokens": 1155,
+      "input_tokens_by_modality": [
+        {
+          "modality": "image",
+          "tokens": 1066
+        },
+        {
+          "modality": "text",
+          "tokens": 89
+        }
+      ],
+      "total_cached_tokens": 0,
+      "total_output_tokens": 120,
+      "total_tool_use_tokens": 0,
+      "total_thought_tokens": 125,
+      "initial_input_tokens": 1155
+    },
+    "secondary_triggered": false,
+    "secondary_trigger_reason": null,
+    "secondary_provider_id": null,
+    "secondary_raw_model_id": null,
+    "secondary_attempts_used": 0,
+    "secondary_text": null,
+    "secondary_raw_usage_metadata": null,
+    "dual_ocr_disagreement_flags": [],
+    "reservation_ids": [
+      "rsv.s1.611e59e1425c",
+      "rsv.s2.2df9b37bc627"
+    ],
+    "usable_as_legal_evidence": false,
+    "quarantine_status": "QUARANTINED_PENDING_OWNER_LEGAL_TEAM_REVIEW",
+    "applicability_status": "not_assessed",
+    "releases_quarantined_citations": false
+  },
+  "settled_ledger": {
+    "schema_version": "reg24.ocr_precall_budget_ledger.v1",
+    "pilot_id": "pilot.b02.typhoon_170pages.owner_10usd",
+    "allow_paid_dispatch": true,
+    "owner_approved_max_usd_incl_tax": 10,
+    "tax_multiplier": 1.07,
+    "fx_and_fee_safety_multiplier": 1.03,
+    "max_attempts_per_page": 2,
+    "next_dispatch_sequence": 3,
+    "total_committed_or_in_flight_usd_incl_tax": 0.024268,
+    "reservations": {
+      "rsv.s1.611e59e1425c": {
+        "reservation_id": "rsv.s1.611e59e1425c",
+        "dispatch_sequence": 1,
+        "created_by_pid": 6456,
+        "idempotency_call_key": "4ae672281808899e7cfb27fad1bc8cde2fba6bf9f098ba2524e00602e703957c:p1:a1:gemini-3.8-flash-ocr:seq1",
+        "document_sha256": "4ae672281808899e7cfb27fad1bc8cde2fba6bf9f098ba2524e00602e703957c",
+        "page_number": 1,
+        "attempt_index": 1,
+        "privacy_class": "public",
+        "provider_id": "gemini-3.8-flash-ocr",
+        "callable_model_id": "gemini-3.8-flash",
+        "reserved_worst_case_usd_incl_tax": 0.022301,
+        "settled_actual_usd_incl_tax": null,
+        "charged_usd_incl_tax": 0.022301,
+        "status": "FAILED_POST_SEND_CHARGED",
+        "usable_as_legal_evidence": false,
+        "quarantine_status": "QUARANTINED_PENDING_HUMAN_LEGAL_CURATION",
+        "created_at": "2026-11-17T17:05:14.132Z",
+        "updated_at": "2026-11-17T17:05:14.132Z"
+      },
+      "rsv.s2.2df9b37bc627": {
+        "reservation_id": "rsv.s2.2df9b37bc627",
+        "dispatch_sequence": 2,
+        "created_by_pid": 6456,
+        "idempotency_call_key": "4ae672281808899e7cfb27fad1bc8cde2fba6bf9f098ba2524e00602e703957c:p1:a2:gemini-3.8-flash-ocr:seq2",
+        "document_sha256": "4ae672281808899e7cfb27fad1bc8cde2fba6bf9f098ba2524e00602e703957c",
+        "page_number": 1,
+        "attempt_index": 2,
+        "privacy_class": "public",
+        "provider_id": "gemini-3.8-flash-ocr",
+        "callable_model_id": "gemini-3.8-flash",
+        "reserved_worst_case_usd_incl_tax": 0.022301,
+        "settled_actual_usd_incl_tax": 0.001967,
+        "charged_usd_incl_tax": 0.001967,
+        "status": "SETTLED_COMPLETED",
+        "usable_as_legal_evidence": false,
+        "quarantine_status": "QUARANTINED_PENDING_HUMAN_LEGAL_CURATION",
+        "created_at": "2026-11-17T17:05:14.554Z",
+        "updated_at": "2026-11-17T17:05:14.554Z"
+      }
+    },
+    "updated_at": "2026-11-17T17:05:18.519Z"
+  }
+}

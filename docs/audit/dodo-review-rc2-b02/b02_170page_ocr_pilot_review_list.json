@@ -1,6 +1,6 @@
 {
   "schema_version": "reg24.b02_ocr_pilot_legal_review_list.v1",
-  "generated_at": "2026-11-17T15:48:50.309Z",
+  "generated_at": "2026-11-17T17:06:14.218Z",
   "review_authority": "PRODUCT_OWNER_AND_INTERNAL_LEGAL_TEAM",
   "pilot_posture": {
     "paid_ocr_run_started": false,
@@ -29,7 +29,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-01.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-01.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-01.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ACT พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 พ.ศ. 2514"
@@ -86,7 +86,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-02.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-02.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-02.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ACT พระราชบัญญัติชดเชยค่าภาษีอากรสินค้าส่งออกที่ผลิตในราชอาณาจักร พ.ศ. 2524 พ.ศ. 2524"
@@ -137,7 +137,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-03.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-03.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-03.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ROYAL_DECREE ฉบับที่ 11 ประมวลรัษฎากร พ.ศ. 2502"
@@ -182,7 +182,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-04.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-04.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-04.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 126 ประมวลรัษฎากร พ.ศ. 2509"
@@ -227,7 +227,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-05.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-05.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-05.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 2 พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 พ.ศ. 2514"
@@ -272,7 +272,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-06.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-06.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-06.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 3 พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 พ.ศ. 2514"
@@ -317,7 +317,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-07.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-07.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-07.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ROYAL_DECREE พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 พ.ศ. 2514"
@@ -362,7 +362,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-08.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-08.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-08.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 4 พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 พ.ศ. 2517"
@@ -407,7 +407,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-09.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-09.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-09.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 144 ประมวลรัษฎากร พ.ศ. 2522"
@@ -452,7 +452,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-10.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-10.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-10.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ROYAL_DECREE ฉบับที่ 2 พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 พ.ศ. 2522"
@@ -497,7 +497,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-11.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-11.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-11.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 161 ประมวลรัษฎากร พ.ศ. 2526"
@@ -542,7 +542,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-12.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-12.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-12.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 5 พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 พ.ศ. 2527"
@@ -587,7 +587,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-13.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-13.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-13.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 186 ประมวลรัษฎากร พ.ศ. 2534"
@@ -632,7 +632,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-14.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-14.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-14.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 6 พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 พ.ศ. 2536"
@@ -677,7 +677,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-15.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-15.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-15.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ROYAL_DECREE ฉบับที่ 362 ประมวลรัษฎากร พ.ศ. 2542"
@@ -722,7 +722,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-16.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-16.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-16.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ACT พระราชบัญญัติภาษีป้าย พ.ศ. 2510 พ.ศ. 2510"
@@ -767,7 +767,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-17.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-17.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-17.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 1 พระราชบัญญัติภาษีป้าย พ.ศ. 2510 พ.ศ. 2512"
@@ -812,7 +812,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-18.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-18.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-18.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "EMERGENCY_DECREE พระราชกำหนดภาษีการเดินทางออกนอกราชอาณาจักร พ.ศ. 2526 พ.ศ. 2526"
@@ -857,7 +857,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-19.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-19.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-19.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 2 OTHER_OR_UNSPECIFIED พ.ศ. 2526"
@@ -902,7 +902,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-20.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-20.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-20.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ACT OTHER_OR_UNSPECIFIED พ.ศ. 2528"
@@ -947,7 +947,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-21.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-21.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-21.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 4 OTHER_OR_UNSPECIFIED พ.ศ. 2529"
@@ -992,7 +992,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-22.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-22.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-22.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ROYAL_DECREE OTHER_OR_UNSPECIFIED พ.ศ. 2529"
@@ -1037,7 +1037,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-23.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-23.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-23.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION OTHER_OR_UNSPECIFIED พ.ศ. 2531"
@@ -1082,7 +1082,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-24.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-24.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-24.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ACT OTHER_OR_UNSPECIFIED พ.ศ. 2534"
@@ -1127,7 +1127,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-25.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-25.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-25.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 6 OTHER_OR_UNSPECIFIED พ.ศ. 2534"
@@ -1172,7 +1172,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-26.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-26.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-26.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 2 พระราชบัญญัติภาษีป้าย พ.ศ. 2510 พ.ศ. 2535"
@@ -1217,7 +1217,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-27.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-27.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-27.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 4 พระราชบัญญัติภาษีป้าย พ.ศ. 2510 พ.ศ. 2535"
@@ -1262,7 +1262,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-28.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-28.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-28.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 6 พระราชบัญญัติภาษีป้าย พ.ศ. 2510 พ.ศ. 2540"
@@ -1307,7 +1307,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-29.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-29.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-29.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 7 พระราชบัญญัติภาษีป้าย พ.ศ. 2510 พ.ศ. 2542"
@@ -1352,7 +1352,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-30.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-30.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-30.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 8 พระราชบัญญัติภาษีป้าย พ.ศ. 2510 พ.ศ. 2542"
@@ -1397,7 +1397,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-31.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-31.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-31.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "MINISTERIAL_REGULATION ฉบับที่ 9 พระราชบัญญัติภาษีป้าย พ.ศ. 2510 พ.ศ. 2543"
@@ -1445,7 +1445,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-32.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-32.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-32.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ROYAL_DECREE ฉบับที่ 240 ประมวลรัษฎากร พ.ศ. 2534"
@@ -1493,7 +1493,7 @@
       "privacy_class": "public",
       "accessible_original_pdf": {
         "preview_pdf_path": "/ocr-pilot-review-pdfs/OCR-REV-33.pdf",
-        "preview_pdf_url": "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-33.pdf?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG",
+        "preview_pdf_url": "https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/OCR-REV-33.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp",
         "sha256_verified_exact_original": true,
         "royal_gazette_portal_url": "https://ratchakitcha.soc.go.th",
         "royal_gazette_search_query_th": "ROYAL_DECREE ฉบับที่ 241 ประมวลรัษฎากร พ.ศ. 2534"

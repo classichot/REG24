@@ -2,7 +2,7 @@
 
 - **Reviewing Authority**: Product Owner & Internal Legal Team *(no external counsel engaged)*
 - **Candidate Release**: `rel.B01.rc5` · Manifest `mfst.b01.mwjgk5o7` (`c63bd81e8face7ea…`)
-- **Interactive Preview (for live side-by-side testing)**: https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/admin/knowledge/batches?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG
+- **Interactive Preview (for live side-by-side testing)**: https://reg24-a74ysfcbq-7-l-advisory.vercel.app/admin/knowledge/batches?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp
 - **How to Record Findings**: Mark each case as `PASS`, `NEEDS_CORRECTION` (with correction notes), or `EXCLUDE_FROM_TRIAL`. Engineering will record all findings in `b01_thai_tax_law_independent_review_ledger.json` and apply any required fixes or safe withdrawals before external user invitations.
 
 > [!IMPORTANT]
@@ -12,36 +12,36 @@
 
 | Case | Stratum | Primary Reference(s) | Source Link(s) | Observed Status | Legal Verdict (`PASS` / `CORRECT` / `EXCLUDE`) |
 | :--- | :--- | :--- | :--- | :---: | :--- |
-| **LSC-01** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/1494, มาตรา 47 ทวิ | [source](https://www.rd.go.th/68536.html) · [source](https://www.rd.go.th/5937.html#mata47_2) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-02** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/1903 | [source](https://www.rd.go.th/68482.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-03** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/634 | [source](https://www.rd.go.th/68308.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-04** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/4825 | [source](https://www.rd.go.th/65296.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-05** | `S1_remediated_facts_vs_ruling_separation` | กค 0811/11340 | [source](https://www.rd.go.th/23767.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-06** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/6077 | [source](https://www.rd.go.th/68053.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-07** | `S2_subordinate_law_and_decree_precision` | กค 0811/13980, กค 0706/5686, กค 0706/2531 | [source](https://www.rd.go.th/22874.html) · [source](https://www.rd.go.th/35488.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-08** | `S2_subordinate_law_and_decree_precision` | กค 0702/1248, กค 0811/11384, กค 0702/8847 | [source](https://www.rd.go.th/68464.html) · [source](https://www.rd.go.th/52540.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-09** | `S2_subordinate_law_and_decree_precision` | กค 0811/2751 | [source](https://www.rd.go.th/23884.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-10** | `S2_subordinate_law_and_decree_precision` | กค 0811/02557 | [source](https://www.rd.go.th/23475.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-11** | `S2_subordinate_law_and_decree_precision` | กค 0702/634, กค 0702/1903, กค 0811/6874 | [source](https://www.rd.go.th/68308.html) · [source](https://www.rd.go.th/68482.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-12** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 65 ตรี, กค 0811/15738, 0811(กม.02)/931 | [source](https://www.rd.go.th/5939.html#mata65_3) · [source](https://www.rd.go.th/23261.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-13** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 65 ตรี, กค 0811/15738, 0811(กม.02)/931 | [source](https://www.rd.go.th/5939.html#mata65_3) · [source](https://www.rd.go.th/23261.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-14** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 47 ทวิ, กค 0706/2156, กค 0706/4588 | [source](https://www.rd.go.th/5937.html#mata47_2) · [source](https://www.rd.go.th/31015.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-15** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 70, กค 0706/6478, กค 0706/392 | [source](https://www.rd.go.th/5939.html#mata70) · [source](https://www.rd.go.th/32696.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-16** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 80/1, กค 0811/2797, กค 0706/9095 | [source](https://www.rd.go.th/5206.html#mata80_1) · [source](https://www.rd.go.th/25458.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-17** | `S4_quarantined_external_citation_suppression` | กค 0702/1493, กค 0811/ก.704, กค 0702/3734 | [source](https://www.rd.go.th/68494.html) · [source](https://www.rd.go.th/24118.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-18** | `S4_quarantined_external_citation_suppression` | *(Abstention — no source cited)* | — | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-19** | `S4_quarantined_external_citation_suppression` | *(Abstention — no source cited)* | — | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-20** | `S4_quarantined_external_citation_suppression` | *(Abstention — no source cited)* | — | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-21** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0702/636 | [source](https://www.rd.go.th/68302.html) · [source](https://www.rd.go.th/46391.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-22** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0702/1230 | [source](https://www.rd.go.th/68470.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-23** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0702/1255 | [source](https://www.rd.go.th/68530.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-24** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0706/พ./10877 | [source](https://www.rd.go.th/24875.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-25** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0811(กม.03)/366 | [source](https://www.rd.go.th/25101.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-26** | `S6_out_of_scope_and_nonexistent_abstention` | *(Abstention — no source cited)* | — | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-27** | `S6_out_of_scope_and_nonexistent_abstention` | *(Abstention — no source cited)* | — | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-28** | `S6_out_of_scope_and_nonexistent_abstention` | *(Abstention — no source cited)* | — | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-29** | `S6_out_of_scope_and_nonexistent_abstention` | *(Abstention — no source cited)* | — | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
-| **LSC-30** | `S6_out_of_scope_and_nonexistent_abstention` | กค 0702/999999 *(เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง)* | — | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-01** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/1494, มาตรา 47 ทวิ | [Open RD Source](https://www.rd.go.th/68536.html) · [Open RD Source](https://www.rd.go.th/5937.html#mata47_2) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-02** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/1903 | [Open RD Source](https://www.rd.go.th/68482.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-03** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/634 | [Open RD Source](https://www.rd.go.th/68308.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-04** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/4825 | [Open RD Source](https://www.rd.go.th/65296.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-05** | `S1_remediated_facts_vs_ruling_separation` | กค 0811/11340 | [Open RD Source](https://www.rd.go.th/23767.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-06** | `S1_remediated_facts_vs_ruling_separation` | กค 0702/6077 | [Open RD Source](https://www.rd.go.th/68053.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-07** | `S2_subordinate_law_and_decree_precision` | กค 0811/13980, กค 0706/5686, กค 0706/2531 | [Open RD Source](https://www.rd.go.th/22874.html) · [Open RD Source](https://www.rd.go.th/35488.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-08** | `S2_subordinate_law_and_decree_precision` | กค 0702/1248, กค 0811/11384, กค 0702/8847 | [Open RD Source](https://www.rd.go.th/68464.html) · [Open RD Source](https://www.rd.go.th/52540.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-09** | `S2_subordinate_law_and_decree_precision` | กค 0811/2751 | [Open RD Source](https://www.rd.go.th/23884.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-10** | `S2_subordinate_law_and_decree_precision` | กค 0811/02557 | [Open RD Source](https://www.rd.go.th/23475.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-11** | `S2_subordinate_law_and_decree_precision` | กค 0702/634, กค 0702/1903, กค 0811/6874 | [Open RD Source](https://www.rd.go.th/68308.html) · [Open RD Source](https://www.rd.go.th/68482.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-12** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 65 ตรี, กค 0811/15738, 0811(กม.02)/931 | [Open RD Source](https://www.rd.go.th/5939.html#mata65_3) · [Open RD Source](https://www.rd.go.th/23261.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-13** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 65 ตรี, กค 0811/15738, 0811(กม.02)/931 | [Open RD Source](https://www.rd.go.th/5939.html#mata65_3) · [Open RD Source](https://www.rd.go.th/23261.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-14** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 47 ทวิ, กค 0706/2156, กค 0706/4588 | [Open RD Source](https://www.rd.go.th/5937.html#mata47_2) · [Open RD Source](https://www.rd.go.th/31015.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-15** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 70, กค 0706/6478, กค 0706/392 | [Open RD Source](https://www.rd.go.th/5939.html#mata70) · [Open RD Source](https://www.rd.go.th/32696.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-16** | `S3_revenue_code_sections_and_temporal_versions` | มาตรา 80/1, กค 0811/2797, กค 0706/9095 | [Open RD Source](https://www.rd.go.th/5206.html#mata80_1) · [Open RD Source](https://www.rd.go.th/25458.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-17** | `S4_quarantined_external_citation_suppression` | กค 0702/1493, กค 0811/ก.704, กค 0702/3734 | [Open RD Source](https://www.rd.go.th/68494.html) · [Open RD Source](https://www.rd.go.th/24118.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-18** | `S4_quarantined_external_citation_suppression` | *(Abstention — no source cited)* | [Open Original Royal Decree PDF](https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/LSC-18-RD-736.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp) | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-19** | `S4_quarantined_external_citation_suppression` | *(Abstention — no source cited)* | [Open Original Royal Decree PDF](https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/LSC-19-RD-773.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp) | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-20** | `S4_quarantined_external_citation_suppression` | *(Abstention — no source cited)* | [Open Original Royal Decree PDF](https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/LSC-20-RD-750.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp) | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-21** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0702/636 | [Open RD Source](https://www.rd.go.th/68302.html) · [Open RD Source](https://www.rd.go.th/46391.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-22** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0702/1230 | [Open RD Source](https://www.rd.go.th/68470.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-23** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0702/1255 | [Open RD Source](https://www.rd.go.th/68530.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-24** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0706/พ./10877 | [Open RD Source](https://www.rd.go.th/24875.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-25** | `S5_multi_year_homonym_ruling_disambiguation` | กค 0811(กม.03)/366 | [Open RD Source](https://www.rd.go.th/25101.html) | `ANSWERED` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-26** | `S6_out_of_scope_and_nonexistent_abstention` | *(Abstention — no source cited)* | *(Out-of-scope / synthetic abstention)* | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-27** | `S6_out_of_scope_and_nonexistent_abstention` | *(Abstention — no source cited)* | *(Out-of-scope / synthetic abstention)* | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-28** | `S6_out_of_scope_and_nonexistent_abstention` | *(Abstention — no source cited)* | *(Out-of-scope / synthetic abstention)* | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-29** | `S6_out_of_scope_and_nonexistent_abstention` | *(Abstention — no source cited)* | *(Out-of-scope / synthetic abstention)* | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
+| **LSC-30** | `S6_out_of_scope_and_nonexistent_abstention` | กค 0702/999999 *(เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง)* | *(Out-of-scope / synthetic abstention)* | `INSUFFICIENT_EVIDENCE` | `[ ] PASS  [ ] CORRECT  [ ] EXCLUDE` |
 
 ---
 
@@ -685,6 +685,7 @@
 - **Legal Review Focus**: Direct statutory text request for quarantined Royal Decree 736 must abstain cleanly.
 - **Observed Status**: `INSUFFICIENT_EVIDENCE`
 - **Cited Original Sources**: *(None — clean abstention)*
+- **Original Quarantined Instrument PDF (for Legal Reviewer Verification)**: [พ.ร.ฎ. (ฉบับที่ 736) พ.ศ. 2564 (Reviewer Gazette PDF)](https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/LSC-18-RD-736.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp)
 - **Quarantined / Coverage Disclosure**: พระราชกฤษฎีกาฯ (ฉบับที่ 736) ยังอยู่ในทะเบียนกักกันแหล่งอ้างอิงภายนอกที่รอการตรวจรับรองต้นฉบับ (usable_as_legal_evidence: false) ในชุดข้อมูล rel.B01.rc5 ระบบจึงไม่สรุปหรือคาดเดาตัวบทมาตราของพระราชกฤษฎีกาฉบับดังกล่าวโดยไม่มีต้นฉบับที่ผ่านการรับรอง
 
 **REG24 Rendered Answer (`rel.B01.rc5`)**:
@@ -699,6 +700,7 @@
 - **Legal Review Focus**: Direct statutory text request for quarantined Royal Decree 773 must abstain cleanly.
 - **Observed Status**: `INSUFFICIENT_EVIDENCE`
 - **Cited Original Sources**: *(None — clean abstention)*
+- **Original Quarantined Instrument PDF (for Legal Reviewer Verification)**: [พ.ร.ฎ. (ฉบับที่ 773) พ.ศ. 2566 (Reviewer Gazette PDF)](https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/LSC-19-RD-773.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp)
 - **Quarantined / Coverage Disclosure**: พระราชกฤษฎีกาฯ (ฉบับที่ 773) ยังอยู่ในทะเบียนกักกันแหล่งอ้างอิงภายนอกที่รอการตรวจรับรองต้นฉบับ (usable_as_legal_evidence: false) ในชุดข้อมูล rel.B01.rc5 ระบบจึงไม่สรุปหรือคาดเดาตัวบทมาตราของพระราชกฤษฎีกาฉบับดังกล่าวโดยไม่มีต้นฉบับที่ผ่านการรับรอง
 
 **REG24 Rendered Answer (`rel.B01.rc5`)**:
@@ -713,6 +715,7 @@
 - **Legal Review Focus**: Direct statutory text request for unverified Royal Decree 750 must abstain cleanly.
 - **Observed Status**: `INSUFFICIENT_EVIDENCE`
 - **Cited Original Sources**: *(None — clean abstention)*
+- **Original Quarantined Instrument PDF (for Legal Reviewer Verification)**: [พ.ร.ฎ. (ฉบับที่ 750) พ.ศ. 2565 (Reviewer Gazette PDF)](https://reg24-a74ysfcbq-7-l-advisory.vercel.app/ocr-pilot-review-pdfs/LSC-20-RD-750.pdf?_vercel_share=R79TMxoQ3U4kSTxQmzXEmjXUlNYVXQBp)
 - **Quarantined / Coverage Disclosure**: ไม่พบตัวบทพระราชกฤษฎีกาฯ (ฉบับที่ 750) ที่ผ่านการตรวจรับรองต้นฉบับในคลังข้อมูลชุด rel.B01.rc5 ระบบจึงระงับการตอบและไม่คาดเดาตัวบทกฎหมาย
 
 **REG24 Rendered Answer (`rel.B01.rc5`)**:
