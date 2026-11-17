@@ -7,6 +7,7 @@ export * from "./thai-normalizer";
 export * from "./typhoon-v2-parser";
 export * from "./providers";
 export * from "./benchmark";
+export * from "./budget-guard";
 export * from "./service";
 
 import { DEFAULT_SYSTEM_OPERATOR } from "./service";

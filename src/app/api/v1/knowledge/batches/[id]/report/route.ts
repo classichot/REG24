@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getDeployedGitCommit } from "../../../../../../../core/knowledge/baseline";
 import { FIXED_BATCH_ORDER } from "../../../../../../../core/knowledge/contracts";
 import { getBatchReleaseReport } from "../../../../../../../core/knowledge/evaluation";
 import { getDefaultKnowledgeStore } from "../../../../../../../core/knowledge/store";
@@ -61,15 +62,27 @@ export async function GET(
       };
     });
 
+      const deployedCommit = getDeployedGitCommit();
+      const stagedParentCommit =
+        bundle.report?.code_commit || releaseRecord?.code_commit || null;
+      const reportWithLiveCommit = bundle.report
+        ? { ...bundle.report, code_commit: deployedCommit }
+        : null;
+      const releaseRecordWithLiveCommit = releaseRecord
+        ? { ...releaseRecord, code_commit: deployedCommit }
+        : null;
+
       return NextResponse.json(
       {
         ok: true,
         batch_id: batchId,
+        deployed_code_commit: deployedCommit,
+        staged_parent_commit: stagedParentCommit,
         active_release_id: st.active_release_id,
         store_revision: st.store_revision,
         storage_topology: store.getStorageTopology(),
-        release_record: releaseRecord,
-        report: bundle.report,
+        release_record: releaseRecordWithLiveCommit,
+        report: reportWithLiveCommit,
         evaluation: bundle.evaluation,
         uat_cases: bundle.uat_cases,
         acceptance,

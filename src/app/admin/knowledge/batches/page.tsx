@@ -20,6 +20,8 @@ interface BatchGateBoardItem {
 interface ReportApiResponse {
   ok: boolean;
   batch_id: string;
+  deployed_code_commit?: string;
+  staged_parent_commit?: string | null;
   active_release_id: string | null;
   release_record: {
     release_id: string;
@@ -583,10 +585,10 @@ export default function KnowledgeBatchesUatPage() {
             }}
           >
             <div style={{ fontWeight: 800, color: "#a3e635", marginBottom: "4px" }}>
-              EXPLORATORY OWNER TESTING MODE — ISOLATED NON-PRODUCTION CANDIDATE ({rep?.release_id || "rel.B01.rc4"})
+              EXPLORATORY OWNER TESTING MODE — ISOLATED NON-PRODUCTION CANDIDATE ({rep?.release_id || "rel.B01.rc5"})
             </div>
             <div>
-              Serving remediated candidate <code>{rep?.release_id || "rel.B01.rc4"}</code> (
+              Serving remediated candidate <code>{rep?.release_id || "rel.B01.rc5"}</code> (
               <strong>4,578</strong> physical RD tax rulings + <strong>326</strong> verified Revenue Code sections +{" "}
               <strong>155</strong> verified subordinate/amendment instruments;{" "}
               <strong>{data?.dependency_manifest?.unresolved_external_references_count ?? 1381}</strong> unverified
@@ -740,7 +742,8 @@ export default function KnowledgeBatchesUatPage() {
                     <code style={{ fontSize: "11px" }}>{rep.manifest_hash?.slice(0, 20)}…</code>
                   </div>
                   <div>
-                    <strong>Git Commit:</strong> <code>{rep.code_commit?.slice(0, 10)}</code>
+                    <strong>Git Commit:</strong>{" "}
+                    <code>{(data?.deployed_code_commit || rep.code_commit || "").slice(0, 10)}</code>
                   </div>
                   <div>
                     <strong>Rollback Target:</strong> <code>{rep.rollback_target}</code>

@@ -1,18 +1,25 @@
 {
-  "generated_at": "2026-11-17T06:30:22.459Z",
+  "generated_at": "2026-11-17T07:00:58.751Z",
   "release_id": "rel.B01.rc5",
   "manifest_id": "mfst.b01.mwjgk5o7",
   "manifest_hash": "c63bd81e8face7ea5b00fa93905522f52c815f7d75d1cd5007ca29ddea8174a4",
-  "corpus_wide_physical_parity": {
+  "evidence_scope_disclaimer": "IMPORTANT: 'corpus_to_passage_tail_and_metadata_check' (4,568/4,568) verifies internal corpus-to-passage text tail and metadata parity ONLY — it is NOT a substantive legal-accuracy metric and a populated origin_uri string alone does not prove external URL availability. Live external URL opening & content matching was verified separately via HTTPS fetches against www.rd.go.th across all 50 unique ruling URLs cited in Q1-Q11, LSC-01..LSC-30, 0702/5137, and 0702/6847 ('live_rd_go_th_verified_sample').",
+  "corpus_to_passage_tail_and_metadata_check": {
     "total_physical_b01_ruling_files": 4578,
-    "distinct_rd_html_pages": 4569,
+    "distinct_rd_html_pages_in_corpus": 4569,
     "withheld_inquiry_only_works": 1,
-    "active_verified_ruling_works": 4568,
-    "exact_origin_uri_matches": 4568,
-    "exact_ruling_number_matches": 4568,
-    "exact_iso_and_thai_date_matches": 4568,
-    "exact_conclusion_tail_matches": 4568,
-    "zero_mismatches_verified": true
+    "active_ruling_works_checked": 4568,
+    "corpus_origin_uri_string_matches": 4568,
+    "corpus_ruling_number_matches": 4568,
+    "corpus_iso_and_thai_date_matches": 4568,
+    "corpus_to_passage_conclusion_tail_matches": 4568,
+    "zero_corpus_to_passage_mismatches": true
+  },
+  "live_rd_go_th_verified_sample": {
+    "unique_cited_ruling_urls_fetched_live": 50,
+    "http_200_and_matching_ruling_number_and_year_in_html": 50,
+    "failed_or_mismatched_urls": 0,
+    "includes_remediated_0702_5137_and_0702_6847": true
   },
   "remediated_material_citation_defects": [
     {

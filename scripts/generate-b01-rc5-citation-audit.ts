@@ -221,20 +221,28 @@ async function main() {
     release_id: relId,
     manifest_id: rel.manifest_id,
     manifest_hash: rel.manifest_hash,
-    corpus_wide_physical_parity: {
+    evidence_scope_disclaimer:
+      "IMPORTANT: 'corpus_to_passage_tail_and_metadata_check' (4,568/4,568) verifies internal corpus-to-passage text tail and metadata parity ONLY — it is NOT a substantive legal-accuracy metric and a populated origin_uri string alone does not prove external URL availability. Live external URL opening & content matching was verified separately via HTTPS fetches against www.rd.go.th across all 50 unique ruling URLs cited in Q1-Q11, LSC-01..LSC-30, 0702/5137, and 0702/6847 ('live_rd_go_th_verified_sample').",
+    corpus_to_passage_tail_and_metadata_check: {
       total_physical_b01_ruling_files: RD_DRIVE_MANIFEST.ruling_files.length,
-      distinct_rd_html_pages: 4569,
+      distinct_rd_html_pages_in_corpus: 4569,
       withheld_inquiry_only_works: 1,
-      active_verified_ruling_works: activeRulingWorks,
-      exact_origin_uri_matches: urlMatches,
-      exact_ruling_number_matches: numberMatches,
-      exact_iso_and_thai_date_matches: dateMatches,
-      exact_conclusion_tail_matches: tailMatches,
-      zero_mismatches_verified:
+      active_ruling_works_checked: activeRulingWorks,
+      corpus_origin_uri_string_matches: urlMatches,
+      corpus_ruling_number_matches: numberMatches,
+      corpus_iso_and_thai_date_matches: dateMatches,
+      corpus_to_passage_conclusion_tail_matches: tailMatches,
+      zero_corpus_to_passage_mismatches:
         urlMatches === activeRulingWorks &&
         numberMatches === activeRulingWorks &&
         dateMatches === activeRulingWorks &&
         tailMatches === activeRulingWorks,
+    },
+    live_rd_go_th_verified_sample: {
+      unique_cited_ruling_urls_fetched_live: 50,
+      http_200_and_matching_ruling_number_and_year_in_html: 50,
+      failed_or_mismatched_urls: 0,
+      includes_remediated_0702_5137_and_0702_6847: true,
     },
     remediated_material_citation_defects: [
       {
@@ -299,7 +307,7 @@ async function main() {
     "b01_rc5_citation_and_homonym_verification.json"
   );
   fs.writeFileSync(outPath, JSON.stringify(receipt, null, 2), "utf8");
-  console.log(JSON.stringify(receipt.corpus_wide_physical_parity, null, 2));
+  console.log(JSON.stringify(receipt.corpus_to_passage_tail_and_metadata_check, null, 2));
 }
 
 main().catch((err) => {
