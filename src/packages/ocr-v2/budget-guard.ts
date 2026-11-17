@@ -284,6 +284,34 @@ export class DurablePreCallOcrBudgetGuard {
   }
 
   /**
+   * Carries forward already-incurred pilot verification reservations (such as the initial 1-page
+   * Gemini live verification receipt) into the shared pilot budget ledger so all smoke checks,
+   * retries, primary calls, and secondary calls count against the exact same US$10.00 ceiling.
+   */
+  public seedPriorCommittedReservations(records: BudgetReservationRecord[]): number {
+    if (records.length === 0) return 0;
+    return this.withFileLock(() => {
+      const state = this.readState();
+      let inserted = 0;
+      let maxSeq = (state.next_dispatch_sequence ?? 1) - 1;
+      for (const r of records) {
+        if (!state.reservations[r.reservation_id]) {
+          state.reservations[r.reservation_id] = { ...r };
+          inserted += 1;
+        }
+        if (typeof r.dispatch_sequence === "number" && r.dispatch_sequence > maxSeq) {
+          maxSeq = r.dispatch_sequence;
+        }
+      }
+      if (inserted > 0 || (state.next_dispatch_sequence ?? 1) <= maxSeq) {
+        state.next_dispatch_sequence = maxSeq + 1;
+        this.writeStateAtomic(state);
+      }
+      return inserted;
+    });
+  }
+
+  /**
    * Marks any orphaned `RESERVED_IN_FLIGHT` records left over from a prior crashed/terminated process
    * as `FAILED_POST_SEND_CHARGED` at full worst-case cost so a restart can NEVER reuse an in-flight slot
    * or under-count ambiguous upstream spend.

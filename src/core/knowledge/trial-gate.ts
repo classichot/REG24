@@ -141,6 +141,97 @@ export function enforceTrialAccessAndRateLimit(
   };
 }
 
+async function persistEventToHostedNeonIfConfigured(event: TrialAuditEvent): Promise<void> {
+  const dbUrl = (process.env.DATABASE_URL || "").trim();
+  const dbEnabled =
+    process.env.REG24_TRIAL_DB_AUDIT === "1" ||
+    process.env.REG24_TRIAL_INVITE_ONLY === "1";
+  if (!dbUrl || !dbEnabled) return;
+
+  try {
+    const parsed = new URL(dbUrl);
+    if (!parsed.hostname.toLowerCase().endsWith(".neon.tech")) return;
+    const scope = process.env.REG24_TRIAL_ENV_SCOPE === "staging" ? "staging" : "trial";
+
+    if (event.event_type === "TRIAL_QUERY") {
+      await fetch(`https://${parsed.hostname}/sql`, {
+        method: "POST",
+        headers: {
+          "Neon-Connection-String": dbUrl,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          query: `INSERT INTO trial_audit_events (
+            audit_id, event_type, environment_scope, recorded_at, actor_id, actor_role,
+            invite_fingerprint, release_id, manifest_hash, trace_id, question_sha256,
+            question_text, applicable_date, mode, answer_status, cited_passage_ids_json,
+            cited_work_ids_json, coverage_warnings_count, latency_ms
+          ) VALUES (
+            $1, 'TRIAL_QUERY', $2, $3::timestamptz, $4, $5,
+            $6, $7, $8, $9, $10,
+            $11, $12, $13, $14, $15::jsonb,
+            $16::jsonb, $17, $18
+          ) ON CONFLICT (audit_id) DO NOTHING`,
+          params: [
+            event.audit_id,
+            scope,
+            event.recorded_at,
+            event.actor_id,
+            event.actor_role,
+            event.invite_fingerprint,
+            event.release_id,
+            event.manifest_hash,
+            event.trace_id,
+            event.question_sha256,
+            event.question_text,
+            event.applicable_date,
+            event.mode,
+            event.answer_status,
+            JSON.stringify(event.cited_passage_ids),
+            JSON.stringify(event.cited_work_ids),
+            event.coverage_warnings_count,
+            event.latency_ms,
+          ],
+        }),
+      });
+    } else {
+      await fetch(`https://${parsed.hostname}/sql`, {
+        method: "POST",
+        headers: {
+          "Neon-Connection-String": dbUrl,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          query: `INSERT INTO trial_audit_events (
+            audit_id, event_type, environment_scope, recorded_at, actor_id, actor_role,
+            invite_fingerprint, passage_id, work_id, official_identifier, origin_uri, http_status
+          ) VALUES (
+            $1, 'TRIAL_CITATION_OPEN', $2, $3::timestamptz, $4, $5,
+            $6, $7, $8, $9, $10, $11
+          ) ON CONFLICT (audit_id) DO NOTHING`,
+          params: [
+            event.audit_id,
+            scope,
+            event.recorded_at,
+            event.actor_id,
+            event.actor_role,
+            event.invite_fingerprint,
+            event.passage_id,
+            event.work_id,
+            event.official_identifier,
+            event.origin_uri,
+            event.http_status,
+          ],
+        }),
+      });
+    }
+  } catch {
+    // Non-fatal fallback to disk/sink audit trail if network call fails transiently
+  }
+}
+
 export async function appendTrialAuditEvent(
   store: DurableKnowledgeStore,
   event: TrialAuditEvent
@@ -148,6 +239,7 @@ export async function appendTrialAuditEvent(
   if (customAuditSink) {
     await customAuditSink.append(event);
   }
+  await persistEventToHostedNeonIfConfigured(event);
   const shouldPersistDisk =
     process.env.REG24_TRIAL_AUDIT_LOG === "1" ||
     process.env.REG24_TRIAL_INVITE_ONLY === "1";

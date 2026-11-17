@@ -28,6 +28,7 @@ import * as path from "node:path";
 import { execFileSync } from "node:child_process";
 import type { PrivacyClass } from "../src/packages/ocr-v2/contract";
 import {
+  type BudgetReservationRecord,
   type CallablePilotProviderId,
   DurablePreCallOcrBudgetGuard,
   computeWorstCaseCallCostUsdInclTax,
@@ -108,6 +109,7 @@ export interface PilotRunSummary {
   started_at: string;
   completed_at: string;
   owner_approved_max_usd_incl_tax: number;
+  prior_smoke_spend_included_usd_incl_tax: number;
   orphaned_inflight_reservations_reconciled: number;
   total_committed_or_in_flight_usd_incl_tax: number;
   remaining_budget_usd_incl_tax: number;
@@ -119,12 +121,50 @@ export interface PilotRunSummary {
   primary_retries_dispatched: number;
   secondary_calls_dispatched: number;
   secondary_retries_dispatched: number;
+  page_1_gate_checked: boolean;
+  page_1_gate_passed: boolean;
+  stopped_by_page_1_gate: boolean;
+  page_1_gate_failure_reason: string | null;
   stopped_by_budget_guard: boolean;
   budget_stop_reason: string | null;
   quarantine_output_dir: string;
   all_outputs_quarantined: true;
   usable_as_legal_evidence: false;
   releases_quarantined_citations: false;
+}
+
+export function loadPriorSmokeVerificationReservations(): {
+  records: BudgetReservationRecord[];
+  totalUsdInclTax: number;
+} {
+  const receiptPath = path.resolve(
+    process.cwd(),
+    "docs",
+    "audit",
+    "dodo-review-rc2-b02",
+    "b02_single_page_live_verification_receipt_20261117.json"
+  );
+  if (!fs.existsSync(receiptPath)) {
+    return { records: [], totalUsdInclTax: 0 };
+  }
+  const raw = JSON.parse(fs.readFileSync(receiptPath, "utf8")) as {
+    settled_ledger?: { reservations?: Record<string, BudgetReservationRecord> };
+  };
+  const resMap = raw.settled_ledger?.reservations || {};
+  const records: BudgetReservationRecord[] = Object.values(resMap).map((r) => ({
+    ...r,
+    // Prefix document_sha256 with `prior_smoke:` so full-run OCR-REV-01 page 1 gets fresh per-page attempts
+    // while keeping 100% of the prior smoke test + retry dollar cost deducted from the shared $10.00 cap.
+    document_sha256: r.document_sha256.startsWith("prior_smoke:")
+      ? r.document_sha256
+      : `prior_smoke:${r.document_sha256}`,
+  }));
+  const totalUsdInclTax = Number(
+    records
+      .reduce((acc, r) => acc + (r.status === "RELEASED_PRE_SEND" ? 0 : r.charged_usd_incl_tax), 0)
+      .toFixed(6)
+  );
+  return { records, totalUsdInclTax };
 }
 
 const PNG_MAGIC_HEX = "89504e470d0a1a0a";
@@ -424,6 +464,8 @@ export async function runB02PublicOcrPilot(options: {
   pageRenderer?: (doc: PilotReviewDocumentSpec, pageNumber: number) => RenderedPngPageInfo | string;
   httpTransport?: PilotHttpTransport;
   enableSecondaryModel?: boolean;
+  includePriorSmokeSpend?: boolean;
+  enforcePage1GateBeforeContinuing?: boolean;
 }): Promise<{
   summary: PilotRunSummary;
   pages: QuarantinedPilotPageResult[];
@@ -503,6 +545,15 @@ export async function runB02PublicOcrPilot(options: {
     maxAttemptsPerPage: maxAttempts,
   });
 
+  // Include the earlier 1-page Gemini live verification spend ($0.024268 incl. retry) in the same $10.00 budget!
+  const includePriorSmoke = options.includePriorSmokeSpend ?? (options.documentsOverride === undefined);
+  let priorSmokeIncludedUsd = 0;
+  if (includePriorSmoke) {
+    const prior = loadPriorSmokeVerificationReservations();
+    guard.seedPriorCommittedReservations(prior.records);
+    priorSmokeIncludedUsd = prior.totalUsdInclTax;
+  }
+
   // Reconcile any orphaned RESERVED_IN_FLIGHT slots from crashed prior processes at full worst-case charge!
   const orphanedReconciled = guard.reconcileOrphanedInFlightReservations();
 
@@ -513,6 +564,7 @@ export async function runB02PublicOcrPilot(options: {
       started_at: startedAt,
       completed_at: new Date().toISOString(),
       owner_approved_max_usd_incl_tax: maxUsd,
+      prior_smoke_spend_included_usd_incl_tax: priorSmokeIncludedUsd,
       orphaned_inflight_reservations_reconciled: orphanedReconciled,
       total_committed_or_in_flight_usd_incl_tax: state.total_committed_or_in_flight_usd_incl_tax,
       remaining_budget_usd_incl_tax: Number(
@@ -526,6 +578,10 @@ export async function runB02PublicOcrPilot(options: {
       primary_retries_dispatched: 0,
       secondary_calls_dispatched: 0,
       secondary_retries_dispatched: 0,
+      page_1_gate_checked: false,
+      page_1_gate_passed: false,
+      stopped_by_page_1_gate: false,
+      page_1_gate_failure_reason: null,
       stopped_by_budget_guard: false,
       budget_stop_reason: null,
       quarantine_output_dir: quarantineDir,
@@ -540,12 +596,17 @@ export async function runB02PublicOcrPilot(options: {
     throw new Error("MISSING_HTTP_TRANSPORT: Live execution requires a configured PilotHttpTransport.");
   }
   const transport = options.httpTransport;
+  const enforcePage1Gate = options.enforcePage1GateBeforeContinuing ?? (options.documentsOverride === undefined);
 
   let primaryCallsDispatched = 0;
   let primaryRetriesDispatched = 0;
   let secondaryCallsDispatched = 0;
   let secondaryRetriesDispatched = 0;
   let pagesResumedFromQuarantineCount = 0;
+  let page1GateChecked = false;
+  let page1GatePassed = false;
+  let stoppedByPage1Gate = false;
+  let page1GateFailureReason: string | null = null;
   let stoppedByBudgetGuard = false;
   let budgetStopReason: string | null = null;
   const pageResults: QuarantinedPilotPageResult[] = [];
@@ -797,6 +858,41 @@ export async function runB02PublicOcrPilot(options: {
       const tmpPage = `${quarantinePagePath}.${process.pid}.tmp`;
       fs.writeFileSync(tmpPage, JSON.stringify(pageRecord, null, 2), "utf8");
       fs.renameSync(tmpPage, quarantinePagePath);
+
+      // Owner Gate: Verify Page 1 on primary Typhoon BEFORE continuing to pages 2..170!
+      if (enforcePage1Gate && !page1GateChecked) {
+        page1GateChecked = true;
+        const primaryTrimmed = (pageRecord.primary_text || "").trim();
+        const hasThaiScript = /[\u0E00-\u0E7F]/.test(primaryTrimmed);
+        if (
+          !pageRecord.primary_raw_model_id ||
+          primaryTrimmed.length < 40 ||
+          !hasThaiScript
+        ) {
+          page1GatePassed = false;
+          stoppedByPage1Gate = true;
+          page1GateFailureReason = `PAGE_1_TYPHOON_GATE_FAILED: model='${pageRecord.primary_raw_model_id ?? "null"}', chars=${primaryTrimmed.length}, hasThai=${hasThaiScript}. Halted before dispatching pages 2..170.`;
+          break outerLoop;
+        }
+        page1GatePassed = true;
+        fs.writeFileSync(
+          path.join(quarantineDir, "page_1_typhoon_gate_verified.quarantined.json"),
+          JSON.stringify(
+            {
+              verified_at: new Date().toISOString(),
+              review_item_id: pageRecord.review_item_id,
+              page_number: pageRecord.page_number,
+              primary_raw_model_id: pageRecord.primary_raw_model_id,
+              primary_chars: primaryTrimmed.length,
+              primary_raw_usage_metadata: pageRecord.primary_raw_usage_metadata,
+              usable_as_legal_evidence: false,
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
+      }
     }
   }
 
@@ -806,6 +902,7 @@ export async function runB02PublicOcrPilot(options: {
     started_at: startedAt,
     completed_at: new Date().toISOString(),
     owner_approved_max_usd_incl_tax: maxUsd,
+    prior_smoke_spend_included_usd_incl_tax: priorSmokeIncludedUsd,
     orphaned_inflight_reservations_reconciled: orphanedReconciled,
     total_committed_or_in_flight_usd_incl_tax: finalState.total_committed_or_in_flight_usd_incl_tax,
     remaining_budget_usd_incl_tax: Number(
@@ -819,6 +916,10 @@ export async function runB02PublicOcrPilot(options: {
     primary_retries_dispatched: primaryRetriesDispatched,
     secondary_calls_dispatched: secondaryCallsDispatched,
     secondary_retries_dispatched: secondaryRetriesDispatched,
+    page_1_gate_checked: page1GateChecked,
+    page_1_gate_passed: page1GatePassed,
+    stopped_by_page_1_gate: stoppedByPage1Gate,
+    page_1_gate_failure_reason: page1GateFailureReason,
     stopped_by_budget_guard: stoppedByBudgetGuard,
     budget_stop_reason: budgetStopReason,
     quarantine_output_dir: quarantineDir,

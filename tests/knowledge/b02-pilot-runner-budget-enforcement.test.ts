@@ -49,7 +49,7 @@ describe("Actual 170-Page B02 Pilot Runner: Real PDF Rendering, Restart/Retry Re
     expect(info.png_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
-  it("2. Verifies all 33 real public PDFs (170 pages) in preflight dry-run with zero network calls and strict $10.00 ceiling", async () => {
+  it("2. Verifies all 33 real public PDFs (170 pages) in preflight dry-run with earlier $0.024268 Gemini smoke spend included inside the $10.00 ceiling", async () => {
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "reg24-pilot-preflight-"));
     try {
       const res = await runB02PublicOcrPilot({
@@ -59,12 +59,82 @@ describe("Actual 170-Page B02 Pilot Runner: Real PDF Rendering, Restart/Retry Re
       });
       expect(res.summary.documents_verified_count).toBe(33);
       expect(res.summary.pages_verified_count).toBe(170);
+      expect(res.summary.prior_smoke_spend_included_usd_incl_tax).toBe(0.024268);
+      expect(res.summary.total_committed_or_in_flight_usd_incl_tax).toBe(0.024268);
+      expect(res.summary.remaining_budget_usd_incl_tax).toBe(9.975732);
       expect(res.summary.primary_calls_dispatched).toBe(0);
       expect(res.summary.secondary_calls_dispatched).toBe(0);
       expect(res.summary.usable_as_legal_evidence).toBe(false);
       expect(res.summary.releases_quarantined_citations).toBe(false);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("2b. Runs 1-page Typhoon check first: stops after Page 1 if gate fails, and continues to Page 2+ when Page 1 passes", async () => {
+    const tmpFail = fs.mkdtempSync(path.join(os.tmpdir(), "reg24-p1gate-fail-"));
+    const tmpPass = fs.mkdtempSync(path.join(os.tmpdir(), "reg24-p1gate-pass-"));
+    try {
+      const fake3 = makeFakeDoc("OCR-REV-01", 3, "public");
+      let failCalls = 0;
+      const failedGate = await runB02PublicOcrPilot({
+        mode: "LIVE_BUDGETED_EXECUTION",
+        ownerApprovedMaxUsdInclTax: 10.0,
+        includePriorSmokeSpend: true,
+        enforcePage1GateBeforeContinuing: true,
+        enableSecondaryModel: false,
+        quarantineOutputDir: tmpFail,
+        documentsOverride: [fake3.doc],
+        pdfResolver: () => fake3.bytes,
+        pageRenderer: (_d, p) => Buffer.from(`PNG-${p}`).toString("base64"),
+        httpTransport: async () => {
+          failCalls += 1;
+          return {
+            http_status: 200,
+            text: "too short",
+            input_tokens: 100,
+            output_and_thinking_tokens: 10,
+            raw_model_id: "typhoon-ocr",
+          };
+        },
+      });
+      expect(failCalls).toBe(1);
+      expect(failedGate.summary.page_1_gate_checked).toBe(true);
+      expect(failedGate.summary.page_1_gate_passed).toBe(false);
+      expect(failedGate.summary.stopped_by_page_1_gate).toBe(true);
+      expect(failedGate.pages.length).toBe(1);
+
+      let passCalls = 0;
+      const passedGate = await runB02PublicOcrPilot({
+        mode: "LIVE_BUDGETED_EXECUTION",
+        ownerApprovedMaxUsdInclTax: 10.0,
+        includePriorSmokeSpend: true,
+        enforcePage1GateBeforeContinuing: true,
+        enableSecondaryModel: false,
+        quarantineOutputDir: tmpPass,
+        documentsOverride: [fake3.doc],
+        pdfResolver: () => fake3.bytes,
+        pageRenderer: (_d, p) => Buffer.from(`PNG-${p}`).toString("base64"),
+        httpTransport: async (c) => {
+          passCalls += 1;
+          return {
+            http_status: 200,
+            text: `หน้า ${c.page_number} พระราชบัญญัติภาษีเงินได้ปิโตรเลียม พ.ศ. 2514 มาตรา 4 ให้ใช้บังคับตั้งแต่วันถัดจากวันประกาศในราชกิจจานุเบกษา`,
+            input_tokens: 3200,
+            output_and_thinking_tokens: 640,
+            raw_model_id: "typhoon-ocr",
+          };
+        },
+      });
+      expect(passCalls).toBe(3);
+      expect(passedGate.summary.page_1_gate_checked).toBe(true);
+      expect(passedGate.summary.page_1_gate_passed).toBe(true);
+      expect(passedGate.summary.stopped_by_page_1_gate).toBe(false);
+      expect(passedGate.pages.length).toBe(3);
+      expect(passedGate.summary.prior_smoke_spend_included_usd_incl_tax).toBe(0.024268);
+    } finally {
+      fs.rmSync(tmpFail, { recursive: true, force: true });
+      fs.rmSync(tmpPass, { recursive: true, force: true });
     }
   });
 
