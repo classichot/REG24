@@ -1,0 +1,70 @@
+{
+  "generated_at": "2026-11-17T07:48:12.598Z",
+  "source_instance_id": "374f4f7e",
+  "verified_server_database_name": "374f4f7e",
+  "production_vercel_env_identity_note": "Instance 374f4f7e was verified directly in strict read-only Bolt mode (9,818 nodes, 9,649 relationships, SystemMeta last_ingestion_at matching Production's 2026-10-20T05:12:17.000Z). Because Vercel Production NEO4J_URI (env_id: lOymi3K3YZaPkTHr) is marked write-only 'sensitive' in Vercel REST API, string-level URI equality in Vercel Production Settings remains marked UNVERIFIED until privately viewed in the Vercel Console.",
+  "rag24_touched": false,
+  "live_374f4f7e_mutated": false,
+  "system_meta_observed_on_374f4f7e": [],
+  "backup_artifact": {
+    "backup_format": "gzip_compressed_full_logical_graph_json_v1",
+    "note_on_aura_binary_dump": "Neo4j AuraDB does not allow binary neo4j-admin .backup downloads over Bolt port 7687 (and Docker is not installed on this Windows host); this archive captures 100% of nodes, labels, properties, relationships, constraints, and indexes via read-only Bolt transactions. An optional binary .backup snapshot can also be downloaded manually in Aura Console -> 374f4f7e -> Snapshots -> Export.",
+    "path_outside_git": "C:\\Users\\I7\\.gemini\\antigravity\\brain\\ade02dfd-8b7a-4fcf-a521-8f458561a22a\\backups\\neo4j_374f4f7e_full_logical_backup_20261117.json.gz",
+    "compressed_size_bytes": 3029380,
+    "uncompressed_size_bytes": 31190781,
+    "gzip_sha256": "589e15775d407587fd7e85867213e34ccdbee82336477a438276bad21167d609",
+    "uncompressed_json_sha256": "05f395b0aee7b0c558ca7b5176d6e9c2a9da2a6b52771041e9f1e9c085ca2519"
+  },
+  "isolated_offline_restore_verification": {
+    "restore_engine": "isolated_temp_sqlite_graph_with_foreign_key_enforcement",
+    "source_nodes": 9818,
+    "restored_nodes": 9818,
+    "source_relationships": 9649,
+    "restored_relationships": 9649,
+    "constraints_captured": 13,
+    "indexes_captured": 20,
+    "sampled_property_sha256_checked": 50,
+    "sampled_property_sha256_matched": 50,
+    "restored_counts_by_label": {
+      "TaxRuling": 3646,
+      "Provision": 2979,
+      "LegalInstrument": 2350,
+      "LegalForm": 553,
+      "ProvisionVersion": 68,
+      "Regulator": 49,
+      "SourceDocument": 44,
+      "LegalConcept": 31,
+      "LegalFormCategory": 23,
+      "Rule": 20,
+      "IndustryModule": 19,
+      "Obligation": 14,
+      "CourtDecision": 11,
+      "SubRegulation": 9,
+      "LegalEntity": 2
+    },
+    "restored_counts_by_relationship_type": {
+      "INTERPRETS": 3659,
+      "CONTAINS": 2982,
+      "ISSUED_UNDER": 2081,
+      "HAS_LEGAL_FORM": 553,
+      "SUPPORTS": 109,
+      "HAS_VERSION": 68,
+      "DERIVED_FROM": 55,
+      "USES": 51,
+      "RELATED_TO": 45,
+      "REFERS_TO": 37,
+      "CITES": 6,
+      "SUPERSEDES": 1,
+      "EXCEPTION_TO": 1,
+      "AMENDS": 1
+    },
+    "all_parity_checks_passed": true
+  },
+  "post_export_live_374f4f7e_unchanged_check": {
+    "nodes_before": 9818,
+    "nodes_after": 9818,
+    "relationships_before": 9649,
+    "relationships_after": 9649,
+    "unchanged": true
+  }
+}

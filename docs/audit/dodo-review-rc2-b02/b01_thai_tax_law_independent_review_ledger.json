@@ -1,80 +1,1003 @@
 {
-  "updated_at": "2026-11-16T13:42:00.000Z",
-  "candidate_release_id": "rel.B01.rc4",
-  "governance_separation": {
-    "technical_checks_establish_substantive_legal_accuracy": false,
-    "external_trial_launch_requires_human_thai_tax_counsel_signoff": true,
-    "exploratory_owner_and_dodo_testing_permitted_in_parallel": true
+  "schema_version": "reg24.b01_owner_legal_review_ledger.v2",
+  "updated_at": "2026-11-17T07:50:27.413Z",
+  "release_id": "rel.B01.rc5",
+  "manifest_id": "mfst.b01.mwjgk5o7",
+  "manifest_hash": "c63bd81e8face7ea5b00fa93905522f52c815f7d75d1cd5007ca29ddea8174a4",
+  "review_governance": {
+    "review_authority": "PRODUCT_OWNER_AND_INTERNAL_LEGAL_TEAM",
+    "external_counsel_engagement_authorized": false,
+    "policy_note": "Product Owner is a licensed lawyer; substantive Thai tax-law review of the 30-case Batch 1 pack and 33-document B02 OCR pilot list is conducted directly by the Product Owner and internal legal team. Automated technical checks and Dodo spot-checks do not substitute for legal team sign-off."
   },
-  "reviewer_guidance_corrections_applied": [
+  "summary": {
+    "total_cases": 30,
+    "reviewed_pass": 0,
+    "reviewed_needs_correction": 0,
+    "reviewed_exclude_from_trial": 0,
+    "pending_review": 30
+  },
+  "cases": [
+    {
+      "spotcheck_id": "LSC-01",
+      "stratum": "S1_remediated_facts_vs_ruling_separation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ในหนังสือตอบข้อหารือ กค 0702/1494 ข้อเท็จจริงของกองมรดกผู้ขอคืนภาษีคืออะไร และกรมสรรพากรวินิจฉัยเรื่องเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ อย่างไร",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/1494",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "official_identifier": "กค 0702/1494",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "official_identifier": "กค 0702/1494",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "official_identifier": "กค 0702/1494",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "official_identifier": "มาตรา 47 ทวิ",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        },
+        {
+          "official_identifier": "มาตรา 47 ทวิ",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        }
+      ],
+      "legal_check_focus": "Requester facts (estate filing P.N.D.90) separated from complete 3-point Section 47 bis & Section 48 RD conclusion.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
     {
       "spotcheck_id": "LSC-02",
-      "ruling_no": "กค 0702/1903",
-      "official_source": "https://www.rd.go.th/68482.html",
-      "prior_incorrect_guidance": "Cited Revenue Code Section 81(1)(ฉ) (fertilizer VAT exemption).",
-      "corrected_guidance": "Revenue Code Section 81(2)(ก) juncto Section 81(1)(ง) (import VAT exemption for animal feed / feed supplements certified by the Department of Livestock Development under the Animal Feed Quality Control Act B.E. 2558).",
-      "answer_text_was_affected": false,
-      "notes": "REG24's retrieved passage and rendered answer already cited `มาตรา 81 (2) (ก) ประกอบกับมาตรา 81 (1) (ง)` accurately; the error was in the spot-check harness's `legal_check_focus` prompt metadata."
+      "stratum": "S1_remediated_facts_vs_ruling_separation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1903",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/1903",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68482.html"
+        },
+        {
+          "official_identifier": "กค 0702/1903",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68482.html"
+        }
+      ],
+      "legal_check_focus": "Animal feed supplement importer facts separated from Section 81(2)(ก) juncto Section 81(1)(ง) VAT import exemption conclusion (subject to Department of Livestock Development animal-feed certification).",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-03",
+      "stratum": "S1_remediated_facts_vs_ruling_separation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/634",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/634",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68308.html"
+        },
+        {
+          "official_identifier": "กค 0702/634",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68308.html"
+        }
+      ],
+      "legal_check_focus": "96.5% gold jewelry import facts separated from non-exemption VAT conclusion.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-04",
+      "stratum": "S1_remediated_facts_vs_ruling_separation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/4825",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/4825",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        },
+        {
+          "official_identifier": "กค 0702/4825",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        },
+        {
+          "official_identifier": "กค 0702/4825",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        },
+        {
+          "official_identifier": "กค 0702/4825",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        }
+      ],
+      "legal_check_focus": "Verify requester_facts != official_conclusion, all 4 numbered points rendered through Royal Decree 595 Section 4, and exact rd.go.th/65296.html URL.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-05",
+      "stratum": "S1_remediated_facts_vs_ruling_separation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/11340",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0811/11340",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23767.html"
+        },
+        {
+          "official_identifier": "กค 0811/11340",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/23767.html"
+        }
+      ],
+      "legal_check_focus": "Historical 0811 ruling separation of facts vs complete official conclusion.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
     },
     {
       "spotcheck_id": "LSC-06",
-      "ruling_no": "กค 0702/6077",
-      "official_source": "https://www.rd.go.th/68053.html",
-      "prior_incorrect_guidance": "Described only CIT conclusion.",
-      "corrected_guidance": "Covers both Point 1 VAT tax-base & credit-note ineligibility (`มาตรา 79`, `มาตรา 79 (1)`, `มาตรา 82/10 (1)`) on post-sale dealer rebates and Point 2 CIT exemption (`พระราชกฤษฎีกาฯ (ฉบับที่ 773) พ.ศ. 2566 มาตรา 3`, with quarantined standalone decree status disclosed)."
+      "stratum": "S1_remediated_facts_vs_ruling_separation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/6077",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/6077",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68053.html"
+        },
+        {
+          "official_identifier": "กค 0702/6077",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68053.html"
+        }
+      ],
+      "legal_check_focus": "EV motorcycle subsidy & dealer-rebate facts separated from 2-point VAT (Sections 79, 79(1), 82/10(1)) and CIT exemption (Royal Decree 773 Section 3, quarantined external decree disclosed) conclusion.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-07",
+      "stratum": "S2_subordinate_law_and_decree_precision",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/13980 เรื่องการยกเว้นภาษีเงินได้ตามพระราชกฤษฎีกา ฉบับที่ 244 มาตรา 3 (5)",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0811/13980",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/22874.html"
+        },
+        {
+          "official_identifier": "กค 0811/13980",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/22874.html"
+        },
+        {
+          "official_identifier": "กค 0706/5686",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/35488.html"
+        },
+        {
+          "official_identifier": "กค 0706/2531",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/28989.html"
+        },
+        {
+          "official_identifier": "กค 0706/10677",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/30666.html"
+        },
+        {
+          "official_identifier": "กค 0706/พ./3340",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/29000.html"
+        }
+      ],
+      "legal_check_focus": "Confirm Royal Decree 244 Section 3(5) is linked (not Revenue Code Section 3).",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-08",
+      "stratum": "S2_subordinate_law_and_decree_precision",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ตามหนังสือตอบข้อหารือ กค 0702/1248 การให้เช่าที่ดินระยะเวลา 30 ปี มูลค่า 1,470,993,502.74 บาท ต้องรับรู้รายได้เพื่อเสียภาษีเงินได้นิติบุคคลตามมาตรา 65 และคำสั่งกรมสรรพากรใด",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/1248",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68464.html"
+        },
+        {
+          "official_identifier": "กค 0702/1248",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/52540.html"
+        },
+        {
+          "official_identifier": "กค 0702/1248",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68464.html"
+        },
+        {
+          "official_identifier": "กค 0702/1248",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/52540.html"
+        },
+        {
+          "official_identifier": "กค 0811/11384",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23139.html"
+        },
+        {
+          "official_identifier": "กค 0702/8847",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/49011.html"
+        }
+      ],
+      "legal_check_focus": "Numeric precision (1,470,993,502.74) and Departmental Instructions ท.ป. 1/2528 & ท.ป. 299/2561.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-09",
+      "stratum": "S2_subordinate_law_and_decree_precision",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/2751",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0811/2751",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23884.html"
+        },
+        {
+          "official_identifier": "กค 0811/2751",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/23884.html"
+        }
+      ],
+      "legal_check_focus": "Verify subordinate Royal Decree / Ministerial Regulation references.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
     },
     {
       "spotcheck_id": "LSC-10",
-      "ruling_no": "กค 0811/02557",
-      "official_source": "https://www.rd.go.th/23475.html",
-      "prior_incorrect_guidance": "Described property sale-with-right-of-redemption (`ขายฝาก`, which belongs to LSC-07 `กค 0811/13980`).",
-      "corrected_guidance": "Covers statutory separation of life and non-life insurance businesses into a new company and CIT net-profit computation under Revenue Code Sections 65, 65 bis, and 65 ter."
-    }
-  ],
-  "material_answer_quality_fixes_verified_against_sources": [
-    {
-      "issue_id": "QUAL-B01-COND-220",
-      "description": "Separate condition (`เงื่อนไขสำคัญ`) and exception (`ข้อยกเว้น / ข้อจำกัด`) bullets were previously extracted via `[^。\\n]{10,220}` in `B01.ts`, cutting mid-syllable at 220 characters and triggering on substring `ต่างหาก` or historical dates `เมื่อวันที่ ...`.",
-      "resolution": "Replaced in `B01.ts` and `query.ts` with numbered-segment, word-boundary-safe complete Thai clause extraction (`cleanCompleteThaiLegalClause`): preserves complete conditions/exceptions up to clean consequence pivots (`ดังนั้น`, `กรณีดังกล่าวจึง`, etc.) and suppresses any summary clause that cannot terminate cleanly without mid-sentence truncation while preserving 100% of the verbatim RD conclusion above."
+      "stratum": "S2_subordinate_law_and_decree_precision",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811/02557",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0811/02557",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23475.html"
+        },
+        {
+          "official_identifier": "กค 0811/02557",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/23475.html"
+        }
+      ],
+      "legal_check_focus": "Mandatory insurance business separation (life vs. non-life) CIT net-profit computation under Sections 65, 65 bis, and 65 ter.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
     },
     {
-      "issue_id": "QUAL-B01-MULTIUNIT-STATUTE",
-      "description": "Linked B02 statutory sections rendered beneath a ruling (e.g., `มาตรา 47 ทวิ` in `LSC-01`) previously rendered `Unit 1` only, omitting `Unit 2` (`วรรคสาม` non-domicile restriction).",
-      "resolution": "Updated `query.ts` to call `reassembleOrderedSectionUnits` on linked B02 statutory sections so all paragraphs (`Unit 1..N`) render end-to-end."
+      "spotcheck_id": "LSC-11",
+      "stratum": "S2_subordinate_law_and_decree_precision",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "เปรียบเทียบการเสียภาษีมูลค่าเพิ่มระหว่างการขายสารเสริมสำหรับสัตว์ใน กค 0702/1903 กับการขายทองรูปพรรณความบริสุทธิ์ร้อยละ 96.5 ใน กค 0702/634",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/634",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68308.html"
+        },
+        {
+          "official_identifier": "กค 0702/1903",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68482.html"
+        },
+        {
+          "official_identifier": "กค 0702/634",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68308.html"
+        },
+        {
+          "official_identifier": "กค 0702/1903",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68482.html"
+        },
+        {
+          "official_identifier": "กค 0811/6874",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/25378.html"
+        },
+        {
+          "official_identifier": "กค 0811/3094",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/25084.html"
+        }
+      ],
+      "legal_check_focus": "Side-by-side comparison preserves negation (ได้รับยกเว้น vs ไม่ได้รับยกเว้น).",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
     },
     {
-      "issue_id": "QUAL-B01-INCOMPLETE-LAW-DISCLOSURE",
-      "description": "Rulings citing quarantined external statutes/Royal Decrees (`usable_as_legal_evidence: false`, e.g. Royal Decrees 530/595 in `LSC-04`, 773 in `LSC-06`, 736 in `LSC-17`, CCC in `LSC-01`) previously put quarantine notices only in `coverage_warnings` while returning `ANSWERED` on general questions.",
-      "resolution": "Added explicit inline `ข้อจำกัดความครบถ้วนของหลักฐานกฎหมายประกอบ` inside `answer` text whenever quarantined external laws are referenced, and set `status = CONDITIONAL` on non-`exact_lookup` questions so REG24 never implies unconditional legal certainty where supporting statutory text is unverified."
+      "spotcheck_id": "LSC-12",
+      "stratum": "S3_revenue_code_sections_and_temporal_versions",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
+      "applicable_date": "2018-06-30",
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "official_identifier": "กค 0811/15738",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23261.html"
+        },
+        {
+          "official_identifier": "0811(กม.02)/931",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23965.html"
+        },
+        {
+          "official_identifier": "กค 0811/3075",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23902.html"
+        },
+        {
+          "official_identifier": "กค 0811/13980",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/22874.html"
+        }
+      ],
+      "legal_check_focus": "Point-in-time version selection before 2019 amendment.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
     },
     {
-      "issue_id": "QUAL-B01-STATUTE-1939-HEADER-AND-COMPARISON",
-      "description": "Compiled `rd.go.th` Revenue Code sections (`มาตรา 47 ทวิ`, `มาตรา 70`) previously displayed `1939-04-01` as if every amended paragraph took effect in 1939, and `LSC-11` comparison mode appended an unrequested 3rd ruling (`กค 0811/6874`).",
-      "resolution": "Replaced `1939-04-01` header on compiled `rd.go.th` sections with an accurate compiled-text provenance note directing readers to paragraph-level amendment notes; scoped comparison mode strictly to the explicitly requested rulings when >= 2 identifiers are specified."
-    }
-  ],
-  "representative_source_verification_sample": [
-    { "ruling_no": "กค 0702/1494", "source_url": "https://www.rd.go.th/68536.html", "points_in_source": 3, "source_alignment": "VERIFIED_COMPLETE_WITH_QUARANTINE_NOTICE", "notes": "All 3 points (estate tax unit under Sec. 57 bis/62, Sec. 47 bis para 3 domicile rule, and Sec. 42 CCC special tax domicile -> Sec. 47 bis & 48 credit) + full Sec. 47 bis statute rendered; CCC quarantine explicitly disclosed." },
-    { "ruling_no": "กค 0702/1903", "source_url": "https://www.rd.go.th/68482.html", "points_in_source": 1, "source_alignment": "VERIFIED_COMPLETE", "notes": "Sec. 81(2)(ก) juncto Sec. 81(1)(ง) VAT import exemption & DLD certification condition complete." },
-    { "ruling_no": "กค 0702/634", "source_url": "https://www.rd.go.th/68308.html", "points_in_source": 1, "source_alignment": "VERIFIED_COMPLETE", "notes": "96.5% gold jewelry import taxable on full import value under Sec. 77/1(12) & 78/2(1); exception bullet under RD 311/367 & DG VAT Notification cleanly terminated at `พ.ศ. 2543`." },
-    { "ruling_no": "กค 0702/4825", "source_url": "https://www.rd.go.th/65296.html", "points_in_source": 4, "source_alignment": "VERIFIED_COMPLETE_WITH_QUARANTINE_NOTICE", "notes": "All 4 numbered points rendered through RD 595 Sec. 4 (B.E. 2559 cap); quarantined RD 530 & RD 595 standalone text explicitly disclosed." },
-    { "ruling_no": "กค 0702/6077", "source_url": "https://www.rd.go.th/68053.html", "points_in_source": 2, "source_alignment": "VERIFIED_COMPLETE_WITH_QUARANTINE_NOTICE", "notes": "Both VAT rebate point (Sec. 79, 82/10(1)) and EV subsidy CIT exemption point (RD 773 Sec. 3) rendered in full with RD 773 quarantine disclosure." },
-    { "ruling_no": "กค 0702/2994", "source_url": "https://www.rd.go.th/52912.html", "points_in_source": 4, "source_alignment": "VERIFIED_COMPLETE", "notes": "6,036-char 4-chunk VAT/CIT ruling reassembled in exact order through Sec. 82/4 and Sec. 65 ter (6 bis)." },
-    { "ruling_no": "กค 0702/2794", "source_url": "https://www.rd.go.th/48429.html", "points_in_source": 4, "source_alignment": "VERIFIED_COMPLETE", "notes": "5,004-char 4-chunk cross-border VAT/CIT ruling reassembled in exact order through DG VAT Notification No. 181." },
-    { "ruling_no": "กค 0702/7731", "source_url": "https://www.rd.go.th/48862.html", "points_in_source": 3, "source_alignment": "VERIFIED_COMPLETE", "notes": "3,706-char 3-chunk SBT & CIT land valuation/cost ruling complete through land-cost deduction rule." },
-    { "ruling_no": "กค 0702/1693", "source_url": "https://www.rd.go.th/52614.html", "points_in_source": 3, "source_alignment": "VERIFIED_COMPLETE", "notes": "3,910-char 3-chunk ruling complete through 100% CIT deduction under RD 297." },
-    { "ruling_no": "กค 0706/10072", "source_url": "https://www.rd.go.th/30677.html", "points_in_source": 0, "source_alignment": "SAFELY_WITHDRAWN", "notes": "Official rd.go.th page has `แนววินิจฉัย: -` (inquiry only); safely withdrawn so REG24 abstains with `INSUFFICIENT_EVIDENCE`." }
-  ],
-  "minor_non_blocking_backlog_items": [
-    {
-      "backlog_id": "MINOR-B01-01",
-      "description": "Some 2568–2569 HTML-derived PDFs retain the inline header string `ภาษีอากร กค ... เลขที่หนังสือ...` at the start of `ข้อเท็จจริงและประเด็นของผู้ขอหารือ`.",
-      "impact": "Cosmetic only; does not alter facts, legal citations, or RD conclusions."
+      "spotcheck_id": "LSC-13",
+      "stratum": "S3_revenue_code_sections_and_temporal_versions",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2024-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
+      "applicable_date": "2024-06-30",
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "official_identifier": "กค 0811/15738",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23261.html"
+        },
+        {
+          "official_identifier": "0811(กม.02)/931",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23965.html"
+        },
+        {
+          "official_identifier": "กค 0811/3075",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/23902.html"
+        },
+        {
+          "official_identifier": "0702/6493",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/60865.html"
+        }
+      ],
+      "legal_check_focus": "Point-in-time version selection after 2019 amendment.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
     },
     {
-      "backlog_id": "MINOR-B01-02",
-      "description": "Legacy 2541–2546 `rd.go.th` HTML pages contain occasional extra spaces inside Thai phrases from original government HTML line wraps.",
-      "impact": "Cosmetic only; verbatim characters and numbers match official `rd.go.th` pages."
+      "spotcheck_id": "LSC-14",
+      "stratum": "S3_revenue_code_sections_and_temporal_versions",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาแนววินิจฉัยกรมสรรพากรเกี่ยวกับเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ แห่งประมวลรัษฎากร",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "มาตรา 47 ทวิ",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        },
+        {
+          "official_identifier": "มาตรา 47 ทวิ",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        },
+        {
+          "official_identifier": "กค 0706/2156",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/31015.html"
+        },
+        {
+          "official_identifier": "กค 0706/4588",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/24745.html"
+        },
+        {
+          "official_identifier": "กค 0706/1926",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/31010.html"
+        },
+        {
+          "official_identifier": "กค 0702/1683",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/64956.html"
+        }
+      ],
+      "legal_check_focus": "Section 47 bis statutory text & ruling alignment.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-15",
+      "stratum": "S3_revenue_code_sections_and_temporal_versions",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "การจ่ายเงินได้ไปต่างประเทศต้องเสียภาษีเงินได้นิติบุคคลหัก ณ ที่จ่ายตามมาตรา 70 แห่งประมวลรัษฎากรอย่างไร",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "มาตรา 70",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata70"
+        },
+        {
+          "official_identifier": "มาตรา 70",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata70"
+        },
+        {
+          "official_identifier": "กค 0706/6478",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/32696.html"
+        },
+        {
+          "official_identifier": "กค 0706/392",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/28754.html"
+        },
+        {
+          "official_identifier": "กค 0706/10491",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/36190.html"
+        },
+        {
+          "official_identifier": "กค 0706/5353",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/24694.html"
+        }
+      ],
+      "legal_check_focus": "Cross-border Section 70 WHT scope & conditions.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-16",
+      "stratum": "S3_revenue_code_sections_and_temporal_versions",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "การส่งออกบริการหรือสินค้าได้รับสิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 ตามมาตรา 80/1 แห่งประมวลรัษฎากรในกรณีใด",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "มาตรา 80/1",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        },
+        {
+          "official_identifier": "มาตรา 80/1",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        },
+        {
+          "official_identifier": "กค 0811/2797",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/25458.html"
+        },
+        {
+          "official_identifier": "กค 0706/9095",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/36090.html"
+        },
+        {
+          "official_identifier": "กค 0702/4274",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/43132.html"
+        },
+        {
+          "official_identifier": "กค 0811/6423",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/25393.html"
+        }
+      ],
+      "legal_check_focus": "Zero-rate VAT Section 80/1 statutory conditions.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-17",
+      "stratum": "S4_quarantined_external_citation_suppression",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "แสดงแนววินิจฉัยในหนังสือตอบข้อหารือ กค 0702/1493 กรณีการยกเว้นภาษีธุรกิจเฉพาะและอากรแสตมป์จากการเวนคืนอสังหาริมทรัพย์",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/1493",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68494.html"
+        },
+        {
+          "official_identifier": "กค 0702/1493",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68494.html"
+        },
+        {
+          "official_identifier": "กค 0811/ก.704",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/24118.html"
+        },
+        {
+          "official_identifier": "กค 0702/3734",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/38810.html"
+        },
+        {
+          "official_identifier": "กค 0811/7827",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/25331.html"
+        },
+        {
+          "official_identifier": "0702/4194",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/26627.html"
+        }
+      ],
+      "legal_check_focus": "Ruling กค 0702/1493 rendered from verified RD source while warning that Royal Decree 736 remains quarantined.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-18",
+      "stratum": "S4_quarantined_external_citation_suppression",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ขอตัวบทมาตราทั้งหมดของพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 736)",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "Direct statutory text request for quarantined Royal Decree 736 must abstain cleanly.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-19",
+      "stratum": "S4_quarantined_external_citation_suppression",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ขอตัวบทมาตราทั้งหมดของพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 773)",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "Direct statutory text request for quarantined Royal Decree 773 must abstain cleanly.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-20",
+      "stratum": "S4_quarantined_external_citation_suppression",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ขอตัวบทมาตราทั้งหมดของพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 750)",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "Direct statutory text request for unverified Royal Decree 750 must abstain cleanly.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-21",
+      "stratum": "S5_multi_year_homonym_ruling_disambiguation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/636",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68302.html"
+        },
+        {
+          "official_identifier": "กค 0702/636",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/46391.html"
+        },
+        {
+          "official_identifier": "กค 0702/636",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68302.html"
+        },
+        {
+          "official_identifier": "กค 0702/636",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/46391.html"
+        }
+      ],
+      "legal_check_focus": "Exact identifier lookup with full non-truncated 0% VAT conclusion.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-22",
+      "stratum": "S5_multi_year_homonym_ruling_disambiguation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1230",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/1230",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68470.html"
+        },
+        {
+          "official_identifier": "กค 0702/1230",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/68470.html"
+        }
+      ],
+      "legal_check_focus": "Exact VAT service tax-point ruling lookup with complete conclusion.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-23",
+      "stratum": "S5_multi_year_homonym_ruling_disambiguation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1255",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0702/1255",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/68530.html"
+        },
+        {
+          "official_identifier": "กค 0702/1255",
+          "statement_role": "requester_proposed_treatment",
+          "origin_uri": "https://www.rd.go.th/68530.html"
+        },
+        {
+          "official_identifier": "กค 0702/1255",
+          "statement_role": "requester_proposed_treatment",
+          "origin_uri": "https://www.rd.go.th/68530.html"
+        }
+      ],
+      "legal_check_focus": "Exact 2569 CIT ruling lookup with complete multi-paragraph conclusion.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-24",
+      "stratum": "S5_multi_year_homonym_ruling_disambiguation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0706/พ./10877",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0706/พ./10877",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/24875.html"
+        },
+        {
+          "official_identifier": "กค 0706/พ./10877",
+          "statement_role": "requester_facts",
+          "origin_uri": "https://www.rd.go.th/24875.html"
+        }
+      ],
+      "legal_check_focus": "Special slash-prefix ruling identifier normalization (`กค 0706/พ./10877`).",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-25",
+      "stratum": "S5_multi_year_homonym_ruling_disambiguation",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0811(กม.03)/366",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "primary_citations": [
+        {
+          "official_identifier": "กค 0811(กม.03)/366",
+          "statement_role": "official_conclusion",
+          "origin_uri": "https://www.rd.go.th/25101.html"
+        },
+        {
+          "official_identifier": "กค 0811(กม.03)/366",
+          "statement_role": "requester_proposed_treatment",
+          "origin_uri": "https://www.rd.go.th/25101.html"
+        },
+        {
+          "official_identifier": "กค 0811(กม.03)/366",
+          "statement_role": "requester_proposed_treatment",
+          "origin_uri": "https://www.rd.go.th/25101.html"
+        }
+      ],
+      "legal_check_focus": "Parenthetical bureau-code ruling lookup fidelity.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-26",
+      "stratum": "S6_out_of_scope_and_nonexistent_abstention",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "เลิกจ้างพนักงานทำงานครบ 3 ปี นายจ้างต้องจ่ายค่าชดเชยเท่าไรตามพระราชบัญญัติคุ้มครองแรงงาน",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "Labour Protection Act (B05 scope) must abstain cleanly in B01 trial.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-27",
+      "stratum": "S6_out_of_scope_and_nonexistent_abstention",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "ความผิดฐานฉ้อโกงตามประมวลกฎหมายอาญา มีอายุความร้องทุกข์กี่เดือน",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "Criminal Code question must abstain cleanly in B01 trial.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-28",
+      "stratum": "S6_out_of_scope_and_nonexistent_abstention",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "คำพิพากษาศาลฎีกาที่ 1234/2565 วินิจฉัยเรื่องสัญญาค้ำประกันไว้อย่างไร",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "Supreme Court Deka (B10 scope) must abstain cleanly in B01 trial.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-29",
+      "stratum": "S6_out_of_scope_and_nonexistent_abstention",
+      "is_synthetic_test_reference": false,
+      "synthetic_test_label_th": null,
+      "question": "การจำแนกพิกัดอัตราศุลกากรขาเข้าเครื่องจักรตามพระราชบัญญัติศุลกากรต้องใช้พิกัดใด",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "Pure Customs tariff classification (B03 scope) without RD tax context must abstain.",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
+    },
+    {
+      "spotcheck_id": "LSC-30",
+      "stratum": "S6_out_of_scope_and_nonexistent_abstention",
+      "is_synthetic_test_reference": true,
+      "synthetic_test_label_th": "เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง",
+      "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง · ผลที่คาดหมาย: ไม่พบข้อมูล / หลักฐานไม่เพียงพอ (Synthetic negative test — must return INSUFFICIENT_EVIDENCE and never invent or substitute a ruling).",
+      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "verdict": null,
+      "reviewer_name": null,
+      "reviewed_at": null,
+      "legal_findings": null,
+      "remediation_applied": null
     }
   ]
 }
