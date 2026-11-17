@@ -44,3 +44,12 @@ CREATE TABLE IF NOT EXISTS trial_audit_events (
 CREATE INDEX IF NOT EXISTS idx_trial_audit_recorded_at ON trial_audit_events (recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trial_audit_actor_id ON trial_audit_events (actor_id, recorded_at DESC);
 CREATE INDEX IF NOT EXISTS idx_trial_audit_release_id ON trial_audit_events (release_id);
+
+CREATE TABLE IF NOT EXISTS trial_rate_limit_buckets (
+  subject_key    TEXT NOT NULL,
+  action_type    TEXT NOT NULL CHECK (action_type IN ('query', 'citation_open')),
+  window_epoch   BIGINT NOT NULL,
+  request_count  INTEGER NOT NULL DEFAULT 1 CHECK (request_count > 0),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (subject_key, action_type, window_epoch)
+);

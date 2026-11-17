@@ -597,14 +597,41 @@ export async function runB02PublicOcrPilot(options: {
   }
   const transport = options.httpTransport;
   const enforcePage1Gate = options.enforcePage1GateBeforeContinuing ?? (options.documentsOverride === undefined);
+  const gateVerifiedPath = path.join(quarantineDir, "page_1_typhoon_gate_verified.quarantined.json");
+  const gateFailedPath = path.join(quarantineDir, "page_1_typhoon_gate_failed.quarantined.json");
+
+  let persistedPage1GateValid = false;
+  if (enforcePage1Gate && docs.length > 0 && fs.existsSync(gateVerifiedPath)) {
+    try {
+      const savedGate = JSON.parse(fs.readFileSync(gateVerifiedPath, "utf8")) as {
+        gate_passed?: boolean;
+        document_sha256?: string;
+        page_number?: number;
+        primary_raw_model_id?: string;
+        primary_chars?: number;
+        has_thai_script?: boolean;
+      };
+      persistedPage1GateValid =
+        savedGate.gate_passed === true &&
+        savedGate.document_sha256 === docs[0].sha256 &&
+        savedGate.page_number === 1 &&
+        typeof savedGate.primary_raw_model_id === "string" &&
+        savedGate.primary_raw_model_id.trim().length > 0 &&
+        typeof savedGate.primary_chars === "number" &&
+        savedGate.primary_chars >= 40 &&
+        savedGate.has_thai_script === true;
+    } catch {
+      persistedPage1GateValid = false;
+    }
+  }
 
   let primaryCallsDispatched = 0;
   let primaryRetriesDispatched = 0;
   let secondaryCallsDispatched = 0;
   let secondaryRetriesDispatched = 0;
   let pagesResumedFromQuarantineCount = 0;
-  let page1GateChecked = false;
-  let page1GatePassed = false;
+  let page1GateChecked = persistedPage1GateValid;
+  let page1GatePassed = persistedPage1GateValid;
   let stoppedByPage1Gate = false;
   let page1GateFailureReason: string | null = null;
   let stoppedByBudgetGuard = false;
@@ -693,7 +720,8 @@ export async function runB02PublicOcrPilot(options: {
 
   let pagesHandledTotal = 0;
 
-  outerLoop: for (const doc of docs) {
+  outerLoop: for (let docIdx = 0; docIdx < docs.length; docIdx++) {
+    const doc = docs[docIdx];
     const pdfAbsPath = path.resolve(
       process.cwd(),
       "public",
@@ -705,13 +733,24 @@ export async function runB02PublicOcrPilot(options: {
         break outerLoop;
       }
 
+      const isFirstCorpusPage = docIdx === 0 && pageNo === 1;
+
+      // Un-bypassable restart invariant: NEVER process any page beyond Page 1 unless Page 1 Typhoon gate passed!
+      if (enforcePage1Gate && !isFirstCorpusPage && !page1GatePassed) {
+        stoppedByPage1Gate = true;
+        page1GateFailureReason =
+          page1GateFailureReason ||
+          "PAGE_1_TYPHOON_GATE_NOT_VERIFIED_ON_RESTART: Cannot proceed beyond Page 1 without a verified page_1_typhoon_gate_verified.quarantined.json receipt.";
+        break outerLoop;
+      }
+
       const quarantinePagePath = path.join(
         quarantineDir,
         `${doc.review_item_id}_p${String(pageNo).padStart(3, "0")}.quarantined.json`
       );
 
-      // Resume guard: never re-dispatch paid calls for a page already saved in quarantine with matching SHA-256!
-      if (fs.existsSync(quarantinePagePath)) {
+      // Resume guard: only skip if page is already saved AND (for Page 1) the Page-1 gate receipt is verified!
+      if (fs.existsSync(quarantinePagePath) && (!enforcePage1Gate || !isFirstCorpusPage || page1GatePassed)) {
         try {
           const existingPage = JSON.parse(
             fs.readFileSync(quarantinePagePath, "utf8")
@@ -773,6 +812,74 @@ export async function runB02PublicOcrPilot(options: {
           break outerLoop;
         }
         throw err;
+      }
+
+      // Owner Gate: Verify Page 1 on primary Typhoon BEFORE running secondary calls, saving resumable page 1, or continuing to pages 2..170!
+      if (enforcePage1Gate && isFirstCorpusPage && !page1GatePassed) {
+        page1GateChecked = true;
+        const primaryTrimmed = (primaryRes.text || "").trim();
+        const hasThaiScript = /[\u0E00-\u0E7F]/.test(primaryTrimmed);
+        if (
+          !primaryRes.rawModelId ||
+          primaryTrimmed.length < 40 ||
+          !hasThaiScript
+        ) {
+          page1GatePassed = false;
+          stoppedByPage1Gate = true;
+          page1GateFailureReason = `PAGE_1_TYPHOON_GATE_FAILED: model='${primaryRes.rawModelId ?? "null"}', chars=${primaryTrimmed.length}, hasThai=${hasThaiScript}. Halted before dispatching pages 2..170.`;
+          if (fs.existsSync(quarantinePagePath)) {
+            fs.unlinkSync(quarantinePagePath);
+          }
+          fs.writeFileSync(
+            gateFailedPath,
+            JSON.stringify(
+              {
+                failed_at: new Date().toISOString(),
+                gate_passed: false,
+                review_item_id: doc.review_item_id,
+                document_sha256: doc.sha256,
+                page_number: pageNo,
+                primary_raw_model_id: primaryRes.rawModelId,
+                primary_attempts_used: primaryRes.attemptsUsed,
+                primary_chars: primaryTrimmed.length,
+                has_thai_script: hasThaiScript,
+                failure_reason: page1GateFailureReason,
+                usable_as_legal_evidence: false,
+              },
+              null,
+              2
+            ),
+            "utf8"
+          );
+          break outerLoop;
+        }
+
+        page1GatePassed = true;
+        if (fs.existsSync(gateFailedPath)) {
+          fs.unlinkSync(gateFailedPath);
+        }
+        const tmpGate = `${gateVerifiedPath}.${process.pid}.tmp`;
+        fs.writeFileSync(
+          tmpGate,
+          JSON.stringify(
+            {
+              verified_at: new Date().toISOString(),
+              gate_passed: true,
+              review_item_id: doc.review_item_id,
+              document_sha256: doc.sha256,
+              page_number: pageNo,
+              primary_raw_model_id: primaryRes.rawModelId,
+              primary_chars: primaryTrimmed.length,
+              has_thai_script: true,
+              primary_raw_usage_metadata: primaryRes.rawUsage,
+              usable_as_legal_evidence: false,
+            },
+            null,
+            2
+          ),
+          "utf8"
+        );
+        fs.renameSync(tmpGate, gateVerifiedPath);
       }
 
       const secDecision = enableSecondary
@@ -858,41 +965,6 @@ export async function runB02PublicOcrPilot(options: {
       const tmpPage = `${quarantinePagePath}.${process.pid}.tmp`;
       fs.writeFileSync(tmpPage, JSON.stringify(pageRecord, null, 2), "utf8");
       fs.renameSync(tmpPage, quarantinePagePath);
-
-      // Owner Gate: Verify Page 1 on primary Typhoon BEFORE continuing to pages 2..170!
-      if (enforcePage1Gate && !page1GateChecked) {
-        page1GateChecked = true;
-        const primaryTrimmed = (pageRecord.primary_text || "").trim();
-        const hasThaiScript = /[\u0E00-\u0E7F]/.test(primaryTrimmed);
-        if (
-          !pageRecord.primary_raw_model_id ||
-          primaryTrimmed.length < 40 ||
-          !hasThaiScript
-        ) {
-          page1GatePassed = false;
-          stoppedByPage1Gate = true;
-          page1GateFailureReason = `PAGE_1_TYPHOON_GATE_FAILED: model='${pageRecord.primary_raw_model_id ?? "null"}', chars=${primaryTrimmed.length}, hasThai=${hasThaiScript}. Halted before dispatching pages 2..170.`;
-          break outerLoop;
-        }
-        page1GatePassed = true;
-        fs.writeFileSync(
-          path.join(quarantineDir, "page_1_typhoon_gate_verified.quarantined.json"),
-          JSON.stringify(
-            {
-              verified_at: new Date().toISOString(),
-              review_item_id: pageRecord.review_item_id,
-              page_number: pageRecord.page_number,
-              primary_raw_model_id: pageRecord.primary_raw_model_id,
-              primary_chars: primaryTrimmed.length,
-              primary_raw_usage_metadata: pageRecord.primary_raw_usage_metadata,
-              usable_as_legal_evidence: false,
-            },
-            null,
-            2
-          ),
-          "utf8"
-        );
-      }
     }
   }
 

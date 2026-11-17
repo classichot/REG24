@@ -31,3 +31,9 @@ CREATE TRIGGER trg_trial_invite_storage_cap
   BEFORE INSERT OR UPDATE ON trial_invite_credentials
   FOR EACH ROW
   EXECUTE FUNCTION reg24_enforce_trial_storage_ceiling();
+
+DROP TRIGGER IF EXISTS trg_trial_ratelimit_storage_cap ON trial_rate_limit_buckets;
+CREATE TRIGGER trg_trial_ratelimit_storage_cap
+  BEFORE INSERT OR UPDATE ON trial_rate_limit_buckets
+  FOR EACH ROW
+  EXECUTE FUNCTION reg24_enforce_trial_storage_ceiling();

@@ -102,7 +102,65 @@ describe("Actual 170-Page B02 Pilot Runner: Real PDF Rendering, Restart/Retry Re
       expect(failedGate.summary.page_1_gate_checked).toBe(true);
       expect(failedGate.summary.page_1_gate_passed).toBe(false);
       expect(failedGate.summary.stopped_by_page_1_gate).toBe(true);
-      expect(failedGate.pages.length).toBe(1);
+      expect(failedGate.pages.length).toBe(0);
+      expect(fs.existsSync(path.join(tmpFail, "OCR-REV-01_p001.quarantined.json"))).toBe(false);
+      expect(fs.existsSync(path.join(tmpFail, "page_1_typhoon_gate_failed.quarantined.json"))).toBe(true);
+
+      // Even if a stray OCR-REV-01_p001.quarantined.json is planted on disk WITHOUT a valid
+      // page_1_typhoon_gate_verified.quarantined.json, restarting Run 2 CANNOT skip Page 1 or touch Page 2!
+      fs.writeFileSync(
+        path.join(tmpFail, "OCR-REV-01_p001.quarantined.json"),
+        JSON.stringify({ document_sha256: fake3.doc.sha256, primary_text: "bad" }),
+        "utf8"
+      );
+      const seenPagesOnRestart: number[] = [];
+      const restartAfterFail = await runB02PublicOcrPilot({
+        mode: "LIVE_BUDGETED_EXECUTION",
+        ownerApprovedMaxUsdInclTax: 10.0,
+        maxAttemptsPerPage: 2,
+        includePriorSmokeSpend: true,
+        enforcePage1GateBeforeContinuing: true,
+        enableSecondaryModel: false,
+        quarantineOutputDir: tmpFail,
+        documentsOverride: [fake3.doc],
+        pdfResolver: () => fake3.bytes,
+        pageRenderer: (_d, p) => Buffer.from(`PNG-${p}`).toString("base64"),
+        httpTransport: async (c) => {
+          seenPagesOnRestart.push(c.page_number);
+          return {
+            http_status: 200,
+            text: "still invalid",
+            input_tokens: 100,
+            output_and_thinking_tokens: 10,
+            raw_model_id: "typhoon-ocr",
+          };
+        },
+      });
+      // Only Page 1 attempt 2 ran (with its own new reservation); Page 2 & Page 3 were NEVER called!
+      expect(seenPagesOnRestart).toEqual([1]);
+      expect(restartAfterFail.summary.stopped_by_page_1_gate).toBe(true);
+      expect(restartAfterFail.pages.length).toBe(0);
+
+      // A 3rd restart after Page 1 exhausted maxAttemptsPerPage=2 fires ZERO HTTP calls and STILL blocks Page 2!
+      let thirdRestartCalls = 0;
+      const thirdRestart = await runB02PublicOcrPilot({
+        mode: "LIVE_BUDGETED_EXECUTION",
+        ownerApprovedMaxUsdInclTax: 10.0,
+        maxAttemptsPerPage: 2,
+        includePriorSmokeSpend: true,
+        enforcePage1GateBeforeContinuing: true,
+        enableSecondaryModel: false,
+        quarantineOutputDir: tmpFail,
+        documentsOverride: [fake3.doc],
+        pdfResolver: () => fake3.bytes,
+        pageRenderer: (_d, p) => Buffer.from(`PNG-${p}`).toString("base64"),
+        httpTransport: async () => {
+          thirdRestartCalls += 1;
+          throw new Error("MUST_NEVER_CALL_PAGE_2");
+        },
+      });
+      expect(thirdRestartCalls).toBe(0);
+      expect(thirdRestart.summary.stopped_by_page_1_gate).toBe(true);
 
       let passCalls = 0;
       const passedGate = await runB02PublicOcrPilot({

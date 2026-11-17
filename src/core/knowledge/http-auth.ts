@@ -79,6 +79,7 @@ export function knowledgeApiErrorResponse(err: unknown): NextResponse {
   else if (msg.includes("_404")) status = 404;
   else if (msg.includes("_409") || msg.includes("STALE_WORKER_FENCING_TOKEN")) status = 409;
   else if (msg.includes("_429")) status = 429;
+  else if (msg.includes("_503")) status = 503;
   else if (
     msg.includes("_422") ||
     msg.includes("PROJECTION_INCOMPLETE_OR_MEMORY_ONLY_BLOCKED") ||
@@ -89,12 +90,18 @@ export function knowledgeApiErrorResponse(err: unknown): NextResponse {
     status = 400;
   }
 
+  const headers: Record<string, string> = {};
+  if (status === 429) {
+    const retryMatch = msg.match(/Retry after (\d+)s/i);
+    headers["Retry-After"] = retryMatch ? retryMatch[1] : "60";
+  }
+
   return NextResponse.json(
     {
       ok: false,
       error: msg,
       http_status: status,
     },
-    { status }
+    { status, headers }
   );
 }

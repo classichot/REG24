@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   try {
     // Server-supplied tenant & scope ONLY — client JSON fields (`tenant_id`, `authorized_scopes`) are ignored (SH-16 / AT08)
     const actor = resolveServerActor(req);
-    const gate = enforceTrialAccessAndRateLimit(req, actor, "query");
+    const gate = await enforceTrialAccessAndRateLimit(req, actor, "query");
     const body = (await req.json().catch(() => ({}))) as {
       question?: string;
       release_id?: string;
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     );
 
     const relRec = store.getState().releases[answer.release_id];
-    await appendTrialAuditEvent(store, {
+    const auditStatus = await appendTrialAuditEvent(store, {
       audit_id: `aud.q.${answer.trace_id}`,
       event_type: "TRIAL_QUERY",
       recorded_at: new Date().toISOString(),
@@ -64,7 +64,19 @@ export async function POST(req: Request) {
       latency_ms: answer.latency_ms,
     });
 
-    return NextResponse.json({ ok: true, answer }, { status: 200 });
+    const headers: Record<string, string> = {
+      "x-reg24-ratelimit-backend": gate.rateLimitBackend,
+      "x-reg24-ratelimit-remaining": String(gate.remainingInWindow),
+      "x-reg24-audit-status": auditStatus.backend,
+    };
+    if (auditStatus.error) {
+      headers["x-reg24-audit-error"] = auditStatus.error.slice(0, 200);
+    }
+
+    return NextResponse.json(
+      { ok: true, answer, audit_status: auditStatus },
+      { status: 200, headers }
+    );
   } catch (err) {
     return knowledgeApiErrorResponse(err);
   }

@@ -1,0 +1,43 @@
+{
+  "verified_at": "2026-11-18T02:01:00+07:00",
+  "target_milestone": "2026-11-20 Limited Real-User Batch 1 Trial (RD Tax Rulings + Revenue Code)",
+  "dodo_findings_remediated": {
+    "1_fail_closed_invite_gate_when_zero_invites_configured": {
+      "status": "FIXED_AND_TESTED",
+      "file": "src/core/knowledge/trial-gate.ts",
+      "behavior": "When REG24_TRIAL_INVITE_ONLY=1 and zero approved invitations exist across both PostgreSQL (trial_invite_credentials) and REG24_TRIAL_ALLOWED_INVITE_SHA256 / REG24_TRIAL_INVITE_CODES, enforceTrialAccessAndRateLimit() fails closed with HTTP 403 (TRIAL_NO_APPROVED_INVITES_CONFIGURED_403) even when a caller supplies a non-empty token.",
+      "automated_test": "tests/knowledge/neon-migration-and-pitr-harness.test.ts :: Test 3a"
+    },
+    "2_reliable_trial_audit_saving_or_explicit_failure_reporting": {
+      "status": "FIXED_AND_TESTED",
+      "files": [
+        "src/core/knowledge/trial-gate.ts",
+        "src/app/api/v1/knowledge/query/route.ts",
+        "src/app/api/v1/knowledge/evidence/[id]/route.ts"
+      ],
+      "behavior": "Hosted PostgreSQL writes use INSERT ... RETURNING audit_id and verify HTTP 200 + >=1 returned row. Ephemeral container disk on VERCEL=1 never counts as durable storage. In protected trial mode (REG24_TRIAL_INVITE_ONLY=1 or REG24_TRIAL_REQUIRE_DURABLE_AUDIT=1), any audit persistence failure fails closed with HTTP 503 (TRIAL_AUDIT_PERSISTENCE_FAILED_503); in non-strict preview mode, failures emit structured ERROR logs plus x-reg24-audit-status=failed, x-reg24-audit-error headers, and JSON audit_status.",
+      "automated_test": "tests/knowledge/neon-migration-and-pitr-harness.test.ts :: Test 3c & 3d"
+    },
+    "3_deployed_service_cross_instance_rate_limiting": {
+      "status": "FIXED_AND_TESTED_IN_CODE_PENDING_HOSTED_NEON_URL_ON_VERCEL",
+      "files": [
+        "prisma/migrations/0003_trial_access_and_audit.sql",
+        "prisma/migrations/0004_neon_storage_budget_ceiling.sql",
+        "src/core/knowledge/trial-gate.ts",
+        "src/core/knowledge/http-auth.ts"
+      ],
+      "behavior": "Added trial_rate_limit_buckets (protected by trg_trial_ratelimit_storage_cap 2.0 GiB ceiling trigger) with atomic ACID INSERT ... ON CONFLICT DO UPDATE RETURNING request_count across all stateless serverless instances, returning HTTP 429 + Retry-After header when exceeded. On VERCEL=1 in protected trial mode without DATABASE_URL, fails closed with HTTP 503 (TRIAL_SHARED_DB_REQUIRED_ON_SERVERLESS_503) rather than silently degrading to per-lambda memory.",
+      "automated_test": "tests/knowledge/neon-migration-and-pitr-harness.test.ts :: Test 3b (3 cold-start instances with wiped local memory between every request)"
+    },
+    "4_ocr_pilot_first_page_check_unbypassable_across_restarts": {
+      "status": "FIXED_AND_TESTED",
+      "file": "scripts/run-b02-170page-typhoon-ocr-pilot.ts",
+      "behavior": "Page 1 is never written as a resumable .quarantined.json until primary Typhoon passes model + >=40 chars + Thai script checks and writes page_1_typhoon_gate_verified.quarantined.json (bound to docs[0].sha256). On restart, if page_1_typhoon_gate_verified.quarantined.json is absent or invalid, any stray OCR-REV-01_p001.quarantined.json is ignored/removed and pages >1 are hard-blocked before rendering or network I/O. All calls, restarts, retries, and the prior $0.024268 Gemini smoke test share the single US$10.00 ceiling.",
+      "automated_test": "tests/knowledge/b02-pilot-runner-budget-enforcement.test.ts :: Test 2b (3-run restart bypass attempt verified blocked)"
+    }
+  },
+  "remaining_pre_invite_gates_for_20_nov": {
+    "hosted_neon_backup_and_pitr_test": "NOT_YET_EXECUTED — requires isolated REG24 Neon org NEON_API_KEY + DATABASE_URL in .env.local and Vercel trial env before inviting external users.",
+    "batch_1_legal_team_review": "IN_PROGRESS — Product Owner & internal legal team reviewing 30-case Batch 1 pack."
+  }
+}

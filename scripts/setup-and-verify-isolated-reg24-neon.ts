@@ -388,21 +388,25 @@ export async function runIsolatedReg24NeonSetupAndDrill(options: {
     await sqlExec(databaseUrl, stmt);
   }
 
-  // Verify both 2.0 GiB storage ceiling triggers exist and are enabled in pg_trigger
+  // Verify all 3 2.0 GiB storage ceiling triggers exist and are enabled in pg_trigger
   const triggerCheck = await sqlExec<{ tgname: string; tgenabled: string }>(
     databaseUrl,
     `SELECT tgname, tgenabled::text AS tgenabled
      FROM pg_trigger
-     WHERE tgname IN ('trg_trial_audit_storage_cap', 'trg_trial_invite_storage_cap')
+     WHERE tgname IN (
+       'trg_trial_audit_storage_cap',
+       'trg_trial_invite_storage_cap',
+       'trg_trial_ratelimit_storage_cap'
+     )
        AND NOT tgisinternal
      ORDER BY tgname`
   );
   const storageTriggersVerified =
-    triggerCheck.rows.length === 2 &&
+    triggerCheck.rows.length === 3 &&
     triggerCheck.rows.every((r) => r.tgenabled === "O");
   if (!storageTriggersVerified) {
     throw new Error(
-      `STORAGE_TRIGGER_VERIFICATION_FAILED: Expected 2 active storage triggers, got ${JSON.stringify(triggerCheck.rows)}.`
+      `STORAGE_TRIGGER_VERIFICATION_FAILED: Expected 3 active storage triggers, got ${JSON.stringify(triggerCheck.rows)}.`
     );
   }
 

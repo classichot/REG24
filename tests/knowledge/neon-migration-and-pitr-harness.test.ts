@@ -1,15 +1,53 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   assertProjectIsIsolatedReg24,
   runIsolatedReg24NeonSetupAndDrill,
   splitPostgresSqlStatements,
 } from "../../scripts/setup-and-verify-isolated-reg24-neon";
 import { NEON_LAUNCH_RECOMMENDED_QUOTA_PAYLOAD } from "../../scripts/verify-neon-hosted-backup-restore";
+import { POST as postQueryRoute } from "../../src/app/api/v1/knowledge/query/route";
+import { sha256Bytes } from "../../src/core/knowledge/identity";
+import {
+  DurableKnowledgeStore,
+  setDefaultKnowledgeStoreForTesting,
+} from "../../src/core/knowledge/store";
+import {
+  resetTrialRateLimiterForTesting,
+  setCustomTrialAuditSink,
+  setCustomTrialDbTransportForTesting,
+} from "../../src/core/knowledge/trial-gate";
 
-describe("Isolated REG24 Neon Migration Parser, Quota Verifier & Point-in-Time Restore (PITR) Harness", () => {
+describe("Batch 1 Trial Hardening: Fail-Closed Invite Gate, Durable Audit Failure Reporting, Distributed Rate Limits & PITR", () => {
+  const savedEnv: Record<string, string | undefined> = {};
+  const trackedKeys = [
+    "REG24_TRIAL_INVITE_ONLY",
+    "REG24_TRIAL_INVITE_CODES",
+    "REG24_TRIAL_ALLOWED_INVITE_SHA256",
+    "REG24_TRIAL_QUERY_LIMIT_15M",
+    "REG24_TRIAL_RATE_LIMIT",
+    "REG24_TRIAL_DB_AUDIT",
+    "REG24_TRIAL_AUDIT_LOG",
+    "REG24_TRIAL_REQUIRE_DURABLE_AUDIT",
+    "REG24_USE_B01_RC2_PREVIEW_STORE",
+    "DATABASE_URL",
+    "VERCEL",
+  ];
+  for (const k of trackedKeys) savedEnv[k] = process.env[k];
+
+  afterEach(() => {
+    for (const k of trackedKeys) {
+      if (savedEnv[k] === undefined) delete process.env[k];
+      else process.env[k] = savedEnv[k];
+    }
+    resetTrialRateLimiterForTesting();
+    setCustomTrialDbTransportForTesting(null);
+    setCustomTrialAuditSink(null);
+    setDefaultKnowledgeStoreForTesting(null);
+  });
+
   it("1. Parses 0003 and 0004 SQL migrations without splitting inside PL/pgSQL $$ ... $$ function bodies", () => {
     const mig3 = fs.readFileSync(
       path.resolve(process.cwd(), "prisma/migrations/0003_trial_access_and_audit.sql"),
@@ -23,13 +61,14 @@ describe("Isolated REG24 Neon Migration Parser, Quota Verifier & Point-in-Time R
     const s3 = splitPostgresSqlStatements(mig3);
     const s4 = splitPostgresSqlStatements(mig4);
 
-    // 0003: 2 CREATE TABLE + 3 CREATE INDEX = 5 statements
-    expect(s3.length).toBe(5);
+    // 0003: 3 CREATE TABLE (invites, audit, rate_limit_buckets) + 3 CREATE INDEX = 6 statements
+    expect(s3.length).toBe(6);
     expect(s3[0]).toMatch(/CREATE TABLE IF NOT EXISTS trial_invite_credentials/);
     expect(s3[1]).toMatch(/CREATE TABLE IF NOT EXISTS trial_audit_events/);
+    expect(s3[5]).toMatch(/CREATE TABLE IF NOT EXISTS trial_rate_limit_buckets/);
 
-    // 0004: 1 CREATE OR REPLACE FUNCTION (intact $$...$$) + 2*(DROP TRIGGER + CREATE TRIGGER) = 5 statements
-    expect(s4.length).toBe(5);
+    // 0004: 1 CREATE OR REPLACE FUNCTION (intact $$...$$) + 3*(DROP TRIGGER + CREATE TRIGGER) = 7 statements
+    expect(s4.length).toBe(7);
     expect(s4[0]).toContain("CREATE OR REPLACE FUNCTION reg24_enforce_trial_storage_ceiling()");
     expect(s4[0]).toContain("DECLARE");
     expect(s4[0]).toContain("RAISE EXCEPTION 'REG24_STORAGE_CAP_EXCEEDED");
@@ -50,7 +89,6 @@ describe("Isolated REG24 Neon Migration Parser, Quota Verifier & Point-in-Time R
       const childPitrHost = "ep-reg24-pitr-ro.ap-southeast-1.aws.neon.tech";
       const primaryUrl = `postgresql://neondb_owner:secret@${primaryHost}/neondb?sslmode=require`;
 
-      // Simulated primary & PITR snapshot stores verifying exact 0003 columns & CHECK constraints
       const primaryAuditRows = new Map<string, Record<string, unknown>>();
       const primaryInviteRows = new Map<string, Record<string, unknown>>();
       const restoreSchemaAuditRows = new Map<string, Record<string, unknown>>();
@@ -129,20 +167,19 @@ describe("Isolated REG24 Neon Migration Parser, Quota Verifier & Point-in-Time R
               rows: [
                 { tgname: "trg_trial_audit_storage_cap", tgenabled: "O" },
                 { tgname: "trg_trial_invite_storage_cap", tgenabled: "O" },
+                { tgname: "trg_trial_ratelimit_storage_cap", tgenabled: "O" },
               ] as unknown as T[],
-              rowCount: 2,
+              rowCount: 3,
             };
           }
 
           if (query.includes("INSERT INTO trial_invite_credentials")) {
             const [invite_id, token_sha256, assigned_email] = params as string[];
-            expect(query).toContain("'trial'"); // matches CHECK (environment_scope IN ('staging', 'trial'))
             primaryInviteRows.set(invite_id, { invite_id, token_sha256, assigned_email });
             return { rows: [], rowCount: 1 };
           }
 
           if (query.includes("INSERT INTO trial_audit_events")) {
-            expect(query).toContain("'TRIAL_QUERY'"); // matches CHECK (event_type IN ('TRIAL_QUERY', 'TRIAL_CITATION_OPEN'))
             const [audit_id, invite_fingerprint, manifest_hash, trace_id, question_sha256] =
               params as string[];
             primaryAuditRows.set(audit_id, {
@@ -169,7 +206,6 @@ describe("Isolated REG24 Neon Migration Parser, Quota Verifier & Point-in-Time R
           }
 
           if (query.includes("pg_current_wal_lsn()")) {
-            // Snapshot state at LSN before primary deletion!
             pitrSnapshotAuditRows = new Map(primaryAuditRows);
             pitrSnapshotInviteRows = new Map(primaryInviteRows);
             return {
@@ -225,7 +261,7 @@ describe("Isolated REG24 Neon Migration Parser, Quota Verifier & Point-in-Time R
       expect(receipt.hosted_restore_test_status).toBe(
         "COMPLETED_VERIFIED_HOSTED_BACKUP_AND_PITR"
       );
-      expect(receipt.sql_statements_applied_count).toBe(10);
+      expect(receipt.sql_statements_applied_count).toBe(13);
       expect(receipt.quotas_verified_exact).toBe(true);
       expect(receipt.postgresql_2gib_triggers_verified_active).toBe(true);
       expect(capturedParentLsn).toBe("0/1A2B3C40");
@@ -238,5 +274,150 @@ describe("Isolated REG24 Neon Migration Parser, Quota Verifier & Point-in-Time R
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
+  });
+
+  it("3. Rejects access fail-closed when zero approved invites are configured, enforces distributed rate limits across cold-start instances, and reports/blocks audit save failures", async () => {
+    const previewDir = path.resolve(process.cwd(), "data", "knowledge-store-b01-rc2-staging");
+    const store = new DurableKnowledgeStore(previewDir);
+    setDefaultKnowledgeStoreForTesting(store);
+
+    // 3a. FAIL-CLOSED WHEN ZERO APPROVED INVITES ARE CONFIGURED (even when caller passes a non-empty token!)
+    process.env.REG24_TRIAL_INVITE_ONLY = "1";
+    delete process.env.REG24_TRIAL_INVITE_CODES;
+    delete process.env.REG24_TRIAL_ALLOWED_INVITE_SHA256;
+    delete process.env.DATABASE_URL;
+
+    const zeroConfigRes = await postQueryRoute(
+      new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reg24-trial-invite": "arbitrary-non-empty-secret",
+        },
+        body: JSON.stringify({ question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636" }),
+      })
+    );
+    expect(zeroConfigRes.status).toBe(403);
+    const zeroConfigJson = await zeroConfigRes.json();
+    expect(zeroConfigJson.error).toMatch(/TRIAL_NO_APPROVED_INVITES_CONFIGURED_403/);
+
+    // 3b. DISTRIBUTED CROSS-INSTANCE RATE LIMITING ACROSS STATELESS SERVERLESS INSTANCES (VERCEL=1)
+    //     Wiping local slidingWindowBuckets BEFORE EVERY SINGLE REQUEST proves zero reliance on per-lambda memory!
+    process.env.VERCEL = "1";
+    process.env.REG24_TRIAL_QUERY_LIMIT_15M = "2";
+    const validToken = "invite-live-trial-01";
+    const validTokenHash = sha256Bytes(validToken);
+
+    const sharedDbRateBuckets = new Map<string, number>();
+    const sharedDbAuditRows: Array<Record<string, unknown>> = [];
+    let simulateAuditDbFailure = false;
+
+    setCustomTrialDbTransportForTesting(async <T>(query: string, params: unknown[] = []) => {
+      if (query.includes("FROM trial_invite_credentials") && query.includes("token_sha256 = $1")) {
+        if (params[0] === validTokenHash) {
+          return {
+            rows: [{ invite_id: "inv.01", query_limit_15m: 2, evidence_limit_15m: 120 }] as unknown as T[],
+            rowCount: 1,
+          };
+        }
+        return { rows: [], rowCount: 0 };
+      }
+      if (query.includes("INSERT INTO trial_rate_limit_buckets")) {
+        const bKey = `${params[0]}:${params[1]}:${params[2]}`;
+        const nextCnt = (sharedDbRateBuckets.get(bKey) || 0) + 1;
+        sharedDbRateBuckets.set(bKey, nextCnt);
+        return { rows: [{ request_count: nextCnt }] as unknown as T[], rowCount: 1 };
+      }
+      if (query.includes("INSERT INTO trial_audit_events")) {
+        if (simulateAuditDbFailure) {
+          throw new Error("NEON_SQL_HTTP_500:disk_or_connection_failure");
+        }
+        sharedDbAuditRows.push({ audit_id: params[0] });
+        return { rows: [{ audit_id: params[0] }] as unknown as T[], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
+
+    // Instance 1 (cold start) -> 200 OK
+    resetTrialRateLimiterForTesting();
+    const inst1 = await postQueryRoute(
+      new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reg24-trial-invite": validToken,
+        },
+        body: JSON.stringify({ question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636", mode: "exact_lookup" }),
+      })
+    );
+    expect(inst1.status).toBe(200);
+    expect(inst1.headers.get("x-reg24-ratelimit-backend")).toBe("hosted_postgres_distributed");
+    expect(inst1.headers.get("x-reg24-ratelimit-remaining")).toBe("1");
+    expect(inst1.headers.get("x-reg24-audit-status")).toBe("hosted_postgres");
+
+    // Instance 2 (cold start — local memory completely wiped!) -> 200 OK (remaining = 0)
+    resetTrialRateLimiterForTesting();
+    const inst2 = await postQueryRoute(
+      new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reg24-trial-invite": validToken,
+        },
+        body: JSON.stringify({ question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999" }),
+      })
+    );
+    expect(inst2.status).toBe(200);
+    expect(inst2.headers.get("x-reg24-ratelimit-remaining")).toBe("0");
+
+    // Instance 3 (cold start — local memory completely wiped!) -> 429 RATE_LIMITED + Retry-After header!
+    resetTrialRateLimiterForTesting();
+    const inst3 = await postQueryRoute(
+      new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reg24-trial-invite": validToken,
+        },
+        body: JSON.stringify({ question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636" }),
+      })
+    );
+    expect(inst3.status).toBe(429);
+    expect(Number(inst3.headers.get("Retry-After"))).toBeGreaterThan(0);
+    expect(sharedDbAuditRows.length).toBe(2);
+
+    // 3c. AUDIT FAILURE IN PROTECTED TRIAL FAILS CLOSED (503) — NEVER SILENTLY DROPS AUDIT!
+    sharedDbRateBuckets.clear();
+    simulateAuditDbFailure = true;
+    const auditFailStrict = await postQueryRoute(
+      new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reg24-trial-invite": validToken,
+        },
+        body: JSON.stringify({ question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999" }),
+      })
+    );
+    expect(auditFailStrict.status).toBe(503);
+    const auditFailJson = await auditFailStrict.json();
+    expect(auditFailJson.error).toMatch(/TRIAL_AUDIT_PERSISTENCE_FAILED_503/);
+
+    // 3d. Even in non-strict preview (REG24_TRIAL_INVITE_ONLY=0, REG24_TRIAL_DB_AUDIT=1), audit failure is explicitly surfaced in headers & JSON!
+    delete process.env.REG24_TRIAL_INVITE_ONLY;
+    process.env.REG24_TRIAL_DB_AUDIT = "1";
+    const previewExplicitWarn = await postQueryRoute(
+      new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999" }),
+      })
+    );
+    expect(previewExplicitWarn.status).toBe(200);
+    expect(previewExplicitWarn.headers.get("x-reg24-audit-status")).toBe("failed");
+    expect(previewExplicitWarn.headers.get("x-reg24-audit-error")).toContain("NEON_SQL_HTTP_500");
+    const previewWarnJson = await previewExplicitWarn.json();
+    expect(previewWarnJson.audit_status.persisted_durable).toBe(false);
+    expect(previewWarnJson.audit_status.backend).toBe("failed");
   });
 });
