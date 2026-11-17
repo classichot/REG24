@@ -1,0 +1,121 @@
+{
+  "verified_at": "2026-11-17T15:48:55.483Z",
+  "test_classification": "REAL_DISPOSABLE_NEO4J_5_INSTANCE_RESTORE_VERIFICATION",
+  "disposable_instance": {
+    "engine": [
+      {
+        "name": "Neo4j Kernel",
+        "versions": [
+          "5.26.0"
+        ],
+        "edition": "community"
+      }
+    ],
+    "loopback_bolt_uri": "bolt://127.0.0.1:17687",
+    "http_and_https_disabled": true,
+    "auth_enabled": true,
+    "restore_elapsed_ms": 27338
+  },
+  "backup_source": {
+    "path_outside_git": "C:\\Users\\I7\\.gemini\\antigravity\\brain\\ade02dfd-8b7a-4fcf-a521-8f458561a22a\\backups\\neo4j_374f4f7e_full_logical_backup_20261117.json.gz",
+    "verified_sha256": "589e15775d407587fd7e85867213e34ccdbee82336477a438276bad21167d609",
+    "size_bytes": 3029380
+  },
+  "schema_and_index_verification": {
+    "expected_constraints": 13,
+    "restored_constraints": 13,
+    "uniqueness_constraint_actively_blocks_duplicates": true,
+    "expected_indexes": 20,
+    "restored_indexes": 20,
+    "online_indexes": 20,
+    "all_20_indexes_online": true
+  },
+  "graph_inventory_parity": {
+    "verification_status": "VERIFIED_ISOLATED_RESTORE_READ",
+    "expected_nodes": 9818,
+    "restored_nodes": 9818,
+    "expected_relationships": 9649,
+    "restored_relationships": 9649,
+    "orphan_nodes": 0,
+    "counts_by_label": {
+      "TaxRuling": 3646,
+      "Provision": 2979,
+      "LegalInstrument": 2350,
+      "LegalForm": 553,
+      "ProvisionVersion": 68,
+      "Regulator": 49,
+      "SourceDocument": 44,
+      "LegalConcept": 31,
+      "LegalFormCategory": 23,
+      "Rule": 20,
+      "IndustryModule": 19,
+      "Obligation": 14,
+      "CourtDecision": 11,
+      "SubRegulation": 9,
+      "LegalEntity": 2
+    },
+    "counts_by_relationship_type": {
+      "INTERPRETS": 3659,
+      "CONTAINS": 2982,
+      "ISSUED_UNDER": 2081,
+      "HAS_LEGAL_FORM": 553,
+      "SUPPORTS": 109,
+      "HAS_VERSION": 68,
+      "DERIVED_FROM": 55,
+      "USES": 51,
+      "RELATED_TO": 45,
+      "REFERS_TO": 37,
+      "CITES": 6,
+      "EXCEPTION_TO": 1,
+      "AMENDS": 1,
+      "SUPERSEDES": 1
+    }
+  },
+  "representative_queries_and_property_checks": {
+    "multi_hop_ruling_provision_instrument_sample": [
+      {
+        "instrument_id": "inst.th.rc",
+        "provision_id": "prov.th.rc.73_74_77_1",
+        "ruling_id": "ruling.th.rd.0702_453_2568",
+        "ruling_ref": null
+      },
+      {
+        "instrument_id": "inst.th.ccc",
+        "provision_id": "prov.th.ccc.1238_1243",
+        "ruling_id": "ruling.th.rd.0702_453_2568",
+        "ruling_ref": null
+      },
+      {
+        "instrument_id": "inst.th.rc",
+        "provision_id": "prov.th.rc.65",
+        "ruling_id": "ruling.th.rd.0702_462_2569",
+        "ruling_ref": null
+      },
+      {
+        "instrument_id": "inst.th.rc",
+        "provision_id": "prov.th.rc.73_74_77_1",
+        "ruling_id": "ruling.th.rd.0702_462_2569",
+        "ruling_ref": null
+      },
+      {
+        "instrument_id": "inst.th.ccc",
+        "provision_id": "prov.th.ccc.1238_1243",
+        "ruling_id": "ruling.th.rd.0702_462_2569",
+        "ruling_ref": null
+      }
+    ],
+    "fulltext_index_ft_legal_provisions_hits": 1202,
+    "temporal_provision_version_hits": 68,
+    "sampled_nodes_property_sha256_checked": 50,
+    "sampled_nodes_property_sha256_matched": 50
+  },
+  "live_preservation_and_isolation_confirmations": {
+    "live_374f4f7e_nodes_after": 9818,
+    "live_374f4f7e_relationships_after": 9649,
+    "live_374f4f7e_unchanged": true,
+    "rag24_touched": false,
+    "production_vercel_env_identity_status": "UNVERIFIED",
+    "production_identity_explanation": "Matching node/relationship counts (9,818 / 9,649) do NOT by themselves prove Production connects to 374f4f7e. Because Vercel Production stores NEO4J_URI (env_id: lOymi3K3YZaPkTHr) as write-only 'sensitive' (unreadable via Vercel CLI/API and hidden in Vercel UI after creation) and main is frozen, Production-to-374f4f7e URI identity remains marked UNVERIFIED until confirmed via the REG24 Aura Console instance inventory or an authorized Production env check."
+  },
+  "all_restore_and_query_checks_passed": true
+}

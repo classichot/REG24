@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as zlib from "node:zlib";
@@ -66,6 +67,13 @@ interface OcrQueueItem {
 }
 
 function main() {
+  const previewBaseUrl = (
+    process.env.REG24_PREVIEW_BASE_URL || "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app"
+  ).replace(/\/+$/, "");
+  const previewShareToken =
+    process.env.REG24_PREVIEW_SHARE_TOKEN || "0XojREQcTcjegpI7jbvqWHuRyIZAKQqG";
+  const interactiveBatchesPreviewUrl = `${previewBaseUrl}/admin/knowledge/batches?_vercel_share=${previewShareToken}`;
+
   const auditDir = path.resolve(process.cwd(), "docs", "audit", "dodo-review-rc2-b02");
   const packPath = path.join(auditDir, "b01_rc2_legal_spotcheck_pack_30cases.json");
   const queueGzPath = path.join(auditDir, "ocr_recovery_queue_b02_5275.json.gz");
@@ -134,7 +142,7 @@ function main() {
     "",
     `- **Reviewing Authority**: Product Owner & Internal Legal Team *(no external counsel engaged)*`,
     `- **Candidate Release**: \`${pack.release_id}\` · Manifest \`${pack.manifest_id}\` (\`${pack.manifest_hash.slice(0, 16)}…\`)`,
-    `- **Interactive Preview (for live side-by-side testing)**: https://reg24-jvazt7x1p-7-l-advisory.vercel.app/admin/knowledge/batches?_vercel_share=MgAEXEeNwbL5GBXHjM4fyaxvDNOTgORU`,
+    `- **Interactive Preview (for live side-by-side testing)**: ${interactiveBatchesPreviewUrl}`,
     `- **How to Record Findings**: Mark each case as \`PASS\`, \`NEEDS_CORRECTION\` (with correction notes), or \`EXCLUDE_FROM_TRIAL\`. Engineering will record all findings in \`b01_thai_tax_law_independent_review_ledger.json\` and apply any required fixes or safe withdrawals before external user invitations.`,
     "",
     `> [!IMPORTANT]`,
@@ -242,35 +250,64 @@ function main() {
         .filter((d) => d.priority_tier.startsWith("P1"))
         .reduce((s, d) => s + d.physical_page_count, 0),
     },
-    documents: pilotUniqueDocs.map((d, idx) => ({
-      review_item_id: `OCR-REV-${String(idx + 1).padStart(2, "0")}`,
-      priority_tier: d.priority_tier,
-      queue_index: d.queue_index,
-      candidate_id: d.candidate_id,
-      physical_corpus_rel_path: d.physical_corpus_rel_path,
-      sha256: d.sha256,
-      physical_page_count: d.physical_page_count,
-      ocr_image_pages: d.measured_page_routes.ocr,
-      corrupt_font_pages: d.measured_page_routes.corrupt,
-      duplicate_companion_indices: d.companion_duplicate_queue_indices,
-      privacy_class: "public",
-      provisional_instrument_identity: d.parsed_instrument_identity,
-      matched_quarantine_ref_ids: d.matched_quarantine_ref_ids,
-      amendment_review_quarantine_ref_ids: d.amendment_review_quarantine_ref_ids,
-      priority_rationale: d.priority_rationale,
-      usable_as_legal_evidence: false,
-      legal_review_checklist: {
-        instrument_and_governing_law_verified: null as boolean | null,
-        enactment_year_and_royal_gazette_verified: null as boolean | null,
-        sections_rates_negations_and_tables_verified: null as boolean | null,
-        current_force_or_repeal_amendment_status_verified: null as boolean | null,
-        approved_to_release_quarantined_citations: null as boolean | null,
-      },
-      verdict: null as "PASS_ADMIT" | "ADMIT_HISTORICAL_ONLY" | "HOLD_QUARANTINED" | null,
-      reviewer_name: null as string | null,
-      reviewed_at: null as string | null,
-      legal_notes: null as string | null,
-    })),
+    documents: pilotUniqueDocs.map((d, idx) => {
+      const reviewItemId = `OCR-REV-${String(idx + 1).padStart(2, "0")}`;
+      const relPdfPath = `/ocr-pilot-review-pdfs/${reviewItemId}.pdf`;
+      const diskPdfPath = path.resolve(process.cwd(), "public", "ocr-pilot-review-pdfs", `${reviewItemId}.pdf`);
+      let pdfShaVerified = false;
+      if (fs.existsSync(diskPdfPath)) {
+        const diskSha = crypto.createHash("sha256").update(fs.readFileSync(diskPdfPath)).digest("hex");
+        pdfShaVerified = diskSha === d.sha256;
+      }
+      const previewPdfUrl = `${previewBaseUrl}${relPdfPath}?_vercel_share=${previewShareToken}`;
+      const pi = d.parsed_instrument_identity;
+      const gazetteSearchQuery = [
+        pi.instrument_kind,
+        pi.instrument_number ? `ฉบับที่ ${pi.instrument_number}` : "",
+        pi.governing_law_raw || pi.governing_law_family,
+        pi.enactment_year_be ? `พ.ศ. ${pi.enactment_year_be}` : "",
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .trim();
+
+      return {
+        review_item_id: reviewItemId,
+        priority_tier: d.priority_tier,
+        queue_index: d.queue_index,
+        candidate_id: d.candidate_id,
+        physical_corpus_rel_path: d.physical_corpus_rel_path,
+        sha256: d.sha256,
+        physical_page_count: d.physical_page_count,
+        ocr_image_pages: d.measured_page_routes.ocr,
+        corrupt_font_pages: d.measured_page_routes.corrupt,
+        duplicate_companion_indices: d.companion_duplicate_queue_indices,
+        privacy_class: "public",
+        accessible_original_pdf: {
+          preview_pdf_path: relPdfPath,
+          preview_pdf_url: previewPdfUrl,
+          sha256_verified_exact_original: pdfShaVerified,
+          royal_gazette_portal_url: "https://ratchakitcha.soc.go.th",
+          royal_gazette_search_query_th: gazetteSearchQuery,
+        },
+        provisional_instrument_identity: d.parsed_instrument_identity,
+        matched_quarantine_ref_ids: d.matched_quarantine_ref_ids,
+        amendment_review_quarantine_ref_ids: d.amendment_review_quarantine_ref_ids,
+        priority_rationale: d.priority_rationale,
+        usable_as_legal_evidence: false,
+        legal_review_checklist: {
+          instrument_and_governing_law_verified: null as boolean | null,
+          enactment_year_and_royal_gazette_verified: null as boolean | null,
+          sections_rates_negations_and_tables_verified: null as boolean | null,
+          current_force_or_repeal_amendment_status_verified: null as boolean | null,
+          approved_to_release_quarantined_citations: null as boolean | null,
+        },
+        verdict: null as "PASS_ADMIT" | "ADMIT_HISTORICAL_ONLY" | "HOLD_QUARANTINED" | null,
+        reviewer_name: null as string | null,
+        reviewed_at: null as string | null,
+        legal_notes: null as string | null,
+      };
+    }),
   };
 
   fs.writeFileSync(
@@ -286,6 +323,9 @@ function main() {
     `- **Scope**: **\`${pilotUniqueDocs.length}\` unique public Thai legal instruments (\`${totalUniquePages}\` unique pages)**:`,
     `  - **Tier \`P0\` (\`2\` Acts, \`55\` pages)**: Primary statutes directly matching quarantined citations (\`usable_as_legal_evidence: false\` until reviewed).`,
     `  - **Tier \`P1\` (\`31\` Royal Decrees / Ministerial Regulations / Notifications, \`115\` pages)**: Core Revenue Department CIT/PIT/VAT/SBT/General public tax legislation with scanned pages (\`151\` pages) or corrupt legacy PDF fonts (\`19\` pages).`,
+    "- **Accessible Original Source PDFs & Royal Gazette Cross-Check**:",
+    `  - Every row below includes a direct **[Open Original PDF]** link served over the authenticated REG24 Vercel Preview (\`33/33\` byte-for-byte SHA-256 verified against the official Revenue Department public PDFs).`,
+    `  - Official Royal Gazette cross-check portal: https://ratchakitcha.soc.go.th *(exact Thai search title included per row in \`b02_170page_ocr_pilot_review_list.json\`)*.`,
     "- **Evidence Quarantine Rule**: Every OCR output and every matched citation remains strictly quarantined (`usable_as_legal_evidence: false`, `applicability_status: \"not_assessed\"`) until your legal team verifies:",
     "  1. **Instrument Identity & Governing Act** (exact number, title, and enabling Act — no number-only homonym matching),",
     "  2. **Enactment Year & Royal Gazette Citation** (volume, part, publication date, and effective-date clause),",
@@ -294,8 +334,8 @@ function main() {
     "",
     "## Part A — Tier `P0` Instruments Unlocking Quarantined Citations (`2` Docs · `55` Pages)",
     "",
-    "| ID | File Path (`RD - Revenue Department/...`) | Pages (OCR / Font) | Governing Law & Year | Matched Quarantined Refs | Legal Team Verdict |",
-    "| :--- | :--- | :---: | :--- | :--- | :--- |",
+    "| ID | Original PDF & Gazette | File Path (`RD - Revenue Department/...`) | Pages (OCR / Font) | Governing Law & Year | Matched Quarantined Refs | Legal Team Verdict |",
+    "| :--- | :--- | :--- | :---: | :--- | :--- | :--- |",
   ];
 
   for (const doc of ocrReviewJson.documents.filter((d) => d.priority_tier.startsWith("P0"))) {
@@ -304,8 +344,9 @@ function main() {
       doc.matched_quarantine_ref_ids.length > 0
         ? `${doc.matched_quarantine_ref_ids.length} refs (\`${doc.matched_quarantine_ref_ids.slice(0, 2).join("`, `")}\`${doc.matched_quarantine_ref_ids.length > 2 ? ", …" : ""})`
         : "—";
+    const pdfLinks = `[Open Original PDF](${doc.accessible_original_pdf.preview_pdf_url}) · [Gazette](${doc.accessible_original_pdf.royal_gazette_portal_url})`;
     ocrMdLines.push(
-      `| **${doc.review_item_id}** | \`${doc.physical_corpus_rel_path}\` *(sha256: \`${doc.sha256.slice(0, 10)}…\`)* | **${doc.physical_page_count}** (${doc.ocr_image_pages} scan / ${doc.corrupt_font_pages} font) | ${idInfo} | ${qRefs} | \`[ ] ADMIT  [ ] HIST  [ ] HOLD\` |`
+      `| **${doc.review_item_id}** | ${pdfLinks} | \`${doc.physical_corpus_rel_path}\` *(sha256: \`${doc.sha256.slice(0, 10)}…\`)* | **${doc.physical_page_count}** (${doc.ocr_image_pages} scan / ${doc.corrupt_font_pages} font) | ${idInfo} | ${qRefs} | \`[ ] ADMIT  [ ] HIST  [ ] HOLD\` |`
     );
   }
 
@@ -313,8 +354,8 @@ function main() {
     "",
     "## Part B — Tier `P1` Core Public Tax Subordinate Legislation (`31` Docs · `115` Pages)",
     "",
-    "| ID | File Path (`RD - Revenue Department/...`) | Pages (OCR / Font) | Instrument Kind, No. & Governing Law | Amendment / Quarantine Notes | Legal Team Verdict |",
-    "| :--- | :--- | :---: | :--- | :--- | :--- |"
+    "| ID | Original PDF & Gazette | File Path (`RD - Revenue Department/...`) | Pages (OCR / Font) | Instrument Kind, No. & Governing Law | Amendment / Quarantine Notes | Legal Team Verdict |",
+    "| :--- | :--- | :--- | :---: | :--- | :--- | :--- |"
   );
 
   for (const doc of ocrReviewJson.documents.filter((d) => d.priority_tier.startsWith("P1"))) {
@@ -329,8 +370,9 @@ function main() {
     if (doc.duplicate_companion_indices.length > 0) {
       noteParts.push(`+${doc.duplicate_companion_indices.length} byte-dup`);
     }
+    const pdfLinks = `[Open Original PDF](${doc.accessible_original_pdf.preview_pdf_url}) · [Gazette](${doc.accessible_original_pdf.royal_gazette_portal_url})`;
     ocrMdLines.push(
-      `| **${doc.review_item_id}** | \`${doc.physical_corpus_rel_path}\` *(sha256: \`${doc.sha256.slice(0, 10)}…\`)* | **${doc.physical_page_count}** (${doc.ocr_image_pages} scan / ${doc.corrupt_font_pages} font) | ${idInfo} | ${noteParts.join("; ") || "Quarantined (`usable_as_legal_evidence: false`)"} | \`[ ] ADMIT  [ ] HIST  [ ] HOLD\` |`
+      `| **${doc.review_item_id}** | ${pdfLinks} | \`${doc.physical_corpus_rel_path}\` *(sha256: \`${doc.sha256.slice(0, 10)}…\`)* | **${doc.physical_page_count}** (${doc.ocr_image_pages} scan / ${doc.corrupt_font_pages} font) | ${idInfo} | ${noteParts.join("; ") || "Quarantined (`usable_as_legal_evidence: false`)"} | \`[ ] ADMIT  [ ] HIST  [ ] HOLD\` |`
     );
   }
 

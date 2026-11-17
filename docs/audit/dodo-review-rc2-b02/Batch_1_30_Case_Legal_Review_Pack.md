@@ -2,7 +2,7 @@
 
 - **Reviewing Authority**: Product Owner & Internal Legal Team *(no external counsel engaged)*
 - **Candidate Release**: `rel.B01.rc5` · Manifest `mfst.b01.mwjgk5o7` (`c63bd81e8face7ea…`)
-- **Interactive Preview (for live side-by-side testing)**: https://reg24-jvazt7x1p-7-l-advisory.vercel.app/admin/knowledge/batches?_vercel_share=MgAEXEeNwbL5GBXHjM4fyaxvDNOTgORU
+- **Interactive Preview (for live side-by-side testing)**: https://reg24-cfwj4zfs9-7-l-advisory.vercel.app/admin/knowledge/batches?_vercel_share=0XojREQcTcjegpI7jbvqWHuRyIZAKQqG
 - **How to Record Findings**: Mark each case as `PASS`, `NEEDS_CORRECTION` (with correction notes), or `EXCLUDE_FROM_TRIAL`. Engineering will record all findings in `b01_thai_tax_law_independent_review_ledger.json` and apply any required fixes or safe withdrawals before external user invitations.
 
 > [!IMPORTANT]
