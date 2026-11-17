@@ -125,6 +125,7 @@ function ensureEvidenceCardsForPassages(
       statement_role: p.statement_role,
       issue_or_effective_date:
         ver?.decision_date || ver?.publication_date || ver?.legal_applicability?.[0]?.valid_from || null,
+      raw_date_text: ver?.raw_date_text || null,
       exact_excerpt: p.exact_text,
       locator: p.real_locator,
       related_provisions: relatedProvisions,
@@ -201,14 +202,14 @@ export async function queryKnowledge(
 
   const coverageWarnings: string[] = [...(releaseRec?.coverage_gaps || [])];
 
-  // 1. Explicit nonexistent official ruling identifier -> Immediate clean abstention (AT12a, B01-U10)
-  if (
-    bundle.unresolved_explicit_ruling_ids.length > 0 &&
-    (req.mode === "exact_lookup" ||
-      bundle.unresolved_explicit_ruling_ids.length === bundle.explicit_ruling_ids_in_query.length)
-  ) {
+  // 1a. Explicit nonexistent or partially unresolved official ruling identifier -> Immediate clean abstention in ALL modes, ZERO silent substitution! (AT12a, B01-U10)
+  if (bundle.unresolved_explicit_ruling_ids.length > 0) {
     const missingLabel = bundle.unresolved_explicit_ruling_ids.join(", ");
-    const abstentionText = `ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ ${missingLabel} ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (${releaseId}) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือแนววินิจฉัยขึ้นเอง`;
+    const resolvedIds = bundle.resolved_explicit_ruling_ids || [];
+    const abstentionText =
+      resolvedIds.length > 0
+        ? `ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ ${missingLabel} ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (${releaseId}) ระบบจึงระงับการสรุปเปรียบเทียบและไม่นำข้อหารือฉบับอื่นมาสวมรอยแทนโดยพลการ (เฉพาะเลขที่ที่ตรวจสอบพบต้นฉบับจริงในคลังข้อมูลคือ: ${resolvedIds.join(", ")})`
+        : `ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ ${missingLabel} ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (${releaseId}) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน`;
     return {
       release_id: releaseId,
       knowledge_snapshot_at: snapshotAt,
@@ -232,6 +233,45 @@ export async function queryKnowledge(
       assumptions: [],
       clarification_questions: [
         `กรุณาตรวจสอบเลขที่หนังสือตอบข้อหารือ (${missingLabel}) หรือวันที่ออกหนังสืออีกครั้ง`,
+      ],
+      coverage_warnings: coverageWarnings,
+      applicable_date: req.applicable_date ?? null,
+      model_policy_version: "reg24-grounded-legal-v1.1",
+      trace_id: traceId,
+      latency_ms: Math.max(1, Date.now() - startedAt),
+    };
+  }
+
+  // 1a-ii. Explicit ruling number exists in another year/date, NOT the year/date requested -> Never substitute another year's homonym!
+  if ((bundle.year_mismatched_ruling_lookups?.length || 0) > 0) {
+    const m = bundle.year_mismatched_ruling_lookups![0];
+    const availSummary = m.available_versions
+      .map((v) => `${m.ruling_id} ลงวันที่ ${v.raw_date_text || v.decision_date || "-"} (${v.origin_uri})`)
+      .join("; ");
+    const mismatchMsg = `ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ ${m.ruling_id} ที่ตรงกับวันที่หรือปีที่ระบุ (${m.requested_qualifier}) ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (${releaseId}) ระบบจึงไม่นำข้อหารือเลขที่เดียวกันจากปีอื่นมาแสดงแทนโดยพลการ ทั้งนี้ ฉบับจริงของเลขที่ ${m.ruling_id} ที่มีในคลังข้อมูล ได้แก่: ${availSummary}`;
+    return {
+      release_id: releaseId,
+      knowledge_snapshot_at: snapshotAt,
+      status: "INSUFFICIENT_EVIDENCE",
+      answer: mismatchMsg,
+      claims: [
+        {
+          claim_id: `clm.${traceId}.abstain_year_mismatch`,
+          statement: mismatchMsg,
+          claim_type: "abstention_notice",
+          statement_role: "reg24_inference",
+          supporting_passage_ids: [],
+          applicable_version_id: null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "VERIFIED",
+        },
+      ],
+      evidence: [],
+      assumptions: [],
+      clarification_questions: [
+        `กรุณาระบุวันที่ออกหนังสือที่มีอยู่จริงของ ${m.ruling_id} (${m.available_versions.map((v) => v.raw_date_text).join(" หรือ ")})`,
       ],
       coverage_warnings: coverageWarnings,
       applicable_date: req.applicable_date ?? null,
@@ -382,7 +422,7 @@ export async function queryKnowledge(
   // 3. Insufficient evidence gate when no relevant authorized passage is found
   if (liveVerifiedHits.length === 0 || liveVerifiedHits[0].score < 1.15) {
     const msg =
-      "ไม่พบหลักฐานข้อกฎหมายหรือหนังสือตอบข้อหารือที่ได้รับอนุญาตและตรงกับประเด็นคำถามอย่างเพียงพอในคลังข้อมูลชุดปัจจุบัน ระบบจึงไม่คาดเดาคำตอบทางภาษี";
+      "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหลักฐานข้อกฎหมายหรือหนังสือตอบข้อหารือที่ได้รับอนุญาตและตรงกับประเด็นคำถามอย่างเพียงพอในคลังข้อมูลชุดปัจจุบัน ระบบจึงไม่คาดเดาคำตอบทางภาษี";
     return {
       release_id: releaseId,
       knowledge_snapshot_at: snapshotAt,
@@ -417,12 +457,53 @@ export async function queryKnowledge(
 
   const availablePassages: Passage[] = liveVerifiedHits.map((h) => h.passage);
 
-  // Surface explicit coverage warning when top cited rulings reference quarantined external statutes (`usable_as_legal_evidence: false`)
-  const topCitedWorkIds = new Set(availablePassages.slice(0, 4).map((p) => p.work_id));
+  const isComparisonMode =
+    req.mode === "comparison" ||
+    (req.comparison_work_ids && req.comparison_work_ids.length >= 2) ||
+    bundle.explicit_ruling_ids_in_query.length >= 2 ||
+    /เปรียบเทียบ/.test(req.question);
+
+  let singleExplicitRulingPassage: Passage | undefined;
+  if (!isComparisonMode && bundle.explicit_ruling_ids_in_query.length === 1) {
+    const targetRId = bundle.explicit_ruling_ids_in_query[0];
+    const targetWithGk = targetRId.startsWith("กค ") ? targetRId : `กค ${targetRId}`;
+    const targetWithoutGk = targetRId.replace(/^กค\s+/, "");
+    singleExplicitRulingPassage = availablePassages.find((p) => {
+      if (p.statement_role !== "official_conclusion") return false;
+      const w = freshState.works[p.work_id];
+      if (!w || w.type !== "TaxRuling") return false;
+      return w.official_identifiers.some(
+        (oid) =>
+          oid.normalized === targetRId ||
+          oid.normalized === targetWithGk ||
+          oid.normalized === targetWithoutGk
+      );
+    });
+  }
+
+  // Scope conditions, exceptions & quarantined-law warnings strictly to the primary work(s) being answered so Hop-2 neighbor rulings never leak unrelated warnings
+  const conditionScopeWorkIds = new Set<string>(
+    isComparisonMode
+      ? availablePassages.slice(0, 4).map((p) => p.work_id)
+      : singleExplicitRulingPassage
+        ? [singleExplicitRulingPassage.work_id]
+        : availablePassages[0]
+          ? [
+              (
+                availablePassages.find(
+                  (p) =>
+                    p.statement_role === "official_conclusion" ||
+                    p.statement_role === "statutory_text"
+                ) || availablePassages[0]
+              ).work_id,
+            ]
+          : []
+  );
+
   const quarantinedCitationsForAnswer = Array.from(
     new Set(
       Object.values(freshState.unresolved_references)
-        .filter((u) => topCitedWorkIds.has(u.source_work_id) && !u.usable_as_legal_evidence)
+        .filter((u) => conditionScopeWorkIds.has(u.source_work_id) && !u.usable_as_legal_evidence)
         .map((u) => u.raw_citation_text)
     )
   ).slice(0, 4);
@@ -431,29 +512,6 @@ export async function queryKnowledge(
       `หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ ${quarantinedCitationsForAnswer.join(", ")} — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน`
     );
   }
-
-  const isComparisonMode =
-    req.mode === "comparison" ||
-    (req.comparison_work_ids && req.comparison_work_ids.length >= 2) ||
-    bundle.explicit_ruling_ids_in_query.length >= 2 ||
-    /เปรียบเทียบ/.test(req.question);
-
-  // Scope conditions & exceptions strictly to the primary work(s) being answered so Hop-2 neighbor rulings never leak unrelated company facts
-  const conditionScopeWorkIds = new Set<string>(
-    isComparisonMode
-      ? availablePassages.slice(0, 4).map((p) => p.work_id)
-      : availablePassages[0]
-        ? [
-            (
-              availablePassages.find(
-                (p) =>
-                  p.statement_role === "official_conclusion" ||
-                  p.statement_role === "statutory_text"
-              ) || availablePassages[0]
-            ).work_id,
-          ]
-        : []
-  );
   const allReleasePassages = store.getPassagesForRelease(releaseId);
   const allAcceptedAssertions = store.getAcceptedAssertionsForRelease(releaseId);
 
@@ -616,8 +674,9 @@ export async function queryKnowledge(
         verification_result: verCheck.verification_result,
       });
 
+      const compOriginUri = conclusionUnits[0]?.real_locator?.origin_uri || conclusionSeed.real_locator?.origin_uri || "";
       answerSections.push(
-        `- **กรณี/รุ่นที่ ${idx + 1}: ${work?.title_th || label} (\`${ver?.version_label || conclusionSeed.version_id}\`)${intervalNote}**` +
+        `- **กรณี/รุ่นที่ ${idx + 1}: ${work?.title_th || label} (\`${ver?.version_label || conclusionSeed.version_id}\`)${intervalNote}${compOriginUri ? ` · ต้นฉบับ: ${compOriginUri}` : ""}**` +
           (fullFactsText ? `\n  - *ข้อเท็จจริงของผู้หารือ*: ${fullFactsText}` : "") +
           `\n  - *${work?.type === "TaxRuling" ? "แนววินิจฉัยของกรมสรรพากร" : "เนื้อหาบทบัญญัติ"}*: ${fullConclusionText}`
       );
@@ -632,7 +691,8 @@ export async function queryKnowledge(
       p.statement_role.startsWith("requester_")
     );
 
-    const primaryOfficial = officialPassages[0] || availablePassages[0];
+    const primaryOfficial =
+      singleExplicitRulingPassage || officialPassages[0] || availablePassages[0];
     const primaryWork = freshState.works[primaryOfficial.work_id];
     const primaryVer = freshState.versions[primaryOfficial.version_id];
     const primaryIdLabel =
@@ -802,9 +862,35 @@ export async function queryKnowledge(
       );
     }
 
+    const primaryOriginUri =
+      officialUnits[0]?.real_locator?.origin_uri || primaryOfficial.real_locator?.origin_uri || "";
     answerSections.push(
-      `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${primaryVer?.raw_date_text ? ` — ${primaryVer.raw_date_text}` : ""})**:\n${fullOfficialText}`
+      `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${primaryVer?.raw_date_text ? ` — ${primaryVer.raw_date_text}` : ""}${primaryOriginUri ? ` · ต้นฉบับ: ${primaryOriginUri}` : ""})**:\n${fullOfficialText}`
     );
+
+    // Multi-year / multi-date homonym disambiguation: explicitly disclose sibling real RD rulings sharing the same official number
+    if (primaryWork?.type === "TaxRuling" && (bundle.homonym_ruling_groups?.length || 0) > 0) {
+      const primaryWithGk = primaryIdLabel.startsWith("กค ") ? primaryIdLabel : `กค ${primaryIdLabel}`;
+      const homonymGroup = bundle.homonym_ruling_groups!.find((g) => {
+        const gWithGk = g.ruling_id.startsWith("กค ") ? g.ruling_id : `กค ${g.ruling_id}`;
+        return gWithGk === primaryWithGk;
+      });
+      const siblings = (homonymGroup?.works || []).filter((w) => w.work_id !== primaryWork.work_id);
+      if (siblings.length > 0) {
+        const sibLines = siblings
+          .map(
+            (s) =>
+              `- **${primaryIdLabel} ลงวันที่ ${s.raw_date_text || s.decision_date || "-"}** — ${s.title_th} (ต้นฉบับ: ${s.origin_uri})`
+          )
+          .join("\n");
+        const exBeYear =
+          siblings[0].raw_date_text?.match(/(25[3-7][0-9])/)?.[1] ||
+          (siblings[0].decision_date ? String(Number(siblings[0].decision_date.slice(0, 4)) + 543) : "2555");
+        answerSections.push(
+          `**หมายเหตุข้อหารือเลขที่ซ้ำต่างฉบับในคลังกรมสรรพากร (${primaryIdLabel})**: เลขที่หนังสือ \`${primaryIdLabel}\` ปรากฏในเอกสารทางการของกรมสรรพากรมากกว่า 1 ฉบับ (ต่างปี พ.ศ. หรือต่างวันที่/เรื่อง) โดยคำตอบด้านบนแสดงฉบับ **ลงวันที่ ${primaryVer?.raw_date_text || "-"}** (${primaryOriginUri}) ทั้งนี้ยังมีข้อหารือจริงเลขที่เดียวกันอีกฉบับในคลังข้อมูล ได้แก่:\n${sibLines}\n*(หากต้องการดูฉบับอื่นโดยเฉพาะ กรุณาระบุปี พ.ศ. หรือวันที่ต่อท้ายเลขที่หนังสือ เช่น \`${primaryIdLabel} ปี ${exBeYear}\` หรือ \`${primaryIdLabel} ลงวันที่ ${siblings[0].raw_date_text}\`)*`
+        );
+      }
+    }
 
     // When answering a B01 TaxRuling and an upgraded B02 statutory provision passage ACTUALLY linked (`INTERPRETS`/`CITES`) by this ruling is in availablePassages, surface it explicitly (B02-U09)!
     if (primaryWork?.type === "TaxRuling") {

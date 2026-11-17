@@ -300,7 +300,8 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999",
     mode: "exact_lookup",
     applicable_date: null,
-    legal_check_focus: "Nonexistent RD ruling identifier must return INSUFFICIENT_EVIDENCE.",
+    legal_check_focus:
+      "เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง · ผลที่คาดหมาย: ไม่พบข้อมูล / หลักฐานไม่เพียงพอ (Synthetic negative test — must return INSUFFICIENT_EVIDENCE and never invent or substitute a ruling).",
   },
 ];
 
@@ -309,13 +310,15 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
     storeDir || path.resolve(process.cwd(), "data", "knowledge-store-b01-rc2-staging");
   const store = new DurableKnowledgeStore(dir);
   const st = store.getState();
-  const targetReleaseId = st.releases["rel.B01.rc4"]
-    ? "rel.B01.rc4"
-    : st.releases["rel.B01.rc3"]
-      ? "rel.B01.rc3"
-      : st.releases["rel.B01.rc2"]
-        ? "rel.B01.rc2"
-        : Object.keys(st.releases).sort().pop() || "rel.B01.rc4";
+  const targetReleaseId = st.releases["rel.B01.rc5"]
+    ? "rel.B01.rc5"
+    : st.releases["rel.B01.rc4"]
+      ? "rel.B01.rc4"
+      : st.releases["rel.B01.rc3"]
+        ? "rel.B01.rc3"
+        : st.releases["rel.B01.rc2"]
+          ? "rel.B01.rc2"
+          : Object.keys(st.releases).sort().pop() || "rel.B01.rc5";
   const rel = st.releases[targetReleaseId];
   const allRelPassages = store.getPassagesForRelease(targetReleaseId);
 
@@ -392,8 +395,16 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
       );
     }).length;
 
+    const isSyntheticTest = spec.spotcheck_id === "LSC-30";
     items.push({
       ...spec,
+      is_synthetic_test_reference: isSyntheticTest,
+      synthetic_test_label_th: isSyntheticTest
+        ? "เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง"
+        : null,
+      expected_result_label_th: isSyntheticTest
+        ? "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ"
+        : null,
       observed_release_id: ans.release_id,
       observed_status: ans.status,
       trace_id: ans.trace_id,

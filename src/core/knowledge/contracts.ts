@@ -440,6 +440,7 @@ export interface EvidenceCard {
   is_derivative: boolean;
   statement_role: StatementRole;
   issue_or_effective_date: string | null;
+  raw_date_text?: string | null;
   exact_excerpt: string;
   locator: RealSourceLocator;
   related_provisions: Array<{

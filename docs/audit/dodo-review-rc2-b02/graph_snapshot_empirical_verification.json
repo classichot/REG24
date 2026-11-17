@@ -1,23 +1,23 @@
 {
-  "verified_at": "2026-11-16T13:49:46.734Z",
-  "candidate_release_id": "rel.B01.rc4",
-  "manifest_id": "mfst.b01.mwjbbi02",
-  "manifest_hash": "fc25318085b07a9b796a31758d64545b345b365c50d56bfdf688bf943c35f16b",
+  "verified_at": "2026-11-17T06:39:21.048Z",
+  "candidate_release_id": "rel.B01.rc5",
+  "manifest_id": "mfst.b01.mwjgk5o7",
+  "manifest_hash": "c63bd81e8face7ea5b00fa93905522f52c815f7d75d1cd5007ca29ddea8174a4",
   "evidence_classification_note": "The 28/28 metric below measures technical snapshot-vs-canonical retrieval parity and non-error response status ONLY; substantive Thai tax-law accuracy and completeness are verified separately against original rd.go.th / Gazette sources and require human Thai tax counsel sign-off.",
   "snapshot_graph_metrics": {
-    "node_count": 11606,
-    "edge_count": 43042,
+    "node_count": 11624,
+    "edge_count": 43100,
     "predicate_breakdown": {
-      "ISSUED_BY": 4561,
-      "ADDRESSES_ISSUE": 5874,
-      "CONSIDERS_FACT_PATTERN": 4561,
-      "INTERPRETS": 12744,
-      "CITES": 12744,
-      "HAS_CONDITION": 2200,
-      "HAS_EXCEPTION": 358
+      "ISSUED_BY": 4569,
+      "ADDRESSES_ISSUE": 5882,
+      "CONSIDERS_FACT_PATTERN": 4569,
+      "INTERPRETS": 12760,
+      "CITES": 12760,
+      "HAS_CONDITION": 2201,
+      "HAS_EXCEPTION": 359
     },
     "quarantined_edges_in_active_graph": 0,
-    "ruling_sibling_fact_conclusion_pairs_verified": 4561,
+    "ruling_sibling_fact_conclusion_pairs_verified": 4569,
     "unsplit_facts_equals_conclusion_defects": 0
   },
   "empirical_equivalence_benchmark": {
@@ -27,7 +27,7 @@
     "disk_snapshot_vs_canonical_top_hits_exact_match": "28/28",
     "evidence_card_edges_vs_cypher_adjacency_exact_match": "28/28",
     "verified_or_clean_abstention_rate": "28/28",
-    "avg_three_pass_test_bundle_ms": 605.06,
+    "avg_three_pass_test_bundle_ms": 525.53,
     "known_non_equivalences_vs_live_neo4j": [
       "Bounded to <=2-hop traversal (TaxRuling <-> Provision/SubordinateRegulation <-> co-interpreting TaxRuling); arbitrary >2-hop path queries (e.g. MATCH p=(a)-[*3..6]->(b)) require Cypher or multi-hop graph engine.",
       "No ad-hoc server-side Cypher analytical aggregations or GDS centrality across batches B01-B10.",
@@ -35,15 +35,15 @@
     ]
   },
   "rebuild_and_replay_benchmark": {
-    "cold_projection_rebuild_wall_clock_ms": 17170.24,
-    "rebuilt_edges_verified": 43042,
+    "cold_projection_rebuild_wall_clock_ms": 12851.69,
+    "rebuilt_edges_verified": 43100,
     "deterministic_triple_identity_verified": true,
     "cypher_unwind_500_batch_count": 87,
-    "local_cypher_batch_serialization_ms": 0.08,
+    "local_cypher_batch_serialization_ms": 0.19,
     "cloud_neo4j_network_ingestion_status": "UNTESTED_CLOUD_NETWORK_ESTIMATE — 67 parameterized UNWIND batches (33,366 edges) serialized locally; actual AuraDB Bolt network write time will be measured against an isolated target only after configuration approval (never against the preserved live REG24 graph)."
   },
   "disposable_rollback_verification": {
-    "rollback_wall_clock_ms": 4223.69,
+    "rollback_wall_clock_ms": 3313.28,
     "post_rollback_state": "ROLLED_BACK",
     "b02_shared_primary_works_before": 570,
     "b02_shared_primary_works_after": 570,

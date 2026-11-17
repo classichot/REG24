@@ -68,10 +68,33 @@ export function buildB01BoundUatCases(store: DurableKnowledgeStore, releaseId: s
     return cw || legacyId;
   };
 
-  // Find a real multi-representation work in store if present, else fallback to primary verified work
+  const relPassageWorkIds = new Set(
+    store.getPassagesForRelease(releaseId).map((p) => p.work_id)
+  );
+  const idCountInRel = new Map<string, number>();
+  for (const wid of relPassageWorkIds) {
+    const w = st.works[wid];
+    if (w?.type !== "TaxRuling") continue;
+    const norm = w.official_identifiers[0]?.normalized;
+    if (norm) idCountInRel.set(norm, (idCountInRel.get(norm) || 0) + 1);
+  }
+
+  // Find a real multi-representation work in this release (preferring unique identifier so bare lookup resolves 1:1)
+  const multiRepCandidates = Object.values(st.works).filter(
+    (w) =>
+      w.type === "TaxRuling" &&
+      w.identity_evidence.length >= 2 &&
+      (relPassageWorkIds.size === 0 || relPassageWorkIds.has(w.work_id))
+  );
   const multiRepWork =
-    Object.values(st.works).find((w) => w.type === "TaxRuling" && w.identity_evidence.length >= 2) ||
+    multiRepCandidates.find(
+      (w) => (idCountInRel.get(w.official_identifiers[0]?.normalized || "") || 0) === 1
+    ) ||
+    multiRepCandidates[0] ||
     st.works[resolveWorkIdForLegacy("ruling.th.rd.68302", "กค 0702/636")];
+  const multiRepVer = multiRepWork
+    ? Object.values(st.versions).find((v) => v.work_id === multiRepWork.work_id)
+    : undefined;
 
   const cases: UATCase[] = [
     {
@@ -321,7 +344,7 @@ export function buildB01BoundUatCases(store: DurableKnowledgeStore, releaseId: s
       category: "duplicate_provenance",
       exercises_source_fidelity: true,
       fixture_ids: [multiRepWork?.work_id || "ruling.th.rd.68302"],
-      question: `ค้นหาแนววินิจฉัย ${multiRepWork?.official_identifiers[0]?.normalized || "กค 0702/636"} และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน`,
+      question: `ค้นหาแนววินิจฉัย ${multiRepWork?.title_th || multiRepWork?.official_identifiers[0]?.normalized || "กค 0702/636"}${multiRepVer?.raw_date_text ? ` ลงวันที่ ${multiRepVer.raw_date_text}` : ""} และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน`,
       applicable_date: null,
       expected_status: ["ANSWERED"],
       expected_claims: [multiRepWork?.official_identifiers[0]?.normalized || "กค 0702/636"],

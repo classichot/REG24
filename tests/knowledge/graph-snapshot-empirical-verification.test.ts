@@ -89,11 +89,13 @@ describe("Empirical Verification of Snapshot-Based Graph Retrieval, Rebuild & Ro
 
     const store = new DurableKnowledgeStore(previewDir);
     const state = store.getState();
-    const candRelId = state.releases["rel.B01.rc4"]
-      ? "rel.B01.rc4"
-      : state.releases["rel.B01.rc3"]
-        ? "rel.B01.rc3"
-        : "rel.B01.rc2";
+    const candRelId = state.releases["rel.B01.rc5"]
+      ? "rel.B01.rc5"
+      : state.releases["rel.B01.rc4"]
+        ? "rel.B01.rc4"
+        : state.releases["rel.B01.rc3"]
+          ? "rel.B01.rc3"
+          : "rel.B01.rc2";
 
     // -------------------------------------------------------------------------
     // PART A: Verify Graph Snapshot Structure & Legal Relationship Preservation
@@ -155,8 +157,8 @@ describe("Empirical Verification of Snapshot-Based Graph Retrieval, Rebuild & Ro
       if (p.statement_role === "official_conclusion") entry.conclusions.push(p.exact_text.trim());
       rulingRolesByWork.set(p.work_id, entry);
     }
-    // 4,578 B01 candidates = 4,561 unique canonical TaxRuling works + 17 attached duplicate Drive PDF representations (ATTACHED_REPRESENTATION)
-    expect(rulingRolesByWork.size).toBe(4561);
+    // 4,578 B01 candidates = 4,569 unique canonical TaxRuling works + 9 attached duplicate companion representations (ATTACHED_REPRESENTATION)
+    expect(rulingRolesByWork.size).toBe(4569);
     let identicalFactsAndConclusionCount = 0;
     for (const [, entry] of rulingRolesByWork.entries()) {
       if (

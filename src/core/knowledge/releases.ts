@@ -60,6 +60,25 @@ const RULINGS_BY_ID = new Map<string, RawTaxRuling>(
   THAI_TAX_RULINGS_CORPUS.map((r) => [r.id, r])
 );
 
+const SAME_YEAR_RULING_HOMONYM_KEYS: ReadonlySet<string> = (() => {
+  const counts = new Map<string, Set<string>>();
+  for (const r of THAI_TAX_RULINGS_CORPUS) {
+    const normNo = normalizeOfficialRulingIdentifier(r.ruling_no);
+    const normWithGk = normNo.startsWith("กค ") ? normNo : `กค ${normNo}`;
+    const iso = parseThaiBuddhistDateToIso(r.date);
+    const yr = iso ? iso.slice(0, 4) : String(r.year_be - 543);
+    const k = `${normWithGk}|${yr}`;
+    const s = counts.get(k) || new Set<string>();
+    s.add(r.id);
+    counts.set(k, s);
+  }
+  const out = new Set<string>();
+  for (const [k, s] of counts.entries()) {
+    if (s.size > 1) out.add(k);
+  }
+  return out;
+})();
+
 /**
  * Priority B01 fixture IDs ensuring all 20 Owner UAT cases, multi-tax strata,
  * defect-remediation regression rulings (`0811/13980`, mixed-text, interleaved),
@@ -1107,11 +1126,13 @@ export async function startBatchRun(
         draft.artifacts[artifactId] = art;
 
         const normLetter = rawRuling ? normalizeOfficialRulingIdentifier(rawRuling.ruling_no) : cand.source_file_id;
+        const normWithGk = normLetter.startsWith("กค ") ? normLetter : `กค ${normLetter}`;
         const isoDate = rawRuling ? parseThaiBuddhistDateToIso(rawRuling.date) : "2026-01-01";
+        const issueYearCe = isoDate ? isoDate.slice(0, 4) : null;
         const dedupKey = `${normLetter}|${rawRuling?.date || ""}`;
 
         const attachedTargetWorkId =
-          primaryWorkByRulingKey.get(dedupKey) || primaryWorkBySourceId.get(cand.source_file_id);
+          primaryWorkBySourceId.get(cand.source_file_id) || primaryWorkByRulingKey.get(dedupKey);
         if (cand.disposition === "ATTACHED_REPRESENTATION" && attachedTargetWorkId) {
           const targetWork = draft.works[attachedTargetWorkId];
           if (targetWork && !targetWork.identity_evidence.includes(artifactId)) {
@@ -1127,15 +1148,22 @@ export async function startBatchRun(
           continue;
         }
 
+        const hasSameYearHomonym = SAME_YEAR_RULING_HOMONYM_KEYS.has(
+          `${normWithGk}|${issueYearCe || ""}`
+        );
+        const expectedWorkId = buildDeterministicWorkId({
+          doc_type: "TaxRuling",
+          issuer_id: "reg.th.rd",
+          normalized_identifier: normLetter,
+          issue_year_ce: issueYearCe,
+          disambiguator: hasSameYearHomonym ? cand.source_file_id : null,
+          access_scope: "scope.platform.public",
+        });
         const workId =
-          draft.legacy_crosswalk[cand.source_file_id] ||
-          buildDeterministicWorkId({
-            doc_type: "TaxRuling",
-            issuer_id: "reg.th.rd",
-            normalized_identifier: normLetter,
-            issue_year_ce: isoDate ? isoDate.slice(0, 4) : null,
-            access_scope: "scope.platform.public",
-          });
+          cand.disposition === "REUSED_EXISTING" && draft.legacy_crosswalk[cand.source_file_id]
+            ? draft.legacy_crosswalk[cand.source_file_id]
+            : expectedWorkId;
+        draft.legacy_crosswalk[cand.source_file_id] = workId;
         primaryWorkByRulingKey.set(dedupKey, workId);
         primaryWorkBySourceId.set(cand.source_file_id, workId);
 
@@ -1232,7 +1260,7 @@ export async function startBatchRun(
     const dedupKey = `${normLetter}|${rawRuling?.date || ""}`;
 
     const existingPrimaryWorkId =
-      seenPrimaryKeys.get(dedupKey) || seenPrimarySourceIds.get(cand.source_file_id);
+      seenPrimarySourceIds.get(cand.source_file_id) || seenPrimaryKeys.get(dedupKey);
     if (cand.disposition === "ATTACHED_REPRESENTATION" && existingPrimaryWorkId) {
       pendingAttachedRepresentations.push({
         candId: cand.candidate_id,

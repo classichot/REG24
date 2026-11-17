@@ -13,10 +13,10 @@ const { DatabaseSync } = nodeRequire("node:sqlite") as {
 };
 
 describe("Non-Provisioning Trial Prep: 30-Case Legal Spot-Check Pack & SQL Backup/Restore Drill", () => {
-  it("Generates 30-case stratified rel.B01.rc4 legal spot-check pack with complete conclusions, zero cut-off condition bullets, zero synthetic placeholders, and strict abstentions", async () => {
+  it("Generates 30-case stratified rel.B01.rc5 legal spot-check pack with complete conclusions, zero cut-off condition bullets, zero synthetic placeholders, and strict abstentions", async () => {
     const pack = await buildB01LegalSpotCheckPack();
     expect(pack.total_cases).toBe(30);
-    expect(pack.release_id).toBe("rel.B01.rc4");
+    expect(pack.release_id).toBe("rel.B01.rc5");
     expect(pack.automated_tests_replace_independent_legal_review).toBe(false);
     expect(pack.automated_guard_summary.zero_synthetic_ext_dep_across_all_30).toBe(true);
     expect(pack.automated_guard_summary.stratum_6_abstentions_passed).toBe(true);

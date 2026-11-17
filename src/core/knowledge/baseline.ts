@@ -84,9 +84,22 @@ export function buildLegacyIdCrosswalk(): {
   const entries: LegacyCrosswalkEntry[] = [];
   const byLegacyId = new Map<string, LegacyCrosswalkEntry>();
   const rulingGroup = new Map<string, string[]>();
+  const sameYearCountByKey = new Map<string, Set<string>>();
 
   for (const r of THAI_TAX_RULINGS_CORPUS) {
     const normNo = normalizeOfficialRulingIdentifier(r.ruling_no);
+    const normWithGk = normNo.startsWith("กค ") ? normNo : `กค ${normNo}`;
+    const isoDate = parseThaiBuddhistDateToIso(r.date);
+    const yr = isoDate ? isoDate.slice(0, 4) : String(r.year_be - 543);
+    const syKey = `${normWithGk}|${yr}`;
+    const sySet = sameYearCountByKey.get(syKey) || new Set<string>();
+    sySet.add(r.id);
+    sameYearCountByKey.set(syKey, sySet);
+  }
+
+  for (const r of THAI_TAX_RULINGS_CORPUS) {
+    const normNo = normalizeOfficialRulingIdentifier(r.ruling_no);
+    const normWithGk = normNo.startsWith("กค ") ? normNo : `กค ${normNo}`;
     const isoDate = parseThaiBuddhistDateToIso(r.date);
     const yr = isoDate ? isoDate.slice(0, 4) : String(r.year_be - 543);
     const groupKey = `${normNo}|${r.date}`;
@@ -94,11 +107,15 @@ export function buildLegacyIdCrosswalk(): {
     bucket.push(r.id);
     rulingGroup.set(groupKey, bucket);
 
+    const syKey = `${normWithGk}|${yr}`;
+    const hasSameYearCollision = (sameYearCountByKey.get(syKey)?.size || 0) > 1;
+
     const workId = buildDeterministicWorkId({
       doc_type: "TaxRuling",
       issuer_id: "reg.th.rd",
       normalized_identifier: normNo || r.id,
       issue_year_ce: yr,
+      disambiguator: hasSameYearCollision ? r.id : null,
       access_scope: "scope.platform.public",
     });
 

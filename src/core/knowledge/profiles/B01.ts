@@ -117,9 +117,12 @@ export function separateRulingFactsAndConclusion(params: {
   }
 
   const isIdentical = Boolean(fRaw && rRaw && fRaw === rRaw);
+  const fAlreadySeparateFromR =
+    Boolean(fRaw && rRaw) && !isIdentical && (rRaw.length < 40 || !fRaw.includes(rRaw.slice(0, 40)));
   const fHasRulingHeader =
+    !fAlreadySeparateFromR &&
     /(?:แนว\s*วินิจฉั(?:ย|\s*:)|\.{2}DRFT|กระผมได้พิจารณาแล้วขอเรียนว่า)/u.test(fRaw) &&
-    !/(?:มี|วาง|ตาม|เป็น)\s*แนว\s*วินิจฉัย/u.test(fRaw);
+    !/(?:มี|วาง|ตาม|เป็น|ประกอบกับ|ศึกษา)\s*แนว\s*วินิจฉัย/u.test(fRaw);
 
   if (!isIdentical && !fHasRulingHeader && rRaw) {
     return {
@@ -137,8 +140,8 @@ export function separateRulingFactsAndConclusion(params: {
   let splitMatch: RegExpExecArray | null = null;
   let m: RegExpExecArray | null;
   while ((m = directRe.exec(source)) !== null) {
-    const before = source.slice(Math.max(0, m.index - 14), m.index);
-    if (!/(?:มี|วาง|ตาม|เป็น|แนวทาง|คำ)\s*$/u.test(before) && m.index > 30) {
+    const before = source.slice(Math.max(0, m.index - 16), m.index);
+    if (!/(?:มี|วาง|ตาม|เป็น|ประกอบกับ|ศึกษา|แนวทาง|คำ)\s*$/u.test(before) && m.index > 30) {
       splitMatch = m;
       break;
     }
@@ -760,7 +763,9 @@ export async function extractB01(input: ProfileInput): Promise<ProfileResult> {
   const normLetterNo = rawLetterMatch ? normalizeOfficialRulingIdentifier(rawLetterMatch) : null;
   const rawDate =
     meta.date ||
-    (fullText.match(/[0-9๐-๙]{1,2}\s+[^\s\d]{3,15}\s+(?:พ\.ศ\.\s*)?[0-9๐-๙]{4}/) || [])[0] ||
+    (fullText.match(
+      /[0-9๐-๙]{1,2}\s*(?:มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(?:พ\.ศ\.\s*)?[0-9๐-๙]{4}/
+    ) || [])[0] ||
     null;
   const isoDate = parseThaiBuddhistDateToIso(rawDate);
 

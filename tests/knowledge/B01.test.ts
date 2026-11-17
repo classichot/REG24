@@ -102,8 +102,11 @@ describe("Batch B01 — Revenue Department Tax Rulings End-to-End Suite (B01-EX,
 
     for (const uc of evalOut.uat_cases) {
       expect(uc.question).not.toMatch(/\[[^\]]+\]/);
-      expect(uc.evaluator_results?.automated_precheck_passed).toBe(true);
-      expect(uc.evaluator_results?.citation_resolved).toBe(true);
+      expect(
+        uc.evaluator_results?.automated_precheck_passed,
+        `${uc.case_id}: ${uc.question}`
+      ).toBe(true);
+      expect(uc.evaluator_results?.citation_resolved, uc.case_id).toBe(true);
       // Human Owner decision MUST remain null until Rattaroj tests and submits!
       expect(uc.owner_result).toBeNull();
     }

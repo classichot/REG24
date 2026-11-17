@@ -236,7 +236,9 @@ export async function freezeInventory(
       const rf = orderedRulingFiles[idx];
       const normNo = normalizeOfficialRulingIdentifier(rf.ruling_no);
       const dedupKey = `${normNo}|${rf.date}`;
-      const existingPrimaryId = seenKey.get(dedupKey) || seenCorpusId.get(rf.corpus_id);
+      // Only attach as duplicate representation when the physical file represents the exact same RD ruling (`corpus_id`);
+      // distinct `rd.go.th/<id>.html` rulings that happen to share a number/date in the same year remain distinct works.
+      const existingPrimaryId = seenCorpusId.get(rf.corpus_id);
       const isDupRep = Boolean(existingPrimaryId);
       const isAlreadyInSeed = !isDupRep && existingExpansionUrls.has(rf.source_url);
 

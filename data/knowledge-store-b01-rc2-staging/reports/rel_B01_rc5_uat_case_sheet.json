@@ -30,8 +30,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.e50ae220c64b37",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.342c6afa51fc33",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -66,8 +66,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.f7e07da4827fca",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.bfc5df2b0829ae",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -101,8 +101,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.e233c278b1232c",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.24b807e0b48dba",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -136,8 +136,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.8a558e179f99bc",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.ec274651f7915b",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -176,8 +176,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.ef4402aff0eaf0",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.9cd0d7a5a1e791",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -216,8 +216,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.73bcb905ce2290",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.fb8930de47b3da",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -250,8 +250,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.d9fa4efed3c1f9",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.b72cb7d0e9c726",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -283,8 +283,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.89af624a48fa0d",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.25b32a7a72a5f7",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -315,8 +315,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.e738a93787d2d1",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.c8590067471176",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -348,8 +348,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.98c4a71a87fd6f",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.391e1a1caf0946",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -381,8 +381,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.c92238eff8f5da",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.84e9fec11f1ab8",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -414,8 +414,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.b96ef252899843",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.3d2eae6d82303a",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -427,26 +427,26 @@
     "category": "duplicate_provenance",
     "exercises_source_fidelity": true,
     "fixture_ids": [
-      "work.th.rd.gk_0706_2901_2004_11456594"
+      "work.th.rd.gk_0811_13980_1997_74b835fc"
     ],
-    "question": "ค้นหาแนววินิจฉัย กค 0706/2901 และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน",
+    "question": "ค้นหาแนววินิจฉัย กค 0811/13980 ลงวันที่ 13 ตุลาคม 2540 และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน",
     "applicable_date": null,
     "expected_status": [
       "ANSWERED"
     ],
     "expected_claims": [
-      "กค 0706/2901"
+      "กค 0811/13980"
     ],
     "required_evidence": [
-      "work.th.rd.gk_0706_2901_2004_11456594"
+      "work.th.rd.gk_0811_13980_1997_74b835fc"
     ],
     "forbidden_claims": [],
     "severity": "P0",
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.537fdb71f0fe92",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.844728a152d491",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -477,8 +477,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.f8979732668166",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.8c8b5593409a64",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -509,8 +509,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.3c4d5bd44bc26e",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.1e3510a7f5bbf3",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -544,8 +544,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.0e458f4f6b8463",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.9698ca20121d74",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -576,8 +576,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.99ad66cd7f41a0",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.eef17cbfacb844",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -608,8 +608,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.4fc4ba97c26f21",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.845ab693a41003",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -637,8 +637,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.7fa6ec59fdb646",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.5919500bb0f1ac",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   },
@@ -666,8 +666,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.64dd3478111c72",
-      "verified_at": "2026-11-16T13:51:39.947Z"
+      "trace_id": "trc.2850be38d4dd22",
+      "verified_at": "2026-11-16T16:16:32.120Z"
     },
     "owner_result": null
   }

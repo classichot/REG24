@@ -11,6 +11,7 @@ import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import {
   normalizeOfficialRulingIdentifier,
   normalizeThaiLegalSectionRef,
+  parseThaiBuddhistDateToIso,
   thaiDigitsToArabic,
 } from "./identity";
 import {
@@ -32,13 +33,32 @@ export interface RankedPassageHit {
   match_sources: Array<"exact_id" | "lexical" | "vector" | "graph_hop">;
 }
 
+export interface HomonymRulingWorkSummary {
+  work_id: string;
+  raw_date_text: string;
+  decision_date: string | null;
+  title_th: string;
+  origin_uri: string;
+}
+
 export interface RetrievalBundle {
   release_id: string;
   strategy: RetrievalStrategy;
   explicit_ruling_ids_in_query: string[];
+  resolved_explicit_ruling_ids?: string[];
   explicit_section_refs_in_query: string[];
   explicit_instrument_hints_in_query?: string[];
   unresolved_explicit_ruling_ids: string[];
+  year_mismatched_ruling_lookups?: Array<{
+    ruling_id: string;
+    requested_qualifier: string;
+    available_versions: HomonymRulingWorkSummary[];
+  }>;
+  homonym_ruling_groups?: Array<{
+    ruling_id: string;
+    pinned_by_date_or_year: boolean;
+    works: HomonymRulingWorkSummary[];
+  }>;
   top_hits: RankedPassageHit[];
   evidence_cards: EvidenceCard[];
   matched_assertions: Assertion[];
@@ -88,11 +108,19 @@ export function extractExplicitIdentifiersFromQuery(question: string): {
   instrumentHints: string[];
 } {
   const arabic = thaiDigitsToArabic(question);
-  // Match both 'กค 0702/636' and historical 4-digit RD bureau codes like '0811(กม)/806' or 'กค 0706/พ./1234'
-  const rawRulings =
-    arabic.match(
-      /(?:กค\s*[0-9]{4}|0[0-9]{3})(?:\s*\([^)]+\))?\s*\/\s*(?:[ก-ฮA-Za-z.]+\s*\/?\s*)?[0-9]+/g
-    ) || [];
+  // Match standard 'กค 0702/636', historical 4-digit RD bureau codes ('0811(กม)/806', 'กค 0706/พ./1234'),
+  // and similar-looking / malformed ruling codes ('กค 702/1494', 'กค 0702-999999', 'กค 0702/1494ก') so typos never silently substitute!
+  const rawRulings: string[] = [
+    ...(arabic.match(
+      /(?:(?:กค\s*)+[0-9]{2,5}(?:\s*\([^)]+\))?\s*[\/\-]\s*(?:[ก-ฮA-Za-z.]+\s*[\/\-]?\s*)?[0-9]+[ก-ฮA-Za-z]*|(?<![0-9/.\-])0[0-9]{3}(?:\s*\([^)]+\))?\s*\/\s*(?:[ก-ฮA-Za-z.]+\s*\/?\s*)?[0-9]+[ก-ฮA-Za-z]*)/g
+    ) || []),
+  ];
+  const contextualRulingRe =
+    /(?:หนังสือตอบข้อหารือ|ข้อหารือ|เลขที่หนังสือ)(?:\s*(?:กรมสรรพากร|ที่|เลขที่|เลขไทย))*\s*([1-9][0-9]{2,4}\s*[\/\-]\s*[0-9]+[ก-ฮA-Za-z]*)/g;
+  let ctxM: RegExpExecArray | null;
+  while ((ctxM = contextualRulingRe.exec(arabic)) !== null) {
+    rawRulings.push(ctxM[1]);
+  }
   const rulingIds = [...new Set(rawRulings.map((r) => normalizeOfficialRulingIdentifier(r)))];
 
   const rawSecs =
@@ -199,13 +227,81 @@ export function retrieveAuthorizedKnowledge(
   const explicitWorkIds = new Set<string>(params.comparison_work_ids || []);
   const secondarySectionWorkIds = new Set<string>();
   const wrongInstrumentSectionWorkIds = new Set<string>();
+  const excludedHomonymWorkIds = new Set<string>();
   const unresolvedExplicitRulingIds: string[] = [];
+  const resolvedExplicitRulingIds: string[] = [];
+  const yearMismatchedRulingLookups: NonNullable<RetrievalBundle["year_mismatched_ruling_lookups"]> = [];
+  const homonymRulingGroups: NonNullable<RetrievalBundle["homonym_ruling_groups"]> = [];
+
+  const qArabicForQualifier = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").trim();
+  const extractRulingDateOrYearQualifier = (
+    rId: string
+  ): { rawQualifier: string; isoDate: string | null; yearCe: string | null } | null => {
+    const bare = rId.replace(/^กค\s+/, "");
+    const flexPattern = bare
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\(/g, "\\s*\\(\\s*")
+      .replace(/\)/g, "\\s*\\)\\s*")
+      .replace(/\//g, "\\s*\\/\\s*");
+    const rRe = new RegExp(`(?:กค\\s*)?${flexPattern}`, "i");
+    const mLoc = rRe.exec(qArabicForQualifier);
+    const afterText = mLoc ? qArabicForQualifier.slice(mLoc.index + mLoc[0].length) : "";
+
+    const fullDateRe =
+      /^\s*(?:,|\()?\s*(?:ลงวันที่|ฉบับลงวันที่|วันที่)?\s*([0-9]{1,2}\s*(?:มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*(?:พ\.ศ\.\s*)?25[3-7][0-9])/;
+    const dm = afterText.match(fullDateRe);
+    if (dm) {
+      const iso = parseThaiBuddhistDateToIso(dm[1]);
+      if (iso) {
+        return { rawQualifier: dm[1].trim(), isoDate: iso, yearCe: iso.slice(0, 4) };
+      }
+    }
+
+    const yearRe =
+      /^\s*(?:\(\s*(?:ปี\s*(?:พ\.ศ\.\s*)?|พ\.ศ\.\s*)?(25[3-7][0-9])\s*\)|(?:ปี(?:\s*พ\.ศ\.)?|พ\.ศ\.|ฉบับปี)\s*(25[3-7][0-9]))/;
+    const ym = afterText.match(yearRe);
+    if (ym) {
+      const beStr = ym[1] || ym[2];
+      return {
+        rawQualifier: `ปี พ.ศ. ${beStr}`,
+        isoDate: null,
+        yearCe: String(Number(beStr) - 543),
+      };
+    }
+
+    if (rulingIds.length === 1) {
+      const globalDatedRe =
+        /(?:ลงวันที่|ฉบับลงวันที่)\s*([0-9]{1,2}\s*(?:มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(?:พ\.ศ\.\s*)?25[3-7][0-9])/;
+      const gdm = qArabicForQualifier.match(globalDatedRe);
+      if (gdm) {
+        const iso = parseThaiBuddhistDateToIso(gdm[1]);
+        if (iso) {
+          return { rawQualifier: gdm[1].trim(), isoDate: iso, yearCe: iso.slice(0, 4) };
+        }
+      }
+    }
+    return null;
+  };
+
+  const summarizeHomonymWork = (w: CanonicalPersistedState["works"][string]): HomonymRulingWorkSummary => {
+    const vers = Object.values(state.versions).filter((v) => v.work_id === w.work_id);
+    const ver = vers[0];
+    const psg = allAuthorizedPassages.find((p) => p.work_id === w.work_id);
+    return {
+      work_id: w.work_id,
+      raw_date_text: ver?.raw_date_text || "",
+      decision_date: ver?.decision_date || ver?.publication_date || null,
+      title_th: w.title_th,
+      origin_uri: psg?.real_locator.origin_uri || "",
+    };
+  };
 
   for (const rId of rulingIds) {
     const rIdWithPrefix = rId.startsWith("กค ") ? rId : `กค ${rId}`;
     const rIdWithoutPrefix = rId.replace(/^กค\s+/, "");
     const matchedWorks = Object.values(state.works).filter(
       (w) =>
+        w.type === "TaxRuling" &&
         authorizedWorkIds.has(w.work_id) &&
         w.official_identifiers.some(
           (oid) =>
@@ -216,8 +312,54 @@ export function retrieveAuthorizedKnowledge(
     );
     if (matchedWorks.length === 0) {
       unresolvedExplicitRulingIds.push(rId);
+      continue;
+    }
+
+    const allSummaries = matchedWorks
+      .map(summarizeHomonymWork)
+      .sort((a, b) => (b.decision_date || "").localeCompare(a.decision_date || ""));
+    const qual = extractRulingDateOrYearQualifier(rId);
+
+    if (qual) {
+      const filtered = matchedWorks.filter((mw) => {
+        const s = allSummaries.find((x) => x.work_id === mw.work_id);
+        const dec = s?.decision_date || "";
+        if (qual.isoDate) return dec === qual.isoDate;
+        if (qual.yearCe) return dec.slice(0, 4) === qual.yearCe;
+        return true;
+      });
+      if (filtered.length === 0) {
+        for (const mw of matchedWorks) excludedHomonymWorkIds.add(mw.work_id);
+        yearMismatchedRulingLookups.push({
+          ruling_id: rId,
+          requested_qualifier: qual.rawQualifier,
+          available_versions: allSummaries,
+        });
+        continue;
+      }
+      resolvedExplicitRulingIds.push(rId);
+      const keptSet = new Set(filtered.map((x) => x.work_id));
+      for (const mw of matchedWorks) {
+        if (keptSet.has(mw.work_id)) explicitWorkIds.add(mw.work_id);
+        else excludedHomonymWorkIds.add(mw.work_id);
+      }
+      if (filtered.length > 1) {
+        homonymRulingGroups.push({
+          ruling_id: rId,
+          pinned_by_date_or_year: true,
+          works: allSummaries.filter((x) => keptSet.has(x.work_id)),
+        });
+      }
     } else {
+      resolvedExplicitRulingIds.push(rId);
       for (const mw of matchedWorks) explicitWorkIds.add(mw.work_id);
+      if (matchedWorks.length > 1) {
+        homonymRulingGroups.push({
+          ruling_id: rId,
+          pinned_by_date_or_year: false,
+          works: allSummaries,
+        });
+      }
     }
   }
 
@@ -318,8 +460,17 @@ export function retrieveAuthorizedKnowledge(
   for (const wid of explicitWorkIds) {
     const fullTitleBonus = exactFullTitleWorkIds.has(wid) ? 8.0 : 0.0;
     for (const p of passagesByWorkId.get(wid) || []) {
-      const roleBoost = p.statement_role === "official_conclusion" || p.statement_role === "statutory_text" ? 40.0 : 32.0;
-      addScore(p.passage_id, roleBoost + fullTitleBonus, "exact_id");
+      const ver = state.versions[p.version_id];
+      const decYr = Number((ver?.decision_date || "").slice(0, 4)) || 2000;
+      const recencyTieBreak =
+        state.works[wid]?.type === "TaxRuling"
+          ? Math.max(0, Math.min(0.08, ((decYr - 1990) / 45) * 0.06))
+          : 0;
+      const roleBoost =
+        p.statement_role === "official_conclusion" || p.statement_role === "statutory_text"
+          ? 40.0
+          : 32.0;
+      addScore(p.passage_id, roleBoost + fullTitleBonus + recencyTieBreak, "exact_id");
     }
   }
   for (const wid of secondarySectionWorkIds) {
@@ -664,9 +815,9 @@ export function retrieveAuthorizedKnowledge(
       ) {
         roleMult *= 2.65;
       }
-      // Prevent same-numbered section from a DIFFERENT Act from contaminating Act-scoped section lookup (B02-U01)
-      if (wrongInstrumentSectionWorkIds.has(psg.work_id)) {
-        roleMult *= 0.08;
+      // Prevent same-numbered section from a DIFFERENT Act or year-excluded homonym ruling from contaminating lookup
+      if (wrongInstrumentSectionWorkIds.has(psg.work_id) || excludedHomonymWorkIds.has(psg.work_id)) {
+        roleMult *= 0.02;
       }
       // Prevent un-enacted draft bills / committee reports from ranking as governing law unless explicitly queried (B02-U06)
       if (
@@ -752,6 +903,7 @@ export function retrieveAuthorizedKnowledge(
       statement_role: p.statement_role,
       issue_or_effective_date:
         ver?.decision_date || ver?.publication_date || ver?.legal_applicability?.[0]?.valid_from || null,
+      raw_date_text: ver?.raw_date_text || null,
       exact_excerpt: p.exact_text,
       locator: p.real_locator,
       related_provisions: relatedProvisions,
@@ -762,9 +914,12 @@ export function retrieveAuthorizedKnowledge(
     release_id: params.release_id,
     strategy,
     explicit_ruling_ids_in_query: rulingIds,
+    resolved_explicit_ruling_ids: resolvedExplicitRulingIds,
     explicit_section_refs_in_query: sectionRefs,
     explicit_instrument_hints_in_query: instrumentHints,
     unresolved_explicit_ruling_ids: unresolvedExplicitRulingIds,
+    year_mismatched_ruling_lookups: yearMismatchedRulingLookups,
+    homonym_ruling_groups: homonymRulingGroups,
     top_hits: rankedHits,
     evidence_cards: evidenceCards,
     matched_assertions: matchedAssertions,

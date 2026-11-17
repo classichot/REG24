@@ -29,9 +29,10 @@ export function normalizeOfficialRulingIdentifier(raw: string): string {
     .replace(/\s+/g, " ")
     .trim();
 
-  // Normalize "กค0702/636", "กค  0702 / 636", "ที่ กค 0702(กม.) / 462" -> "กค 0702/636" or "กค 0702(กม.)/462"
+  // Normalize "กค0702/636", "กค  0702 / 636", "กค กค 0706/พ./4756", "ที่ กค 0702(กม.) / 462" -> "กค 0702/636" or "กค 0702(กม.)/462"
   s = s.replace(/^(?:เลขที่หนังสือ|ที่)\s*/i, "");
-  s = s.replace(/^กค\s*([0-9]{4})/i, "กค $1");
+  s = s.replace(/^(?:กค\s*){2,}/i, "กค ");
+  s = s.replace(/^กค\s*([0-9]{2,5})/i, "กค $1");
   s = s.replace(/\s*\(\s*([^)]+?)\s*\)\s*/g, "($1)");
   s = s.replace(/\s*\/\s*/g, "/");
   s = s.replace(/\/\s*พ\.\s*/g, "/พ.");
@@ -54,6 +55,7 @@ const THAI_MONTHS: Record<string, string> = {
   มกราคม: "01",
   "ม.ค.": "01",
   กุมภาพันธ์: "02",
+  กุมพาภัณฑ์: "02",
   "ก.พ.": "02",
   มีนาคม: "03",
   "มี.ค.": "03",
@@ -64,6 +66,7 @@ const THAI_MONTHS: Record<string, string> = {
   มิถุนายน: "06",
   "มิ.ย.": "06",
   กรกฎาคม: "07",
+  กรกฏาคม: "07",
   "ก.ค.": "07",
   สิงหาคม: "08",
   "ส.ค.": "08",
@@ -96,7 +99,7 @@ export function parseThaiBuddhistDateToIso(rawDate: string | null | undefined): 
     return null;
   }
 
-  const m = normalized.match(/(\d{1,2})\s+([^\s\d]+)\s+(?:พ\.ศ\.\s*)?(\d{4})/);
+  const m = normalized.match(/(\d{1,2})\s*([ก-๙.]+?)\s*(?:พ\.ศ\.\s*)?(\d{4})/);
   if (!m) return null;
   const day = Number(m[1]);
   const monthCode = THAI_MONTHS[m[2]];
@@ -115,6 +118,7 @@ export function buildDeterministicWorkId(params: {
   instrument_code?: string;
   normalized_identifier: string;
   issue_year_ce?: string | null;
+  disambiguator?: string | null;
   access_scope: string;
 }): string {
   // Cross-tenant private materials never share canonical public IDs (SH-09 / AT08)
@@ -130,12 +134,16 @@ export function buildDeterministicWorkId(params: {
       .replace(/^_+|_+$/g, "")
       .toLowerCase();
     const yrPart = params.issue_year_ce ? `_${params.issue_year_ce}` : "";
-    const hashTail = sha256Bytes(
-      `${scopePrefix}|TaxRuling|${params.issuer_id}|${params.normalized_identifier}|${params.issue_year_ce || ""}`
-    ).slice(0, 8);
+    const disambigSlug = params.disambiguator
+      ? `_${params.disambiguator.replace(/^ruling\.th\.rd\./i, "rd").replace(/[^a-zA-Z0-9]+/g, "").toLowerCase()}`
+      : "";
+    const hashInput = params.disambiguator
+      ? `${scopePrefix}|TaxRuling|${params.issuer_id}|${params.normalized_identifier}|${params.issue_year_ce || ""}|${params.disambiguator}`
+      : `${scopePrefix}|TaxRuling|${params.issuer_id}|${params.normalized_identifier}|${params.issue_year_ce || ""}`;
+    const hashTail = sha256Bytes(hashInput).slice(0, 8);
     return scopePrefix === "pub"
-      ? `work.th.rd.${slug}${yrPart}_${hashTail}`
-      : `work.${scopePrefix}.rd.${slug}_${hashTail}`;
+      ? `work.th.rd.${slug}${yrPart}${disambigSlug}_${hashTail}`
+      : `work.${scopePrefix}.rd.${slug}${disambigSlug}_${hashTail}`;
   }
 
   const composite = `${scopePrefix}|${params.doc_type}|${params.issuer_id}|${params.instrument_code || ""}|${params.normalized_identifier}`;
@@ -212,8 +220,16 @@ export function resolveCanonicalWorkIdentity(
       if (w.type !== input.doc_type || w.issuer_id !== input.issuer_id) return false;
       // AT04: Same section number under DIFFERENT instruments MUST remain distinct!
       if ((w.instrument_code || "") !== (input.instrument_code || "")) return false;
-      // Distinct rulings sharing number in different years stay distinct unless date matches or one is undated
-      if (input.doc_type === "TaxRuling" && issueYearCe) {
+      // Distinct rulings sharing number in different years OR different full dates stay distinct unless one is undated
+      if (input.doc_type === "TaxRuling" && issueIso) {
+        const existingVersions = store.getVersionsForWork(w.work_id);
+        const existingFullDates = existingVersions
+          .map((v) => (v.decision_date || v.publication_date || "").trim())
+          .filter(Boolean);
+        if (existingFullDates.length > 0 && !existingFullDates.includes(issueIso)) {
+          return false;
+        }
+      } else if (input.doc_type === "TaxRuling" && issueYearCe) {
         const existingVersions = store.getVersionsForWork(w.work_id);
         const existingYears = existingVersions
           .map((v) => (v.decision_date || v.publication_date || "").slice(0, 4))

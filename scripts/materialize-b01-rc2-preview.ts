@@ -18,7 +18,7 @@ import { resolveAuthorizedEvidence, withdrawKnowledgeTarget } from "../src/core/
 import { THAI_TAX_RULINGS_CORPUS } from "../src/core/data/thai-tax-rulings-loader";
 import type { Actor } from "../src/core/knowledge/contracts";
 
-export const CURRENT_B01_PREVIEW_RELEASE_ID = "rel.B01.rc4";
+export const CURRENT_B01_PREVIEW_RELEASE_ID = "rel.B01.rc5";
 
 const PROTECTED_CANONICAL_SHA256 =
   "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9";
@@ -153,7 +153,7 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
       {
         batch_id: "B01",
         manifest_id: fB01.manifest.manifest_id,
-        idempotency_key: "isolated-preview-rel-b01-rc4-conditions-remediated",
+        idempotency_key: "isolated-preview-rel-b01-rc5-citation-accuracy-remediated",
         max_documents: 5000,
       },
       ENG_ACTOR,
@@ -227,6 +227,9 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
     question: string;
     mode: "standard" | "exact_lookup" | "comparison";
     applicable_date: string | null;
+    is_synthetic_test_reference?: boolean;
+    synthetic_test_label_th?: string;
+    expected_result_label_th?: string;
   }> = [
     {
       id: "Q1_exact_0702_636",
@@ -281,6 +284,9 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
       question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999",
       mode: "exact_lookup",
       applicable_date: null,
+      is_synthetic_test_reference: true,
+      synthetic_test_label_th: "เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง",
+      expected_result_label_th: "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
     },
     {
       id: "Q9_lsc04_4point_sme_0702_4825",
@@ -295,8 +301,24 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
       mode: "exact_lookup",
       applicable_date: null,
     },
+    {
+      id: "Q11_homonym_0702_636_be2555",
+      question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636 ปี 2555",
+      mode: "exact_lookup",
+      applicable_date: null,
+    },
+    {
+      id: "Q12_similar_invalid_0702_1495",
+      question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1495",
+      mode: "standard",
+      applicable_date: null,
+      is_synthetic_test_reference: true,
+      synthetic_test_label_th: "เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง",
+      expected_result_label_th: "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
+    },
   ];
 
+  const stSmoke = store.getState();
   const smokeResults = [];
   for (const item of representativePrompts) {
     const ans = await queryKnowledge(
@@ -311,10 +333,13 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
     const resolvedCitations = ans.evidence.slice(0, 6).map((evCard) => {
       const resolved = resolveAuthorizedEvidence(store, evCard.passage_id, OWNER_EXPLORATORY_ACTOR);
       if (resolved.allowed && resolved.passage && resolved.locator) {
+        const ver = stSmoke.versions[resolved.passage.version_id];
         return {
           passage_id: evCard.passage_id,
           work_id: resolved.passage.work_id,
           official_identifier: resolved.official_identifier,
+          raw_date_text: ver?.raw_date_text || null,
+          decision_date: ver?.decision_date || ver?.publication_date || null,
           statement_role: resolved.passage.statement_role,
           authenticity_status: resolved.authenticity_status,
           origin_uri: resolved.locator.origin_uri,
@@ -325,6 +350,9 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
     smokeResults.push({
       id: item.id,
       question: item.question,
+      is_synthetic_test_reference: Boolean(item.is_synthetic_test_reference),
+      synthetic_test_label_th: item.synthetic_test_label_th || null,
+      expected_result_label_th: item.expected_result_label_th || null,
       release_id: ans.release_id,
       status: ans.status,
       latency_ms: ans.latency_ms,
@@ -418,6 +446,12 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
         manifest_id: "mfst.b01.mwihl1gx",
         reason:
           "Superseded after fixing 220-character condition/exception bullet mid-sentence truncation, multi-unit linked statutory sections, and LSC-02/06/10 legal review guidance.",
+      },
+      {
+        release_id: "rel.B01.rc4",
+        manifest_id: "mfst.b01.mwjbbi02",
+        reason:
+          "Superseded after full 4,578-file physical citation audit remediating 1 doubled 'กค' prefix, 14 source/ISO date anomalies, 8 same-year RD homonym collisions, 2 mixed-header conclusion splits, multi-year homonym disambiguation, and zero-silent-substitution enforcement.",
       },
     ],
     current_candidate_release_id: CURRENT_B01_PREVIEW_RELEASE_ID,

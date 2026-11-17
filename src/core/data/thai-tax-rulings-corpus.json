@@ -4734,7 +4734,7 @@
   {
     "id": "ruling.th.rd.26858",
     "ruling_no": "0702/1831",
-    "date": "2 มีนาคม",
+    "date": "2 มีนาคม 2561",
     "year_be": 2561,
     "primary_tax_type": "Personal_Income_Tax",
     "tax_types": "Personal_Income_Tax",
@@ -25720,7 +25720,7 @@
   {
     "id": "ruling.th.rd.30662",
     "ruling_no": "กค 0706/1550",
-    "date": "",
+    "date": "23 กุมภาพันธ์ 2549",
     "year_be": 2549,
     "primary_tax_type": "Corporate_Income_Tax",
     "tax_types": "Corporate_Income_Tax",
@@ -25734,7 +25734,7 @@
   {
     "id": "ruling.th.rd.30664",
     "ruling_no": "กค 0706/408",
-    "date": "",
+    "date": "18 มกราคม 2549",
     "year_be": 2549,
     "primary_tax_type": "Personal_Income_Tax",
     "tax_types": "Personal_Income_Tax; Income_Tax_general",
@@ -28548,7 +28548,7 @@
   {
     "id": "ruling.th.rd.31905",
     "ruling_no": "กค 0706/5270",
-    "date": "22มิถุนายน 2549",
+    "date": "22 มิถุนายน 2549",
     "year_be": 2549,
     "primary_tax_type": "Corporate_Income_Tax",
     "tax_types": "Corporate_Income_Tax; VAT",
@@ -28939,7 +28939,7 @@
   },
   {
     "id": "ruling.th.rd.31949",
-    "ruling_no": "กค กค 0706/พ./4756",
+    "ruling_no": "กค 0706/พ./4756",
     "date": "31 พฤษภาคม 2549",
     "year_be": 2549,
     "primary_tax_type": "VAT",
@@ -32510,7 +32510,7 @@
   {
     "id": "ruling.th.rd.30642",
     "ruling_no": "กค 0706/พ./10949",
-    "date": "",
+    "date": "16 ธันวาคม 2548",
     "year_be": 2548,
     "primary_tax_type": "VAT",
     "tax_types": "VAT",
@@ -33574,7 +33574,7 @@
   {
     "id": "ruling.th.rd.30753",
     "ruling_no": "กค 0706/พ./7150",
-    "date": "",
+    "date": "7 พฤศจิกายน 2548",
     "year_be": 2548,
     "primary_tax_type": "VAT",
     "tax_types": "VAT",
@@ -33868,7 +33868,7 @@
   {
     "id": "ruling.th.rd.30777",
     "ruling_no": "กค0706/พ./830",
-    "date": "",
+    "date": "5 ตุลาคม 2548",
     "year_be": 2548,
     "primary_tax_type": "VAT",
     "tax_types": "VAT",
@@ -48246,7 +48246,7 @@
   {
     "id": "ruling.th.rd.25449",
     "ruling_no": "กค 0811/พ./3201",
-    "date": "2 เมษายน2544",
+    "date": "2 เมษายน 2544",
     "year_be": 2544,
     "primary_tax_type": "VAT",
     "tax_types": "VAT",
@@ -48316,7 +48316,7 @@
   {
     "id": "ruling.th.rd.25456",
     "ruling_no": "กค 0811/3074",
-    "date": "มีนาคม 2544",
+    "date": "29 มีนาคม 2544",
     "year_be": 2544,
     "primary_tax_type": "VAT",
     "tax_types": "VAT; Specific_Business_Tax",

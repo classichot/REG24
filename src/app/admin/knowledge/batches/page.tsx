@@ -79,10 +79,12 @@ const EXPLORATORY_B01_REPRESENTATIVE_QUESTIONS: Array<{
   mode: "standard" | "exact_lookup" | "comparison";
   date: string | null;
   cmp?: string[];
+  isSyntheticNegativeTest?: boolean;
+  expectedResultLabelTh?: string;
 }> = [
   {
     id: "Q1",
-    label: "1. Exact Ruling (กค 0702/636 · 0% VAT Foreign Grant)",
+    label: "1. Exact Ruling (กค 0702/636 · 5 ก.พ. 2569 + แจ้งเตือนฉบับซ้ำปี 2555)",
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
     mode: "exact_lookup",
     date: null,
@@ -136,10 +138,13 @@ const EXPLORATORY_B01_REPRESENTATIVE_QUESTIONS: Array<{
   },
   {
     id: "Q8",
-    label: "8. Nonexistent Ruling Abstention (กค 0702/999999)",
+    label:
+      "8. กค 0702/999999 — เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง · ผลที่คาดหมาย: ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/999999",
     mode: "exact_lookup",
     date: null,
+    isSyntheticNegativeTest: true,
+    expectedResultLabelTh: "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
   },
   {
     id: "Q9",
@@ -155,6 +160,23 @@ const EXPLORATORY_B01_REPRESENTATIVE_QUESTIONS: Array<{
     question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/2994 และสรุปแนววินิจฉัยของกรมสรรพากรให้ครบทุกประเด็น",
     mode: "standard",
     date: null,
+  },
+  {
+    id: "Q11",
+    label: "11. Same Number Different Year (กค 0702/636 ปี 2555 · 23 ม.ค. 2555)",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636 ปี 2555",
+    mode: "exact_lookup",
+    date: null,
+  },
+  {
+    id: "Q12",
+    label:
+      "12. กค 0702/1495 (ใกล้เคียง 1494) — เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง · ผลที่คาดหมาย: ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
+    question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1495",
+    mode: "standard",
+    date: null,
+    isSyntheticNegativeTest: true,
+    expectedResultLabelTh: "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
   },
 ];
 
@@ -929,9 +951,11 @@ export default function KnowledgeBatchesUatPage() {
                           });
                         }}
                         style={{
-                          background: "#172033",
-                          color: "#e2e8f0",
-                          border: "1px solid #334155",
+                          background: item.isSyntheticNegativeTest ? "rgba(245, 158, 11, 0.12)" : "#172033",
+                          color: item.isSyntheticNegativeTest ? "#fde68a" : "#e2e8f0",
+                          border: item.isSyntheticNegativeTest
+                            ? "1px dashed #f59e0b"
+                            : "1px solid #334155",
                           padding: "6px 10px",
                           fontSize: "12px",
                           cursor: "pointer",
@@ -1007,6 +1031,24 @@ export default function KnowledgeBatchesUatPage() {
                         trace={answerResult.trace_id} · {answerResult.latency_ms}ms · release={answerResult.release_id}
                       </span>
                     </div>
+
+                    {/(?:999999|888888|999404|๘๘๘๘๘๘|0702\/1495)/.test(question) && (
+                      <div
+                        style={{
+                          background: "rgba(245, 158, 11, 0.12)",
+                          border: "1px dashed #f59e0b",
+                          padding: "10px 14px",
+                          fontSize: "13px",
+                          color: "#fde68a",
+                          lineHeight: 1.6,
+                        }}
+                      >
+                        <strong>คำชี้แจงชุดข้อมูลทดสอบเชิงลบ (Negative Test):</strong>{" "}
+                        เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง ·{" "}
+                        <strong>ผลที่คาดหมาย: ไม่พบข้อมูล / หลักฐานไม่เพียงพอ</strong>{" "}
+                        (ห้ามแสดงเป็นข้อหารือทางกฎหมายจริง และห้ามนำข้อหารือฉบับอื่นมาอ้างอิงแทน)
+                      </div>
+                    )}
 
                     <div
                       style={{
@@ -1121,6 +1163,28 @@ export default function KnowledgeBatchesUatPage() {
                             <div style={{ fontSize: "13px" }}>
                               <div style={{ fontWeight: 700, color: "#a3e635" }}>
                                 {evCard.official_identifier} — {evCard.title_th}
+                              </div>
+                              <div style={{ fontSize: "12px", color: "#e5e7eb", marginTop: "4px" }}>
+                                วันที่เอกสารต้นฉบับ:{" "}
+                                <strong>
+                                  {evCard.raw_date_text || evCard.issue_or_effective_date || "ตามต้นฉบับ"}
+                                </strong>
+                                {evCard.raw_date_text && evCard.issue_or_effective_date
+                                  ? ` (${evCard.issue_or_effective_date})`
+                                  : ""}
+                                {evCard.locator?.origin_uri && (
+                                  <>
+                                    {" · "}ลิงก์ต้นฉบับกรมสรรพากร:{" "}
+                                    <a
+                                      href={evCard.locator.origin_uri}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      style={{ color: "#93c5fd", textDecoration: "underline" }}
+                                    >
+                                      {evCard.locator.origin_uri} ↗
+                                    </a>
+                                  </>
+                                )}
                               </div>
                               <div style={{ fontSize: "12px", color: "#9ca3af", marginTop: "3px" }}>
                                 Role: <code>{evCard.statement_role}</code> · Version: <code>{evCard.version_id}</code> ·
@@ -1284,6 +1348,21 @@ export default function KnowledgeBatchesUatPage() {
                           </td>
                           <td style={{ padding: "10px 8px", maxWidth: "440px", lineHeight: 1.5 }}>
                             <div>{uc.question}</div>
+                            {uc.category === "nonexistent_lookup" && (
+                              <div
+                                style={{
+                                  marginTop: "4px",
+                                  padding: "3px 8px",
+                                  fontSize: "11.5px",
+                                  background: "rgba(245, 158, 11, 0.14)",
+                                  border: "1px dashed #f59e0b",
+                                  color: "#fde68a",
+                                  display: "inline-block",
+                                }}
+                              >
+                                เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง · ผลที่คาดหมาย: ไม่พบข้อมูล / หลักฐานไม่เพียงพอ
+                              </div>
+                            )}
                             {uc.applicable_date && (
                               <div style={{ fontSize: "11px", color: "#93c5fd", marginTop: "3px" }}>
                                 Applicable Date: {uc.applicable_date}
