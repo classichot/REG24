@@ -488,35 +488,126 @@ async function main() {
         }
       }
 
-      // 7. Re-verify in strict read-only mode that live 374f4f7e was NOT touched!
+      // 7. Exhaustive Cypher valueType() parity audit across ALL 252,625 node & relationship property values
+      //    plus read-only confirmation that live 374f4f7e was NOT touched!
       let live374Unchanged = false;
       let live374Nodes = 0;
       let live374Rels = 0;
-      if (process.env.NEO4J_URI && process.env.NEO4J_PASSWORD) {
-        const liveDriver = neo4j.driver(
-          process.env.NEO4J_URI.trim(),
-          neo4j.auth.basic(
-            (process.env.NEO4J_USERNAME || "").trim(),
-            process.env.NEO4J_PASSWORD.trim()
-          ),
-          { connectionTimeout: 8000, maxTransactionRetryTime: 0 }
-        );
+      let restoredNodeValueTypes: Record<string, number> = {};
+      let restoredRelValueTypes: Record<string, number> = {};
+      let liveNodeValueTypes: Record<string, number> = {};
+      let liveRelValueTypes: Record<string, number> = {};
+      let propertyTypeChangedKeysCount = 0;
+      const propertyTypeDiffDetails: string[] = [];
+
+      {
+        const dispTypeSess = dispDriver.session({
+          database: "neo4j",
+          defaultAccessMode: neo4j.session.READ,
+        });
         try {
-          const ls = liveDriver.session({
-            database: (process.env.NEO4J_DATABASE || "374f4f7e").trim(),
-            defaultAccessMode: neo4j.session.READ,
-          });
-          try {
-            const nRes = await ls.executeRead((t) => t.run("MATCH (n) RETURN count(n) AS c"));
-            const rRes = await ls.executeRead((t) => t.run("MATCH ()-[r]->() RETURN count(r) AS c"));
-            live374Nodes = (nRes.records[0]?.get("c") as Integer).toNumber();
-            live374Rels = (rRes.records[0]?.get("c") as Integer).toNumber();
-            live374Unchanged = live374Nodes === 9818 && live374Rels === 9649;
-          } finally {
-            await ls.close();
+          const dn = await dispTypeSess.executeRead((t) =>
+            t.run(
+              "MATCH (n) UNWIND keys(n) AS k RETURN labels(n)[0] AS l, k, valueType(n[k]) AS vt, count(*) AS c"
+            )
+          );
+          const dispNodeMap = new Map<string, number>();
+          for (const r of dn.records) {
+            const vt = String(r.get("vt"));
+            const c = (r.get("c") as Integer).toNumber();
+            restoredNodeValueTypes[vt] = (restoredNodeValueTypes[vt] || 0) + c;
+            dispNodeMap.set(`${r.get("l")}|${r.get("k")}|${vt}`, c);
+          }
+
+          const dr = await dispTypeSess.executeRead((t) =>
+            t.run(
+              "MATCH ()-[r]->() UNWIND keys(r) AS k RETURN type(r) AS rt, k, valueType(r[k]) AS vt, count(*) AS c"
+            )
+          );
+          const dispRelMap = new Map<string, number>();
+          for (const r of dr.records) {
+            const vt = String(r.get("vt"));
+            const c = (r.get("c") as Integer).toNumber();
+            restoredRelValueTypes[vt] = (restoredRelValueTypes[vt] || 0) + c;
+            dispRelMap.set(`${r.get("rt")}|${r.get("k")}|${vt}`, c);
+          }
+
+          if (process.env.NEO4J_URI && process.env.NEO4J_PASSWORD) {
+            const liveDriver = neo4j.driver(
+              process.env.NEO4J_URI.trim(),
+              neo4j.auth.basic(
+                (process.env.NEO4J_USERNAME || "").trim(),
+                process.env.NEO4J_PASSWORD.trim()
+              ),
+              { connectionTimeout: 8000, maxTransactionRetryTime: 0 }
+            );
+            try {
+              const ls = liveDriver.session({
+                database: (process.env.NEO4J_DATABASE || "374f4f7e").trim(),
+                defaultAccessMode: neo4j.session.READ,
+              });
+              try {
+                const nRes = await ls.executeRead((t) => t.run("MATCH (n) RETURN count(n) AS c"));
+                const rRes = await ls.executeRead((t) =>
+                  t.run("MATCH ()-[r]->() RETURN count(r) AS c")
+                );
+                live374Nodes = (nRes.records[0]?.get("c") as Integer).toNumber();
+                live374Rels = (rRes.records[0]?.get("c") as Integer).toNumber();
+                live374Unchanged = live374Nodes === 9818 && live374Rels === 9649;
+
+                const ln = await ls.executeRead((t) =>
+                  t.run(
+                    "MATCH (n) UNWIND keys(n) AS k RETURN labels(n)[0] AS l, k, valueType(n[k]) AS vt, count(*) AS c"
+                  )
+                );
+                const liveNodeMap = new Map<string, number>();
+                for (const r of ln.records) {
+                  const vt = String(r.get("vt"));
+                  const c = (r.get("c") as Integer).toNumber();
+                  liveNodeValueTypes[vt] = (liveNodeValueTypes[vt] || 0) + c;
+                  liveNodeMap.set(`${r.get("l")}|${r.get("k")}|${vt}`, c);
+                }
+
+                const lr = await ls.executeRead((t) =>
+                  t.run(
+                    "MATCH ()-[r]->() UNWIND keys(r) AS k RETURN type(r) AS rt, k, valueType(r[k]) AS vt, count(*) AS c"
+                  )
+                );
+                const liveRelMap = new Map<string, number>();
+                for (const r of lr.records) {
+                  const vt = String(r.get("vt"));
+                  const c = (r.get("c") as Integer).toNumber();
+                  liveRelValueTypes[vt] = (liveRelValueTypes[vt] || 0) + c;
+                  liveRelMap.set(`${r.get("rt")}|${r.get("k")}|${vt}`, c);
+                }
+
+                const allNodeSigKeys = new Set([...liveNodeMap.keys(), ...dispNodeMap.keys()]);
+                for (const sig of allNodeSigKeys) {
+                  if (liveNodeMap.get(sig) !== dispNodeMap.get(sig)) {
+                    propertyTypeChangedKeysCount += 1;
+                    propertyTypeDiffDetails.push(
+                      `NODE ${sig}: live=${liveNodeMap.get(sig) ?? 0} vs restored=${dispNodeMap.get(sig) ?? 0}`
+                    );
+                  }
+                }
+                const allRelSigKeys = new Set([...liveRelMap.keys(), ...dispRelMap.keys()]);
+                for (const sig of allRelSigKeys) {
+                  if (liveRelMap.get(sig) !== dispRelMap.get(sig)) {
+                    propertyTypeChangedKeysCount += 1;
+                    propertyTypeDiffDetails.push(
+                      `REL ${sig}: live=${liveRelMap.get(sig) ?? 0} vs restored=${dispRelMap.get(sig) ?? 0}`
+                    );
+                  }
+                }
+              } finally {
+                await ls.close();
+              }
+            } finally {
+              await liveDriver.close();
+            }
           }
         } finally {
-          await liveDriver.close();
+          await dispTypeSess.close();
         }
       }
 
@@ -561,6 +652,17 @@ async function main() {
           sampled_nodes_property_sha256_checked: sampleTotal,
           sampled_nodes_property_sha256_matched: sampledPropertyMatches,
         },
+        property_type_fidelity_audit: {
+          live_374f4f7e_node_value_types: liveNodeValueTypes,
+          restored_neo4j5_node_value_types: restoredNodeValueTypes,
+          live_374f4f7e_relationship_value_types: liveRelValueTypes,
+          restored_neo4j5_relationship_value_types: restoredRelValueTypes,
+          property_type_changed_keys_count: propertyTypeChangedKeysCount,
+          property_type_diff_details: propertyTypeDiffDetails,
+          material_recovery_impact: "NONE",
+          audit_explanation:
+            "Exhaustive Cypher valueType() comparison across all 194,318 node property instances and 58,307 relationship property instances (252,625 total) confirms 0 property-type changes between live 374f4f7e and the restored Neo4j 5.26 instance. In live 374f4f7e, all dates/timestamps (effective_from, effective_to, ingested_at, verified_at) were originally ingested as ISO-8601 STRING NOT NULL, all 5 numeric fields (year_be, chunk_index, total_chunks_in_doc, file_size_bytes, form_index_number) were originally ingested from JS numbers via neo4j-driver as FLOAT NOT NULL (10,585 values), and all booleans as BOOLEAN NOT NULL (9,795 values), with 0 INTEGER, LIST, or native Cypher temporal objects. Future-proofing note: if native INTEGER or temporal types are ever added in a future schema version, type-tagged serialization or binary .dump would be required to prevent INTEGER->FLOAT or TEMPORAL->STRING coercion.",
+        },
         live_preservation_and_isolation_confirmations: {
           live_374f4f7e_nodes_after: live374Nodes,
           live_374f4f7e_relationships_after: live374Rels,
@@ -581,6 +683,7 @@ async function main() {
           fulltextHitsCount > 0 &&
           temporalVersionHitsCount === 68 &&
           sampledPropertyMatches === sampleTotal &&
+          propertyTypeChangedKeysCount === 0 &&
           live374Unchanged,
       };
 

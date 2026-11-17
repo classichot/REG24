@@ -1,5 +1,5 @@
 {
-  "verified_at": "2026-11-17T15:48:55.483Z",
+  "verified_at": "2026-11-17T16:24:32.087Z",
   "test_classification": "REAL_DISPOSABLE_NEO4J_5_INSTANCE_RESTORE_VERIFICATION",
   "disposable_instance": {
     "engine": [
@@ -14,7 +14,7 @@
     "loopback_bolt_uri": "bolt://127.0.0.1:17687",
     "http_and_https_disabled": true,
     "auth_enabled": true,
-    "restore_elapsed_ms": 27338
+    "restore_elapsed_ms": 19057
   },
   "backup_source": {
     "path_outside_git": "C:\\Users\\I7\\.gemini\\antigravity\\brain\\ade02dfd-8b7a-4fcf-a521-8f458561a22a\\backups\\neo4j_374f4f7e_full_logical_backup_20261117.json.gz",
@@ -108,6 +108,28 @@
     "temporal_provision_version_hits": 68,
     "sampled_nodes_property_sha256_checked": 50,
     "sampled_nodes_property_sha256_matched": 50
+  },
+  "property_type_fidelity_audit": {
+    "live_374f4f7e_node_value_types": {
+      "STRING NOT NULL": 173938,
+      "BOOLEAN NOT NULL": 9795,
+      "FLOAT NOT NULL": 10585
+    },
+    "restored_neo4j5_node_value_types": {
+      "STRING NOT NULL": 173938,
+      "BOOLEAN NOT NULL": 9795,
+      "FLOAT NOT NULL": 10585
+    },
+    "live_374f4f7e_relationship_value_types": {
+      "STRING NOT NULL": 58307
+    },
+    "restored_neo4j5_relationship_value_types": {
+      "STRING NOT NULL": 58307
+    },
+    "property_type_changed_keys_count": 0,
+    "property_type_diff_details": [],
+    "material_recovery_impact": "NONE",
+    "audit_explanation": "Exhaustive Cypher valueType() comparison across all 194,318 node property instances and 58,307 relationship property instances (252,625 total) confirms 0 property-type changes between live 374f4f7e and the restored Neo4j 5.26 instance. In live 374f4f7e, all dates/timestamps (effective_from, effective_to, ingested_at, verified_at) were originally ingested as ISO-8601 STRING NOT NULL, all 5 numeric fields (year_be, chunk_index, total_chunks_in_doc, file_size_bytes, form_index_number) were originally ingested from JS numbers via neo4j-driver as FLOAT NOT NULL (10,585 values), and all booleans as BOOLEAN NOT NULL (9,795 values), with 0 INTEGER, LIST, or native Cypher temporal objects. Future-proofing note: if native INTEGER or temporal types are ever added in a future schema version, type-tagged serialization or binary .dump would be required to prevent INTEGER->FLOAT or TEMPORAL->STRING coercion."
   },
   "live_preservation_and_isolation_confirmations": {
     "live_374f4f7e_nodes_after": 9818,

@@ -8,5 +8,4 @@ build
 .env
 .env*.local
 coverage
-
-.vercel
+data/ocr-pilot-quarantine
