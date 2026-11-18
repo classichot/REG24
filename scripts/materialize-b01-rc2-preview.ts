@@ -326,6 +326,7 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
         question: item.question,
         mode: item.mode,
         applicable_date: item.applicable_date,
+        release_id: CURRENT_B01_PREVIEW_RELEASE_ID,
       },
       OWNER_EXPLORATORY_ACTOR,
       { store }
@@ -387,6 +388,7 @@ export async function materializeB01Rc2Preview(opts?: { reuseExistingPreviewStor
         question: `ค้นหาหนังสือตอบข้อหารือเลขที่ ${rId}`,
         mode: "exact_lookup",
         applicable_date: null,
+        release_id: CURRENT_B01_PREVIEW_RELEASE_ID,
       },
       OWNER_EXPLORATORY_ACTOR,
       { store }

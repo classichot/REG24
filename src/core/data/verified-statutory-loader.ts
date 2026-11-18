@@ -80,6 +80,26 @@ export function getVerifiedStatutoryCorpus(): VerifiedStatutoryCorpus {
       }
     }
   }
+  const coreAuthoritiesPath = path.join(
+    process.cwd(),
+    "src",
+    "core",
+    "data",
+    "verified-core-tax-authorities.json"
+  );
+  if (fs.existsSync(coreAuthoritiesPath)) {
+    const extraCore = JSON.parse(fs.readFileSync(coreAuthoritiesPath, "utf8")) as Partial<VerifiedStatutoryCorpus>;
+    for (const [k, v] of Object.entries(extraCore.revenue_code_sections || {})) {
+      if (!parsed.revenue_code_sections[k]) {
+        parsed.revenue_code_sections[k] = v;
+      }
+    }
+    for (const [k, v] of Object.entries(extraCore.subordinate_and_amendment_works || {})) {
+      if (!parsed.subordinate_and_amendment_works[k]) {
+        parsed.subordinate_and_amendment_works[k] = v;
+      }
+    }
+  }
   cachedStatutoryCorpus = parsed;
   return cachedStatutoryCorpus;
 }

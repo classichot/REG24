@@ -1147,8 +1147,9 @@ export function parseQueryTemporalAndIntentContext(params: {
   question: string;
   applicableDate?: string | null;
   mode?: "standard" | "exact_lookup" | "comparison";
-  explicitRulingIds: string[];
+  explicitRulingIds?: string[];
 }): TemporalFactContext {
+  const explicitRulingIds = params.explicitRulingIds || [];
   const qNorm = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").trim();
 
   const asksNamedAmendingActDirectly =
@@ -1162,7 +1163,20 @@ export function parseQueryTemporalAndIntentContext(params: {
       qNorm
     );
 
-  const scrubbed = stripInstrumentTitleYearsForTemporalScan(qNorm);
+  const rawBeforeNegStrip = stripInstrumentTitleYearsForTemporalScan(qNorm);
+  // Strip negated date/period correction clauses (`ไม่ใช่ 15 มิถุนายน 2568`, `ไม่ใช่เริ่ม 1 กรกฎาคม 2561`, `instead of ...`, `not ...`)
+  // so follow-up fact corrections never latch onto the superseded/negated date!
+  const scrubbed = rawBeforeNegStrip
+    .replace(
+      /(?:แต่)?(?:ไม่ใช่|มิใช่)\s*(?:เริ่ม(?:ต้น)?(?:วันที่)?|วันที่|เมื่อวันที่|ในวันที่)?\s*(?:[0-9]{1,2}\s*[ก-๙a-zA-Z./\-]+\s*[0-9]{2,4}|[0-9]{4}-[0-9]{2}-[0-9]{2})/gi,
+      " "
+    )
+    .replace(
+      /\b(?:not|instead\s+of|rather\s+than)\s+(?:starting(?:\s+on)?\s+|on\s+)?(?:[0-9]{1,2}[\s/\-.]+[a-zA-Z0-9.]+[\s/\-,]+[0-9]{2,4}|[a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2})/gi,
+      " "
+    )
+    .replace(/\s+/g, " ")
+    .trim();
 
   let accountingStart: string | null = null;
   let accountingStartMax: string | null = null;
@@ -1173,16 +1187,32 @@ export function parseQueryTemporalAndIntentContext(params: {
   let transactionYearCe: number | null = null;
 
   // 1a. Explicit accounting period full-date range (Thai, English, ISO, slash, dot, dash):
-  // e.g. `รอบระยะเวลาบัญชี 1 กรกฎาคม 2560 ถึง 30 มิถุนายน 2561`, `รอบบัญชี 01/07/2560 - 30/06/2561`,
-  //      `FY 1-Feb-2018 to 30-Jun-2018`, `accounting period 07/01/2017 - 06/30/2018`
+  // e.g. `รอบระยะเวลาบัญชี 1 กรกฎาคม 2560 ถึง 30 มิถุนายน 2561`, `รอบระยะเวลาบัญชีของบริษัท คิริ จำกัด คือ 1 กรกฎาคม 2560 – 30 มิถุนายน 2561`
   const rangeRe = new RegExp(
-    `(?:รอบระยะเวลาบัญชี|รอบบัญชี|งวดบัญชี|accounting\\s+period|fiscal\\s+year|\\bFY\\b)(?:\\s*(?:ที่)?\\s*(?:เริ่ม|เริ่มต้น|ตั้งแต่วันที่|ตั้งแต่|วันที่|from|starting(?:\\s+on)?|beginning(?:\\s+on)?))?\\s*(${FLEX_DATE_TOKEN_PATTERN})\\s*(?:ถึง|จนถึง|–|—|-|\\bto\\b|\\bthrough\\b|ending(?:\\s+on)?|สิ้นสุด(?:วันที่)?)\\s*(${FLEX_DATE_TOKEN_PATTERN})`,
+    `(?:รอบระยะเวลาบัญชี|รอบบัญชี|งวดบัญชี|accounting\\s+period|fiscal\\s+year|\\bFY\\b)(?:[^0-9\\n]{0,55}?)(${FLEX_DATE_TOKEN_PATTERN})\\s*(?:ถึง|จนถึง|–|—|-|\\bto\\b|\\bthrough\\b|ending(?:\\s+on)?|สิ้นสุด(?:วันที่)?)\\s*(${FLEX_DATE_TOKEN_PATTERN})`,
     "i"
   );
   const rangeMatch = scrubbed.match(rangeRe);
   if (rangeMatch) {
     accountingStart = parseFlexibleThaiOrEnglishDateToIso(rangeMatch[1]);
     accountingEnd = parseFlexibleThaiOrEnglishDateToIso(rangeMatch[2]);
+  }
+
+  // 1a-i-b. Shared-trailing-year accounting period range (`รอบระยะเวลาบัญชี 1 มกราคม – 31 ธันวาคม 2559`, `accounting period 1 Jan - 31 Dec 2016`):
+  if (!accountingStart && !accountingEnd) {
+    const sharedYearRangeMatch = scrubbed.match(
+      /(?:รอบระยะเวลาบัญชี|รอบบัญชี|งวดบัญชี|accounting\s+period|fiscal\s+year|\bFY\b)(?:[^0-9\n]{0,55}?)([0-9]{1,2}(?:st|nd|rd|th)?\s*[ก-๙a-zA-Z.]+)\s*(?:ถึง|จนถึง|–|—|-|\bto\b|\bthrough\b)\s*([0-9]{1,2}(?:st|nd|rd|th)?\s*[ก-๙a-zA-Z.]+,?\s*((?:(?:พ\.ศ\.|ค\.ศ\.|B\.?E\.?|C\.?E\.?|A\.?D\.?)\s*)?(?:19|20|24|25)[0-9]{2}))/i
+    );
+    if (sharedYearRangeMatch) {
+      const candidateEnd = parseFlexibleThaiOrEnglishDateToIso(sharedYearRangeMatch[2]);
+      const candidateStart = parseFlexibleThaiOrEnglishDateToIso(
+        `${sharedYearRangeMatch[1]} ${sharedYearRangeMatch[3]}`
+      );
+      if (candidateStart && candidateEnd && candidateStart <= candidateEnd) {
+        accountingStart = candidateStart;
+        accountingEnd = candidateEnd;
+      }
+    }
   }
 
   // 1a-ii. Split fiscal-year notation (`FY 2017/18`, `FY2017-18`, `FY 2017/2018`, `รอบบัญชี 2560/2561`, `งวดปี 60/61`)
@@ -1394,7 +1424,7 @@ export function parseQueryTemporalAndIntentContext(params: {
       // Note: NEVER use ASCII `\b` before Thai `ปี` (JS treats Thai script as `\W`, so `\bปี` fails at string start and after spaces/Thai chars!)
       const yrThContext = scrubbed.match(
         new RegExp(
-          `(?:(?:ในปี|เมื่อปี|สำหรับปี|ช่วงปี|ระหว่างปี|ของปี|ประจำปี|ตอนปี|ตั้งแต่ปี|ย้อนไปปี|ปีบัญชี|รอบระยะเวลาบัญชี(?:\\s*ปี)?|รอบบัญชี(?:\\s*ปี)?|งวดบัญชี(?:\\s*ปี)?|งวดปี|งบปี|สำหรับรอบปี)\\s*(?:(พ\\.ศ\\.|ค\\.ศ\\.)\\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})|(?:ปี\\s*พ\\.ศ\\.|พ\\.ศ\\.)\\s*(25[0-7][0-9]|24[89][0-9]|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})|(?<!ระยะเวลา\\s*)(?<!กำหนด\\s*)(?<!เกิน\\s*)(?<!ไม่เกิน\\s*)(?<!ภายใน\\s*)(?<!เวลา\\s*)(?<![ก-๙])ปี\\s*((?:19|20|24|25)[0-9]{2}|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD}))(?![0-9])`
+          `(?:(?:ในปีปฏิทิน|ปีปฏิทิน|ในปี|เมื่อปี|สำหรับปี|ช่วงปี|ระหว่างปี|ของปี|ประจำปี|ตอนปี|ตั้งแต่ปี|ย้อนไปปี|ปีบัญชี|รอบระยะเวลาบัญชี(?:\\s*ปี)?|รอบบัญชี(?:\\s*ปี)?|งวดบัญชี(?:\\s*ปี)?|งวดปี|งบปี|สำหรับรอบปี)\\s*(?:(พ\\.ศ\\.|ค\\.ศ\\.)\\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})|(?:ปี\\s*พ\\.ศ\\.|พ\\.ศ\\.)\\s*(25[0-7][0-9]|24[89][0-9]|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})|(?<!ระยะเวลา\\s*)(?<!กำหนด\\s*)(?<!เกิน\\s*)(?<!ไม่เกิน\\s*)(?<!ภายใน\\s*)(?<!เวลา\\s*)(?<![ก-๙])ปี\\s*((?:19|20|24|25)[0-9]{2}|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD}))(?![0-9])`
         )
       );
       const yrCeExplicit = scrubbed.match(
@@ -1514,7 +1544,7 @@ export function parseQueryTemporalAndIntentContext(params: {
 
   // Detect explicit ruling-applicability / transfer questions (`นำ กค ... มาใช้กับ...ได้หรือไม่`, `ยังใช้บังคับ...หรือไม่`, `กฎหมาย...ใช้บังคับอย่างไร`, `หากบริษัท...`, `Does ruling ... apply`)
   const asksWhetherRulingApplies =
-    params.explicitRulingIds.length > 0 &&
+    explicitRulingIds.length > 0 &&
     (/(?:นำ(?:แนววินิจฉัย|หนังสือตอบข้อหารือ|ข้อหารือ|หลักเกณฑ์)?[^\n?]{0,60}?มา(?:ใช้|ปรับใช้|อ้างอิง|เทียบเคียง)|ยัง(?:คง)?(?:นำมา)?ใช้(?:บังคับ|อ้างอิง|ได้)?[^\n?]{0,50}?(?:ได้หรือไม่|ได้ไหม|อยู่หรือไม่|หรือไม่|ไหม)|ใช้บังคับกับ[^\n?]{0,60}?(?:ได้หรือไม่|ได้ไหม|หรือไม่|ไหม)|ปรับใช้กับ[^\n?]{0,60}?(?:ได้หรือไม่|ได้ไหม|หรือไม่|ไหม)|ใช้(?:ได้)?กับ(?:กรณี|ธุรกรรม|บริษัท|ห้าง|กิจการ|รอบ|ปี|เมื่อ)[^\n?]{0,60}?(?:ได้หรือไม่|ได้ไหม|หรือไม่|ไหม)|กฎหมาย[^\n?]{0,45}?ใช้บังคับอย่างไร|มีผลผูกพัน[^\n?]{0,45}?(?:หรือไม่|ไหม)|หาก(?:บริษัท|ห้าง|กิจการ|ผู้ประกอบการ|ผู้เสียภาษี|เรา|เปลี่ยนเป็น|ข้อเท็จจริง)|สมมติว่า|สำหรับกรณีของบริษัทเรา|ในกรณีของบริษัทเรา)/.test(
       qNorm
     ) ||
@@ -1524,7 +1554,7 @@ export function parseQueryTemporalAndIntentContext(params: {
 
   // Distinguish historical document lookup vs applicable law for a period (even when a ruling number IS included in the prompt!):
   const asksOnlyWhatRulingDecided =
-    params.explicitRulingIds.length > 0 &&
+    explicitRulingIds.length > 0 &&
     !asksWhetherRulingApplies &&
     !pointInTimeIso &&
     !hasYearlessPartialDate &&
@@ -1553,7 +1583,7 @@ export function parseQueryTemporalAndIntentContext(params: {
         ? asksOnlyWhatRulingDecided
         : params.mode === "exact_lookup" ||
           params.mode === "comparison" ||
-          (params.explicitRulingIds.length > 0 &&
+          (explicitRulingIds.length > 0 &&
             (!matchesConcreteTaxpayerPattern ||
               /(?:ตามหนังสือตอบข้อหารือ|ตามข้อหารือ|ในหนังสือตอบข้อหารือ|ตาม\s*กค|\bunder\s+ruling\b|\bin\s+ruling\b)/i.test(
                 qNorm
@@ -1809,7 +1839,14 @@ export function evaluateStatutoryVersionApplicability(params: {
     const isPre2020 =
       (exactHistoricalDate && exactHistoricalDate < "2020-01-01") ||
       (!exactHistoricalDate && yearOnlyHistoricalCe !== null && yearOnlyHistoricalCe < 2020);
-    if (isPre2020 && work.work_id.startsWith("prov.th.rc.")) {
+    const isCitRatePost2015BackedByEnactedStatutes =
+      work.work_id === "prov.th.rc.65" &&
+      ((exactHistoricalDate && exactHistoricalDate >= "2015-01-01") ||
+        (!exactHistoricalDate && yearOnlyHistoricalCe !== null && yearOnlyHistoricalCe >= 2015)) &&
+      /อัตราภาษีเงินได้นิติบุคคล|ร้อยละ\s*30|พ\.ร\.บ\.\s*(?:ฉบับที่\s*)?42|เสียภาษีเงินได้นิติบุคคล/i.test(
+        question
+      );
+    if (isPre2020 && work.work_id.startsWith("prov.th.rc.") && !isCitRatePost2015BackedByEnactedStatutes) {
       const periodDisplay = exactHistoricalDate
         ? exactHistoricalDate
         : `ปี พ.ศ. ${yearOnlyHistoricalCe! + 543} (${yearOnlyHistoricalCe})`;

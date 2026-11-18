@@ -44,10 +44,20 @@ export interface SubstantiveClaimSupportOutcome {
 }
 
 const THAI_NUMBER_WORD_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/ร้อยละหกจุดสาม/g, "ร้อยละ 6.3"],
+  [/หกจุดสาม/g, "6.3"],
   [/ร้อยละหนึ่งร้อย/g, "ร้อยละ 100"],
   [/หนึ่งร้อยละ/g, "ร้อยละ 100"],
+  [/สามสิบล้าน/g, "30000000"],
+  [/ยี่สิบล้าน/g, "20000000"],
+  [/สิบล้าน/g, "10000000"],
+  [/ห้าล้าน/g, "5000000"],
+  [/สามล้าน/g, "3000000"],
+  [/หนึ่งล้านแปดแสน/g, "1800000"],
   [/หนึ่งล้าน/g, "1000000"],
   [/ห้าแสน/g, "500000"],
+  [/สามแสน/g, "300000"],
+  [/หนึ่งแสนห้าหมื่น/g, "150000"],
   [/หนึ่งแสน/g, "100000"],
   [/ห้าหมื่น/g, "50000"],
   [/สี่หมื่น/g, "40000"],
@@ -180,7 +190,7 @@ function stripProvenanceHeaderPrefix(claimText: string): string {
 function extractCanonicalSectionIds(normText: string): string[] {
   const out = new Set<string>();
   const matches = normText.matchAll(
-    /มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s*(ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นว|ทศ|เตรส|โสฬส))?(?:\s*\(([0-9]{1,2})\))?/g
+    /มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s*(อัฏฐารส|อัฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|จัตวา|เบญจ|สัตต|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ))?(?:\s*\(([0-9]{1,2})\))?/g
   );
   for (const m of matches) {
     const num = m[1];
@@ -210,7 +220,7 @@ function extractCanonicalRulingIds(rawText: string): string[] {
 
 function extractCanonicalInstrumentNumbers(normText: string): string[] {
   const out = new Set<string>();
-  for (const m of normText.matchAll(/พระราชกฤษฎีกา[^0-9\n]{0,45}ฉบับที่\s*([0-9]+)/g)) {
+  for (const m of normText.matchAll(/พระราชกฤษฎีกา[^0-9\n]{0,115}ฉบับที่\s*([0-9]+)/g)) {
     out.add(`พรฎ.${m[1]}`);
   }
   for (const m of normText.matchAll(/ท\.ป\.\s*([0-9]+\/[0-9]+)/g)) {
@@ -376,6 +386,7 @@ function extractSubstantiveContentShingles(normText: string): string[] {
 export function evaluateSubstantiveClaimSupport(params: {
   claim_text: string;
   passages: SubstantiveSupportPassageInput[];
+  verified_calculation_numeric_tokens?: string[];
 }): SubstantiveClaimSupportOutcome {
   const strippedClaim = stripProvenanceHeaderPrefix(params.claim_text || "");
   if (!strippedClaim || params.passages.length === 0) {
@@ -491,26 +502,49 @@ export function evaluateSubstantiveClaimSupport(params: {
   }
 
   // 2. Material numeric / tax rate / unit-bound deadline / count / monetary threshold grounding check
-  for (const qTok of claimQuantities) {
+  //    Separate deterministic calculation outputs (`verified_calculation_numeric_tokens`) are permitted ONLY
+  //    when at least one statutory identifier OR at least one statutory rate/threshold/deadline is grounded in the cited passages!
+  const verifiedCalcSet = new Set(
+    (params.verified_calculation_numeric_tokens || []).map((t) => t.replace(/,/g, "").trim())
+  );
+
+  const isQuantityGroundedInPassage = (qTok: {
+    kind: "rate" | "unit" | "money";
+    val: string;
+    unitTh: string;
+  }): boolean => {
     const escapedVal = qTok.val.replace(".", "\\.");
-    let grounded = false;
     if (qTok.kind === "rate") {
-      grounded =
+      return (
         new RegExp(`(?:ร้อยละ|อัตรา(?:ภาษี)?)\\s*${escapedVal}(?![0-9])`).test(
           combinedNormWithMeta
         ) ||
         new RegExp(`(?<![0-9.])${escapedVal}\\s*(?:%|เปอร์เซ็นต์|percent)`).test(
           combinedNormWithMeta
-        );
-    } else if (qTok.kind === "unit") {
-      const unitGuard = qTok.unitTh === "วัน" ? "วัน(?!ที่|สิ้น)" : qTok.unitTh;
-      grounded = new RegExp(`(?<![0-9.])${escapedVal}\\s*${unitGuard}`).test(
-        combinedNormWithMeta
+        )
       );
-    } else {
-      grounded = new RegExp(`(?<![0-9.])${escapedVal}(?![0-9])`).test(combinedNormWithMeta);
     }
-    if (!grounded) {
+    if (qTok.kind === "unit") {
+      const unitGuard = qTok.unitTh === "วัน" ? "วัน(?!ที่|สิ้น)" : qTok.unitTh;
+      return new RegExp(`(?<![0-9.])${escapedVal}\\s*${unitGuard}`).test(combinedNormWithMeta);
+    }
+    return new RegExp(`(?<![0-9.])${escapedVal}(?![0-9])`).test(combinedNormWithMeta);
+  };
+
+  const passageDirectlyGroundsAtLeastOneStatuteOrNumber =
+    claimSections.length > 0 ||
+    claimInstruments.length > 0 ||
+    claimRulings.length > 0 ||
+    claimQuantities.some((qt) => isQuantityGroundedInPassage(qt));
+
+  for (const qTok of claimQuantities) {
+    const groundedInPassage = isQuantityGroundedInPassage(qTok);
+    const groundedViaVerifiedCalc =
+      verifiedCalcSet.size > 0 &&
+      passageDirectlyGroundsAtLeastOneStatuteOrNumber &&
+      verifiedCalcSet.has(qTok.val.replace(/,/g, ""));
+
+    if (!groundedInPassage && !groundedViaVerifiedCalc) {
       return {
         supported: false,
         reason_code: "UNGROUNDED_NUMERIC_ASSERTION",
@@ -705,6 +739,7 @@ export function verifyClaimAgainstPassages(
   claim: {
     statement: string;
     supporting_passage_ids: string[];
+    verified_calculation_numeric_tokens?: string[];
   },
   availablePassages: Passage[]
 ): ClaimVerificationOutcome {
@@ -754,8 +789,13 @@ export function verifyClaimAgainstPassages(
   const combinedSourceText = cited.map((p) => p.exact_text).join("\n");
   const sourcePol = detectThaiTaxPolarity(combinedSourceText);
 
+  const isAllStatutoryConditionApplication =
+    cited.every((p) => p.statement_role === "statutory_text") &&
+    Boolean(claim.verified_calculation_numeric_tokens && claim.verified_calculation_numeric_tokens.length > 0);
+
   // Contradiction 1: Claim asserts tax exemption / 0% / no tax, while source rules it is NOT exempt and MUST pay tax!
   if (
+    !isAllStatutoryConditionApplication &&
     claimPol.claimsExemptionOrZeroRate &&
     !claimPol.claimsTaxableOrNonExempt &&
     sourcePol.claimsTaxableOrNonExempt &&
@@ -787,6 +827,7 @@ export function verifyClaimAgainstPassages(
   // Material Issue 1: Substantive claim-to-evidence support check!
   const substantive = evaluateSubstantiveClaimSupport({
     claim_text: claim.statement,
+    verified_calculation_numeric_tokens: claim.verified_calculation_numeric_tokens,
     passages: cited.map((p) => ({
       passage_id: p.passage_id,
       doc_id: p.work_id,

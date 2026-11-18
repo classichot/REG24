@@ -735,6 +735,7 @@ export interface ProposedStructuredClaimInput {
   }>;
   scope_topic_th?: string;
   human_approved_by?: string | null;
+  verified_calculation_numeric_tokens?: string[];
 }
 
 export interface ValidateAndPublishAnswerInput {
@@ -1158,6 +1159,7 @@ export function validateAndBuildTraceableAnswer(
     if (claimDecision === "supported" && validRefsForClaim.length > 0) {
       const substantiveCheck = evaluateSubstantiveClaimSupport({
         claim_text: prop.text,
+        verified_calculation_numeric_tokens: prop.verified_calculation_numeric_tokens,
         passages: validRefsForClaim.map((ref) => {
           const psg = view.passages[ref.evidence_id]!;
           const doc = view.documents[ref.doc_id];
@@ -2051,12 +2053,16 @@ export function attachTraceableEnvelopeToGroundedAnswer(
       continue;
     }
 
-    const atomicSegments = segmentIntoAtomicClaimStatements(rawClm.statement);
+    // Keep cohesive `qualified_legal_synthesis` claims intact so multi-instrument statutory conclusions stay paired with all jointly required authorities!
+    const atomicSegments =
+      rawClm.claim_type === "qualified_legal_synthesis"
+        ? [rawClm.statement]
+        : segmentIntoAtomicClaimStatements(rawClm.statement);
     const supportIds = (rawClm.supporting_passage_ids || []).filter((id) =>
       authorizedCandidateIds.has(id)
     );
 
-    // Group passages by source family / role so multi-authority claims (statute + ruling) record separate required groups!
+    // Group passages by source family / role (and per doc_id for statutory authorities so multi-statute claims bind each document's own version_id cleanly!)
     const statutoryIds = supportIds.filter(
       (id) => view.documents[view.passages[id]?.doc_id || ""]?.source_family === "gazette_enactment"
     );
@@ -2071,24 +2077,51 @@ export function attachTraceableEnvelopeToGroundedAnswer(
 
     const buildGroups = (): ProposedStructuredClaimInput["support_groups"] => {
       const groups: ProposedStructuredClaimInput["support_groups"] = [];
+      const statutoryByDoc = new Map<string, string[]>();
+      for (const sid of statutoryIds) {
+        const dId = view.passages[sid]?.doc_id || "unknown";
+        const arr = statutoryByDoc.get(dId) || [];
+        arr.push(sid);
+        statutoryByDoc.set(dId, arr);
+      }
+
       if (statutoryIds.length > 0 && rulingIds.length > 0) {
-        groups.push({
-          group_id: "grp.statute_premise",
-          role: "statutory_premise",
-          evidence_ids: statutoryIds,
-        });
+        let sIdx = 0;
+        for (const [docId, docEvIds] of statutoryByDoc.entries()) {
+          sIdx++;
+          groups.push({
+            group_id: `grp.statute_premise.${sIdx}`,
+            role: "statutory_premise",
+            evidence_ids: docEvIds,
+            expected_version_id: view.passages[docEvIds[0]]?.version_id ?? null,
+          });
+        }
         groups.push({
           group_id: "grp.ruling_application",
           role: "ruling_application",
           evidence_ids: rulingIds,
         });
       } else if (statutoryIds.length > 0) {
-        groups.push({
-          group_id: "grp.primary_statute",
-          role: "primary_authority",
-          evidence_ids: statutoryIds,
-          expected_version_id: rawClm.applicable_version_id,
-        });
+        if (statutoryByDoc.size === 1) {
+          groups.push({
+            group_id: "grp.primary_statute",
+            role: "primary_authority",
+            evidence_ids: statutoryIds,
+            expected_version_id:
+              rawClm.applicable_version_id || view.passages[statutoryIds[0]]?.version_id || null,
+          });
+        } else {
+          let sIdx = 0;
+          for (const [, docEvIds] of statutoryByDoc.entries()) {
+            sIdx++;
+            groups.push({
+              group_id: `grp.primary_statute.${sIdx}`,
+              role: sIdx === 1 ? "primary_authority" : "statutory_premise",
+              evidence_ids: docEvIds,
+              expected_version_id: view.passages[docEvIds[0]]?.version_id ?? null,
+            });
+          }
+        }
       } else if (rulingIds.length > 0) {
         const allRequesterFacts = rulingIds.every((id) =>
           view.passages[id]?.statement_role.startsWith("requester_")
@@ -2131,6 +2164,7 @@ export function attachTraceableEnvelopeToGroundedAnswer(
         text: segText,
         claim_type: isFactApplication ? "interpretation" : "legal_proposition",
         support_groups: segGroups,
+        verified_calculation_numeric_tokens: rawClm.verified_calculation_numeric_tokens,
       });
     }
   }

@@ -1,0 +1,1903 @@
+{
+  "generated_at_iso": "2026-11-18T22:12:18.994Z",
+  "git_base_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+  "staging_store_sha256": "f48b290d030857ffd0515f2cf6606970e4476642e5f317a80111b04e0f8d4c8f",
+  "release_id": "rel.B01.rc6",
+  "manifest_id": "mfst.b01.rc6_core_auth",
+  "total_cases_executed": 44,
+  "legal_team_30_cases_count": 30,
+  "unseen_and_changed_fact_cases_count": 14,
+  "passed_count": 44,
+  "failed_count": 0,
+  "failures": [],
+  "governance_note": "Automated verification receipt for engineering & Dodo audit. Does NOT replace independent 7L Advisory Legal Team re-grading or constitute external-trial readiness.",
+  "results": [
+    {
+      "case_id": "B1-01",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "sched.th.rc.income_tax_rate",
+        "prov.th.rc.65",
+        "statute.th.rc_amendment_42_2559"
+      ],
+      "cited_official_identifiers": [
+        "บัญชีอัตราภาษีเงินได้",
+        "มาตรา 65",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตาม ประมวลรัษฎากร มาตรา 65 และบัญชีอัตราภาษีเงินได้ (2) (ก) สำหรับบริษัทหรือห้างหุ้นส่วนนิติบุคคล (แก้ไขเพิ่มเติมเป็นการถาวรโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559 มาตรา 3 และมาตรา 4 ใช้บังคับสำหรับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2559 เป็นต้นไป) บริษัทจำกัดทั่วไปที่มิใช่ SME ต้องเสียภาษีเงินได้นิติบุคคลในอัตรา **ร้อยละ 20 ของกำไรสุทธิ** เมื่อคำนวณจากกำไรสุทธิ 8,000,000 บาท คิดเป็นภาษีเงินได้นิติบุคคลที่ต้องชำระ"
+    },
+    {
+      "case_id": "B1-02",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "sched.th.rc.income_tax_rate",
+        "prov.th.rc.48",
+        "subreg.th.rc.royal_decree.470",
+        "statute.th.rc_amendment_44_2560"
+      ],
+      "cited_official_identifiers": [
+        "บัญชีอัตราภาษีเงินได้",
+        "มาตรา 48",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการยกเว้นรัษฎากร (ฉบับที่ 470) พ.ศ. 2551",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 44) พ.ศ. 2560"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "partial",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 48 (1) และบัญชีอัตราภาษีเงินได้ (1) (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 44) พ.ศ. 2560) ประกอบพระราชกฤษฎีกาออกตามความในประมวลรัษฎากร (ฉบับที่ 470) พ.ศ. 2551 เงินได้สุทธิ 900,000 บาท เสียภาษีเงินได้บุคคลธรรมดาแบบอัตราก้าวหน้า (0–150,000 บาทแรกได้รับยกเว้นภาษี, 150,001–300,000 บาท ร้อยละ 5 = 7,500 บาท, 300,001–500,000 บาท ร้อยละ 10 = 20,000 บาท, 500,001–750,000 บาท ร้อยละ 15 = 37,500 บาท, 750,001–1,000,000 บา"
+    },
+    {
+      "case_id": "B1-03",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.807",
+        "subreg.th.rd.vat_local_tax_guide",
+        "subreg.th.rc.royal_decree.799"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 80",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569",
+        "อัตราภาษีมูลค่าเพิ่มและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 80 และพระราชบัญญัติจัดสรรรายได้ประเภทภาษีมูลค่าเพิ่มและภาษีธุรกิจเฉพาะให้แก่ราชการส่วนท้องถิ่น พ.ศ. 2534",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 799) พ.ศ. 2568"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 80 ประกอบ **พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2569 ถึง 30 กันยายน 2570)** อัตราภาษีมูลค่าเพิ่มลดลงคงจัดเก็บร้อยละ 6.3 และเมื่อรวมภาษีท้องถิ่นอีก 1 ใน 9 (ร้อยละ 0.7) จึงต้องคำนวณภาษีมูลค่าเพิ่มในอัตรา **ร้อยละ 7** (ร้อยละ 7.0)\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (`reg24-tax-calc-verifier-v1.0`)**:\n- ประมวล"
+    },
+    {
+      "case_id": "B1-04",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "sched.th.rc.stamp_duty",
+        "prov.th.rc.103",
+        "prov.th.rc.104",
+        "subreg.th.rd.dg_stamp.37"
+      ],
+      "cited_official_identifiers": [
+        "บัญชีอัตราอากรแสตมป์ท้ายหมวด 6 แห่งประมวลรัษฎากร",
+        "มาตรา 103",
+        "มาตรา 104",
+        "ประกาศอธิบดีกรมสรรพากร เกี่ยวกับอากรแสตมป์ (ฉบับที่ 37) เรื่อง กำหนดวิธีการชำระอากรเป็นตัวเงินสำหรับตราสารบางลักษณะ"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 103 มาตรา 104 และ **บัญชีอัตราอากรแสตมป์ ลักษณะแห่งตราสาร 4. จ้างทำของ** สัญญาจ้างทำของกำหนดสินจ้าง 2,000,000 บาท ต้องเสียอากรแสตมป์ในอัตรา 1 บาท ทุกจำนวนเงิน 1,000 บาท หรือเศษของ 1,000 บาท คิดเป็นค่าอากรแสตมป์จำนวน **2,000 บาท** โดยมี **ผู้รับจ้าง** เป็นผู้ที่ต้องเสียอากร (และผู้ขีดฆ่าแสตมป์) ทั้งนี้ เนื่องจากสินจ้างมีมูลค่าตั้งแต่ 1,000,000 บาทขึ้นไป ตาม **ประกาศอธิบดีกรมสรรพากร เกี่ยวกับอากรแสตมป์ (ฉบับที่ 37)** ต้องดำเนินการ **ชำระอา"
+    },
+    {
+      "case_id": "B1-05",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.3_ปัณรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rc.min_reg.389",
+        "subreg.th.rc.min_reg.402",
+        "subreg.th.rd.order_tp.354_2566"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 3 ปัณรส",
+        "คำสั่งกรมสรรพากร ที่ ท.ป. 4/2528",
+        "มาตรา 3 เตรส",
+        "กฎกระทรวง ฉบับที่ 389 (พ.ศ. 2566) ออกตามความในประมวลรัษฎากร ว่าด้วยภาษีเงินได้",
+        "กฎกระทรวง ฉบับที่ 402 (พ.ศ. 2569) ออกตามความในประมวลรัษฎากร ว่าด้วยภาษีเงินได้",
+        "คำสั่งกรมสรรพากร ที่ ท.ป. 354/2566"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 3 เตรส และมาตรา 3 ปัณรส ประกอบ อัตราลดเหลือร้อยละ 1.0 สำหรับการจ่ายเงินได้ตั้งแต่วันที่ 1 มกราคม พ.ศ. 2566 ถึงวันที่ 31 ธันวาคม พ.ศ. 2568 ที่นำส่งผ่านระบบ e-Withholding Tax ตามมาตรา 3 ปัณรส ประกอบกฎกระทรวง ฉบับที่ 389 (พ.ศ. 2566) และคำสั่งกรมสรรพากร ที่ ท.ป. 354/2566 (แก้ไขเพิ่มเติม ท.ป. 4/2528) ต้องหักภาษี ณ ที่จ่ายในอัตรา **ร้อยละ 1** จากเงินได้ 1,200,000 บาท คิดเป็นภาษีหัก ณ ที่จ่ายจำนวน **12,000 บาท**\n\n**รายละเอียดขั้นตอนการคำนวณและเ"
+    },
+    {
+      "case_id": "B1-05F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-05",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "prov.th.rc.3_ปัณรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "subreg.th.rc.min_reg.389",
+        "subreg.th.rc.min_reg.402",
+        "subreg.th.rd.order_tp.354_2566"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 3 เตรส",
+        "มาตรา 3 ปัณรส",
+        "คำสั่งกรมสรรพากร ที่ ท.ป. 4/2528",
+        "กฎกระทรวง ฉบับที่ 389 (พ.ศ. 2566) ออกตามความในประมวลรัษฎากร ว่าด้วยภาษีเงินได้",
+        "กฎกระทรวง ฉบับที่ 402 (พ.ศ. 2569) ออกตามความในประมวลรัษฎากร ว่าด้วยภาษีเงินได้",
+        "คำสั่งกรมสรรพากร ที่ ท.ป. 354/2566"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nสำหรับการจ่ายค่าจ้างทำของในวันที่ `2026-01-15` ผ่านระบบ e-Withholding Tax ตามประมวลรัษฎากร มาตรา 3 เตรส และมาตรา 3 ปัณรส: เดิมมาตรการลดอัตราเหลือร้อยละ 1.0 ตามกฎกระทรวง ฉบับที่ 389 (พ.ศ. 2566) และคำสั่งกรมสรรพากร ที่ ท.ป. 354/2566 สิ้นสุดลงเมื่อวันที่ 31 ธันวาคม พ.ศ. 2568 (ซึ่งหากพิจารณาตาม ท.ป. 4/2528 ข้อ 8 ก่อนมีกฎกระทรวงขยายเวลา อัตราปกติคือ **ร้อยละ 3** = **36,000 บาท**) ทั้งนี้ กระทรวงการคลังได้ออก **กฎกระทรวง ฉบับที่ 402 (พ.ศ. 2569)** (ลงวันที่ 1 ตุลาคม "
+    },
+    {
+      "case_id": "B1-06",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.70",
+        "prov.th.rc.40",
+        "sched.th.rc.income_tax_rate"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 70",
+        "มาตรา 40",
+        "บัญชีอัตราภาษีเงินได้"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nการจ่ายเงินได้จากประเทศไทยให้แก่บริษัทที่ตั้งขึ้นตามกฎหมายต่างประเทศและมิได้ประกอบกิจการในประเทศไทย พิจารณาตาม **ประมวลรัษฎากร มาตรา 70 ประกอบบัญชีอัตราภาษีเงินได้ (2) (ข) และ (ค)** แยกรายการดังนี้: (1) **เงินปันผล (มาตรา 40 (4) (ข))** จำนวน 5,000,000 บาท: เข้าลักษณะเงินได้ตามมาตรา 40 (4) (ข) ต้องหักภาษี ณ ที่จ่ายตาม **มาตรา 70 และบัญชีอัตราภาษีเงินได้ (2) (ค) ในอัตราร้อยละ 10** คิดเป็นเงิน **500,000 บาท** · (2) **ค่าบริหารจัดการ (Management Fee)** จำนวน 1,000"
+    },
+    {
+      "case_id": "B1-07",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/6",
+        "prov.th.rc.91/5",
+        "subreg.th.rd.sbt_local_tax_guide",
+        "subreg.th.rc.royal_decree.342",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 91/2",
+        "มาตรา 91/6",
+        "มาตรา 91/5",
+        "อัตราภาษีธุรกิจเฉพาะและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 91/2 มาตรา 91/5 และมาตรา 91/6",
+        "มาตรา 4(6)",
+        "มาตรา 104",
+        "บัญชีอัตราอากรแสตมป์ท้ายหมวด 6 แห่งประมวลรัษฎากร"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**แปลงที่หนึ่ง**: เป็นการขายอสังหาริมทรัพย์ที่ได้มาทางมรดก (เข้าข้อยกเว้นไม่ถือเป็นการขายเป็นทางค้าหรือหากำไรตามมาตรา 4 (6) (ค) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเสียภาษีธุรกิจเฉพาะ**) แต่มีหน้าที่เสีย **อากรแสตมป์อัตราร้อยละ 0.5** (1 บาท ทุก 200 บาท หรือเศษของ 200 บาท ตามบัญชีอัตราอากรแสตมป์ ลักษณะ 28. (ข)) · **แปลงที่สอง**: ขายภายใน 5 ปีนับแต่วันที่ได้มา เข้าลักษณะเป็"
+    },
+    {
+      "case_id": "B1-07F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-07",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/6",
+        "prov.th.rc.91/5",
+        "subreg.th.rd.sbt_local_tax_guide",
+        "subreg.th.rc.royal_decree.342",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 91/2",
+        "มาตรา 91/6",
+        "มาตรา 91/5",
+        "อัตราภาษีธุรกิจเฉพาะและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 91/2 มาตรา 91/5 และมาตรา 91/6",
+        "มาตรา 4(6)",
+        "มาตรา 104",
+        "บัญชีอัตราอากรแสตมป์ท้ายหมวด 6 แห่งประมวลรัษฎากร"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินแปลงที่หนึ่ง (กรณีซื้อมาจากบุคคลภายนอกและถือครองเกิน 5 ปี)**: ถือครองเกิน 5 ปีนับแต่วันที่ได้มา (5 ปี) และมิได้ประกอบธุรกิจค้าอสังหาริมทรัพย์เป็นปกติ (ไม่อยู่ในเกณฑ์ขายภายใน 5 ปีตามมาตรา 4 (6) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 ดังนั้นแม้ไม่ได้รับมาทางมรดกแต่ซื้อมาและถือครองเกิน 5 ปี ผลทางภาษีธุรกิจเฉพาะจึง **ไม่เปลี่ยนแปลง** คือยังคงไม่ต้องเสียภาษีธุรกิจเฉพาะ) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเส"
+    },
+    {
+      "case_id": "B1-08",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.65_ตรี",
+        "subreg.th.rd.order_p.52_2537",
+        "statute.th.rc_amendment_51_2562"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 65 ตรี",
+        "คำสั่งกรมสรรพากร ที่ ป. 52/2537 เรื่อง การคำนวณรายจ่ายเพื่อการกุศลสาธารณะหรือเพื่อการสาธารณประโยชน์ และรายจ่ายเพื่อการศึกษาหรือเพื่อการกีฬา ตามมาตรา 65 ตรี (3) แห่งประมวลรัษฎากร",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 65 ตรี (3) (ข) ประกอบ **คำสั่งกรมสรรพากร ที่ ป. 52/2537** เพดานรายจ่ายเพื่อการกุศลสาธารณะ \"ไม่เกินร้อยละ 2 ของกำไรสุทธิ\" คำนวณจากกำไรสุทธิ **หลังหักรายจ่ายการกุศลสาธารณะนั้นแล้ว** (คิดเป็นสัดส่วน **2/102 ของกำไรสุทธิก่อนหักรายจ่ายบริจาค** กรณีไม่มีรายจ่ายเพื่อการศึกษา/กีฬา) ดังนั้น จากกำไรสุทธิก่อนรายจ่ายบริจาค 20,000,000 บาท เพดานสูงสุดที่หักได้คือ `20,000,000 × 2 / 102` = **392,156.86 บาท** (ทำให้เหลือกำไรสุทธิหลังหักเงินบริจาค 19,607,"
+    },
+    {
+      "case_id": "B1-09",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.48",
+        "statute.th.rc_amendment_40_2558",
+        "prov.th.rc.42",
+        "prov.th.rc.40"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 48",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558",
+        "มาตรา 42",
+        "มาตรา 40"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 42 (26) และ (27) ประกอบมาตรา 40 (8) และมาตรา 48 (6) (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) จากมูลค่าที่ดิน 25,000,000 บาท ได้รับยกเว้นภาษีเงินได้เฉพาะส่วนที่ไม่เกิน **20,000,000 บาท** ตลอดปีภาษี ส่วนที่เกินอีกจำนวน **5,000,000 บาท** ไม่ได้รับยกเว้นและต้องนำมาคำนวณภาษีเงินได้บุคคลธรรมดา (โดยเลือกเสียภาษีแยกต่างหากในอัตราร้อยละ 5 ของส่วนที่เกิน คิดเป็นภาษี **250,000 บาท** หรือนำไปรวมคำนวณกับเงินไ"
+    },
+    {
+      "case_id": "B1-09F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-09",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.42",
+        "prov.th.rc.48",
+        "prov.th.rc.40",
+        "statute.th.rc_amendment_40_2558"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 42",
+        "มาตรา 48",
+        "มาตรา 40",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อเปลี่ยนข้อเท็จจริงจากบุตรชอบด้วยกฎหมายเป็น **หลานสาว** และให้เนื่องในงานสมรสตามประเพณี จะ **ไม่ได้รับสิทธิยกเว้นตามมาตรา 42 (26)** อีกต่อไป โดยผลทางภาษีเงินได้ของหลานสาวขึ้นอยู่กับความสัมพันธ์ของคำว่า \"หลานสาว\" ตามพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558 ดังนี้: (1) หากเป็นบุตรของพี่หรือน้อง (หลานลุง/หลานน้า/หลานอา ซึ่งมิใช่ผู้สืบสันดานโดยตรง) การให้ในงานสมรสตามประเพณีเข้าเกณฑ์ **มาตรา 42 (28)** ได้รับยกเว้นเพียง **10,000,000 บาท** "
+    },
+    {
+      "case_id": "B1-10",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.81/1",
+        "prov.th.rc.85/1",
+        "subreg.th.rc.royal_decree.432"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 81/1",
+        "มาตรา 85/1",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 432)"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "partial",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 81/1 และมาตรา 85/1 ประกอบ **พระราชกฤษฎีกา (ฉบับที่ 432) พ.ศ. 2548** มาตรา 4 รายรับจากการขายสินค้าในปีปฏิทินรวม 1,500,000 บาท **ไม่เกินเกณฑ์มูลค่าของฐานภาษีของกิจการขนาดย่อม 1,800,000 บาทต่อปี** จึง **ได้รับยกเว้นภาษีมูลค่าเพิ่มและไม่ต้องจดทะเบียนภาษีมูลค่าเพิ่ม** (เว้นแต่จะแจ้งต่ออธิบดีเพื่อขอจดทะเบียนโดยสมัครใจตามมาตรา 81/3)\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (`reg24-tax-calc-verifier-v1.0`)**:\n- เกณฑ์มูลค"
+    },
+    {
+      "case_id": "B1-11",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.80/1",
+        "subreg.th.rd.dg_vat.105"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 80/1",
+        "ประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105)"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อผู้ประกอบการจดทะเบียนให้บริการจากในประเทศไทยแก่บริษัทในต่างประเทศ โดยส่งมอบงานและผู้รับบริการนำไปใช้ในต่างประเทศทั้งหมด (ไม่มีการนำผลของบริการมาใช้ในประเทศไทย) จึงได้รับสิทธิเสียภาษีมูลค่าเพิ่มในอัตรา **ร้อยละ 0** (ไม่ใช่ร้อยละ 7) ตามประมวลรัษฎากร มาตรา 80/1 (2) ประกอบประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105)\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (`reg24-tax-calc-verifier-v1.0`)**:\n- เป็นการให้บริการที่กระทำ"
+    },
+    {
+      "case_id": "B1-11F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-11",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.80/1",
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.807",
+        "subreg.th.rd.vat_local_tax_guide",
+        "prov.th.rc.77/2",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rd.dg_vat.105"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 80/1",
+        "มาตรา 80",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569",
+        "อัตราภาษีมูลค่าเพิ่มและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 80 และพระราชบัญญัติจัดสรรรายได้ประเภทภาษีมูลค่าเพิ่มและภาษีธุรกิจเฉพาะให้แก่ราชการส่วนท้องถิ่น พ.ศ. 2534",
+        "มาตรา 77/2",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 799) พ.ศ. 2568",
+        "ประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105)"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเนื่องจากผลของการให้บริการถูกนำไปใช้ที่สาขาในประเทศไทย จึงถือเป็นการให้บริการที่กระทำในราชอาณาจักรและมีการใช้บริการในประเทศไทยตามมาตรา 77/2 (1) **ไม่เข้าเงื่อนไขใช้อัตราร้อยละ 0 ตามมาตรา 80/1 (2) และประกาศอธิบดีฯ เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105)** ตามประมวลรัษฎากร มาตรา 80 ประกอบ **พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 646) พ.ศ. 2560 แก้ไขเพิ่มเติมถึง (ฉบับที่ 807) พ.ศ. 2569 (ถึงวันที่ 30 กันยายน 2570)** อัตราภา"
+    },
+    {
+      "case_id": "B1-12",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.65_ตรี",
+        "statute.th.rc_amendment_51_2562"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 65 ตรี",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อรอบระยะเวลาบัญชีเริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 ตาม **ประมวลรัษฎากร มาตรา 65 ตรี (3) (ก) ประกอบมาตรา 5 วรรคสอง แห่งพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562** บริษัทมีสิทธินำเงินบริจาคให้พรรคการเมือง 80,000 บาท มาหักเป็นรายจ่ายได้ **ไม่เกิน 50,000 บาท** (ส่วนที่เกินอีก **30,000 บาท** เป็นรายจ่ายต้องห้ามตามมาตรา 65 ตรี (3)) ทั้งนี้ ต้องเป็นไปตามหลักเกณฑ์ วิธีการ และเงื่อนไขที่อธิบดีกรมสรรพากรประกาศกำหนด\n\n**รายละเอียดขั้นตอนกา"
+    },
+    {
+      "case_id": "B1-12F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-12",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "statute.th.rc_amendment_51_2562"
+      ],
+      "cited_official_identifiers": [
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nสำหรับรอบระยะเวลาบัญชีที่เริ่มต้นวันที่ `2017-07-01` (เริ่มก่อนวันที่ 1 มกราคม พ.ศ. 2561) ตาม **มาตรา 5 วรรคสอง และมาตรา 6 แห่งพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562** บทบัญญัติมาตรา 65 ตรี (3) (ก) ที่อนุญาตให้หักเงินบริจาคพรรคการเมืองได้ไม่เกิน 50,000 บาท ใช้บังคับเฉพาะรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ **1 มกราคม พ.ศ. 2561** เป็นต้นไปเท่านั้น บริษัทจึง **ไม่สามารถนำเงินบริจาคพรรคการเมือง 80,000 บาท มาหักเป็นรายจ่ายตามมาตรา 65 ต"
+    },
+    {
+      "case_id": "B1-13",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.42_ทวิ",
+        "statute.th.rc_amendment_44_2560",
+        "work.th.rd.gk_0702_4383_2017_f7bfea1a"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 42 ทวิ",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 44) พ.ศ. 2560",
+        "กค 0702/4383"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nสำหรับปีภาษี พ.ศ. 2568 ตามประมวลรัษฎากร มาตรา 42 ทวิ วรรคหนึ่ง (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 44) พ.ศ. 2560 ใช้บังคับตั้งแต่ปีภาษี พ.ศ. 2560 เป็นต้นไป) เงินได้พึงประเมินตามมาตรา 40 (1) ยอมให้หักค่าใช้จ่ายเป็นการเหมาได้ในอัตรา **ร้อยละ 50 แต่รวมกันต้องไม่เกิน 100,000 บาท** ทั้งนี้ **ต้องไม่ใช้ตัวเลขร้อยละ 40 ไม่เกิน 60,000 บาท** จากหนังสือตอบข้อหารือเก่าที่ออกภายใต้กฎหมายเดิมก่อนปีภาษี 2560\n\n**รายละเอียดขั้นตอนการคำนวณและเงื"
+    },
+    {
+      "case_id": "B1-14",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.65",
+        "statute.th.rc_amendment_42_2559"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 65",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตาม ประมวลรัษฎากร มาตรา 65 ประกอบพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559 มาตรา 3 และมาตรา 4 (ใช้บังคับสำหรับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2559 เป็นต้นไป) บริษัทจำกัดทั่วไปที่มิใช่ SME ต้องเสียภาษีเงินได้นิติบุคคลในอัตรา **ร้อยละ 20 ของกำไรสุทธิ** — ความเข้าใจว่าอัตราภาษีเงินได้นิติบุคคลยังเป็นร้อยละ 30 นั้น **ไม่ถูกต้อง (ไม่ใช่อัตราร้อยละ 30)**: พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559 มาต"
+    },
+    {
+      "case_id": "B1-14F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-14",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.65",
+        "subreg.th.rc.royal_decree.530",
+        "subreg.th.rc.royal_decree.577",
+        "statute.th.rc_amendment_42_2559"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 65",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 530)",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราและยกเว้นรัษฎากร (ฉบับที่ 577) พ.ศ. 2557",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตาม ประมวลรัษฎากร มาตรา 65 ประกอบพระราชกฤษฎีกาออกตามความในประมวลรัษฎากร (ฉบับที่ 530) พ.ศ. 2554 ซึ่งแก้ไขเพิ่มเติมโดยพระราชกฤษฎีกา (ฉบับที่ 577) พ.ศ. 2557 (ลดอัตราภาษีเงินได้นิติบุคคลจากร้อยละ 30 เหลืออัตราร้อยละ 20 ของกำไรสุทธิ สำหรับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2558 แต่ไม่เกินวันที่ 31 ธันวาคม พ.ศ. 2558) บริษัทจำกัดทั่วไปที่มิใช่ SME ต้องเสียภาษีเงินได้นิติบุคคลในอัตรา **ร้อยละ 20 ของกำไรสุทธิ** — หมายเหตุการเลือกใช้บทบัญญัติตามวันเ"
+    },
+    {
+      "case_id": "B1-15",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "subreg.th.rc.royal_decree.807",
+        "prov.th.rc.80",
+        "subreg.th.rd.vat_local_tax_guide",
+        "subreg.th.rc.royal_decree.799"
+      ],
+      "cited_official_identifiers": [
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569",
+        "มาตรา 80",
+        "อัตราภาษีมูลค่าเพิ่มและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 80 และพระราชบัญญัติจัดสรรรายได้ประเภทภาษีมูลค่าเพิ่มและภาษีธุรกิจเฉพาะให้แก่ราชการส่วนท้องถิ่น พ.ศ. 2534",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 799) พ.ศ. 2568"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nความรับผิดในการเสียภาษีมูลค่าเพิ่มที่เกิดขึ้นในวันที่ `2027-10-20` อยู่พ้นกำหนดเวลาตาม **พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร (ฉบับที่ 807) พ.ศ. 2569** ซึ่งลดอัตราภาษีมูลค่าเพิ่มเหลือร้อยละ 6.3 (รวมภาษีท้องถิ่นเป็นร้อยละ 7.0) เฉพาะความรับผิดที่เกิดขึ้นถึงวันที่ **30 กันยายน พ.ศ. 2570** เท่านั้น (**พ.ร.ฎ. ฉบับที่ 807 จึงไม่ได้ขยายอัตราลดครอบคลุมวันที่ `2027-10-20`**) ดังนั้น ตามกฎหมายที่ตราขึ้นใช้บังคับอยู่ในปัจจุบัน หากไม่มีการตราพระราชกฤษฎีกาฉบับใหม่ขยายเวล"
+    },
+    {
+      "case_id": "B1-15F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-15",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.807",
+        "subreg.th.rd.vat_local_tax_guide",
+        "subreg.th.rc.royal_decree.799"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 80",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569",
+        "อัตราภาษีมูลค่าเพิ่มและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 80 และพระราชบัญญัติจัดสรรรายได้ประเภทภาษีมูลค่าเพิ่มและภาษีธุรกิจเฉพาะให้แก่ราชการส่วนท้องถิ่น พ.ศ. 2534",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 799) พ.ศ. 2568"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 80 ประกอบ **พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2569 ถึง 30 กันยายน 2570)** อัตราภาษีมูลค่าเพิ่มลดลงคงจัดเก็บร้อยละ 6.3 และเมื่อรวมภาษีท้องถิ่นอีก 1 ใน 9 (ร้อยละ 0.7) จึงต้องคำนวณภาษีมูลค่าเพิ่มในอัตรา **ร้อยละ 7** (ร้อยละ 7.0)\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (`reg24-tax-calc-verifier-v1.0`)**:\n- ประมวล"
+    },
+    {
+      "case_id": "B1-16",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "NEEDS_CLARIFICATION",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "prov.th.rc.70",
+        "prov.th.rc.3_ปัณรส",
+        "prov.th.rc.50",
+        "subreg.th.rc.min_reg.389"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 3 เตรส",
+        "คำสั่งกรมสรรพากร ที่ ท.ป. 4/2528",
+        "มาตรา 70",
+        "มาตรา 3 ปัณรส",
+        "มาตรา 50",
+        "กฎกระทรวง ฉบับที่ 389 (พ.ศ. 2566) ออกตามความในประมวลรัษฎากร ว่าด้วยภาษีเงินได้"
+      ],
+      "law_application_claim_count": 0,
+      "traceable_answer_status": "partial",
+      "clarification_questions": [
+        "ผู้รับเงินค่าที่ปรึกษาเป็นบุคคลประเภทใดและมีถิ่นที่อยู่/สถานประกอบการใด: (1) บริษัทหรือห้างหุ้นส่วนนิติบุคคลที่ตั้งขึ้นตามกฎหมายไทย/ประกอบกิจการในไทย, (2) บุคคลธรรมดาผู้มีถิ่นที่อยู่ในไทย, หรือ (3) บริษัทต่างประเทศที่มิได้ประกอบกิจการในประเทศไทย?",
+        "ขอบเขตงานที่ปรึกษาเข้าลักษณะใด (วิชาชีพอิสระตามมาตรา 40 (6), รับทำงานให้ตามมาตรา 40 (2), จ้างทำของ/บริการตามมาตรา 40 (7)/(8), หรือมีการถ่ายทอดวิทยาการอันเป็นค่าสิทธิตามมาตรา 40 (3)) และเป็นการนำส่งผ่านระบบ e-Withholding Tax ตามมาตรา 3 ปัณรส หรือไม่?"
+      ],
+      "answer_preview_th": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**กรอบหลักกฎหมายแบบมีเงื่อนไขตามข้อเท็จจริงที่ยังขาด**: การหักภาษี ณ ที่จ่ายสำหรับ \"ค่าที่ปรึกษา\" จำนวน 2,000,000 บาท ไม่สามารถฟันธงเป็นตัวเลขเดียวได้หากยังไม่ทราบสถานะผู้รับเงินและลักษณะงาน โดยแยกตามบทบัญญัติประมวลรัษฎากรดังนี้:\n- **กรณีที่ 1 ผู้รับเป็นบริษัท/ห้างหุ้นส่วนนิติบุคคลไทย (หรือบริษัทต่างประเทศที่ประกอบกิจการในไทยมีสถ"
+    },
+    {
+      "case_id": "B1-16F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-16",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.70",
+        "sched.th.rc.income_tax_rate"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 40",
+        "มาตรา 70",
+        "บัญชีอัตราภาษีเงินได้"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nการจ่ายเงินได้จากประเทศไทยให้แก่บริษัทที่ตั้งขึ้นตามกฎหมายต่างประเทศและมิได้ประกอบกิจการในประเทศไทย พิจารณาตาม **ประมวลรัษฎากร มาตรา 70 ประกอบบัญชีอัตราภาษีเงินได้ (2) (ข) และ (ค)** แยกรายการดังนี้: (1) **ค่าที่ปรึกษา (Consulting Fee)** จำนวน 2,000,000 บาท: ตาม **มาตรา 70 ประกอบบัญชีอัตราภาษีเงินได้ (2) (ข)** จัดเก็บเฉพาะเงินได้ตามมาตรา 40 (2)–(6) ในอัตรา **ร้อยละ 15** ดังนั้น หากงานบริหารจัดการ/ที่ปรึกษาเข้าลักษณะเป็นเงินได้จากการรับทำงานให้ตาม **มาตรา 40 (2)"
+    },
+    {
+      "case_id": "B1-17",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.19"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 19"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "partial",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 19 เมื่อบริษัทยื่นแบบแสดงรายการเมื่อวันที่ `2022-05-28` กำหนดเวลาออกหมายเรียกตามหลักทั่วไป **2 ปีนับแต่วันที่ได้ยื่นรายการ** สิ้นสุดลงเมื่อวันที่ `2024-05-28` เมื่อไม่มีข้อเท็จจริงเรื่องเจตนาหลีกเลี่ยงภาษีอากรหรือการขอคืนภาษีอากรที่อธิบดีอนุมัติให้ขยายเวลา (ไม่เกิน 5 ปี) การออกหมายเรียกในวันที่ `2025-08-10` จึงพ้นกำหนดเวลา 2 ปีแล้ว **เจ้าพนักงานประเมินของกรมสรรพากรจึงไม่สามารถออกหมายเรียกตามมาตรา 19 ได้**\n\n**รายละเอียดขั้นตอนการคำนวณและเ"
+    },
+    {
+      "case_id": "B1-17F",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": "B1-17",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.19"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 19"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "partial",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อข้อเท็จจริงเปลี่ยนเป็นอธิบดีกรมสรรพากรได้อนุมัติให้ขยายระยะเวลาการออกหมายเรียกเพราะมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร **ผลทางกฎหมายตามประมวลรัษฎากร มาตรา 19 ย่อมเปลี่ยนแปลงไป**: จากวันยื่นแบบ `2022-05-28` ขยายเวลาได้ไม่เกิน **5 ปี** คือถึงวันที่ `2027-05-28` ดังนั้น หมายเรียกวันที่ `2025-08-10` จึงอยู่ภายในกำหนด 5 ปี และ **เจ้าพนักงานประเมินมีอำนาจออกหมายเรียกได้โดยชอบด้วยกฎหมาย** (ทั้งนี้ ต้องให้เวลาล่วงหน้าไม่น้อยกว่า 7 วันนับแต่"
+    },
+    {
+      "case_id": "B1-18",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "INSUFFICIENT_EVIDENCE",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [],
+      "cited_official_identifiers": [],
+      "law_application_claim_count": 0,
+      "traceable_answer_status": "insufficient",
+      "clarification_questions": [
+        "กรุณาตรวจสอบเลขที่หนังสือตอบข้อหารือ (กค 0702/848421) หรือวันที่ออกหนังสืออีกครั้ง"
+      ],
+      "answer_preview_th": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/848421 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc6) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน"
+    },
+    {
+      "case_id": "B1-19",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "INSUFFICIENT_EVIDENCE",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [],
+      "cited_official_identifiers": [],
+      "law_application_claim_count": 0,
+      "traceable_answer_status": "insufficient",
+      "clarification_questions": [
+        "หากต้องการถามภาระภาษีอากรตามประมวลรัษฎากรที่เกี่ยวข้องกับธุรกรรมนี้ กรุณาระบุประเด็นภาษีที่ต้องการตรวจสอบเพิ่มเติม"
+      ],
+      "answer_preview_th": "ประเด็นคำถามเกี่ยวกับ \"พระราชบัญญัติคุ้มครองแรงงาน\" อยู่นอกขอบเขตคลังข้อมูลที่ผ่านการรับรองในชุดทดลองใช้งานปัจจุบัน (rel.B01.rc6: ครอบคลุมหนังสือตอบข้อหารือกรมสรรพากร 4,578 รายการ ประมวลรัษฎากร และกฎหมายลำดับรองของกรมสรรพากรที่ตรวจสอบต้นฉบับแล้วเท่านั้น) ระบบจึงระงับการตอบและไม่คาดเดาข้อกฎหมายนอกขอบเขต"
+    },
+    {
+      "case_id": "B1-20",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "INSUFFICIENT_EVIDENCE",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [],
+      "cited_official_identifiers": [],
+      "law_application_claim_count": 0,
+      "traceable_answer_status": "insufficient",
+      "clarification_questions": [
+        "หากต้องการให้วิเคราะห์ภาระภาษีธุรกิจเฉพาะสำหรับการขายที่ดินของท่านตามประมวลรัษฎากร มาตรา 91/2 (6) และพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 โดยตรง กรุณาระบุ (1) วิธีการได้มาของที่ดิน (เช่น ซื้อมา รับให้ หรือรับมรดก), (2) ระยะเวลาถือครองนับแต่วันที่ได้มาจนถึงวันขาย (เกิน 5 ปีหรือไม่), และ (3) มีการแบ่งแยกจัดสรร ขายในนามธุรกิจ หรือมีชื่ออยู่ในทะเบียนบ้านไม่น้อยกว่า 1 ปีหรือไม่"
+      ],
+      "answer_preview_th": "ไม่พบข้อมูลคำพิพากษาศาลฎีกาที่ `8877/2567` ในคลังข้อมูลที่ผ่านการตรวจรับรองของ REG24 Batch 1 (ซึ่งครอบคลุมประมวลรัษฎากร กฎหมายลำดับรอง และหนังสือตอบข้อหารือกรมสรรพากรที่รับรองแล้ว) ระบบจึง **ขอระงับการสรุปผลคำวินิจฉัยของคำพิพากษาศาลฎีกาที่ `8877/2567` (Abstain)** เพื่อไม่ให้คาดเดาหรือนำหนังสือตอบข้อหารืออื่นที่ไม่ตรงเรื่องมาอ้างแทนคำพิพากษาศาลฎีกา ทั้งนี้ สำหรับคำถามว่านำมาใช้กับกรณีขายที่ดินของท่านได้หรือไม่ ในทางกฎหมายภาษีอากร การขายที่ดินจะอยู่ในบังคับภาษีธุรกิจเฉพาะ (อัตราร้อยละ 3.3 รวมภาษีท้องถิ่น) หรือไม่ พิจ"
+    },
+    {
+      "case_id": "B1-21",
+      "suite": "LEGAL_TEAM_30_CASE_RETEST",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/5",
+        "prov.th.rc.91/6",
+        "subreg.th.rd.sbt_local_tax_guide"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 91/2",
+        "มาตรา 91/5",
+        "มาตรา 91/6",
+        "อัตราภาษีธุรกิจเฉพาะและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 91/2 มาตรา 91/5 และมาตรา 91/6"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 91/2 (2) มาตรา 91/5 (2) และมาตรา 91/6 (3) กิจการธุรกิจเงินทุนต้องเสียภาษีธุรกิจเฉพาะจากรายรับดอกเบี้ยก่อนหักรายจ่ายในอัตรา **ร้อยละ 3.0** และ **ต้องเสียภาษีท้องถิ่นเพิ่มอีกร้อยละ 10 ของจำนวนภาษีธุรกิจเฉพาะ** (คิดเป็นร้อยละ 0.3 ของรายรับ) รวมเป็นอัตราภาษีธุรกิจเฉพาะและภาษีท้องถิ่นทั้งสิ้น **ร้อยละ 3.3** เมื่อคำนวณจากรายรับดอกเบี้ย 10,000,000 บาท คิดเป็นภาษีธุรกิจเฉพาะ 300,000 บาท บวกภาษีท้องถิ่น 30,000 บาท รวมต้องชำระ **330,000 บาท**\n\n**ร"
+    },
+    {
+      "case_id": "U-01",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "subreg.th.rc.royal_decree.530",
+        "sched.th.rc.income_tax_rate",
+        "prov.th.rc.65",
+        "statute.th.rc_amendment_42_2559"
+      ],
+      "cited_official_identifiers": [
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 530)",
+        "บัญชีอัตราภาษีเงินได้",
+        "มาตรา 65",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 65 บัญชีอัตราภาษีเงินได้ (2) และพระราชกฤษฎีกา (ฉบับที่ 530) กิจการ SME (ทุนชำระแล้ววันสุดท้ายของรอบบัญชีไม่เกิน 5,000,000 บาท และรายได้จากการขายสินค้าและให้บริการในรอบบัญชีไม่เกิน 30,000,000 บาท) จากกำไรสุทธิ 2,500,000 บาท ต้องเสียภาษีเงินได้นิติบุคคลจำนวน **330,000 บาท**\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (`reg24-tax-calc-verifier-v1.0`)**:\n- ส่วนที่ไม่เกิน 300,000 บาท (300,000 บาท): ยกเว้นภาษี = 0 บาท\n- ส"
+    },
+    {
+      "case_id": "U-01F",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": "U-01",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.65",
+        "sched.th.rc.income_tax_rate",
+        "statute.th.rc_amendment_42_2559"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 65",
+        "บัญชีอัตราภาษีเงินได้",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตาม ประมวลรัษฎากร มาตรา 65 และบัญชีอัตราภาษีเงินได้ (2) (ก) สำหรับบริษัทหรือห้างหุ้นส่วนนิติบุคคล (แก้ไขเพิ่มเติมเป็นการถาวรโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 42) พ.ศ. 2559 มาตรา 3 และมาตรา 4 ใช้บังคับสำหรับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2559 เป็นต้นไป) บริษัทจำกัดทั่วไปที่มิใช่ SME ต้องเสียภาษีเงินได้นิติบุคคลในอัตรา **ร้อยละ 20 ของกำไรสุทธิ** เมื่อคำนวณจากกำไรสุทธิ 2,500,000 บาท คิดเป็นภาษีเงินได้นิติบุคคลที่ต้องชำระ"
+    },
+    {
+      "case_id": "U-02",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.103",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 103",
+        "มาตรา 104",
+        "บัญชีอัตราอากรแสตมป์ท้ายหมวด 6 แห่งประมวลรัษฎากร"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 103 มาตรา 104 และบัญชีอัตราอากรแสตมป์ ลักษณะแห่งตราสาร 5. กู้ยืมเงิน ยอดเงินกู้ 50,000,000 บาท ต้องเสียอากรแสตมป์ในอัตรา 1 บาท ทุกจำนวนเงิน 2,000 บาท หรือเศษของ 2,000 บาท แต่สูงสุดไม่เกิน 10,000 บาท คิดเป็นค่าอากรแสตมป์จำนวน **10,000 บาท** โดยมี **ผู้ให้กู้** เป็นผู้ที่ต้องเสียอากร\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (`reg24-tax-calc-verifier-v1.0`)**:\n- ค่าอากรแสตมป์กู้ยืมเงิน = min(10,000, ceil(50,000,000 "
+    },
+    {
+      "case_id": "U-03",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 3 เตรส",
+        "คำสั่งกรมสรรพากร ที่ ท.ป. 4/2528"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 3 เตรส ประกอบ อัตรามาตรฐานร้อยละ 2 ตามคำสั่งกรมสรรพากร ที่ ท.ป. 4/2528 (ข้อ 10) ออกตามความในมาตรา 3 เตรส ต้องหักภาษี ณ ที่จ่ายในอัตรา **ร้อยละ 2** จากเงินได้ 500,000 บาท คิดเป็นภาษีหัก ณ ที่จ่ายจำนวน **10,000 บาท**\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (`reg24-tax-calc-verifier-v1.0`)**:\n- หลักเกณฑ์อัตราภาษีหัก ณ ที่จ่าย: อัตรามาตรฐานร้อยละ 2 ตามคำสั่งกรมสรรพากร ที่ ท.ป. 4/2528 (ข้อ 10) ออกตามความในมาตรา 3 เตร"
+    },
+    {
+      "case_id": "U-03F",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": "U-03",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.3_ปัณรส",
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "subreg.th.rc.min_reg.389",
+        "subreg.th.rc.min_reg.402",
+        "subreg.th.rd.order_tp.354_2566"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 3 ปัณรส",
+        "มาตรา 3 เตรส",
+        "คำสั่งกรมสรรพากร ที่ ท.ป. 4/2528",
+        "กฎกระทรวง ฉบับที่ 389 (พ.ศ. 2566) ออกตามความในประมวลรัษฎากร ว่าด้วยภาษีเงินได้",
+        "กฎกระทรวง ฉบับที่ 402 (พ.ศ. 2569) ออกตามความในประมวลรัษฎากร ว่าด้วยภาษีเงินได้",
+        "คำสั่งกรมสรรพากร ที่ ท.ป. 354/2566"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 3 เตรส และมาตรา 3 ปัณรส ประกอบ อัตราลดเหลือร้อยละ 1.0 สำหรับการจ่ายเงินได้ตั้งแต่วันที่ 1 มกราคม พ.ศ. 2566 ถึงวันที่ 31 ธันวาคม พ.ศ. 2568 ที่นำส่งผ่านระบบ e-Withholding Tax ตามมาตรา 3 ปัณรส ประกอบกฎกระทรวง ฉบับที่ 389 (พ.ศ. 2566) และคำสั่งกรมสรรพากร ที่ ท.ป. 354/2566 (แก้ไขเพิ่มเติม ท.ป. 4/2528) ต้องหักภาษี ณ ที่จ่ายในอัตรา **ร้อยละ 1** จากเงินได้ 500,000 บาท คิดเป็นภาษีหัก ณ ที่จ่ายจำนวน **5,000 บาท**\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่"
+    },
+    {
+      "case_id": "U-04",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.70",
+        "prov.th.rc.40",
+        "sched.th.rc.income_tax_rate"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 70",
+        "มาตรา 40",
+        "บัญชีอัตราภาษีเงินได้"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nการจ่ายเงินได้จากประเทศไทยให้แก่บริษัทที่ตั้งขึ้นตามกฎหมายต่างประเทศและมิได้ประกอบกิจการในประเทศไทย พิจารณาตาม **ประมวลรัษฎากร มาตรา 70 ประกอบบัญชีอัตราภาษีเงินได้ (2) (ข) และ (ค)** แยกรายการดังนี้: (1) **ค่าสิทธิ (มาตรา 40 (3))**: ต้องหักภาษี ณ ที่จ่ายตาม **มาตรา 70 ในอัตราร้อยละ 15** คิดเป็นเงิน **600,000 บาท**\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (`reg24-tax-calc-verifier-v1.0`)**:\n- รายการที่ 1 (ค่าสิทธิ (มาตรา 40 (3))): เป็นเง"
+    },
+    {
+      "case_id": "U-05",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/6",
+        "prov.th.rc.91/5",
+        "subreg.th.rd.sbt_local_tax_guide",
+        "subreg.th.rc.royal_decree.342",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 91/2",
+        "มาตรา 91/6",
+        "มาตรา 91/5",
+        "อัตราภาษีธุรกิจเฉพาะและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 91/2 มาตรา 91/5 และมาตรา 91/6",
+        "มาตรา 4(6)",
+        "มาตรา 104",
+        "บัญชีอัตราอากรแสตมป์ท้ายหมวด 6 แห่งประมวลรัษฎากร"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินที่ขาย**: ขายภายใน 5 ปีนับแต่วันที่ได้มา เข้าลักษณะเป็นการขายเป็นทางค้าหรือหากำไรตาม **ประมวลรัษฎากร มาตรา 91/2 (6) และมาตรา 91/6 (3) ประกอบพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 มาตรา 4 (6)** จึง **ต้องเสียภาษีธุรกิจเฉพาะอัตราร้อยละ 3.0 บวกภาษีท้องถิ่นอีกร้อยละ 10 ของภาษีธุรกิจเฉพาะ รวมเป็นอัตราร้อยละ 3.3** และ **ได้รับยกเว้นไม่ต้องเสียอากรแสตมป์** ตามข้อยกเว้นท้ายบัญชีอัตราอากรแสตมป์ ลักษณะ 28.\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแย"
+    },
+    {
+      "case_id": "U-05F",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": "U-05",
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/6",
+        "prov.th.rc.91/5",
+        "subreg.th.rd.sbt_local_tax_guide",
+        "subreg.th.rc.royal_decree.342",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 91/2",
+        "มาตรา 91/6",
+        "มาตรา 91/5",
+        "อัตราภาษีธุรกิจเฉพาะและภาษีท้องถิ่นตามประมวลรัษฎากร มาตรา 91/2 มาตรา 91/5 และมาตรา 91/6",
+        "มาตรา 4(6)",
+        "มาตรา 104",
+        "บัญชีอัตราอากรแสตมป์ท้ายหมวด 6 แห่งประมวลรัษฎากร"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินที่ขาย**: ถือครองเกิน 5 ปีนับแต่วันที่ได้มา (8 ปี) และมิได้ประกอบธุรกิจค้าอสังหาริมทรัพย์เป็นปกติ (ไม่อยู่ในเกณฑ์ขายภายใน 5 ปีตามมาตรา 4 (6) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 ดังนั้นแม้ไม่ได้รับมาทางมรดกแต่ซื้อมาและถือครองเกิน 5 ปี ผลทางภาษีธุรกิจเฉพาะจึง **ไม่เปลี่ยนแปลง** คือยังคงไม่ต้องเสียภาษีธุรกิจเฉพาะ) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเสียภาษีธุรกิจเฉพาะ**) แต่มีหน้าที่เสีย **อากรแสตมป์อั"
+    },
+    {
+      "case_id": "U-06",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.65_ตรี",
+        "subreg.th.rd.order_p.52_2537"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 65 ตรี",
+        "คำสั่งกรมสรรพากร ที่ ป. 52/2537 เรื่อง การคำนวณรายจ่ายเพื่อการกุศลสาธารณะหรือเพื่อการสาธารณประโยชน์ และรายจ่ายเพื่อการศึกษาหรือเพื่อการกีฬา ตามมาตรา 65 ตรี (3) แห่งประมวลรัษฎากร"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 65 ตรี (3) (ข) ประกอบ **คำสั่งกรมสรรพากร ที่ ป. 52/2537** เพดานรายจ่ายเพื่อการกุศลสาธารณะ \"ไม่เกินร้อยละ 2 ของกำไรสุทธิ\" คำนวณจากกำไรสุทธิ **หลังหักรายจ่ายการกุศลสาธารณะนั้นแล้ว** (คิดเป็นสัดส่วน **2/102 ของกำไรสุทธิก่อนหักรายจ่ายบริจาค** กรณีไม่มีรายจ่ายเพื่อการศึกษา/กีฬา) ดังนั้น จากกำไรสุทธิก่อนรายจ่ายบริจาค 10,200,000 บาท เพดานสูงสุดที่หักได้คือ `10,200,000 × 2 / 102` = **200,000 บาท** (ทำให้เหลือกำไรสุทธิหลังหักเงินบริจาค 10,000,000"
+    },
+    {
+      "case_id": "U-07",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "sched.th.rc.income_tax_rate",
+        "prov.th.rc.48",
+        "subreg.th.rc.royal_decree.470",
+        "statute.th.rc_amendment_44_2560"
+      ],
+      "cited_official_identifiers": [
+        "บัญชีอัตราภาษีเงินได้",
+        "มาตรา 48",
+        "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการยกเว้นรัษฎากร (ฉบับที่ 470) พ.ศ. 2551",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 44) พ.ศ. 2560"
+      ],
+      "law_application_claim_count": 1,
+      "traceable_answer_status": "partial",
+      "clarification_questions": [],
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 48 (1) และบัญชีอัตราภาษีเงินได้ (1) (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 44) พ.ศ. 2560) ประกอบพระราชกฤษฎีกาออกตามความในประมวลรัษฎากร (ฉบับที่ 470) พ.ศ. 2551 เงินได้สุทธิ 2,500,000 บาท เสียภาษีเงินได้บุคคลธรรมดาแบบอัตราก้าวหน้า (0–150,000 บาทแรกได้รับยกเว้นภาษี, 150,001–300,000 บาท ร้อยละ 5 = 7,500 บาท, 300,001–500,000 บาท ร้อยละ 10 = 20,000 บาท, 500,001–750,000 บาท ร้อยละ 15 = 37,500 บาท, 750,001–1,000,000 "
+    },
+    {
+      "case_id": "U-08",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "NEEDS_CLARIFICATION",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.80/1",
+        "statute.th.rc_amendment_49_2562"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 80/1",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562"
+      ],
+      "law_application_claim_count": 0,
+      "traceable_answer_status": "partial",
+      "clarification_questions": [
+        "กรุณาตรวจสอบและระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ที่ถูกต้องตามปฏิทินในรูปแบบ YYYY-MM-DD (เช่น 2019-02-28)"
+      ],
+      "answer_preview_th": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ผู้ประกอบการจดทะเบียนได้รับสิทธิใช้อัตราภาษีมูลค่าเพิ่มร้อยละ 0 ตามมาตรา 80/1 เฉพาะกิจการที่เข้าเงื่อนไขตาม (1)–(6) ได้แก่ (1) การส่งออกสินค้าที่มิใช่สินค้าได้รับยกเว้นตามมาตรา 81 (3), (2) การให้บริการที่กระทำในราชอาณาจักรและได้มีการใช้บริการนั้นในต่างประเทศตามหลักเกณฑ์ วิธีการ และเงื่อนไขที"
+    },
+    {
+      "case_id": "U-09",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "NEEDS_CLARIFICATION",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "prov.th.rc.80/1",
+        "statute.th.rc_amendment_49_2562"
+      ],
+      "cited_official_identifiers": [
+        "มาตรา 80/1",
+        "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562"
+      ],
+      "law_application_claim_count": 0,
+      "traceable_answer_status": "partial",
+      "clarification_questions": [
+        "กรุณาระบุวันเดือนปีที่เกิดธุรกรรมในปี พ.ศ. 2562 ว่าเกิดขึ้นก่อนหรือตั้งแต่วันที่ 2019-02-28 เป็นต้นไป"
+      ],
+      "answer_preview_th": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ผู้ประกอบการจดทะเบียนได้รับสิทธิใช้อัตราภาษีมูลค่าเพิ่มร้อยละ 0 ตามมาตรา 80/1 เฉพาะกิจการที่เข้าเงื่อนไขตาม (1)–(6) ได้แก่ (1) การส่งออกสินค้าที่มิใช่สินค้าได้รับยกเว้นตามมาตรา 81 (3), (2) การให้บริการที่กระทำในราชอาณาจักรและได้มีการใช้บริการนั้นในต่างประเทศตามหลักเกณฑ์ วิธีการ และเงื่อนไขที"
+    },
+    {
+      "case_id": "U-10",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "INSUFFICIENT_EVIDENCE",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "LEGAL_FACT_APPLICATION",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [],
+      "cited_official_identifiers": [],
+      "law_application_claim_count": 0,
+      "traceable_answer_status": "insufficient",
+      "clarification_questions": [
+        "กรุณาแนบสำเนาคำพิพากษาศาลฎีกาที่ 1234/2566 ฉบับทางการเพื่อใช้ตรวจสอบ หรือระบุข้อเท็จจริงธุรกรรมของท่านเพื่อวิเคราะห์จากบทบัญญัติประมวลรัษฎากรโดยตรง"
+      ],
+      "answer_preview_th": "ไม่พบข้อมูลคำพิพากษาศาลฎีกาที่ `1234/2566` ในคลังข้อมูลที่ผ่านการตรวจรับรองของ REG24 Batch 1 (ซึ่งครอบคลุมประมวลรัษฎากร กฎหมายลำดับรอง และหนังสือตอบข้อหารือกรมสรรพากรที่รับรองแล้ว) ระบบจึง **ขอระงับการสรุปผลคำวินิจฉัยของคำพิพากษาศาลฎีกาที่ `1234/2566` (Abstain)** เพื่อไม่ให้คาดเดาหรือนำหนังสือตอบข้อหารืออื่นที่ไม่ตรงเรื่องมาอ้างแทนคำพิพากษาศาลฎีกา"
+    },
+    {
+      "case_id": "U-11",
+      "suite": "UNSEEN_AND_CHANGED_FACT_PACK",
+      "prior_turn_case_id": null,
+      "passed_all_assertions": true,
+      "failure_reasons": [],
+      "answer_status": "ANSWERED",
+      "release_id": "rel.B01.rc6",
+      "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+      "execution_provenance": {
+        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "release_id": "rel.B01.rc6",
+        "manifest_id": "mfst.b01.rc6_core_auth",
+        "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        "model_id": "reg24-deterministic-legal-graphrag-v2.0",
+        "model_policy_version": "reg24-grounded-legal-v2.0",
+        "claim_verifier_version": "reg24-claim-verifier-v2.1",
+        "calculation_verifier_version": "reg24-tax-calc-verifier-v1.0",
+        "ruleset_version": "th-official-traceability-2026.11.2",
+        "query_kind": "DOCUMENT_LOOKUP",
+        "configuration": {
+          "store_topology_mode": "configured_env_dir",
+          "hierarchy_of_authority_retrieval": true,
+          "separate_calculation_verification": true,
+          "negated_fact_stripping_enabled": true
+        }
+      },
+      "cited_work_ids": [
+        "work.th.rd.gk_0702_3889_2022_0d0a6d5b"
+      ],
+      "cited_official_identifiers": [
+        "กค 0702/3889"
+      ],
+      "law_application_claim_count": 0,
+      "traceable_answer_status": "complete",
+      "clarification_questions": [],
+      "answer_preview_th": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\nนาย ก. และนาง ข. ได้จดทะเบียนสมรสเมื่อปี พ.ศ. 2519 ต่อมา ได้ร่วมกันซื้อที่ดินรวม 3 แปลง และได้ยกที่ดินเฉพาะส่วนของตนทั้ง 3 แปลง ให้กับนางสาว ค. ซึ่งเป็นบุตรชอบด้วยกฎหมายปรากฏตามหนังสือสัญญาให้เฉพาะส่วนรวมสามโฉนด (ท.ด.14 ข) ในการทำสัญญาให้ที่ดินดังกล่าว ซึ่งนาย ก. และนาง ข. ผู้ให้ร่วม ได้ชำระภาษีเงินได้บุคคลธรรมดาและอากรแสตมป์ครบถ้วนแล้ว แต่ในการคำนวณภาษีเงินได้บุคคลธรรมดานั้นสำนักงานที่ดิน ได้แจ้งว่าได้ยกเว้นภาษีเงินได้บุคคลธรรมดา"
+    }
+  ]
+}

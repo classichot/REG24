@@ -172,6 +172,9 @@ export function retrieveAuthorizedKnowledge(
     actor: Actor;
     applicable_date?: string | null;
     comparison_work_ids?: string[];
+    controlling_work_ids?: string[];
+    incidental_premise_section_ids?: string[];
+    demote_rulings_before_iso?: string | null;
     strategy?: RetrievalStrategy;
     graph_source?: "graph_projection_snapshot" | "canonical_assertions";
     max_passages?: number;
@@ -195,6 +198,26 @@ export function retrieveAuthorizedKnowledge(
 
   const workMatchesInstrumentHint = (w: CanonicalPersistedState["works"][string]): boolean => {
     if (instrumentHints.length === 0) return true;
+    const isRevenueCodeCore =
+      w.work_id === "statute.th.revenue_code" ||
+      w.work_id.startsWith("prov.th.rc.") ||
+      w.work_id.startsWith("sched.th.rc.");
+    const controllingHintSet = new Set(params.controlling_work_ids || []);
+    // Revenue Code sections/schedules are the parent law of RC Amending Acts, Royal Decrees, MinRegs & TP Orders;
+    // when identified as a co-controlling authority on a legal fact-application query, do not penalize them when a subordinate instrument number is also named!
+    if (isRevenueCodeCore && controllingHintSet.has(w.work_id)) {
+      const hasNonRcForeignActHint = instrumentHints.some((h) =>
+        /ประมวลกฎหมายแพ่งและพาณิชย์|คุ้มครองแรงงาน|บริษัทมหาชนจำกัด|ภาษีป้าย|ภาษีเงินได้ปิโตรเลียม|ภาษีการรับมรดก|ศุลกากร|สรรพสามิต|คณะกรรมการกฤษฎีกา/.test(
+          h
+        )
+      );
+      const hasRcHint = instrumentHints.some((h) =>
+        /ประมวลรัษฎากร|พระราชกฤษฎีกา|กฎกระทรวง|คำสั่งกรมสรรพากร|ประกาศอธิบดี/.test(h)
+      );
+      if (!hasNonRcForeignActHint || hasRcHint) {
+        return true;
+      }
+    }
     const hay = thaiDigitsToArabic(
       `${w.title_th} ${(w.aliases || []).join(" ")} ${(w.official_identifiers || []).map((o) => o.normalized).join(" ")}`
     ).replace(/\s+/g, " ");
@@ -523,9 +546,16 @@ export function retrieveAuthorizedKnowledge(
       .filter(Boolean)
   );
 
+  const incidentalPremiseSet = new Set(params.incidental_premise_section_ids || []);
   for (const wid of explicitWorkIds) {
     const fullTitleBonus = exactFullTitleWorkIds.has(wid) ? 8.0 : 0.0;
     const workPassages = passagesByWorkId.get(wid) || [];
+    const wMeta = state.works[wid];
+    const isIncidentalPremiseOnly = Boolean(
+      incidentalPremiseSet.size > 0 &&
+        !(params.controlling_work_ids || []).includes(wid) &&
+        wMeta?.official_identifiers.some((oid) => incidentalPremiseSet.has(oid.normalized))
+    );
     let homonymTopicBonus = 0;
     if (unpinnedHomonymWorkIds.has(wid)) {
       const wObj = state.works[wid];
@@ -551,11 +581,25 @@ export function retrieveAuthorizedKnowledge(
         state.works[wid]?.type === "TaxRuling"
           ? Math.max(0, Math.min(0.08, ((decYr - 1990) / 45) * 0.06))
           : 0;
-      const roleBoost =
-        p.statement_role === "official_conclusion" || p.statement_role === "statutory_text"
+      const roleBoost = isIncidentalPremiseOnly
+        ? 4.0
+        : p.statement_role === "official_conclusion" || p.statement_role === "statutory_text"
           ? 40.0
           : 32.0;
       addScore(p.passage_id, roleBoost + fullTitleBonus + homonymTopicBonus + recencyTieBreak, "exact_id");
+    }
+  }
+
+  // Hierarchy-of-Authority Controlling Law Boost (`LEGAL_FACT_APPLICATION` mode):
+  // Ensures controlling Revenue Code provisions, schedules, amending Acts, and governing subordinate laws
+  // rank deterministically ahead of random lexical TaxRulings!
+  for (const [ctrlIdx, ctrlWid] of (params.controlling_work_ids || []).entries()) {
+    const ctrlPassages = passagesByWorkId.get(ctrlWid) || [];
+    const priorityBoost = Math.max(28.0, 44.0 - ctrlIdx * 1.2);
+    for (const cp of ctrlPassages) {
+      if (cp.statement_role === "statutory_text" || cp.statement_role === "official_conclusion") {
+        addScore(cp.passage_id, priorityBoost, "exact_id");
+      }
     }
   }
   for (const wid of secondarySectionWorkIds) {
@@ -957,6 +1001,16 @@ export function retrieveAuthorizedKnowledge(
           ver?.draft_or_enacted_status === "LEGISLATIVE_HISTORY")
       ) {
         roleMult *= 0.2;
+      }
+      // Demote superseded pre-amendment case-specific TaxRulings when a controlling post-amendment statute governs
+      if (
+        params.demote_rulings_before_iso &&
+        work?.type === "TaxRuling" &&
+        !explicitWorkIds.has(psg.work_id) &&
+        ver?.decision_date &&
+        ver.decision_date < params.demote_rulings_before_iso
+      ) {
+        roleMult *= 0.18;
       }
       return {
         passage: psg,

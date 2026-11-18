@@ -459,6 +459,7 @@ export interface ClaimLedgerItem {
   exceptions: string[];
   counterevidence_passage_ids: string[];
   verification_result: "VERIFIED" | "CONDITIONAL_QUALIFIED" | "BLOCKED_CONTRADICTION" | "UNSUPPORTED";
+  verified_calculation_numeric_tokens?: string[];
 }
 
 export interface EvidenceCard {
@@ -484,6 +485,25 @@ export interface EvidenceCard {
   }>;
 }
 
+export interface ExecutionProvenanceMetadata {
+  git_commit_sha: string;
+  release_id: string;
+  manifest_id: string | null;
+  manifest_hash: string | null;
+  model_id: string;
+  model_policy_version: string;
+  claim_verifier_version: string;
+  calculation_verifier_version: string;
+  ruleset_version: string;
+  query_kind: "DOCUMENT_LOOKUP" | "MULTI_SOURCE_COMPARISON" | "LEGAL_FACT_APPLICATION";
+  configuration: {
+    store_topology_mode: string;
+    hierarchy_of_authority_retrieval: boolean;
+    separate_calculation_verification: boolean;
+    negated_fact_stripping_enabled: boolean;
+  };
+}
+
 export interface GroundedAnswer {
   release_id: string;
   knowledge_snapshot_at: string;
@@ -500,6 +520,8 @@ export interface GroundedAnswer {
   trace_id: string;
   latency_ms: number;
   traceable_answer?: TraceableAnswerEnvelope;
+  calculation_verifications?: Array<Record<string, unknown>>;
+  execution_provenance?: ExecutionProvenanceMetadata;
 }
 
 // ============================================================================

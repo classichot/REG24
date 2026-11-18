@@ -138,6 +138,7 @@ export async function POST(req: Request) {
         ok: true,
         answer,
         traceable_answer: answer.traceable_answer || null,
+        execution_provenance: answer.execution_provenance || null,
         audit_status: auditStatus,
       },
       { status: 200, headers }

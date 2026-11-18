@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-18T19:51:25.516Z",
+  "generated_at": "2026-11-18T22:05:20.739Z",
   "protected_live_canonical_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
   "protected_live_canonical_untouched": true,
   "preview_store_dir": "data/knowledge-store-b01-rc2-staging",
@@ -196,7 +196,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 443,
+      "latency_ms": 613,
       "evidence_count": 2,
       "citations": [
         {
@@ -231,7 +231,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 468,
+      "latency_ms": 605,
       "evidence_count": 7,
       "citations": [
         {
@@ -306,7 +306,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 495,
+      "latency_ms": 614,
       "evidence_count": 2,
       "citations": [
         {
@@ -341,7 +341,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 421,
+      "latency_ms": 641,
       "evidence_count": 4,
       "citations": [
         {
@@ -396,8 +396,8 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 512,
-      "evidence_count": 2,
+      "latency_ms": 773,
+      "evidence_count": 6,
       "citations": [
         {
           "passage_id": "psg.c2f7a307f05c17",
@@ -418,10 +418,50 @@
           "statement_role": "requester_facts",
           "authenticity_status": "html_derived_pdf_derivative",
           "origin_uri": "https://www.rd.go.th/68464.html"
+        },
+        {
+          "passage_id": "psg.ba6fc9970f935e",
+          "work_id": "prov.th.rc.65",
+          "official_identifier": "มาตรา 65",
+          "raw_date_text": "ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร (rd.go.th)",
+          "decision_date": null,
+          "statement_role": "statutory_text",
+          "authenticity_status": "official_html_snapshot",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65"
+        },
+        {
+          "passage_id": "psg.c1bb2dd1138cee",
+          "work_id": "prov.th.rc.65",
+          "official_identifier": "มาตรา 65",
+          "raw_date_text": "ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร (rd.go.th)",
+          "decision_date": null,
+          "statement_role": "statutory_text",
+          "authenticity_status": "official_html_snapshot",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65"
+        },
+        {
+          "passage_id": "psg.da5691d706bb59",
+          "work_id": "prov.th.rc.65",
+          "official_identifier": "มาตรา 65",
+          "raw_date_text": "ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร (rd.go.th)",
+          "decision_date": null,
+          "statement_role": "statutory_text",
+          "authenticity_status": "official_html_snapshot",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65"
+        },
+        {
+          "passage_id": "psg.f1085b98bc8080",
+          "work_id": "prov.th.rc.65",
+          "official_identifier": "มาตรา 65",
+          "raw_date_text": "ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร (rd.go.th)",
+          "decision_date": null,
+          "statement_role": "statutory_text",
+          "authenticity_status": "official_html_snapshot",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65"
         }
       ],
       "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\n1. บริษัท ก. ได้ทำสัญญาให้เช่าที่ดินระยะยาวกับบริษัท ข. (ผู้เช่า) เป็นระยะเวลา 30 ปีตั้งแต่วันที่ 30 พฤษภาคม 2571 ถึงวันที่ 29 พฤษภาคม 2601 มูลค่าการเช่าที่ดินตามสัญญาทั้งสิ้",
-      "answer_tail_200": "7` หรือ `กค 0702/1248 ลงวันที่ 10 มีนาคม 2557`)*\n\n*หมายเหตุความแน่นอนทางกฎหมาย*: หนังสือตอบข้อหารือกรมสรรพากรเป็นการวินิจฉัยเฉพาะข้อเท็จจริงของเรื่องนั้น ภายใต้บทบัญญัติกฎหมายที่ใช้บังคับในขณะวินิจฉัย"
+      "answer_tail_200": "ดทุนสุทธิของกิจการที่ได้รับการส่งเสริมการลงทุน )\n\n*หมายเหตุความแน่นอนทางกฎหมาย*: หนังสือตอบข้อหารือกรมสรรพากรเป็นการวินิจฉัยเฉพาะข้อเท็จจริงของเรื่องนั้น ภายใต้บทบัญญัติกฎหมายที่ใช้บังคับในขณะวินิจฉัย"
     },
     {
       "id": "Q6_temporal_65tri_2018",
@@ -431,7 +471,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 453,
+      "latency_ms": 697,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (https://www.rd.go.th/5939.html#mata65_3) และไม่ป",
@@ -445,7 +485,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 441,
+      "latency_ms": 749,
       "evidence_count": 2,
       "citations": [
         {
@@ -480,7 +520,7 @@
       "expected_result_label_th": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 451,
+      "latency_ms": 856,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/999999 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc5) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน",
@@ -494,7 +534,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 468,
+      "latency_ms": 720,
       "evidence_count": 4,
       "citations": [
         {
@@ -549,7 +589,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 435,
+      "latency_ms": 667,
       "evidence_count": 5,
       "citations": [
         {
@@ -614,7 +654,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 468,
+      "latency_ms": 751,
       "evidence_count": 2,
       "citations": [
         {
@@ -649,7 +689,7 @@
       "expected_result_label_th": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 456,
+      "latency_ms": 604,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/1495 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc5) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน",

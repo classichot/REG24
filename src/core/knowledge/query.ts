@@ -8,8 +8,11 @@
  */
 
 import { verifyClaimAgainstPassages } from "./answer-verification";
+import { getDeployedGitCommit } from "./baseline";
 import {
   attachTraceableEnvelopeToGroundedAnswer,
+  CLAIM_RULESET_VERSION,
+  CLAIM_VERIFIER_VERSION,
   getUnifiedCitationLedgerView,
   hydratePostgresSourcesIntoStore,
   tryAnswerFromOnboardedCitationSources,
@@ -17,8 +20,13 @@ import {
 import type { TraceablePublicationChannel } from "./citation-contracts";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { sha256Bytes, thaiDigitsToArabic } from "./identity";
+import { analyzeLegalIssuesAndFacts } from "./legal-issue-fact-analyzer";
 import { detectSourceSectionTyposSic, extractConditionsAndExceptions } from "./profiles/B01";
-import { retrieveAuthorizedKnowledge, type RetrievalStrategy } from "./retrieval";
+import {
+  extractExplicitIdentifiersFromQuery,
+  retrieveAuthorizedKnowledge,
+  type RetrievalStrategy,
+} from "./retrieval";
 import { getDefaultKnowledgeStore, type DurableKnowledgeStore } from "./store";
 import {
   evaluateRulingTemporalApplicability,
@@ -217,23 +225,27 @@ function resolveMultiTurnFollowUpRequest(req: QueryRequest): {
   let carriedDate: string | null = null;
   for (const turn of history) {
     const tNorm = thaiDigitsToArabic(turn.content);
-    const rulings = tNorm.match(/กค\s*0\d{3}\s*\/\s*\d+/g) || [];
-    for (const r of rulings) anchorTokens.add(r.replace(/\s+/g, " ").trim());
+    // CRITICAL ARCHITECTURAL FIX: Never carry `กค` ruling IDs from `assistant` turns!
+    // Otherwise an old ruling cited on Turn 1 hijacks Turn 2 (`+40.0` exact_id boost) when facts change!
+    if (turn.role === "user") {
+      const rulings = tNorm.match(/กค\s*0\d{3}\s*\/\s*\d+/g) || [];
+      for (const r of rulings) anchorTokens.add(r.replace(/\s+/g, " ").trim());
+    }
     const sections =
       tNorm.match(
-        /มาตรา\s*\d+(?:\/\d+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฏฐ))?(?:\s*\(\d+\))?/g
+        /มาตรา\s*\d+(?:\/\d+)?(?:\s*(?:อัฏฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฏฐ))?(?:\s*\(\d+\))?/g
       ) || [];
     for (const s of sections) anchorTokens.add(s.replace(/\s+/g, " ").trim());
     const enSections =
       tNorm.match(/\bSection\s+\d+(?:\/\d+)?(?:\s*(?:bis|ter|quarter))?(?:\s*\(\d+\))?/gi) || [];
     for (const es of enSections) anchorTokens.add(es.trim());
-    const tpOrders = tNorm.match(/ท\.ป\.\s*\d+\/\d+(?:\s*ข้อ\s*\d+)?/g) || [];
+    const tpOrders = tNorm.match(/(?:ท\.ป\.|ป\.)\s*\d+\/\d+(?:\s*ข้อ\s*\d+)?/g) || [];
     for (const tp of tpOrders) anchorTokens.add(tp.trim());
     const rdDecrees = tNorm.match(/พระราชกฤษฎีกา[^,\n?]{0,35}?ฉบับที่\s*\d+/g) || [];
     for (const rd of rdDecrees) anchorTokens.add(rd.trim());
     const keyTopics =
       tNorm.match(
-        /(?:ภาษีมูลค่าเพิ่ม|อัตราร้อยละ\s*0|ส่งออกบริการ|ใช้บริการในต่างประเทศ|หักภาษี\s*ณ\s*ที่จ่าย|หมายเรียก|บริจาคสถานศึกษา|รายจ่ายต้องห้าม)/g
+        /(?:ภาษีมูลค่าเพิ่ม|อัตราร้อยละ\s*0|ส่งออกบริการ|ใช้บริการในต่างประเทศ|หักภาษี\s*ณ\s*ที่จ่าย|หมายเรียก|บริจาคสถานศึกษา|รายจ่ายต้องห้าม|ภาษีธุรกิจเฉพาะ|อากรแสตมป์|ภาษีเงินได้นิติบุคคล|ภาษีเงินได้บุคคลธรรมดา)/g
       ) || [];
     for (const kt of keyTopics) anchorTokens.add(kt.trim());
     if (turn.role === "user" && turn.applicable_date) {
@@ -449,14 +461,44 @@ export async function queryKnowledge(
     persist: options?.persistAnswerAtomically,
     attachment_doc_ids: effectiveReq.attachment_doc_ids,
   });
+  const buildFallbackProvenance = () => {
+    const stProv = store.getState();
+    const relRec = stProv.releases[releaseId];
+    const topInfo = store.getStorageTopology();
+    return {
+      git_commit_sha:
+        process.env.VERCEL_GIT_COMMIT_SHA || getDeployedGitCommit() || relRec?.code_commit || "local",
+      release_id: releaseId,
+      manifest_id: relRec?.manifest_id || null,
+      manifest_hash: relRec?.manifest_hash || null,
+      model_id: "reg24-deterministic-legal-graphrag-v2.0",
+      model_policy_version: "reg24-grounded-legal-v2.0",
+      claim_verifier_version: CLAIM_VERIFIER_VERSION,
+      calculation_verifier_version: "reg24-tax-calc-verifier-v1.0",
+      ruleset_version: CLAIM_RULESET_VERSION,
+      query_kind: "LEGAL_FACT_APPLICATION" as const,
+      configuration: {
+        store_topology_mode: topInfo.topology_mode,
+        hierarchy_of_authority_retrieval: true,
+        separate_calculation_verification: true,
+        negated_fact_stripping_enabled: true,
+      },
+    };
+  };
+
   if (directOnboarded) {
+    const prov = directOnboarded.execution_provenance || buildFallbackProvenance();
     if (followUpAssumptions.length > 0) {
       return {
         ...directOnboarded,
         assumptions: [...followUpAssumptions, ...(directOnboarded.assumptions || [])],
+        execution_provenance: prov,
       };
     }
-    return directOnboarded;
+    return {
+      ...directOnboarded,
+      execution_provenance: prov,
+    };
   }
 
   const baseAnswer = await executeCoreKnowledgeQuery(effectiveReq, actor, options);
@@ -465,6 +507,7 @@ export async function queryKnowledge(
     ...baseAnswer,
     assumptions: [...followUpAssumptions, ...(baseAnswer.assumptions || [])],
     generated_at: generatedAt,
+    execution_provenance: baseAnswer.execution_provenance || buildFallbackProvenance(),
   };
   const traceableEnvelope = attachTraceableEnvelopeToGroundedAnswer(store, withTimestamp, {
     question: req.question,
@@ -525,6 +568,71 @@ async function executeCoreKnowledgeQuery(
   const releaseRec = state.releases[releaseId];
   const snapshotAt = releaseRec?.updated_at || new Date().toISOString();
   const traceId = `trc.${sha256Bytes(`${releaseId}:${actor.actor_id}:${req.question}:${startedAt}`).slice(0, 14)}`;
+  const topologyInfo = store.getStorageTopology();
+  const gitCommitSha = process.env.VERCEL_GIT_COMMIT_SHA || getDeployedGitCommit() || releaseRec?.code_commit || "local";
+
+  const preIds = extractExplicitIdentifiersFromQuery(req.question);
+  const issueAnalysis = analyzeLegalIssuesAndFacts({
+    question: req.question,
+    applicableDate: req.applicable_date ?? null,
+    mode: req.mode,
+    explicitRulingIds: preIds.rulingIds,
+    conversationHistory: req.conversation_history,
+    state,
+  });
+
+  const buildProvenance = () => ({
+    git_commit_sha: gitCommitSha,
+    release_id: releaseId,
+    manifest_id: releaseRec?.manifest_id || null,
+    manifest_hash: releaseRec?.manifest_hash || null,
+    model_id: "reg24-deterministic-legal-graphrag-v2.0",
+    model_policy_version: "reg24-grounded-legal-v2.0",
+    claim_verifier_version: CLAIM_VERIFIER_VERSION,
+    calculation_verifier_version: "reg24-tax-calc-verifier-v1.0",
+    ruleset_version: CLAIM_RULESET_VERSION,
+    query_kind: issueAnalysis.queryKind,
+    configuration: {
+      store_topology_mode: topologyInfo.topology_mode,
+      hierarchy_of_authority_retrieval: true,
+      separate_calculation_verification: true,
+      negated_fact_stripping_enabled: true,
+    },
+  });
+
+  // 1a-0. Explicit Supreme Court Decision (`คำพิพากษาศาลฎีกาที่ X/Y`) not in verified corpus -> Clean abstention (never substitute an unrelated ruling!)
+  if (issueAnalysis.unverifiedAuthorityGuard.shouldAbstain && issueAnalysis.unverifiedAuthorityGuard.abstentionMessageTh) {
+    const abstainMsg = issueAnalysis.unverifiedAuthorityGuard.abstentionMessageTh;
+    return {
+      release_id: releaseId,
+      knowledge_snapshot_at: snapshotAt,
+      status: "INSUFFICIENT_EVIDENCE",
+      answer: abstainMsg,
+      claims: [
+        {
+          claim_id: `clm.${traceId}.abstain_unverified_court_decision`,
+          statement: abstainMsg,
+          claim_type: "abstention_notice",
+          statement_role: "reg24_inference",
+          supporting_passage_ids: [],
+          applicable_version_id: null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "UNSUPPORTED",
+        },
+      ],
+      evidence: [],
+      assumptions: [],
+      clarification_questions: issueAnalysis.unverifiedAuthorityGuard.clarificationQuestionsTh,
+      coverage_warnings: [...(releaseRec?.coverage_gaps || []), abstainMsg],
+      applicable_date: req.applicable_date ?? null,
+      model_policy_version: "reg24-grounded-legal-v2.0",
+      trace_id: traceId,
+      latency_ms: Math.max(1, Date.now() - startedAt),
+      execution_provenance: buildProvenance(),
+    };
+  }
 
   const bundle = retrieveAuthorizedKnowledge(store, {
     question: req.question,
@@ -532,6 +640,9 @@ async function executeCoreKnowledgeQuery(
     actor,
     applicable_date: req.applicable_date ?? null,
     comparison_work_ids: req.comparison_work_ids,
+    controlling_work_ids: issueAnalysis.controllingWorkIds,
+    incidental_premise_section_ids: issueAnalysis.incidentalPremiseSectionIds,
+    demote_rulings_before_iso: issueAnalysis.demoteRulingsIssuedBeforeIso,
     strategy: options?.retrievalStrategy || "hybrid_with_graph",
   });
 
@@ -893,10 +1004,13 @@ async function executeCoreKnowledgeQuery(
     }
   }
 
-  // 4. Missing material facts check (AT12b, B01-U09)
-  const explicitMissingFactQuestions = detectMissingFactSignals(req.question);
+  // 4. Missing material facts check (AT12b, B01-U09 + Decisive Missing Taxpayer Fact Check)
+  const explicitMissingFactQuestions = [
+    ...detectMissingFactSignals(req.question),
+    ...issueAnalysis.decisiveMissingFactQuestionsTh,
+  ];
   const hasExplicitUnknownFactSignal = explicitMissingFactQuestions.length > 0;
-  if (hasExplicitUnknownFactSignal) {
+  if (hasExplicitUnknownFactSignal && issueAnalysis.decisiveMissingFactQuestionsTh.length === 0) {
     for (const cond of Array.from(extractedConditions).slice(0, 2)) {
       explicitMissingFactQuestions.push(`เงื่อนไขตามแนววินิจฉัยที่ต้องตรวจสอบ: ${cond}`);
     }
@@ -1210,8 +1324,12 @@ async function executeCoreKnowledgeQuery(
       singleExplicitRulingPassage || officialPassages[0] || availablePassages[0];
     let activeStatutoryEval: StatutoryVersionEvaluationResult | null = null;
 
+    const hasVerifiedEnactedAmendmentPre2018Calc = issueAnalysis.verifiedCalculations.some(
+      (c) => c.calculation_id === "calc.cit.donation.political_party.pre2018"
+    );
+
     // Post-retrieval, data-model-driven statutory version & applicability selection (B01..B10)
-    if (temporalCtx.query_intent === "APPLICABLE_LAW_AT_TIME") {
+    if (temporalCtx.query_intent === "APPLICABLE_LAW_AT_TIME" && !hasVerifiedEnactedAmendmentPre2018Calc) {
       const candidateStatPassages: Passage[] = [];
       const seenStatWorkIds = new Set<string>();
       const pushStatCand = (p: Passage | undefined) => {
@@ -1234,8 +1352,22 @@ async function executeCoreKnowledgeQuery(
         ...bundle.top_hits.map((h) => h.passage),
       ]) {
         if (ap.work_id.startsWith("statute.th.rc_amendment_")) {
+          // Keep the primary Royal Gazette Amending Act itself as a candidate too!
+          pushStatCand(ap);
           for (const asrt of allAcceptedAssertions) {
             if (asrt.subject === ap.work_id && asrt.predicate === "AMENDS") {
+              // Do not pull in a consolidated schedule (`sched.th.*`) that was later amended on unrelated items when answering historical queries grounded by the verbatim Gazette Act!
+              if (
+                (asrt.object.startsWith("sched.th.") &&
+                  temporalCtx.accounting_period_start_iso &&
+                  temporalCtx.accounting_period_start_iso < "2019-01-01") ||
+                (ap.work_id === "statute.th.rc_amendment_51_2562" &&
+                  /ฉบับที่\s*51|Act\s*\(?\s*No\.?\s*51/i.test(normalizedQuestionForIdentifiers) &&
+                  temporalCtx.accounting_period_start_iso &&
+                  temporalCtx.accounting_period_start_iso < "2018-01-01")
+              ) {
+                continue;
+              }
               const targetPsg = allReleasePassages.find(
                 (rp) =>
                   rp.work_id === asrt.object &&
@@ -1929,6 +2061,128 @@ async function executeCoreKnowledgeQuery(
       }
     }
 
+    // Surface all co-required controlling schedules, Royal Decrees, Ministerial Regulations, DG Notifications, and Orders (`issueAnalysis.controllingWorkIds`)
+    if (issueAnalysis.queryKind === "LEGAL_FACT_APPLICATION" && issueAnalysis.controllingWorkIds.length > 0) {
+      const citedWorkSet = new Set(
+        claims.flatMap((c) =>
+          c.supporting_passage_ids
+            .map((pid) => verificationPassageMap.get(pid)?.work_id || freshState.passages[pid]?.work_id)
+            .filter((wid): wid is string => Boolean(wid))
+        )
+      );
+
+      let coAuthIdx = 0;
+      for (const ctrlWorkId of issueAnalysis.controllingWorkIds) {
+        if (citedWorkSet.has(ctrlWorkId) || coAuthIdx >= 8) continue;
+        const ctrlSeed =
+          availablePassages.find(
+            (p) =>
+              p.work_id === ctrlWorkId &&
+              (p.statement_role === "statutory_text" || p.statement_role === "official_conclusion") &&
+              !p.extraction_id.startsWith("ext.dep.")
+          ) ||
+          allReleasePassages.find(
+            (p) =>
+              p.work_id === ctrlWorkId &&
+              (p.statement_role === "statutory_text" || p.statement_role === "official_conclusion") &&
+              !p.extraction_id.startsWith("ext.dep.") &&
+              isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+          );
+        if (!ctrlSeed) continue;
+        const ctrlUnits = reassembleOrderedSectionUnits(
+          ctrlSeed,
+          allReleasePassages,
+          freshState,
+          actor
+        );
+        for (const cu of ctrlUnits) {
+          verificationPassageMap.set(cu.passage_id, cu);
+        }
+        ensureEvidenceCardsForPassages(
+          ctrlUnits,
+          liveEvidenceCards,
+          freshState,
+          allAcceptedAssertions
+        );
+        const ctrlWork = freshState.works[ctrlWorkId];
+        const ctrlLabel =
+          ctrlWork?.official_identifiers[0]?.normalized || ctrlWork?.title_th || ctrlWorkId;
+        const ctrlOriginUri =
+          ctrlUnits[0]?.real_locator?.origin_uri || ctrlSeed.real_locator?.origin_uri || "";
+        const fullCtrlText = ctrlUnits.map((u) => u.exact_text).join("\n");
+        coAuthIdx++;
+        citedWorkSet.add(ctrlWorkId);
+        claims.push({
+          claim_id: `clm.${traceId}.controlling_dep.${coAuthIdx}`,
+          statement: `[บทบัญญัติ/กฎหมายลำดับรองที่ใช้บังคับร่วมกัน (${ctrlWork?.title_th || ctrlLabel})] ${fullCtrlText}`,
+          claim_type: "direct_source_statement",
+          statement_role: ctrlSeed.statement_role,
+          supporting_passage_ids: ctrlUnits.map((u) => u.passage_id),
+          applicable_version_id: ctrlSeed.version_id,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "VERIFIED",
+        });
+        answerSections.push(
+          `**กฎหมาย/บัญชีอัตรา/ประกาศลำดับรองที่ใช้บังคับร่วมกัน (${ctrlWork?.title_th || ctrlLabel}${ctrlOriginUri ? ` · ต้นฉบับ: ${ctrlOriginUri}` : ""})**:\n${fullCtrlText}`
+        );
+      }
+    }
+
+    // Emit passage-grounded Law-to-Fact Application & Deterministically Verified Tax Calculations at the top of the answer!
+    if (issueAnalysis.conditionalFrameworkSummaryTh) {
+      answerSections.unshift(issueAnalysis.conditionalFrameworkSummaryTh);
+    }
+    if (issueAnalysis.verifiedCalculations.length > 0) {
+      const calcBlocks: string[] = [];
+      for (const [cIdx, calc] of issueAnalysis.verifiedCalculations.entries()) {
+        const calcSupportPassageIds: string[] = [];
+        for (const reqWid of calc.required_authority_work_ids) {
+          for (const p of verificationPassageMap.values()) {
+            if (
+              p.work_id === reqWid &&
+              (p.statement_role === "statutory_text" || p.statement_role === "official_conclusion")
+            ) {
+              calcSupportPassageIds.push(p.passage_id);
+            }
+          }
+        }
+        const dedupCalcPids = Array.from(
+          new Set(calcSupportPassageIds.length > 0 ? calcSupportPassageIds : officialUnitIds)
+        );
+        const appVerCheck = verifyClaimAgainstPassages(
+          {
+            statement: calc.summary_statement_th,
+            supporting_passage_ids: dedupCalcPids,
+            verified_calculation_numeric_tokens: calc.verified_numeric_tokens,
+          },
+          Array.from(verificationPassageMap.values())
+        );
+        if (appVerCheck.allow_confident_answer) {
+          claims.unshift({
+            claim_id: `clm.${traceId}.law_application.${cIdx + 1}`,
+            statement: calc.summary_statement_th,
+            claim_type: "qualified_legal_synthesis",
+            statement_role: "statutory_text",
+            supporting_passage_ids: dedupCalcPids,
+            applicable_version_id: verificationPassageMap.get(dedupCalcPids[0])?.version_id || primaryOfficial.version_id,
+            factual_conditions: [],
+            exceptions: [],
+            counterevidence_passage_ids: [],
+            verification_result: appVerCheck.verification_result,
+            verified_calculation_numeric_tokens: calc.verified_numeric_tokens,
+          });
+        }
+        calcBlocks.push(
+          `**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n${calc.summary_statement_th}\n\n` +
+            `**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (\`${calc.verifier_version}\`)**:\n` +
+            calc.steps_th.map((st) => `- ${st}`).join("\n")
+        );
+      }
+      answerSections.unshift(calcBlocks.join("\n\n"));
+    }
+
     if (extractedConditions.size > 0) {
       answerSections.push(
         `**เงื่อนไขสำคัญที่ต้องเป็นไปตามหลักเกณฑ์**:\n${Array.from(extractedConditions)
@@ -1987,6 +2241,7 @@ async function executeCoreKnowledgeQuery(
   } else if (
     extractedConditions.size > 0 &&
     req.mode !== "exact_lookup" &&
+    issueAnalysis.verifiedCalculations.length === 0 &&
     /(?:หรือไม่|อย่างไร|ได้รับสิทธิหรือไม่|ต้องเสียภาษีหรือไม่)/.test(req.question) &&
     bundle.explicit_ruling_ids_in_query.length === 0
   ) {
@@ -2027,9 +2282,14 @@ async function executeCoreKnowledgeQuery(
     clarification_questions: explicitMissingFactQuestions,
     coverage_warnings: coverageWarnings,
     applicable_date: req.applicable_date ?? null,
-    model_policy_version: "reg24-grounded-legal-v1.2",
+    model_policy_version: "reg24-grounded-legal-v2.0",
     trace_id: traceId,
     latency_ms: Math.max(1, Date.now() - startedAt),
+    calculation_verifications:
+      issueAnalysis.verifiedCalculations.length > 0
+        ? (issueAnalysis.verifiedCalculations as unknown as Array<Record<string, unknown>>)
+        : undefined,
+    execution_provenance: buildProvenance(),
   };
 }
 
