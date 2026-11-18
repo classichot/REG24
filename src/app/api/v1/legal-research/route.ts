@@ -104,16 +104,49 @@ export async function POST(request: NextRequest) {
       { store, channel: 'research' }
     );
 
+    const isTemporalOrEvidenceWithheld =
+      grounded.status === 'NEEDS_CLARIFICATION' ||
+      grounded.status === 'INSUFFICIENT_EVIDENCE' ||
+      grounded.status === 'REVIEW_REQUIRED';
+
+    const sanitizedMission = isTemporalOrEvidenceWithheld
+      ? {
+          ...mission,
+          status:
+            grounded.status === 'NEEDS_CLARIFICATION'
+              ? 'NEEDS_CLARIFICATION'
+              : 'INSUFFICIENT_EVIDENCE',
+          evidence: grounded.evidence.length > 0 ? mission.evidence : [],
+          report: {
+            ...mission.report,
+            section_02_executive_summary: grounded.answer,
+            section_04_assumptions_and_missing_facts: [
+              ...grounded.clarification_questions,
+              ...grounded.coverage_warnings,
+            ],
+            section_10_legal_risks_and_unresolved_uncertainties: [
+              ...grounded.coverage_warnings,
+              ...mission.report.section_10_legal_risks_and_unresolved_uncertainties,
+            ],
+          },
+          traceable_answer: grounded.traceable_answer || null,
+        }
+      : {
+          ...mission,
+          traceable_answer: grounded.traceable_answer || null,
+        };
+
     return NextResponse.json({
       success: true,
       prd_reference: 'REG24-PRD-AGENTRAG-001',
       mission_id: mission.mission_id,
-      status: mission.status,
+      status: sanitizedMission.status,
+      grounded_status: grounded.status,
+      clarification_questions: grounded.clarification_questions,
+      coverage_warnings: grounded.coverage_warnings,
+      applicable_date: grounded.applicable_date,
       mode: mission.router_decision.selected_mode,
-      mission: {
-        ...mission,
-        traceable_answer: grounded.traceable_answer || null,
-      },
+      mission: sanitizedMission,
       traceable_answer: grounded.traceable_answer || null,
     });
   } catch (error) {

@@ -855,12 +855,21 @@ export interface ReleaseReceipt {
   next_batch_unlocked: boolean;
 }
 
+export interface ConversationTurnInput {
+  role: "user" | "assistant";
+  content: string;
+  applicable_date?: string | null;
+  cited_work_ids?: string[];
+}
+
 export interface QueryRequest {
   question: string;
   release_id?: string;
   applicable_date?: string | null;
   mode?: "standard" | "exact_lookup" | "comparison";
   comparison_work_ids?: string[];
+  conversation_history?: ConversationTurnInput[];
+  attachment_doc_ids?: string[];
 }
 
 // ============================================================================

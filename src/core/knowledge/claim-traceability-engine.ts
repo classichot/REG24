@@ -20,6 +20,15 @@ import {
   normalizeThaiSearchTextOnly,
   REVIEWED_OFFICIAL_PUBLISHER_REGISTRY,
 } from "./source-onboarding";
+import { parseQueryTemporalAndIntentContext } from "./temporal-versioning";
+import {
+  appendAuditEventToPostgres,
+  inspectExistingAnswerOwnershipInPostgres,
+  loadAllOnboardedSourcesFromPostgres,
+  loadPinnedPassageFromPostgres,
+  loadSavedAnswerFromPostgres,
+  persistAnswerRevisionToPostgres,
+} from "./citation-postgres-store";
 import type {
   Actor,
   Assertion,
@@ -74,6 +83,7 @@ export const SUPPORT_ROLE_LABELS_TH: Record<ClaimSupportRole, string> = {
   transitional_applicability: "บทเฉพาะกาลหรือวันเริ่มใช้บังคับ",
   requester_factual_context: "ข้อเท็จจริงของผู้ขอหารือในเอกสารต้นฉบับ",
   official_summary_scope: "สรุปย่อทางการ (รับรองเฉพาะขอบเขตที่สรุปย่อระบุ)",
+  verified_attachment_authority: "เอกสารกฎหมายทางการที่แนบและยืนยันต้นฉบับแล้ว",
 };
 
 export const SOURCE_FAMILY_LABELS_TH: Record<OfficialSourceFamily, string> = {
@@ -88,6 +98,7 @@ export const RECORD_TYPE_LABELS_TH: Record<OfficialRecordType, string> = {
   official_summary: "สรุปย่อทางการ",
   landing_only: "ระเบียนอ้างอิงหลักของหน่วยงาน",
   third_party_discovery: "สำเนาจากแหล่งภายนอก (ใช้เพื่อการค้นพบเท่านั้น ห้ามเผยแพร่เป็นหลักฐานยืนยัน)",
+  verified_official_attachment: "เอกสารกฎหมายทางการที่แนบและยืนยันต้นฉบับ/รุ่น/หน้าแล้ว",
 };
 
 /**
@@ -98,7 +109,10 @@ export const RECORD_TYPE_LABELS_TH: Record<OfficialRecordType, string> = {
  */
 function isProtectedFrozenBaselineStore(store: DurableKnowledgeStore): boolean {
   const norm = path.resolve(store.dataDir).replace(/\\/g, "/").toLowerCase();
-  return norm.endsWith("/data/knowledge-store");
+  return (
+    norm.endsWith("/data/knowledge-store") ||
+    norm.endsWith("/data/knowledge-store-b01-rc2-staging")
+  );
 }
 
 function getFrozenStoreSidecarPath(store: DurableKnowledgeStore): string {
@@ -723,6 +737,9 @@ export interface ValidateAndPublishAnswerInput {
   answer_id?: string;
   supersedes_answer_revision?: string | null;
   revision_number?: number;
+  owner_actor_id?: string;
+  owner_tenant_id?: string;
+  revision_reason?: string;
   channel: TraceablePublicationChannel;
   question: string;
   as_of_date: string | null;
@@ -814,7 +831,7 @@ export function validateAndBuildTraceableAnswer(
     const prop = input.proposed_claims[idx];
     const claimId = prop.claim_id || `clm.${answerRevision}.${idx + 1}`;
 
-    // User-supplied facts & explicit scoped unresolved notices are non-authority epistemic rows
+    // User-supplied facts & explicit scoped unresolved notices are NEVER labelled 'supported'!
     if (prop.claim_type === "user_fact_or_assumption") {
       evaluatedClaims.set(claimId, {
         claim_id: claimId,
@@ -823,7 +840,7 @@ export function validateAndBuildTraceableAnswer(
         claim_type: "user_fact_or_assumption",
         claim_type_label_th: CLAIM_TYPE_LABELS_TH.user_fact_or_assumption,
         premise_ids: [],
-        verification_decision: "supported",
+        verification_decision: "user_supplied_unverified",
         published: true,
         withheld_explanation_th: null,
         evidence_references: [],
@@ -1143,18 +1160,48 @@ export function validateAndBuildTraceableAnswer(
   }
 
   // Filter ONLY published claims for external rendering (ANS-03: never expose unvalidated assertions!)
-  const allEvaluatedList = Array.from(evaluatedClaims.values());
+  // Material Issue 1 Hard Invariant: NO claim can EVER be labelled 'supported' without >= 1 verified evidence reference!
+  const allEvaluatedList = Array.from(evaluatedClaims.values()).map((c) => {
+    if (
+      c.verification_decision === "supported" &&
+      (c.evidence_references.length === 0 ||
+        (c.claim_type !== "legal_proposition" && c.claim_type !== "interpretation"))
+    ) {
+      return {
+        ...c,
+        verification_decision: "insufficient" as const,
+        published: false,
+        withheld_explanation_th:
+          "ระงับการรับรองข้อกล่าวอ้าง: ห้ามระบุสถานะว่ามีหลักฐานรองรับ (supported) หากไม่มีรายการหลักฐานทางการที่ผ่านการตรวจสอบ",
+      };
+    }
+    return c;
+  });
+
   const substantiveAttempted = allEvaluatedList.filter(
     (c) => c.claim_type === "legal_proposition" || c.claim_type === "interpretation"
   );
-  const substantivePublished = substantiveAttempted.filter((c) => c.published);
+  const substantivePublished = substantiveAttempted.filter(
+    (c) =>
+      c.published &&
+      c.verification_decision === "supported" &&
+      c.evidence_references.length > 0
+  );
 
-  const publishedClaimsOut: PublishedAtomicClaimDto[] = allEvaluatedList
-    .filter((c) => c.published)
-    .map((c, idx) => ({
-      ...c,
-      claim_number: idx + 1,
-    }));
+  // Exclude non-authority rows when zero substantive claims survive so an unsupported answer never carries misleading rows
+  const publishedClaimsOut: PublishedAtomicClaimDto[] = (
+    substantivePublished.length === 0
+      ? []
+      : allEvaluatedList.filter(
+          (c) =>
+            c.published &&
+            ((c.claim_type !== "legal_proposition" && c.claim_type !== "interpretation") ||
+              (c.verification_decision === "supported" && c.evidence_references.length > 0))
+        )
+  ).map((c, idx) => ({
+    ...c,
+    claim_number: idx + 1,
+  }));
 
   let envelopeStatus: TraceableAnswerEnvelope["status"];
   if (substantivePublished.length === 0) {
@@ -1203,6 +1250,9 @@ export function validateAndBuildTraceableAnswer(
     answer_revision: answerRevision,
     revision_number: revNo,
     supersedes_answer_revision: input.supersedes_answer_revision ?? null,
+    owner_actor_id: input.owner_actor_id || input.actor.actor_id,
+    owner_tenant_id: input.owner_tenant_id || input.actor.tenant_id,
+    revision_reason: input.revision_reason || "Initial verified publication",
     channel: input.channel,
     generated_at: generatedAt,
     as_of_date: input.as_of_date,
@@ -1344,12 +1394,42 @@ export function commitTraceableAnswerAtomically(
   meta: {
     actor: Actor;
     question_text: string;
+    revision_reason?: string;
+    is_authorized_reviewer_revision?: boolean;
     simulate_interrupt_after_validation_for_test?: boolean;
   }
 ): TraceableAnswerEnvelope {
   const unified = getUnifiedCitationLedgerView(store, envelope.verifier_metadata.release_id);
 
-  // Referential integrity pre-check across all claims and links
+  // Material Issue 1 Hard Invariant: NEVER persist an answer labelled 'complete'/'partial' or any claim
+  // labelled 'supported' without >= 1 valid, replay-verified, eligible evidence link!
+  if (envelope.status === "complete" || envelope.status === "partial") {
+    const supportedClaims = envelope.claims.filter(
+      (c) => c.verification_decision === "supported"
+    );
+    if (supportedClaims.length === 0 || links.length === 0) {
+      throw new Error(
+        "UNSUPPORTED_ANSWER_REJECTED_422: Cannot label an answer as complete/partial or supported without valid supporting evidence links."
+      );
+    }
+    for (const sc of supportedClaims) {
+      const claimLinks = links.filter((l) => l.claim_id === sc.claim_id);
+      if (claimLinks.length === 0) {
+        throw new Error(
+          `UNSUPPORTED_ANSWER_REJECTED_422: Claim '${sc.claim_id}' cannot be labelled 'supported' with zero verified evidence links.`
+        );
+      }
+    }
+  }
+  for (const anyClaim of envelope.claims) {
+    if (anyClaim.verification_decision === "supported" && anyClaim.evidence_references.length === 0) {
+      throw new Error(
+        `UNSUPPORTED_ANSWER_REJECTED_422: Claim '${anyClaim.claim_id}' is marked 'supported' without supporting evidence.`
+      );
+    }
+  }
+
+  // Referential integrity & eligibility pre-check across all claims and links
   for (const link of links) {
     const psg = unified.passages[link.evidence_id];
     const ver = unified.versions[link.version_id];
@@ -1364,53 +1444,214 @@ export function commitTraceableAnswerAtomically(
         `REFERENTIAL_INTEGRITY_VIOLATION_422: Version/Doc mismatch on '${link.link_id}'.`
       );
     }
+    if (!psg.eligible_for_publication || !doc.eligible_for_citation) {
+      throw new Error(
+        `INELIGIBLE_EVIDENCE_REJECTED_422: Passage '${link.evidence_id}' or document '${doc.doc_id}' is quarantined/ineligible and cannot support a published claim.`
+      );
+    }
   }
 
   if (meta.simulate_interrupt_after_validation_for_test) {
     throw new Error("SIMULATED_INTERRUPTED_ANSWER_COMMIT_BEFORE_WAL");
   }
 
-  mutateCitationLedgerAtomically(
+  return mutateCitationLedgerAtomically(
     store,
     "COMMIT_TRACEABLE_ANSWER_ATOMICALLY",
     meta.actor.actor_id,
     (ledger) => {
-      // Materialize any referenced canonical passages/versions/docs into the persisted ledger so historical reopen is 100% self-contained!
-      for (const link of links) {
-        if (!ledger.documents[link.doc_id] && unified.documents[link.doc_id]) {
-          ledger.documents[link.doc_id] = unified.documents[link.doc_id];
+      // Material Issue 1 Ownership & Anti-Overwrite Enforcement:
+      const existingRevisionsForId = Object.values(ledger.published_answers)
+        .filter((a) => a.answer_id === envelope.answer_id)
+        .sort((a, b) => a.revision_number - b.revision_number);
+
+      let effectiveRevNo = envelope.revision_number;
+      let effectiveAnswerRevision = envelope.answer_revision;
+      let effectiveSupersedes = envelope.supersedes_answer_revision;
+      let ownerActorId = envelope.owner_actor_id || meta.actor.actor_id;
+      let ownerTenantId = envelope.owner_tenant_id || meta.actor.tenant_id;
+
+      if (existingRevisionsForId.length > 0) {
+        const firstRev = existingRevisionsForId[0];
+        const latestRev = existingRevisionsForId[existingRevisionsForId.length - 1];
+        ownerActorId = firstRev.owner_actor_id || firstRev.actor_id;
+        ownerTenantId = firstRev.owner_tenant_id || firstRev.tenant_id;
+
+        const isOwner = ownerActorId === meta.actor.actor_id && ownerTenantId === meta.actor.tenant_id;
+        const isReviewerAllowed =
+          Boolean(meta.is_authorized_reviewer_revision) &&
+          (meta.actor.role === "legal_reviewer" || meta.actor.role === "product_owner") &&
+          ownerTenantId === meta.actor.tenant_id;
+
+        if (!isOwner && !isReviewerAllowed) {
+          appendCitationAuditEvent(ledger, {
+            actor_or_service: meta.actor.actor_id,
+            event_type: "SECURITY_UNAUTHORIZED_ANSWER_MUTATION_BLOCKED",
+            affected_ids: [envelope.answer_id, latestRev.answer_revision],
+            before_status: { owner_actor_id: ownerActorId, revision: latestRev.answer_revision },
+            after_status: { blocked: true },
+            reason: `Blocked unauthorized modification/overwrite of answer '${envelope.answer_id}' owned by '${ownerActorId}'.`,
+            correlation_id: latestRev.answer_revision,
+          });
+          throw new Error(
+            `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${meta.actor.actor_id}' is not authorized to modify or overwrite answer '${envelope.answer_id}' owned by '${ownerActorId}'.`
+          );
         }
-        if (!ledger.versions[link.version_id] && unified.versions[link.version_id]) {
-          ledger.versions[link.version_id] = unified.versions[link.version_id];
+
+        // Idempotent replay check: ONLY when owner re-saves the exact identical revision, question, as-of date, rendered text, and reason!
+        if (
+          isOwner &&
+          latestRev.answer_revision === envelope.answer_revision &&
+          latestRev.rendered_answer_th === envelope.rendered_answer_th &&
+          latestRev.status === envelope.status &&
+          latestRev.as_of_date === envelope.as_of_date &&
+          latestRev.question_text === meta.question_text &&
+          (!meta.revision_reason || meta.revision_reason === latestRev.revision_reason)
+        ) {
+          const hist: TraceableAnswerEnvelope["revision_history"] = existingRevisionsForId.map(
+            (r) => ({
+              answer_revision: r.answer_revision,
+              revision_number: r.revision_number,
+              supersedes_answer_revision: r.supersedes_answer_revision,
+              generated_at: r.generated_at,
+              as_of_date: r.as_of_date,
+              status: r.status,
+              actor_id: r.actor_id,
+              owner_actor_id: r.owner_actor_id || r.actor_id,
+              revision_reason: r.revision_reason || "Initial verified publication",
+              published_claims_count: r.claims.length,
+            })
+          );
+          return { ...latestRev, revision_history: hist };
         }
-        const extId = link.extraction_revision_id;
-        if (!ledger.extraction_revisions[extId] && unified.extraction_revisions[extId]) {
-          ledger.extraction_revisions[extId] = unified.extraction_revisions[extId];
-        }
-        if (!ledger.passages[link.evidence_id] && unified.passages[link.evidence_id]) {
-          ledger.passages[link.evidence_id] = unified.passages[link.evidence_id];
-        }
-        for (const loc of Object.values(unified.locations)) {
-          if (loc.doc_id === link.doc_id && !ledger.locations[loc.location_id]) {
-            ledger.locations[loc.location_id] = loc;
-          }
-        }
-        ledger.claim_evidence_links[link.link_id] = link;
+
+        // Never overwrite an existing revision — always append a new monotonic revision (`r(N+1)`)!
+        effectiveRevNo = latestRev.revision_number + 1;
+        effectiveAnswerRevision = `${envelope.answer_id}.r${effectiveRevNo}`;
+        effectiveSupersedes = latestRev.answer_revision;
       }
 
-      ledger.published_answers[envelope.answer_revision] = {
+      const revisionReason =
+        meta.revision_reason ||
+        envelope.revision_reason ||
+        (effectiveRevNo > 1
+          ? `Updated answer revision r${effectiveRevNo}`
+          : "Initial verified publication");
+
+      const oldToNewClaimId = new Map<string, string>();
+      for (let cIdx = 0; cIdx < envelope.claims.length; cIdx++) {
+        const origId = envelope.claims[cIdx].claim_id;
+        const nextId =
+          effectiveRevNo === 1 && effectiveAnswerRevision === envelope.answer_revision
+            ? origId
+            : `clm.${effectiveAnswerRevision}.${cIdx + 1}`;
+        oldToNewClaimId.set(origId, nextId);
+      }
+
+      const remappedClaims: PublishedAtomicClaimDto[] = envelope.claims.map((clm) => {
+        const nextClaimId = oldToNewClaimId.get(clm.claim_id) || clm.claim_id;
+        const preserveR1Links =
+          effectiveRevNo === 1 && effectiveAnswerRevision === envelope.answer_revision;
+        return {
+          ...clm,
+          claim_id: nextClaimId,
+          premise_ids: (clm.premise_ids || []).map((pid) => oldToNewClaimId.get(pid) || pid),
+          evidence_references: clm.evidence_references.map((ref, rIdx) => ({
+            ...ref,
+            link_id: preserveR1Links
+              ? ref.link_id
+              : `cel.${sha256Bytes(`${effectiveAnswerRevision}|${nextClaimId}|${ref.evidence_id}|${rIdx}`).slice(0, 16)}`,
+          })),
+        };
+      });
+
+      // Materialize referenced canonical passages/versions/docs into persisted ledger so historical reopen is 100% self-contained!
+      for (const clm of remappedClaims) {
+        for (const ref of clm.evidence_references) {
+          if (!ledger.documents[ref.doc_id] && unified.documents[ref.doc_id]) {
+            ledger.documents[ref.doc_id] = unified.documents[ref.doc_id];
+          }
+          if (!ledger.versions[ref.version_id] && unified.versions[ref.version_id]) {
+            ledger.versions[ref.version_id] = unified.versions[ref.version_id];
+          }
+          const extId = ref.extraction_revision_id;
+          if (!ledger.extraction_revisions[extId] && unified.extraction_revisions[extId]) {
+            ledger.extraction_revisions[extId] = unified.extraction_revisions[extId];
+          }
+          if (!ledger.passages[ref.evidence_id] && unified.passages[ref.evidence_id]) {
+            ledger.passages[ref.evidence_id] = unified.passages[ref.evidence_id];
+          }
+          for (const loc of Object.values(unified.locations)) {
+            if (loc.doc_id === ref.doc_id && !ledger.locations[loc.location_id]) {
+              ledger.locations[loc.location_id] = loc;
+            }
+          }
+          ledger.claim_evidence_links[ref.link_id] = {
+            ...ref,
+            answer_revision: effectiveAnswerRevision,
+            claim_id: clm.claim_id,
+            verifier_or_reviewer_id: meta.actor.actor_id,
+            ruleset_version: envelope.verifier_metadata.ruleset_version,
+            verified_at: envelope.generated_at,
+          };
+        }
+      }
+
+      const historyAfterCommit: NonNullable<TraceableAnswerEnvelope["revision_history"]> = [
+        ...existingRevisionsForId.map((r) => ({
+          answer_revision: r.answer_revision,
+          revision_number: r.revision_number,
+          supersedes_answer_revision: r.supersedes_answer_revision,
+          generated_at: r.generated_at,
+          as_of_date: r.as_of_date,
+          status: r.status,
+          actor_id: r.actor_id,
+          owner_actor_id: r.owner_actor_id || r.actor_id,
+          revision_reason: r.revision_reason || "Initial verified publication",
+          published_claims_count: r.claims.length,
+        })),
+        {
+          answer_revision: effectiveAnswerRevision,
+          revision_number: effectiveRevNo,
+          supersedes_answer_revision: effectiveSupersedes,
+          generated_at: envelope.generated_at,
+          as_of_date: envelope.as_of_date,
+          status: envelope.status,
+          actor_id: meta.actor.actor_id,
+          owner_actor_id: ownerActorId,
+          revision_reason: revisionReason,
+          published_claims_count: remappedClaims.length,
+        },
+      ];
+
+      const finalEnvelope: TraceableAnswerEnvelope = {
         ...envelope,
+        answer_revision: effectiveAnswerRevision,
+        revision_number: effectiveRevNo,
+        supersedes_answer_revision: effectiveSupersedes,
+        owner_actor_id: ownerActorId,
+        owner_tenant_id: ownerTenantId,
+        revision_reason: revisionReason,
+        revision_history: historyAfterCommit,
+        claims: remappedClaims,
+      };
+
+      ledger.published_answers[effectiveAnswerRevision] = {
+        ...finalEnvelope,
         actor_id: meta.actor.actor_id,
         tenant_id: meta.actor.tenant_id,
+        owner_actor_id: ownerActorId,
+        owner_tenant_id: ownerTenantId,
+        revision_reason: revisionReason,
         question_text: meta.question_text,
       };
 
-      const outboxId = `cobx.ans.${sha256Bytes(envelope.answer_revision).slice(0, 14)}`;
+      const outboxId = `cobx.ans.${sha256Bytes(effectiveAnswerRevision).slice(0, 14)}`;
       ledger.projection_outbox[outboxId] = {
         outbox_id: outboxId,
         target_store: "graph",
         entity_kind: "answer",
-        entity_id: envelope.answer_revision,
+        entity_id: effectiveAnswerRevision,
         attempt_count: 1,
         status: "COMPLETED",
         last_error: null,
@@ -1420,27 +1661,266 @@ export function commitTraceableAnswerAtomically(
 
       appendCitationAuditEvent(ledger, {
         actor_or_service: meta.actor.actor_id,
-        event_type: "ANSWER_PUBLISHED_ATOMIC",
+        event_type: effectiveRevNo > 1 ? "ANSWER_REVISION_CREATED" : "ANSWER_PUBLISHED_ATOMIC",
         affected_ids: [
-          envelope.answer_revision,
-          ...envelope.claims.map((c) => c.claim_id),
-          ...links.map((l) => l.link_id),
+          effectiveAnswerRevision,
+          ...remappedClaims.map((c) => c.claim_id),
         ],
-        before_status: envelope.supersedes_answer_revision
-          ? { supersedes: envelope.supersedes_answer_revision }
-          : null,
+        before_status: effectiveSupersedes ? { supersedes: effectiveSupersedes } : null,
         after_status: {
-          status: envelope.status,
-          published_claims_count: envelope.claims.length,
-          unresolved_issues_count: envelope.unresolved_issues.length,
+          status: finalEnvelope.status,
+          revision_number: effectiveRevNo,
+          owner_actor_id: ownerActorId,
+          published_claims_count: remappedClaims.length,
         },
-        reason: `Atomic answer publication on channel '${envelope.channel}'`,
-        correlation_id: envelope.answer_revision,
+        reason: revisionReason,
+        correlation_id: effectiveAnswerRevision,
       });
+
+      return finalEnvelope;
     }
   );
+}
 
-  return envelope;
+/**
+ * Hydrates PostgreSQL-persisted onboarded documents, official attachments, amendments, and passages
+ * into the active container's `DurableKnowledgeStore` overlay across cold starts & separate deployments.
+ */
+export async function hydratePostgresSourcesIntoStore(
+  store: DurableKnowledgeStore,
+  actor: Actor
+): Promise<void> {
+  const pgSources = await loadAllOnboardedSourcesFromPostgres();
+  if (!pgSources || Object.keys(pgSources.documents).length === 0) return;
+
+  const existingLedger = readSidecarOverlay(store) || store.getState().citation_ledger;
+  const needsSync =
+    !existingLedger ||
+    Object.keys(pgSources.documents).some((id) => !existingLedger.documents[id]) ||
+    Object.keys(pgSources.versions).some((id) => !existingLedger.versions[id]) ||
+    Object.keys(pgSources.passages).some((id) => !existingLedger.passages[id]);
+
+  if (!needsSync) return;
+
+  mutateCitationLedgerAtomically(store, "HYDRATE_PG_SOURCES", actor.actor_id, (ledger) => {
+    Object.assign(ledger.documents, pgSources.documents);
+    Object.assign(ledger.versions, pgSources.versions);
+    Object.assign(ledger.locations, pgSources.locations);
+    Object.assign(ledger.extraction_revisions, pgSources.extractions);
+    Object.assign(ledger.passages, pgSources.passages);
+  });
+}
+
+/**
+ * Server-reverified save/revision entry point for `POST /api/v1/knowledge/answers` (Material Issue 1 & 3):
+ * 1. NEVER trusts client-supplied `status`, `verification_decision`, `citation_label_th`, or `official_url`.
+ * 2. Re-runs `validateAndBuildTraceableAnswer` on the server against canonical/DB passages!
+ * 3. Rejects (`422 UNSUPPORTED_ANSWER_REJECTED_422`) any attempt to save a claim/answer as supported without valid evidence.
+ * 4. Enforces ownership across BOTH local ledger AND hosted Neon PostgreSQL (`403 ANSWER_OWNERSHIP_FORBIDDEN_403` on another user's `answer_id`),
+ *    auto-increments `revision_number` (`r1` -> `r2`) without overwriting, and persists durably to PostgreSQL!
+ */
+export async function saveOrReviseAnswerServerVerified(
+  store: DurableKnowledgeStore,
+  params: {
+    submitted_envelope: Partial<TraceableAnswerEnvelope>;
+    question_text: string;
+    revision_reason?: string;
+    actor: Actor;
+  }
+): Promise<TraceableAnswerEnvelope> {
+  const sub = params.submitted_envelope;
+  const releaseId =
+    sub.verifier_metadata?.release_id ||
+    store.getState().active_release_id ||
+    "rel.B01.rc5";
+
+  // Hydrate any PostgreSQL-stored onboarded attachments/sources so cold-start containers validate them accurately!
+  await hydratePostgresSourcesIntoStore(store, params.actor);
+
+  const unified = getUnifiedCitationLedgerView(store, releaseId);
+  const requestedAnswerId =
+    sub.answer_id ||
+    `ans.${sha256Bytes(`${releaseId}|${params.actor.actor_id}|${params.question_text}|${Date.now()}`).slice(0, 14)}`;
+
+  // Check ownership in hosted PostgreSQL first (across deployments/restarts!)
+  const pgOwn = await inspectExistingAnswerOwnershipInPostgres(requestedAnswerId);
+  if (pgOwn.exists) {
+    const isOwner =
+      pgOwn.owner_actor_id === params.actor.actor_id &&
+      (pgOwn.owner_tenant_id || "PUBLIC") === params.actor.tenant_id;
+    if (!isOwner) {
+      await appendAuditEventToPostgres({
+        audit_id: `caud.sec.${sha256Bytes(`${requestedAnswerId}:${params.actor.actor_id}:${Date.now()}`).slice(0, 14)}`,
+        actor_or_service: params.actor.actor_id,
+        recorded_at: new Date().toISOString(),
+        event_type: "SECURITY_UNAUTHORIZED_ANSWER_MUTATION_BLOCKED",
+        affected_ids: [requestedAnswerId, pgOwn.latest_answer_revision || requestedAnswerId],
+        before_status: { owner_actor_id: pgOwn.owner_actor_id },
+        after_status: { blocked: true },
+        reason: `Blocked cross-user overwrite attempt on '${requestedAnswerId}' by '${params.actor.actor_id}'.`,
+        correlation_id: pgOwn.latest_answer_revision || requestedAnswerId,
+      });
+      throw new Error(
+        `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${params.actor.actor_id}' is not authorized to modify or overwrite answer '${requestedAnswerId}' owned by '${pgOwn.owner_actor_id}'.`
+      );
+    }
+  }
+
+  const callerClaimedSupported =
+    sub.status === "complete" ||
+    sub.status === "partial" ||
+    (Array.isArray(sub.claims) &&
+      sub.claims.some((c) => c.verification_decision === "supported"));
+
+  const candidateIds = new Set<string>();
+  const proposedClaims: ProposedStructuredClaimInput[] = [];
+
+  for (const rawClm of sub.claims || []) {
+    if (
+      rawClm.claim_type === "user_fact_or_assumption" ||
+      rawClm.claim_type === "scoped_unresolved_notice"
+    ) {
+      continue;
+    }
+    const evIds = (rawClm.evidence_references || [])
+      .map((r) => r.evidence_id)
+      .filter((eid) => Boolean(unified.passages[eid]));
+    for (const eid of evIds) candidateIds.add(eid);
+
+    proposedClaims.push({
+      claim_id: rawClm.claim_id,
+      text: rawClm.text,
+      claim_type:
+        rawClm.claim_type === "interpretation" ? "interpretation" : "legal_proposition",
+      premise_ids: rawClm.premise_ids || [],
+      support_groups:
+        evIds.length > 0
+          ? [
+              {
+                group_id: "grp.server_reverified",
+                role: rawClm.evidence_references?.[0]?.support_role || "primary_authority",
+                evidence_ids: evIds,
+              },
+            ]
+          : [],
+    });
+  }
+
+  const nextRevHint = pgOwn.exists ? pgOwn.latest_revision_number + 1 : 1;
+  const serverValidated = validateAndBuildTraceableAnswer(store, {
+    answer_id: requestedAnswerId,
+    revision_number: nextRevHint,
+    supersedes_answer_revision: pgOwn.latest_answer_revision,
+    owner_actor_id: pgOwn.owner_actor_id || params.actor.actor_id,
+    owner_tenant_id: pgOwn.owner_tenant_id || params.actor.tenant_id,
+    revision_reason: params.revision_reason,
+    channel: "saved_answer",
+    question: params.question_text,
+    as_of_date: sub.as_of_date ?? null,
+    release_id: releaseId,
+    actor: params.actor,
+    authorized_candidate_ids: candidateIds,
+    proposed_claims: proposedClaims,
+    user_supplied_facts: sub.user_supplied_facts || [],
+    assumptions: sub.assumptions || [],
+    persist_atomically: false,
+  });
+
+  // Reject if caller tried to save an answer claiming to be supported when server validation found ZERO supported claims!
+  if (callerClaimedSupported && serverValidated.status === "insufficient") {
+    throw new Error(
+      "UNSUPPORTED_ANSWER_REJECTED_422: Plausible conclusion or answer cannot be saved as supported without valid, eligible supporting evidence."
+    );
+  }
+
+  const allLinks = serverValidated.claims.flatMap((clm) =>
+    clm.evidence_references.map((ref) => ({
+      ...ref,
+      answer_revision: serverValidated.answer_revision,
+      claim_id: clm.claim_id,
+      verifier_or_reviewer_id: CLAIM_VERIFIER_VERSION,
+      ruleset_version: CLAIM_RULESET_VERSION,
+      verified_at: serverValidated.generated_at,
+    }))
+  );
+
+  const committed = commitTraceableAnswerAtomically(store, serverValidated, allLinks, {
+    actor: params.actor,
+    question_text: params.question_text,
+    revision_reason: params.revision_reason,
+  });
+
+  // Gather referenced source bundles and persist to hosted PostgreSQL (`citation-postgres-store.ts`)
+  const bundleMap = new Map<
+    string,
+    {
+      doc: OfficialDocumentRecord;
+      version: DocumentVersionRecord;
+      location: OfficialLocationRecord;
+      extraction: ExtractionRevisionRecord;
+      passages: EvidencePassageRecord[];
+    }
+  >();
+
+  const freshView = getUnifiedCitationLedgerView(store, releaseId);
+  for (const clm of committed.claims) {
+    for (const ref of clm.evidence_references) {
+      const psg = freshView.passages[ref.evidence_id];
+      const doc = freshView.documents[ref.doc_id];
+      const ver = freshView.versions[ref.version_id];
+      const ext = freshView.extraction_revisions[ref.extraction_revision_id];
+      const loc =
+        Object.values(freshView.locations).find(
+          (l) => l.doc_id === ref.doc_id && (!l.version_id || l.version_id === ref.version_id)
+        ) || {
+          location_id: `oloc.pg.${sha256Bytes(ref.doc_id).slice(0, 12)}`,
+          doc_id: ref.doc_id,
+          version_id: ref.version_id,
+          exact_official_url: ref.official_url,
+          role: "primary_official" as const,
+          parent_landing_location_id: null,
+          original_observed_url: ref.official_url,
+          redirect_history: [],
+          prior_urls: [],
+          first_verified_at: committed.generated_at,
+          last_verified_at: committed.generated_at,
+          last_successful_verified_at: committed.generated_at,
+          verification_method: "canonical_verified",
+          identity_match_result: "VERIFIED_MATCH" as const,
+          link_health: "verified_online" as const,
+          last_http_status: 200,
+          failure_reason: null,
+          is_active_primary: true,
+        };
+      if (!psg || !doc || !ver || !ext) continue;
+      const existingBundle = bundleMap.get(ver.version_id);
+      if (existingBundle) {
+        if (!existingBundle.passages.some((p) => p.passage_id === psg.passage_id)) {
+          existingBundle.passages.push(psg);
+        }
+      } else {
+        bundleMap.set(ver.version_id, {
+          doc,
+          version: ver,
+          location: loc,
+          extraction: ext,
+          passages: [psg],
+        });
+      }
+    }
+  }
+
+  await persistAnswerRevisionToPostgres({
+    envelope: committed,
+    question_text: params.question_text,
+    owner_actor_id: committed.owner_actor_id || params.actor.actor_id,
+    owner_tenant_id: committed.owner_tenant_id || params.actor.tenant_id,
+    actor: params.actor,
+    revision_reason: committed.revision_reason || "Initial verified publication",
+    referenced_bundles: Array.from(bundleMap.values()),
+  });
+
+  return committed;
 }
 
 /**
@@ -1942,6 +2422,9 @@ export function registerLegacyUnverifiedAnswer(
         ...envelope,
         actor_id: params.actor.actor_id,
         tenant_id: params.actor.tenant_id,
+        owner_actor_id: params.actor.actor_id,
+        owner_tenant_id: params.actor.tenant_id,
+        revision_reason: "Legacy pre-traceability backfill",
         question_text: params.question_text,
       };
       appendCitationAuditEvent(ledger, {
@@ -2065,16 +2548,156 @@ export function reopenSavedTraceableAnswer(
     }),
   }));
 
+  const allRevsForAnswer = Object.values(view.published_answers)
+    .filter((a) => a.answer_id === matched.answer_id)
+    .sort((a, b) => a.revision_number - b.revision_number);
+
+  const revisionHistory: NonNullable<TraceableAnswerEnvelope["revision_history"]> =
+    allRevsForAnswer.map((r) => ({
+      answer_revision: r.answer_revision,
+      revision_number: r.revision_number,
+      supersedes_answer_revision: r.supersedes_answer_revision,
+      generated_at: r.generated_at,
+      as_of_date: r.as_of_date,
+      status: r.status,
+      actor_id: r.actor_id,
+      owner_actor_id: r.owner_actor_id || r.actor_id,
+      revision_reason: r.revision_reason || "Initial verified publication",
+      published_claims_count: r.claims.length,
+    }));
+
   return {
     found: true,
     http_status: 200,
     question_text: matched.question_text,
     answer: {
       ...matched,
+      owner_actor_id: matched.owner_actor_id || matched.actor_id,
+      owner_tenant_id: matched.owner_tenant_id || matched.tenant_id,
+      revision_reason: matched.revision_reason || "Initial verified publication",
+      revision_history: revisionHistory,
       claims: refreshedClaims,
       update_notices: updateNotices,
     },
   };
+}
+
+/**
+ * Cold-start & cross-deployment durable wrapper for `reopenSavedTraceableAnswer`:
+ * Checks PostgreSQL (`citation_published_answer`) first so answers and later revisions (`r2`, `r3`)
+ * saved on a different Vercel container/deployment or restored via Neon PITR are always returned
+ * with their complete revision history and audit trail, falling back to local `store` when offline.
+ */
+export async function reopenSavedTraceableAnswerWithPostgres(
+  store: DurableKnowledgeStore,
+  answerRevisionOrId: string,
+  actor: Actor
+): Promise<{
+  found: boolean;
+  http_status: 200 | 404;
+  answer?: TraceableAnswerEnvelope;
+  question_text?: string;
+  audit_events?: import("./citation-contracts").TraceabilityAuditEventRecord[];
+  error_th?: string;
+}> {
+  const pgLoaded = await loadSavedAnswerFromPostgres(answerRevisionOrId, actor);
+  if (pgLoaded.forbidden_restricted) {
+    return {
+      found: false,
+      http_status: 404,
+      error_th:
+        "ไม่สามารถเปิดคำตอบนี้ได้ เนื่องจากมีเอกสารอ้างอิงที่จำกัดสิทธิ์หรือถูกถอนสิทธิ์การเข้าถึงสำหรับผู้ใช้งานปัจจุบัน",
+    };
+  }
+  if (pgLoaded.found && pgLoaded.answer) {
+    // Also check if any newer amendment exists in local or PG sources to attach `update_notices`
+    const pgSources = await loadAllOnboardedSourcesFromPostgres();
+    const view = getUnifiedCitationLedgerView(store, pgLoaded.answer.verifier_metadata.release_id);
+    const mergedVersions: Record<string, DocumentVersionRecord> = {
+      ...view.versions,
+      ...(pgSources?.versions || {}),
+    };
+    const updateNotices: NewerMaterialUpdateNoticeDto[] = [];
+    const seenVer = new Set<string>();
+    for (const clm of pgLoaded.answer.claims) {
+      for (const ref of clm.evidence_references) {
+        const ver = mergedVersions[ref.version_id];
+        if (!ver || seenVer.has(ver.version_id)) continue;
+        seenVer.add(ver.version_id);
+        const newerVer = Object.values(mergedVersions).find(
+          (v) =>
+            v.version_id !== ver.version_id &&
+            (v.doc_id === ver.doc_id || v.predecessor_version_id === ver.version_id) &&
+            v.byte_change_classification === "verified_legal_amendment" &&
+            ((v.effective_from && ver.effective_from && v.effective_from > ver.effective_from) ||
+              v.predecessor_version_id === ver.version_id)
+        );
+        if (newerVer) {
+          updateNotices.push({
+            has_newer_material: true,
+            latest_version_id: newerVer.version_id,
+            cited_version_id: ver.version_id,
+            doc_id: ver.doc_id,
+            notice_th: `แจ้งเตือนข้อมูลกฎหมายรุ่นใหม่กว่า: มีการนำเข้าฉบับแก้ไขเพิ่มเติมรุ่นใหม่ (${newerVer.version_id} มีผลตั้งแต่ ${newerVer.effective_from || "ตามประกาศ"}) หลังคำตอบนี้ถูกบันทึก ทั้งนี้ คำตอบด้านล่างยังคงแสดงถ้อยคำและรุ่นเอกสารเดิม (${ver.version_id}) ตามวันที่ใช้อ้างอิงไว้ทุกประการ`,
+            detected_at: new Date().toISOString(),
+          });
+        }
+      }
+    }
+    return {
+      found: true,
+      http_status: 200,
+      question_text: pgLoaded.question_text,
+      audit_events: pgLoaded.audit_events || [],
+      answer: {
+        ...pgLoaded.answer,
+        update_notices: updateNotices,
+      },
+    };
+  }
+
+  const localRes = reopenSavedTraceableAnswer(store, answerRevisionOrId, actor);
+  if (!localRes.found) return localRes;
+  const view = getUnifiedCitationLedgerView(store);
+  const revIds = new Set(
+    (localRes.answer?.revision_history || []).map((r) => r.answer_revision)
+  );
+  if (localRes.answer) revIds.add(localRes.answer.answer_revision);
+  const auditEvents = view.audit_events.filter((ev) => revIds.has(ev.correlation_id));
+  return {
+    ...localRes,
+    audit_events: auditEvents,
+  };
+}
+
+/**
+ * Cold-start & cross-deployment durable wrapper for `resolveTraceableEvidenceById`:
+ * Hydrates pinned passage/version/document from PostgreSQL when not yet cached in local container memory.
+ */
+export async function resolveTraceableEvidenceWithPostgres(
+  store: DurableKnowledgeStore,
+  evidenceId: string,
+  actor: Actor,
+  releaseId?: string
+): Promise<ResolvedPinnedEvidenceResponse> {
+  const local = resolveTraceableEvidenceById(store, evidenceId, actor, releaseId);
+  if (local.ok || local.unavailable_code === "WITHDRAWN") {
+    return local;
+  }
+  const pgPsg = await loadPinnedPassageFromPostgres(evidenceId);
+  if (pgPsg.found && pgPsg.doc && pgPsg.version && pgPsg.extraction && pgPsg.passage) {
+    mutateCitationLedgerAtomically(store, "HYDRATE_PG_PASSAGE", actor.actor_id, (ledger) => {
+      ledger.documents[pgPsg.doc!.doc_id] = pgPsg.doc!;
+      ledger.versions[pgPsg.version!.version_id] = pgPsg.version!;
+      if (pgPsg.location) {
+        ledger.locations[pgPsg.location.location_id] = pgPsg.location;
+      }
+      ledger.extraction_revisions[pgPsg.extraction!.extraction_revision_id] = pgPsg.extraction!;
+      ledger.passages[pgPsg.passage!.passage_id] = pgPsg.passage!;
+    });
+    return resolveTraceableEvidenceById(store, evidenceId, actor, releaseId);
+  }
+  return local;
 }
 
 export type SupportedExportFormat = "markdown" | "pdf_html" | "word_doc" | "json";
@@ -2338,10 +2961,13 @@ export function approveDocumentedAmbiguityWithEvidence(
     throw new Error(`NOT_FOUND_404: Prior answer revision '${params.prior_answer_revision}' not found.`);
   }
 
-  const nextEnvelope = validateAndBuildTraceableAnswer(store, {
+  const nextEnvelopeBuilt = validateAndBuildTraceableAnswer(store, {
     answer_id: prior.answer_id,
     supersedes_answer_revision: prior.answer_revision,
     revision_number: prior.revision_number + 1,
+    owner_actor_id: prior.owner_actor_id || prior.actor_id,
+    owner_tenant_id: prior.owner_tenant_id || prior.tenant_id,
+    revision_reason: params.justification_th,
     channel: prior.channel,
     question: prior.question_text,
     as_of_date: prior.as_of_date,
@@ -2362,7 +2988,25 @@ export function approveDocumentedAmbiguityWithEvidence(
         ],
       },
     ],
-    persist_atomically: true,
+    persist_atomically: false,
+  });
+
+  const allLinks = nextEnvelopeBuilt.claims.flatMap((clm) =>
+    clm.evidence_references.map((ref) => ({
+      ...ref,
+      answer_revision: nextEnvelopeBuilt.answer_revision,
+      claim_id: clm.claim_id,
+      verifier_or_reviewer_id: params.reviewer.actor_id,
+      ruleset_version: nextEnvelopeBuilt.verifier_metadata.ruleset_version,
+      verified_at: nextEnvelopeBuilt.generated_at,
+    }))
+  );
+
+  const nextEnvelope = commitTraceableAnswerAtomically(store, nextEnvelopeBuilt, allLinks, {
+    actor: params.reviewer,
+    question_text: prior.question_text,
+    revision_reason: params.justification_th,
+    is_authorized_reviewer_revision: true,
   });
 
   mutateCitationLedgerAtomically(
@@ -2705,6 +3349,7 @@ export function tryAnswerFromOnboardedCitationSources(
     actor: Actor;
     channel?: TraceablePublicationChannel;
     persist?: boolean;
+    attachment_doc_ids?: string[];
   }
 ): GroundedAnswer | null {
   const startedAt = Date.now();
@@ -2714,9 +3359,15 @@ export function tryAnswerFromOnboardedCitationSources(
     return null;
   }
 
+  const explicitAttachmentSet = new Set(
+    (params.attachment_doc_ids || []).map((id) => id.trim()).filter(Boolean)
+  );
   const qNorm = normalizeThaiSearchTextOnly(params.question);
-  // Only intercept when an explicitly onboarded document (not just a backfilled canonical work, unless a newer amendment version or passage withdrawal exists!) matches the question
+  // Only intercept when an explicitly onboarded document or explicitly attached official law matches the question
   const directDocs = Object.values(rawLedger.documents).filter((doc) => {
+    if (explicitAttachmentSet.has(doc.doc_id)) {
+      return true;
+    }
     const nativeNorm = normalizeThaiSearchTextOnly(doc.source_native_id || "");
     const titleNorm = normalizeThaiSearchTextOnly(doc.original_title_th);
     if (nativeNorm && nativeNorm.length >= 3 && qNorm.includes(nativeNorm)) {
@@ -2780,10 +3431,228 @@ export function tryAnswerFromOnboardedCitationSources(
     };
   }
 
-  // Select applicable versions per matched document for `applicable_date` (Section 4.4, T04)
+  // Material Issue 2: Apply consistent temporal & legal-version check across onboarded/attached sources!
+  const temporalCtx = parseQueryTemporalAndIntentContext({
+    question: params.question,
+    applicableDate: params.applicable_date,
+    explicitRulingIds: [],
+  });
+  const asksCurrentExplicitly =
+    /(?:ปัจจุบัน|ล่าสุด|ตอนนี้|ขณะนี้|\bcurrent\s+law\b|\bcurrently\b|\bas\s+of\s+today\b)/i.test(
+      params.question
+    );
+
+  const buildTemporalWithheldAnswer = (
+    statusOut: "NEEDS_CLARIFICATION" | "INSUFFICIENT_EVIDENCE",
+    reasonCode: "MISSING_APPLICABLE_DATE" | "UNVERIFIED_HISTORICAL_VERSION",
+    messageTh: string,
+    clarificationQs: string[],
+    asOfOut: string | null
+  ): GroundedAnswer => {
+    const baseEnv = validateAndBuildTraceableAnswer(store, {
+      answer_id: `ans.${traceId}`,
+      channel: params.channel || "api",
+      question: params.question,
+      as_of_date: asOfOut,
+      generated_at: generatedAt,
+      release_id: params.release_id,
+      actor: params.actor,
+      authorized_candidate_ids: new Set(),
+      proposed_claims: [],
+      user_supplied_facts: extractUserSuppliedFactsFromQuestion(params.question),
+      persist_atomically: false,
+    });
+    const finalEnv: TraceableAnswerEnvelope = {
+      ...baseEnv,
+      status: "insufficient",
+      rendered_answer_th: messageTh,
+      claims: [],
+      unresolved_issues: [
+        {
+          issue_id: `iss.temporal.${traceId}`,
+          scope_key: authorizedDocs[0]?.source_native_id || authorizedDocs[0]?.original_title_th || "temporal",
+          explanation_th: messageTh,
+          reason_code: reasonCode,
+          withheld_claim_ids: [],
+        },
+      ],
+    };
+    return {
+      release_id: params.release_id,
+      knowledge_snapshot_at: generatedAt,
+      generated_at: generatedAt,
+      status: statusOut,
+      answer: messageTh,
+      claims: [
+        {
+          claim_id: `clm.temporal_abstain.${traceId}`,
+          statement: messageTh,
+          claim_type: "abstention_notice",
+          statement_role: "reg24_inference",
+          supporting_passage_ids: [],
+          applicable_version_id: null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "UNSUPPORTED",
+        },
+      ],
+      evidence: [],
+      assumptions: [],
+      clarification_questions: clarificationQs,
+      coverage_warnings: [messageTh],
+      applicable_date: asOfOut,
+      model_policy_version: "reg24-grounded-legal-v1.2",
+      trace_id: traceId,
+      latency_ms: Math.max(1, Date.now() - startedAt),
+      traceable_answer: finalEnv,
+    };
+  };
+
+  if (!params.applicable_date && (temporalCtx.has_yearless_partial_date || temporalCtx.has_vague_historical_reference)) {
+    return buildTemporalWithheldAnswer(
+      "NEEDS_CLARIFICATION",
+      "MISSING_APPLICABLE_DATE",
+      "ไม่สามารถสรุปตัวบทกฎหมายที่ใช้บังคับได้โดยไม่คาดเดา เนื่องจากคำถามระบุช่วงเวลาไม่สมบูรณ์หรือคลุมเครือ กรุณาระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ของธุรกรรมหรือวันเริ่มต้นรอบระยะเวลาบัญชีให้ชัดเจน",
+      [
+        "กรุณาระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ของรายการหรือธุรกรรมที่ต้องการตรวจสอบ",
+        "หากเป็นภาษีเงินได้นิติบุคคล กรุณาระบุวันเริ่มต้นและวันสิ้นสุดรอบระยะเวลาบัญชี",
+      ],
+      null
+    );
+  }
+
+  let effectiveAsOfDate: string | null =
+    params.applicable_date ||
+    temporalCtx.accounting_period_start_iso ||
+    temporalCtx.point_in_time_date_iso ||
+    temporalCtx.transaction_date_iso ||
+    temporalCtx.accounting_period_end_iso ||
+    null;
+
+  // Check multi-version amendment boundaries & uncertain/straddling dates across matched documents
+  for (const doc of authorizedDocs) {
+    const versions = Object.values(rawLedger.versions).filter((v) => v.doc_id === doc.doc_id);
+    const distinctEffectiveDates = [
+      ...new Set(versions.map((v) => v.effective_from).filter((d): d is string => Boolean(d))),
+    ].sort();
+
+    // 1. Ambiguous DD/MM vs MM/DD slash date straddling an amendment effective_from
+    if (
+      !params.applicable_date &&
+      temporalCtx.point_in_time_date_iso &&
+      temporalCtx.ambiguous_numeric_date_alt_iso
+    ) {
+      const d1 = temporalCtx.point_in_time_date_iso;
+      const d2 = temporalCtx.ambiguous_numeric_date_alt_iso;
+      const lo = d1 < d2 ? d1 : d2;
+      const hi = d1 < d2 ? d2 : d1;
+      const straddled = distinctEffectiveDates.find((eff) => eff > lo && eff <= hi);
+      if (straddled) {
+        return buildTemporalWithheldAnswer(
+          "NEEDS_CLARIFICATION",
+          "MISSING_APPLICABLE_DATE",
+          `รูปแบบวันที่ตัวเลขในคำถามมีความกำกวมระหว่างวัน/เดือน และคร่อมวันที่มีผลใช้บังคับของการแก้ไขกฎหมาย (${straddled}) กรุณาระบุชื่อเดือนหรือวันที่แบบ YYYY-MM-DD ให้ชัดเจน`,
+          [`กรุณายืนยันวันที่ที่แน่นอนในรูปแบบ YYYY-MM-DD (เนื่องจากมีจุดเปลี่ยนรุ่นกฎหมายเมื่อ ${straddled})`],
+          null
+        );
+      }
+    }
+
+    // 2. Partial date range or year-only reference straddling an amendment effective_from
+    if (!params.applicable_date) {
+      const rangeStart =
+        temporalCtx.transaction_date_iso ||
+        (temporalCtx.transaction_year_ce ? `${temporalCtx.transaction_year_ce}-01-01` : null);
+      const rangeEnd =
+        temporalCtx.transaction_date_end_iso ||
+        (temporalCtx.transaction_year_ce && !temporalCtx.point_in_time_date_iso
+          ? `${temporalCtx.transaction_year_ce}-12-31`
+          : null);
+      if (rangeStart && rangeEnd && rangeStart < rangeEnd) {
+        const straddled = distinctEffectiveDates.find((eff) => eff > rangeStart && eff <= rangeEnd);
+        if (straddled) {
+          return buildTemporalWithheldAnswer(
+            "NEEDS_CLARIFICATION",
+            "MISSING_APPLICABLE_DATE",
+            `ช่วงเวลาที่ระบุ (${rangeStart} ถึง ${rangeEnd}) คร่อมวันที่มีผลใช้บังคับของการแก้ไขเพิ่มเติม ${doc.source_native_id || doc.original_title_th} (${straddled}) กรุณาระบุวัน เดือน ปี ที่เกิดรายการให้ชัดเจนเพื่อเลือกรุ่นกฎหมายที่ถูกต้อง`,
+            [`รายการเกิดขึ้นก่อนหรือตั้งแต่วันที่ ${straddled} เป็นต้นไป?`],
+            null
+          );
+        }
+        if (!effectiveAsOfDate) {
+          effectiveAsOfDate = rangeEnd;
+        }
+      }
+    }
+
+    // 3. Multiple amendment versions exist, NO temporal anchor given, and user did not ask for current law
+    if (
+      distinctEffectiveDates.length >= 2 &&
+      !effectiveAsOfDate &&
+      !temporalCtx.has_any_temporal_anchor &&
+      !asksCurrentExplicitly
+    ) {
+      return buildTemporalWithheldAnswer(
+        "NEEDS_CLARIFICATION",
+        "MISSING_APPLICABLE_DATE",
+        `${doc.source_native_id || doc.original_title_th} มีการแก้ไขเพิ่มเติมหลายรุ่นในคลังข้อมูล (มีผลตั้งแต่วันที่ ${distinctEffectiveDates.join(", ")}) กรุณาระบุวันที่เกิดรายการหรือวันเริ่มต้นรอบระยะเวลาบัญชีเพื่อใช้รุ่นกฎหมายที่ถูกต้องโดยไม่คาดเดา`,
+        [
+          `กรุณาระบุวันที่เกิดรายการหรือวันที่ต้องการตรวจสอบสำหรับ ${doc.source_native_id || doc.original_title_th} (หรือระบุว่าต้องการตรวจสอบตามกฎหมายปัจจุบัน)`,
+        ],
+        null
+      );
+    }
+
+    // 4. Explicit pre-amendment or historical date preceding the earliest verified version (when no canonical baseline exists)
+    if (distinctEffectiveDates.length > 0) {
+      const earliestEff = distinctEffectiveDates[0];
+      const asksUnverifiedPrior =
+        temporalCtx.is_upper_bounded_before_period ||
+        temporalCtx.asks_pre_amendment_version_explicitly ||
+        (effectiveAsOfDate !== null && effectiveAsOfDate < earliestEff);
+
+      if (asksUnverifiedPrior) {
+        const docNativeNorm = normalizeThaiSearchTextOnly(
+          doc.source_native_id || doc.original_title_th
+        );
+        const hasCanonicalBaseline = Object.values(state.works).some((w) => {
+          const wNorm = normalizeThaiSearchTextOnly(
+            w.official_identifiers?.[0]?.normalized || w.title_th
+          );
+          return wNorm.length >= 3 && wNorm === docNativeNorm;
+        });
+        const hasVerifiedMatchingPrior =
+          effectiveAsOfDate !== null &&
+          versions.some((v) => {
+            const okFrom = !v.effective_from || effectiveAsOfDate! >= v.effective_from;
+            const okTo = !v.effective_to || effectiveAsOfDate! <= v.effective_to;
+            return Boolean(v.effective_from) && okFrom && okTo;
+          });
+        if (!hasCanonicalBaseline && !hasVerifiedMatchingPrior) {
+          return buildTemporalWithheldAnswer(
+            "INSUFFICIENT_EVIDENCE",
+            "UNVERIFIED_HISTORICAL_VERSION",
+            `ระบบยังไม่สามารถยืนยันตัวบท ${doc.source_native_id || doc.original_title_th} สำหรับช่วงเวลาก่อนวันที่ ${earliestEff} จากต้นฉบับทางการในคลังข้อมูลได้ จึงระงับการสรุปข้อกฎหมายย้อนหลังเพื่อป้องกันการคาดเดาจากตัวบทรุ่นหลัง`,
+            [],
+            effectiveAsOfDate
+          );
+        }
+      }
+    }
+  }
+
+  // Select applicable versions per matched document for `effectiveAsOfDate` (Section 4.4, T04)
   const candidatePassageIds = new Set<string>();
   const proposedClaims: ProposedStructuredClaimInput[] = [];
   const evidenceCards: GroundedAnswer["evidence"] = [];
+  const runtimeAssumptions: string[] = [];
+  if (asksCurrentExplicitly && !effectiveAsOfDate) {
+    effectiveAsOfDate = new Date().toISOString().slice(0, 10);
+    runtimeAssumptions.push(
+      `อ้างอิงรุ่นกฎหมายที่มีผลใช้บังคับในปัจจุบัน ณ วันที่ ${effectiveAsOfDate} ตามคำถามของผู้ใช้`
+    );
+  }
 
   const statuteDocs = authorizedDocs.filter((d) => d.source_family === "gazette_enactment");
   const rulingOrCaseDocs = authorizedDocs.filter((d) => d.source_family !== "gazette_enactment");
@@ -2791,10 +3660,10 @@ export function tryAnswerFromOnboardedCitationSources(
   const selectVersionForDoc = (doc: OfficialDocumentRecord): DocumentVersionRecord | null | "FALLBACK_CANONICAL" => {
     const versions = Object.values(rawLedger.versions).filter((v) => v.doc_id === doc.doc_id);
     if (versions.length === 0) return null;
-    if (params.applicable_date) {
+    if (effectiveAsOfDate) {
       const matching = versions.filter((v) => {
-        const okFrom = !v.effective_from || params.applicable_date! >= v.effective_from;
-        const okTo = !v.effective_to || params.applicable_date! <= v.effective_to;
+        const okFrom = !v.effective_from || effectiveAsOfDate! >= v.effective_from;
+        const okTo = !v.effective_to || effectiveAsOfDate! <= v.effective_to;
         return okFrom && okTo;
       });
       if (matching.length > 0) {
@@ -2812,7 +3681,7 @@ export function tryAnswerFromOnboardedCitationSources(
       if (hasCanonicalBaseline) {
         return "FALLBACK_CANONICAL";
       }
-      return versions[0];
+      return null;
     }
     return versions.sort((a, b) =>
       (b.effective_from || b.captured_at).localeCompare(a.effective_from || a.captured_at)
@@ -2927,9 +3796,12 @@ export function tryAnswerFromOnboardedCitationSources(
             support_groups: [
               {
                 group_id: "grp.primary",
-                role: /^(?:เว้นแต่|ยกเว้น)/.test(seg)
-                  ? "exception_or_proviso"
-                  : "primary_authority",
+                role:
+                  doc.record_type === "verified_official_attachment"
+                    ? "verified_attachment_authority"
+                    : /^(?:เว้นแต่|ยกเว้น)/.test(seg)
+                      ? "exception_or_proviso"
+                      : "primary_authority",
                 evidence_ids: [p.passage_id],
                 expected_version_id: p.version_id,
               },
@@ -2944,13 +3816,14 @@ export function tryAnswerFromOnboardedCitationSources(
     answer_id: `ans.${traceId}`,
     channel: params.channel || "api",
     question: params.question,
-    as_of_date: params.applicable_date,
+    as_of_date: effectiveAsOfDate,
     generated_at: generatedAt,
     release_id: params.release_id,
     actor: params.actor,
     authorized_candidate_ids: candidatePassageIds,
     proposed_claims: proposedClaims,
     user_supplied_facts: extractUserSuppliedFactsFromQuestion(params.question),
+    assumptions: runtimeAssumptions,
     persist_atomically: Boolean(params.persist),
   });
 
@@ -3011,26 +3884,28 @@ export function tryAnswerFromOnboardedCitationSources(
     generated_at: generatedAt,
     status: mappedStatus,
     answer: envelope.rendered_answer_th,
-    claims: envelope.claims.map((c) => ({
-      claim_id: c.claim_id,
-      statement: c.text,
-      claim_type:
-        c.claim_type === "interpretation"
-          ? "qualified_legal_synthesis"
-          : "direct_source_statement",
-      statement_role: "statutory_text",
-      supporting_passage_ids: c.evidence_references.map((r) => r.evidence_id),
-      applicable_version_id: c.evidence_references[0]?.version_id || null,
-      factual_conditions: [],
-      exceptions: [],
-      counterevidence_passage_ids: [],
-      verification_result: "VERIFIED",
-    })),
+    claims: envelope.claims
+      .filter((c) => c.verification_decision === "supported" && c.evidence_references.length > 0)
+      .map((c) => ({
+        claim_id: c.claim_id,
+        statement: c.text,
+        claim_type:
+          c.claim_type === "interpretation"
+            ? "qualified_legal_synthesis"
+            : "direct_source_statement",
+        statement_role: "statutory_text",
+        supporting_passage_ids: c.evidence_references.map((r) => r.evidence_id),
+        applicable_version_id: c.evidence_references[0]?.version_id || null,
+        factual_conditions: [],
+        exceptions: [],
+        counterevidence_passage_ids: [],
+        verification_result: "VERIFIED",
+      })),
     evidence: evidenceCards,
     assumptions: envelope.assumptions,
     clarification_questions: [],
     coverage_warnings: envelope.unresolved_issues.map((u) => u.explanation_th),
-    applicable_date: params.applicable_date,
+    applicable_date: effectiveAsOfDate,
     model_policy_version: "reg24-grounded-legal-v1.2",
     trace_id: traceId,
     latency_ms: Math.max(1, Date.now() - startedAt),

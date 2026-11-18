@@ -11,6 +11,8 @@ import {
   resolveServerActor,
 } from "../../../../../core/knowledge/http-auth";
 import type { TraceablePublicationChannel } from "../../../../../core/knowledge/citation-contracts";
+import type { ConversationTurnInput } from "../../../../../core/knowledge/contracts";
+import { saveOrReviseAnswerServerVerified } from "../../../../../core/knowledge/claim-traceability-engine";
 
 export async function POST(req: Request) {
   try {
@@ -24,6 +26,8 @@ export async function POST(req: Request) {
       as_of_date?: string | null;
       mode?: "standard" | "exact_lookup" | "comparison";
       comparison_work_ids?: string[];
+      conversation_history?: ConversationTurnInput[];
+      attachment_doc_ids?: string[];
       channel?: TraceablePublicationChannel;
       persist_answer?: boolean;
       stream?: boolean;
@@ -43,6 +47,8 @@ export async function POST(req: Request) {
         applicable_date: effectiveAsOf,
         mode: body.mode,
         comparison_work_ids: body.comparison_work_ids,
+        conversation_history: body.conversation_history,
+        attachment_doc_ids: body.attachment_doc_ids,
       },
       actor,
       {
@@ -51,6 +57,21 @@ export async function POST(req: Request) {
         persistAnswerAtomically: Boolean(body.persist_answer),
       }
     );
+
+    if (
+      body.persist_answer &&
+      answer.traceable_answer &&
+      (answer.traceable_answer.status === "complete" ||
+        answer.traceable_answer.status === "partial")
+    ) {
+      const pgSaved = await saveOrReviseAnswerServerVerified(store, {
+        submitted_envelope: answer.traceable_answer,
+        question_text: qClean,
+        revision_reason: "Persisted verified answer from query endpoint",
+        actor,
+      });
+      answer.traceable_answer = pgSaved;
+    }
 
     const relRec = store.getState().releases[answer.release_id];
     const auditStatus = await appendTrialAuditEvent(store, {

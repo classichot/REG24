@@ -239,8 +239,27 @@ export function OfficialCitationTraceabilityPanel({
             </strong>{" "}
             · เวลาที่สร้างคำตอบ:{" "}
             <span style={{ fontFamily: "ui-monospace, monospace" }}>{envelope.generated_at}</span> ·
-            สถานะ: <code>{envelope.status.toUpperCase()}</code>
+            สถานะ: <code>{envelope.status.toUpperCase()}</code> · รุ่นที่:{" "}
+            <code>r{envelope.revision_number}</code>
+            {envelope.owner_actor_id ? (
+              <>
+                {" "}
+                · เจ้าของคำตอบ: <code>{envelope.owner_actor_id}</code>
+              </>
+            ) : null}
           </div>
+          {envelope.revision_history && envelope.revision_history.length > 0 ? (
+            <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>
+              ประวัติการแก้ไขคำตอบที่ตรวจสอบย้อนกลับได้ (Immutable Revision History):{" "}
+              {envelope.revision_history.map((rev, idx) => (
+                <span key={rev.answer_revision}>
+                  {idx > 0 ? " → " : ""}
+                  <code>{rev.answer_revision}</code> ({rev.status}, โดย {rev.actor_id}
+                  {rev.revision_reason ? `: ${rev.revision_reason}` : ""})
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>

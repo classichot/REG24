@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-18T12:21:40.270Z",
+  "generated_at": "2026-11-18T18:13:30.483Z",
   "batch_id": "B01",
   "release_id": "rel.B01.rc5",
   "inventory_reconciliation": {
@@ -62,17 +62,17 @@
   "section_8_acceptance_measurements": {
     "batch_id": "B01",
     "release_id": "rel.B01.rc5",
-    "measured_at": "2026-11-18T12:21:09.274Z",
+    "measured_at": "2026-11-18T18:13:07.381Z",
     "published_claim_coverage": {
-      "numerator": 6,
-      "denominator": 6,
+      "numerator": 7,
+      "denominator": 7,
       "ratio": 1,
       "unsegmented_rendered_claims_detected": 0,
       "passes_100_percent_gate": true
     },
     "published_citation_traceability": {
-      "numerator": 11,
-      "denominator": 11,
+      "numerator": 12,
+      "denominator": 12,
       "ratio": 1,
       "channels_verified": [
         "chat",
@@ -87,7 +87,7 @@
     },
     "semantic_support_acceptance": {
       "adjudicated_cases": 5,
-      "supported_claims": 6,
+      "supported_claims": 7,
       "unsupported_claims": 0,
       "material_omitted_qualifications": 0,
       "passes_zero_defect_gate": true,
@@ -137,7 +137,7 @@
     "official_link_availability": {
       "verified_reachable_count": 4962,
       "total_checked_locations": 4962,
-      "checked_at": "2026-11-18T12:21:09.274Z",
+      "checked_at": "2026-11-18T18:13:07.381Z",
       "failed_locations": []
     },
     "coverage_and_withholding": {
@@ -155,7 +155,7 @@
   },
   "owners_demo_receipt": {
     "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
-    "saved_answer_revision": "ans.trc.65bc609f1fd496.r1",
+    "saved_answer_revision": "ans.trc.858b30d99b3a27.r1",
     "official_url_inspected": "https://www.rd.go.th/68302.html",
     "displayed_locator": "PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
     "original_quote_preserved_after_later_ingestion": true,

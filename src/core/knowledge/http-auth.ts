@@ -1,10 +1,16 @@
 /**
  * REG24 — Server-Side Actor Resolution, Anti-Spoofing & HTTP Error Mapper for Knowledge GraphRAG APIs
- * Implements SH-16 & AT08 (Server-supplied tenant/scope; client body never grants private scope).
+ * Implements SH-16 & AT08 (Server-supplied tenant/scope; client body never grants private scope),
+ * PLUS Material Issue 1 Hardening:
+ * - Distinct per-user/per-invite actor identity so one user cannot spoof or overwrite another user's answer.
+ * - Privileged header roles (`product_owner`, `engineering_lead`, `legal_reviewer`, `data_operator`) on
+ *   deployed serverless (`VERCEL === "1"`) or when `REG24_ADMIN_ROLE_SECRET` is configured require
+ *   matching `x-reg24-admin-secret` so unauthenticated external callers cannot self-elevate.
  */
 
 import { NextResponse } from "next/server";
 import { FIXED_BATCH_ORDER, type Actor, type ActorRole, type BatchId } from "./contracts";
+import { sha256Bytes } from "./identity";
 
 const VALID_ROLES = new Set<ActorRole>([
   "product_owner",
@@ -15,25 +21,54 @@ const VALID_ROLES = new Set<ActorRole>([
   "tenant_reader",
 ]);
 
-/**
- * Resolves the caller's `Actor` from server-verified session/headers ONLY — NEVER from client JSON body!
- * Unauthenticated public web visitors receive `reader` with `scope.platform.public` only.
- * Authenticated Owner UAT / Operator actions identify role via `x-reg24-actor-role` + `x-reg24-actor-id`
- * (or configured bearer token in production).
- */
+const PRIVILEGED_ROLES = new Set<ActorRole>([
+  "product_owner",
+  "engineering_lead",
+  "legal_reviewer",
+  "data_operator",
+]);
+
 export function resolveServerActor(req: Request, opts?: { requireCsrfForMutation?: boolean }): Actor {
   if (opts?.requireCsrfForMutation) {
     const csrfHeader = req.headers.get("x-reg24-csrf");
     const originHeader = req.headers.get("origin");
-    // Require explicit `x-reg24-csrf: 1` or same-site origin when mutating release/job state
-    if (!csrfHeader && originHeader && !originHeader.includes("localhost") && !originHeader.includes("vercel.app")) {
+    if (
+      !csrfHeader &&
+      originHeader &&
+      !originHeader.includes("localhost") &&
+      !originHeader.includes("vercel.app")
+    ) {
       throw new Error("FORBIDDEN_403: Cross-origin state mutation blocked by CSRF policy.");
     }
   }
 
   const headerRole = req.headers.get("x-reg24-actor-role") as ActorRole | null;
+  const requestedRole: ActorRole = headerRole && VALID_ROLES.has(headerRole) ? headerRole : "reader";
+
+  // On deployed serverless or when REG24_ADMIN_ROLE_SECRET is configured, prevent unauthenticated role spoofing!
+  const adminSecretEnv = (process.env.REG24_ADMIN_ROLE_SECRET || "").trim();
+  const isDeployedServerless = process.env.VERCEL === "1";
+  let effectiveRole: ActorRole = requestedRole;
+  if (PRIVILEGED_ROLES.has(requestedRole) && (adminSecretEnv.length > 0 || isDeployedServerless)) {
+    const suppliedAdminSecret = (req.headers.get("x-reg24-admin-secret") || "").trim();
+    if (!adminSecretEnv || suppliedAdminSecret !== adminSecretEnv) {
+      effectiveRole = "reader";
+    }
+  }
+
+  // Derive distinct user identity from invite/bearer credential when present so two readers never collide on actor_id
+  const inviteOrBearer =
+    req.headers.get("x-reg24-trial-invite")?.trim() ||
+    req.headers
+      .get("authorization")
+      ?.replace(/^bearer\s+/i, "")
+      .trim() ||
+    "";
+  const credentialActorId = inviteOrBearer
+    ? `trial.user.${sha256Bytes(inviteOrBearer).slice(0, 14)}@reg24.th`
+    : null;
+
   const headerActorId = req.headers.get("x-reg24-actor-id")?.trim();
-  const role: ActorRole = headerRole && VALID_ROLES.has(headerRole) ? headerRole : "reader";
 
   // Private tenant scopes can ONLY be granted by verified server secret header, never from JSON payload (AT08)
   const verifiedTenantKey = req.headers.get("x-reg24-verified-tenant-scope")?.trim();
@@ -48,15 +83,16 @@ export function resolveServerActor(req: Request, opts?: { requireCsrfForMutation
 
   return {
     actor_id:
+      credentialActorId ||
       headerActorId ||
-      (role === "product_owner"
+      (effectiveRole === "product_owner"
         ? "rattaroj@reg24.th"
-        : role === "engineering_lead"
+        : effectiveRole === "engineering_lead"
           ? "eng.lead@reg24.th"
-          : role === "legal_reviewer"
+          : effectiveRole === "legal_reviewer"
             ? "counsel.thai@reg24.th"
             : "public.reader@reg24.th"),
-    role,
+    role: effectiveRole,
     tenant_id: "PUBLIC",
     authorized_scopes: scopes,
     csrf_verified: true,

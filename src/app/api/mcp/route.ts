@@ -55,8 +55,10 @@ import {
 } from "@/packages/ocr-v2";
 import {
   exportTraceableAnswer,
-  reopenSavedTraceableAnswer,
-  resolveTraceableEvidenceById,
+  hydratePostgresSourcesIntoStore,
+  reopenSavedTraceableAnswerWithPostgres,
+  resolveTraceableEvidenceWithPostgres,
+  saveOrReviseAnswerServerVerified,
   type SupportedExportFormat,
 } from "@/core/knowledge/claim-traceability-engine";
 import { resolveServerActor } from "@/core/knowledge/http-auth";
@@ -1151,11 +1153,19 @@ async function executeCitationTraceabilityMcpTool(
     if (!q) {
       return { status: 400, body: { ok: false, error: "question is required" } };
     }
+    const effectiveAsOf = args.as_of_date
+      ? String(args.as_of_date)
+      : args.applicable_date
+        ? String(args.applicable_date)
+        : null;
     const ans = await queryKnowledge(
       {
         question: q,
-        applicable_date: args.as_of_date ? String(args.as_of_date) : null,
+        applicable_date: effectiveAsOf,
         release_id: args.release_id ? String(args.release_id) : undefined,
+        attachment_doc_ids: Array.isArray(args.attachment_doc_ids)
+          ? (args.attachment_doc_ids as string[])
+          : undefined,
       },
       actor,
       {
@@ -1164,10 +1174,25 @@ async function executeCitationTraceabilityMcpTool(
         persistAnswerAtomically: Boolean(args.persist_answer),
       }
     );
+    if (
+      args.persist_answer &&
+      ans.traceable_answer &&
+      (ans.traceable_answer.status === "complete" || ans.traceable_answer.status === "partial")
+    ) {
+      ans.traceable_answer = await saveOrReviseAnswerServerVerified(store, {
+        submitted_envelope: ans.traceable_answer,
+        question_text: q,
+        revision_reason: "Persisted verified answer via MCP",
+        actor,
+      });
+    }
     return {
       status: 200,
       body: {
         ok: true,
+        grounded_status: ans.status,
+        clarification_questions: ans.clarification_questions,
+        applicable_date: ans.applicable_date,
         traceable_answer: ans.traceable_answer,
       },
     };
@@ -1175,7 +1200,7 @@ async function executeCitationTraceabilityMcpTool(
 
   if (toolName === "reg24.citations.get_saved_answer") {
     const id = String(args.answer_id || args.answer_revision || "").trim();
-    const reopened = reopenSavedTraceableAnswer(store, id, actor);
+    const reopened = await reopenSavedTraceableAnswerWithPostgres(store, id, actor);
     if (!reopened.found || !reopened.answer) {
       return {
         status: reopened.http_status,
@@ -1196,7 +1221,7 @@ async function executeCitationTraceabilityMcpTool(
 
   if (toolName === "reg24.citations.resolve_evidence") {
     const eid = String(args.evidence_id || "").trim();
-    const resolved = resolveTraceableEvidenceById(store, eid, actor);
+    const resolved = await resolveTraceableEvidenceWithPostgres(store, eid, actor);
     return {
       status: resolved.http_status,
       body: resolved as unknown as Record<string, unknown>,
@@ -1206,7 +1231,8 @@ async function executeCitationTraceabilityMcpTool(
   if (toolName === "reg24.citations.export_answer") {
     const id = String(args.answer_id || args.answer_revision || "").trim();
     const fmt = (String(args.format || "markdown") as SupportedExportFormat) || "markdown";
-    const reopened = reopenSavedTraceableAnswer(store, id, actor);
+    await hydratePostgresSourcesIntoStore(store, actor);
+    const reopened = await reopenSavedTraceableAnswerWithPostgres(store, id, actor);
     if (!reopened.found || !reopened.answer) {
       return {
         status: reopened.http_status,

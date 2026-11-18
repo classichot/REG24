@@ -1,0 +1,54 @@
+{
+  "verified_at": "2026-11-18T18:00:50.440Z",
+  "credentials_redacted": true,
+  "neon_project_id": "shiny-pond-32049060",
+  "neon_project_name": "reg24-trial-isolated",
+  "neon_org_id": "org-solitary-sky-99652740",
+  "region_id": "aws-ap-southeast-1",
+  "history_retention_seconds": 604800,
+  "active_quotas": {
+    "compute_time_seconds": 324000,
+    "written_data_bytes": 3221225472,
+    "data_transfer_bytes": 53687091200,
+    "logical_size_bytes": 2147483648
+  },
+  "active_external_trial_invites": 0,
+  "migration_0005_statements_applied": 30,
+  "verified_postgres_triggers": [
+    "trg_citation_answer_append_only",
+    "trg_citation_answer_storage_cap",
+    "trg_citation_audit_append_only",
+    "trg_citation_audit_storage_cap",
+    "trg_citation_claim_append_only",
+    "trg_citation_doc_storage_cap",
+    "trg_citation_feedback_storage_cap",
+    "trg_citation_link_append_only",
+    "trg_citation_psg_storage_cap"
+  ],
+  "db_invariants_verified": {
+    "immutability_trigger_blocks_answer_update_or_overwrite": true,
+    "check_constraint_blocks_supported_claim_with_zero_evidence": true,
+    "storage_ceiling_2gib_triggers_installed": true
+  },
+  "runtime_durability_and_protection_verified": {
+    "saved_answer_id": "ans.trc.onb.082fb85098cc",
+    "saved_revisions_verified": [
+      "ans.trc.onb.082fb85098cc.r1",
+      "ans.trc.onb.082fb85098cc.r2"
+    ],
+    "verified_attachment_passage_id": "epsg.69e58e46fa5eeb76",
+    "legal_feedback_id": "lfb.stg.f135313ad950",
+    "cold_start_container_restart_survival": true,
+    "cross_user_overwrite_blocked_403": true,
+    "cross_deployment_vercel_preview_survival": "PENDING_LIVE_URL_PASS"
+  },
+  "hosted_neon_pitr_restore_verified": {
+    "pitr_anchor_lsn": "0/1C9A030",
+    "pitr_anchor_timestamp_utc": "2026-11-18 18:00:46.906862+00",
+    "restored_published_answers_r1_and_r2": true,
+    "restored_claim_evidence_links_and_passages": true,
+    "restored_audit_events_and_legal_feedback": true,
+    "temporary_pitr_branch_cleaned_up_single_branch_preserved": true
+  },
+  "all_core_checks_passed": true
+}

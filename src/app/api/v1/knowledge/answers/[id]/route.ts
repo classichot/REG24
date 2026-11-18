@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import {
   approveDocumentedAmbiguityWithEvidence,
-  reopenSavedTraceableAnswer,
+  hydratePostgresSourcesIntoStore,
+  reopenSavedTraceableAnswerWithPostgres,
 } from "../../../../../../core/knowledge/claim-traceability-engine";
 import {
   knowledgeApiErrorResponse,
@@ -20,7 +21,7 @@ export async function GET(
     await enforceTrialAccessAndRateLimit(req, actor, "citation_open");
     const store = getDefaultKnowledgeStore();
 
-    const res = reopenSavedTraceableAnswer(store, decodeURIComponent(id), actor);
+    const res = await reopenSavedTraceableAnswerWithPostgres(store, decodeURIComponent(id), actor);
     if (!res.found || !res.answer) {
       return NextResponse.json(
         { ok: false, error: res.error_th || "Saved answer not found or restricted" },
@@ -36,6 +37,8 @@ export async function GET(
         ok: true,
         question_text: res.question_text || "",
         answer: res.answer,
+        revision_history: res.answer.revision_history || [],
+        audit_events: res.audit_events || [],
       },
       {
         status: 200,
@@ -67,6 +70,7 @@ export async function POST(
     }
 
     const store = getDefaultKnowledgeStore();
+    await hydratePostgresSourcesIntoStore(store, actor);
     const approved = approveDocumentedAmbiguityWithEvidence(store, {
       prior_answer_revision: decodeURIComponent(id),
       claim_text_th: body.claim_text_th,

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import {
-  commitTraceableAnswerAtomically,
   getUnifiedCitationLedgerView,
+  saveOrReviseAnswerServerVerified,
 } from "../../../../../core/knowledge/claim-traceability-engine";
+import { listSavedAnswersSummaryFromPostgres } from "../../../../../core/knowledge/citation-postgres-store";
 import {
   knowledgeApiErrorResponse,
   resolveServerActor,
@@ -18,14 +19,20 @@ export async function GET(req: Request) {
     const store = getDefaultKnowledgeStore();
     const view = getUnifiedCitationLedgerView(store);
 
-    const saved = Object.values(view.published_answers)
-      .filter((a) => a.tenant_id === "PUBLIC" || a.tenant_id === actor.tenant_id)
-      .sort((a, b) => b.generated_at.localeCompare(a.generated_at))
-      .slice(0, 50)
+    const pgList = (await listSavedAnswersSummaryFromPostgres(actor)) || [];
+    const seenRevs = new Set<string>(pgList.map((p) => p.answer_revision));
+
+    const localSaved = Object.values(view.published_answers)
+      .filter(
+        (a) =>
+          !seenRevs.has(a.answer_revision) &&
+          (a.tenant_id === "PUBLIC" || a.tenant_id === actor.tenant_id)
+      )
       .map((a) => ({
         answer_id: a.answer_id,
         answer_revision: a.answer_revision,
         revision_number: a.revision_number,
+        owner_actor_id: a.owner_actor_id || a.actor_id,
         question_text: a.question_text,
         as_of_date: a.as_of_date,
         generated_at: a.generated_at,
@@ -34,7 +41,11 @@ export async function GET(req: Request) {
         legacy_warning_th: a.legacy_warning_th,
       }));
 
-    return NextResponse.json({ ok: true, saved_answers: saved });
+    const merged = [...pgList, ...localSaved]
+      .sort((a, b) => b.generated_at.localeCompare(a.generated_at))
+      .slice(0, 50);
+
+    return NextResponse.json({ ok: true, saved_answers: merged });
   } catch (err) {
     return knowledgeApiErrorResponse(err);
   }
@@ -45,34 +56,21 @@ export async function POST(req: Request) {
     const actor = resolveServerActor(req);
     await enforceTrialAccessAndRateLimit(req, actor, "query");
     const body = (await req.json().catch(() => ({}))) as {
-      traceable_answer?: TraceableAnswerEnvelope;
+      traceable_answer?: Partial<TraceableAnswerEnvelope>;
       question_text?: string;
+      revision_reason?: string;
     };
 
-    if (!body.traceable_answer || !body.traceable_answer.answer_revision) {
+    if (!body.traceable_answer) {
       throw new Error("INVALID_ANSWER_400: traceable_answer is required.");
     }
 
     const store = getDefaultKnowledgeStore();
-    const env: TraceableAnswerEnvelope = {
-      ...body.traceable_answer,
-      channel: "saved_answer",
-    };
-
-    const links = env.claims.flatMap((clm) =>
-      clm.evidence_references.map((ref) => ({
-        ...ref,
-        answer_revision: env.answer_revision,
-        claim_id: clm.claim_id,
-        verifier_or_reviewer_id: env.verifier_metadata.verifier_version,
-        ruleset_version: env.verifier_metadata.ruleset_version,
-        verified_at: env.generated_at,
-      }))
-    );
-
-    const committed = commitTraceableAnswerAtomically(store, env, links, {
-      actor,
+    const committed = await saveOrReviseAnswerServerVerified(store, {
+      submitted_envelope: body.traceable_answer,
       question_text: body.question_text || "",
+      revision_reason: body.revision_reason,
+      actor,
     });
 
     return NextResponse.json({

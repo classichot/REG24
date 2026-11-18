@@ -11,6 +11,7 @@ import { verifyClaimAgainstPassages } from "./answer-verification";
 import {
   attachTraceableEnvelopeToGroundedAnswer,
   getUnifiedCitationLedgerView,
+  hydratePostgresSourcesIntoStore,
   tryAnswerFromOnboardedCitationSources,
 } from "./claim-traceability-engine";
 import type { TraceablePublicationChannel } from "./citation-contracts";
@@ -150,17 +151,170 @@ function ensureEvidenceCardsForPassages(
 function detectMissingFactSignals(question: string): string[] {
   const questions: string[] = [];
   const unknownMatches =
-    question.match(/(?:โดยไม่ทราบว่า|ยังไม่ทราบว่า|ไม่ทราบข้อเท็จจริงว่า|ไม่ระบุว่า|ไม่มีข้อมูลว่า)([^?。\n]+)/g) ||
-    [];
+    question.match(
+      /(?:โดยไม่ทราบว่า|ยังไม่ทราบว่า|ไม่ทราบข้อเท็จจริงว่า|โดยไม่ระบุว่า|ไม่ระบุว่า|ยังไม่ชัดเจนว่า|ไม่มีข้อมูลว่า|ยังไม่มีข้อมูลเรื่อง)([^?。\n]+)/g
+    ) || [];
   for (const m of unknownMatches) {
     const cleaned = m
-      .replace(/^(?:โดยไม่ทราบว่า|ยังไม่ทราบว่า|ไม่ทราบข้อเท็จจริงว่า|ไม่ระบุว่า|ไม่มีข้อมูลว่า)\s*/, "")
+      .replace(
+        /^(?:โดยไม่ทราบว่า|ยังไม่ทราบว่า|ไม่ทราบข้อเท็จจริงว่า|โดยไม่ระบุว่า|ไม่ระบุว่า|ยังไม่ชัดเจนว่า|ไม่มีข้อมูลว่า|ยังไม่มีข้อมูลเรื่อง)\s*/,
+        ""
+      )
       .trim();
     if (cleaned) {
       questions.push(`กรุณายืนยันข้อเท็จจริงสำคัญ: ${cleaned}`);
     }
   }
+  const enUnknownMatches =
+    question.match(
+      /\b(?:without\s+(?:knowing|specifying|stating)\s+whether|it\s+is\s+(?:unknown|unclear)\s+whether)([^?.\n]+)/gi
+    ) || [];
+  for (const em of enUnknownMatches) {
+    const cleanedEn = em
+      .replace(
+        /^(?:without\s+(?:knowing|specifying|stating)\s+whether|it\s+is\s+(?:unknown|unclear)\s+whether)\s*/i,
+        ""
+      )
+      .trim();
+    if (cleanedEn) {
+      questions.push(`กรุณายืนยันข้อเท็จจริงชี้ขาด (Please clarify decisive fact): ${cleanedEn}`);
+    }
+  }
   return questions;
+}
+
+/**
+ * Resolves multi-turn follow-up context (`req.conversation_history`) so follow-up questions
+ * ("แล้วถ้าเปลี่ยนข้อเท็จจริงเป็น...", "แล้วถ้ารอบบัญชีเริ่ม 1 ม.ค. 2562 ล่ะ", "หากมีเจตนาหลีกเลี่ยงภาษีล่ะ")
+ * retain the anchor provision/ruling/topic from prior turns while strictly evaluating the NEW turn's
+ * changed facts, exceptions, and applicable dates without guessing!
+ */
+function resolveMultiTurnFollowUpRequest(req: QueryRequest): {
+  effectiveReq: QueryRequest;
+  followUpAssumptions: string[];
+} {
+  const history = (req.conversation_history || []).filter(
+    (t) => t && typeof t.content === "string" && t.content.trim().length > 0
+  );
+  if (history.length === 0) {
+    return { effectiveReq: req, followUpAssumptions: [] };
+  }
+
+  const qNorm = thaiDigitsToArabic(req.question);
+  const currentHasExplicitLawRef =
+    /(?:กค\s*0\d{3}\s*\/\s*\d+|มาตรา\s*\d+|พระราชกฤษฎีกา|คำสั่งกรมสรรพากร\s*ที่\s*ท\.ป\.|\bsection\s+\d+)/i.test(
+      qNorm
+    );
+  const currentHasOutOfScopeDomain =
+    /(พระราชบัญญัติคุ้มครองแรงงาน|กฎหมายแรงงาน|ประมวลกฎหมายอาญา|พระราชบัญญัติประกันสังคม|พระราชบัญญัติล้มละลาย|พิกัดอัตราศุลกากร)/.test(
+      qNorm
+    );
+  if (currentHasOutOfScopeDomain) {
+    return { effectiveReq: req, followUpAssumptions: [] };
+  }
+
+  const anchorTokens = new Set<string>();
+  let carriedDate: string | null = null;
+  for (const turn of history) {
+    const tNorm = thaiDigitsToArabic(turn.content);
+    const rulings = tNorm.match(/กค\s*0\d{3}\s*\/\s*\d+/g) || [];
+    for (const r of rulings) anchorTokens.add(r.replace(/\s+/g, " ").trim());
+    const sections =
+      tNorm.match(
+        /มาตรา\s*\d+(?:\/\d+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฏฐ))?(?:\s*\(\d+\))?/g
+      ) || [];
+    for (const s of sections) anchorTokens.add(s.replace(/\s+/g, " ").trim());
+    const enSections =
+      tNorm.match(/\bSection\s+\d+(?:\/\d+)?(?:\s*(?:bis|ter|quarter))?(?:\s*\(\d+\))?/gi) || [];
+    for (const es of enSections) anchorTokens.add(es.trim());
+    const tpOrders = tNorm.match(/ท\.ป\.\s*\d+\/\d+(?:\s*ข้อ\s*\d+)?/g) || [];
+    for (const tp of tpOrders) anchorTokens.add(tp.trim());
+    const rdDecrees = tNorm.match(/พระราชกฤษฎีกา[^,\n?]{0,35}?ฉบับที่\s*\d+/g) || [];
+    for (const rd of rdDecrees) anchorTokens.add(rd.trim());
+    const keyTopics =
+      tNorm.match(
+        /(?:ภาษีมูลค่าเพิ่ม|อัตราร้อยละ\s*0|ส่งออกบริการ|ใช้บริการในต่างประเทศ|หักภาษี\s*ณ\s*ที่จ่าย|หมายเรียก|บริจาคสถานศึกษา|รายจ่ายต้องห้าม)/g
+      ) || [];
+    for (const kt of keyTopics) anchorTokens.add(kt.trim());
+    if (turn.role === "user" && turn.applicable_date) {
+      carriedDate = turn.applicable_date;
+    }
+  }
+
+  const followUpAssumptions: string[] = [];
+  let effectiveQuestion = req.question;
+  if (!currentHasExplicitLawRef && anchorTokens.size > 0) {
+    const anchorSummary = Array.from(anchorTokens).slice(0, 4).join(" · ");
+    effectiveQuestion = `${req.question} (อ้างอิงบริบทคำถามต่อเนื่องเกี่ยวกับ ${anchorSummary})`;
+    followUpAssumptions.push(
+      `วิเคราะห์ต่อเนื่องจากประเด็นข้อกฎหมายในบทสนทนาก่อนหน้า: ${anchorSummary}`
+    );
+  }
+
+  const currentTemporal = parseQueryTemporalAndIntentContext({
+    question: req.question,
+    applicableDate: req.applicable_date ?? null,
+    explicitRulingIds: [],
+  });
+  let effectiveApplicableDate = req.applicable_date ?? null;
+  if (!effectiveApplicableDate && !currentTemporal.has_any_temporal_anchor && carriedDate) {
+    effectiveApplicableDate = carriedDate;
+    followUpAssumptions.push(
+      `คงกรอบวันที่อ้างอิงต่อเนื่องจากคำถามก่อนหน้า (${carriedDate}) เนื่องจากคำถามต่อเนื่องไม่ได้เปลี่ยนแปลงช่วงเวลา`
+    );
+  }
+
+  return {
+    effectiveReq: {
+      ...req,
+      question: effectiveQuestion,
+      applicable_date: effectiveApplicableDate,
+    },
+    followUpAssumptions,
+  };
+}
+
+/**
+ * Detects when a question (or follow-up with changed facts) explicitly introduces a factual
+ * disqualifier that fails a mandatory condition in the retrieved statutory/ruling text.
+ */
+function buildChangingFactDisqualifierNotice(
+  question: string,
+  fullOfficialText: string,
+  primaryIdLabel: string
+): string | null {
+  const qNorm = thaiDigitsToArabic(question);
+  const srcNorm = thaiDigitsToArabic(fullOfficialText);
+
+  // Case 1: Export of services VAT 0% (Section 80/1(2)) where user changes fact to partial/any usage in Thailand!
+  const requiresStrictlyAbroad =
+    /(?:ใช้บริการนั้นในต่างประเทศ|ไม่มีการใช้บริการ.*ในราชอาณาจักร|มิได้นำบริการ.*มาใช้ในประเทศไทย|ในต่างประเทศเพียงอย่างเดียว)/.test(
+      srcNorm
+    ) || /80\/1/.test(srcNorm);
+  const userStatesUsedInThailand =
+    /(?:ใช้(?:บริการ|งาน|ซอฟต์แวร์|ผลของ(?:การให้)?บริการ)?(?:นั้น)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)|นำ[^\n?]{0,40}?กลับมา(?:ใช้|ให้[^\n?]{0,30}?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)ใช้)|ให้(?:สำนักงาน)?(?:สาขา|บริษัทย่อย)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)ใช้)/.test(
+      qNorm
+    ) && !/(?:ไม่มีการ|มิได้|ไม่ได้)[^,\n]{0,20}ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)/.test(qNorm);
+
+  if (requiresStrictlyAbroad && userStatesUsedInThailand) {
+    return (
+      `**ผลของการเปลี่ยนแปลงข้อเท็จจริงต่อเงื่อนไขกฎหมาย (\`CONDITIONAL\` — ขาดเงื่อนไขการใช้บริการในต่างประเทศทั้งหมด)**:\n` +
+      `ข้อเท็จจริงที่ระบุว่ามีการนำบริการหรือผลของบริการกลับมาใช้ในประเทศไทย (แม้เพียงบางส่วน) **ไม่เข้าเงื่อนไขการได้รับสิทธิเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 0** ตามหลักเกณฑ์ที่ปรากฏใน \`${primaryIdLabel}\` ซึ่งกำหนดให้ต้องเป็นการให้บริการที่กระทำในราชอาณาจักรและได้มีการใช้บริการนั้นในต่างประเทศเท่านั้น (ไม่มีการใช้บริการในราชอาณาจักร)`
+    );
+  }
+
+  // Case 2: Section 19 summons extension when fraud/evasion suspicion or tax refund necessity is triggered!
+  const isSection19Context = /มาตรา\s*19/.test(srcNorm) && /ไม่เกิน\s*5\s*ปี/.test(srcNorm);
+  const userAsksEvasionException =
+    /(?:เจตนาหลีกเลี่ยงภาษี|หลีกเลี่ยงภาษีอากร|ขอคืนภาษี|ขยายเวลาออกหมายเรียก)/.test(qNorm);
+  if (isSection19Context && userAsksEvasionException) {
+    return (
+      `**ผลการปรับใช้ข้อยกเว้นตามประมวลรัษฎากร มาตรา 19 (กรณีมีเหตุอันควรสงสัยว่าเจตนาหลีกเลี่ยงภาษีอากร / เพื่อประโยชน์ในการคืนภาษี)**:\n` +
+      `เมื่อข้อเท็จจริงเข้าข้อยกเว้นตาม \`${primaryIdLabel}\` โดยปรากฏหลักฐานหรือมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร (หรือเป็นกรณีจำเป็นเพื่อประโยชน์ในการคืนภาษีอากร) **อธิบดีกรมสรรพากรมีอำนาจอนุมัติให้ขยายเวลาการออกหมายเรียกเกินกว่า 2 ปีได้ แต่ต้องไม่เกิน 5 ปีนับแต่วันที่ได้ยื่นรายการ** (ทั้งนี้ กรณีขยายเพื่อประโยชน์ในการคืนภาษีอากรให้ขยายได้ไม่เกินกำหนดเวลาตามที่มีสิทธิขอคืนภาษีอากร)`
+    );
+  }
+
+  return null;
 }
 
 const AGENCY_LABELS_TH: Record<string, string> = {
@@ -264,6 +418,11 @@ export async function queryKnowledge(
   }
 ): Promise<GroundedAnswer> {
   const store = options?.store || getDefaultKnowledgeStore();
+  // Hydrate any PostgreSQL-stored onboarded attachments/amendments so cold-start containers answer consistently!
+  await hydratePostgresSourcesIntoStore(store, actor);
+
+  const { effectiveReq, followUpAssumptions } = resolveMultiTurnFollowUpRequest(req);
+
   const state = store.getState();
   const fallbackCandidateRel = Object.values(state.releases)
     .filter(
@@ -277,25 +436,34 @@ export async function queryKnowledge(
         b.updated_at.localeCompare(a.updated_at) ||
         b.release_id.localeCompare(a.release_id)
     )[0]?.release_id;
-  const releaseId = req.release_id || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
+  const releaseId =
+    effectiveReq.release_id || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
 
-  // Check if directly onboarded citation_ledger sources match (native PDFs, Thai scans, amended versions)
+  // Check if directly onboarded citation_ledger sources or verified official attachments match
   const directOnboarded = tryAnswerFromOnboardedCitationSources(store, {
-    question: req.question,
-    applicable_date: req.applicable_date ?? null,
+    question: effectiveReq.question,
+    applicable_date: effectiveReq.applicable_date ?? null,
     release_id: releaseId,
     actor,
     channel: options?.channel || "api",
     persist: options?.persistAnswerAtomically,
+    attachment_doc_ids: effectiveReq.attachment_doc_ids,
   });
   if (directOnboarded) {
+    if (followUpAssumptions.length > 0) {
+      return {
+        ...directOnboarded,
+        assumptions: [...followUpAssumptions, ...(directOnboarded.assumptions || [])],
+      };
+    }
     return directOnboarded;
   }
 
-  const baseAnswer = await executeCoreKnowledgeQuery(req, actor, options);
+  const baseAnswer = await executeCoreKnowledgeQuery(effectiveReq, actor, options);
   const generatedAt = new Date().toISOString();
   const withTimestamp: GroundedAnswer = {
     ...baseAnswer,
+    assumptions: [...followUpAssumptions, ...(baseAnswer.assumptions || [])],
     generated_at: generatedAt,
   };
   const traceableEnvelope = attachTraceableEnvelopeToGroundedAnswer(store, withTimestamp, {
@@ -393,7 +561,7 @@ async function executeCoreKnowledgeQuery(
           factual_conditions: [],
           exceptions: [],
           counterevidence_passage_ids: [],
-          verification_result: "VERIFIED",
+          verification_result: "UNSUPPORTED",
         },
       ],
       evidence: [],
@@ -432,7 +600,7 @@ async function executeCoreKnowledgeQuery(
           factual_conditions: [],
           exceptions: [],
           counterevidence_passage_ids: [],
-          verification_result: "VERIFIED",
+          verification_result: "UNSUPPORTED",
         },
       ],
       evidence: [],
@@ -477,7 +645,7 @@ async function executeCoreKnowledgeQuery(
           factual_conditions: [],
           exceptions: [],
           counterevidence_passage_ids: [],
-          verification_result: "VERIFIED",
+          verification_result: "UNSUPPORTED",
         },
       ],
       evidence: [],
@@ -542,7 +710,7 @@ async function executeCoreKnowledgeQuery(
             factual_conditions: [],
             exceptions: [],
             counterevidence_passage_ids: [],
-            verification_result: "VERIFIED",
+            verification_result: "UNSUPPORTED",
           },
         ],
         evidence: [],
@@ -608,7 +776,7 @@ async function executeCoreKnowledgeQuery(
           factual_conditions: [],
           exceptions: [],
           counterevidence_passage_ids: [],
-          verification_result: "VERIFIED",
+          verification_result: "UNSUPPORTED",
         },
       ],
       evidence: [],
@@ -781,7 +949,7 @@ async function executeCoreKnowledgeQuery(
                   factual_conditions: [],
                   exceptions: [],
                   counterevidence_passage_ids: [],
-                  verification_result: "VERIFIED",
+                  verification_result: "UNSUPPORTED",
                 },
               ],
               evidence: [],
@@ -839,7 +1007,7 @@ async function executeCoreKnowledgeQuery(
                   factual_conditions: [],
                   exceptions: [],
                   counterevidence_passage_ids: [],
-                  verification_result: "VERIFIED",
+                  verification_result: "UNSUPPORTED",
                 },
               ],
               evidence: [],
@@ -1140,7 +1308,7 @@ async function executeCoreKnowledgeQuery(
                   factual_conditions: [],
                   exceptions: [],
                   counterevidence_passage_ids: [],
-                  verification_result: "VERIFIED",
+                  verification_result: "UNSUPPORTED",
                 },
               ],
               evidence: [],
@@ -1240,7 +1408,7 @@ async function executeCoreKnowledgeQuery(
               factual_conditions: [],
               exceptions: [],
               counterevidence_passage_ids: [],
-              verification_result: "VERIFIED",
+              verification_result: "UNSUPPORTED",
             },
           ],
           evidence: [],
@@ -1359,6 +1527,14 @@ async function executeCoreKnowledgeQuery(
     });
     for (const blk of premiseAndSummaryBlocks) {
       answerSections.push(blk);
+    }
+    const changingFactNotice = buildChangingFactDisqualifierNotice(
+      req.question,
+      fullOfficialText,
+      primaryIdLabel
+    );
+    if (changingFactNotice) {
+      answerSections.push(changingFactNotice);
     }
     if (activeStatutoryEval?.explanation_banner_th) {
       answerSections.push(activeStatutoryEval.explanation_banner_th);
@@ -1685,6 +1861,74 @@ async function executeCoreKnowledgeQuery(
       }
     }
 
+    // Multi-step analysis across multiple explicitly queried provisions/tax domains (e.g. CIT/WHT + VAT):
+    // When the question explicitly mentions 2+ sections or 2+ tax types and another high-confidence verified authority is retrieved, surface it with its own claim & citation!
+    const multiTaxDomainsMatched =
+      [
+        /(?:ภาษีเงินได้นิติบุคคล|มาตรา\s*65|มาตรา\s*70)/i.test(qArabic),
+        /(?:หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*3\s*เตรส|ท\.ป\.\s*4\/2528)/i.test(qArabic),
+        /(?:ภาษีมูลค่าเพิ่ม|vat|มาตรา\s*77|มาตรา\s*80|มาตรา\s*83\/6)/i.test(qArabic),
+        /(?:อากรแสตมป์|มาตรา\s*103|บัญชีอัตราอากรแสตมป์)/i.test(qArabic),
+      ].filter(Boolean).length >= 2 || (bundle.explicit_section_refs_in_query?.length || 0) >= 2;
+
+    if (multiTaxDomainsMatched && req.mode !== "exact_lookup") {
+      const alreadyCitedWorkIds = new Set(
+        claims.flatMap((c) =>
+          c.supporting_passage_ids
+            .map((pid) => verificationPassageMap.get(pid)?.work_id || freshState.passages[pid]?.work_id)
+            .filter((wid): wid is string => Boolean(wid))
+        )
+      );
+      const secondaryHit = liveVerifiedHits.find(
+        (h) =>
+          h.score >= 2.0 &&
+          !alreadyCitedWorkIds.has(h.passage.work_id) &&
+          (h.passage.statement_role === "statutory_text" ||
+            h.passage.statement_role === "official_conclusion") &&
+          !h.passage.extraction_id.startsWith("ext.dep.")
+      );
+      if (secondaryHit) {
+        const secUnits = reassembleOrderedSectionUnits(
+          secondaryHit.passage,
+          allReleasePassages,
+          freshState,
+          actor
+        );
+        for (const su of secUnits) {
+          verificationPassageMap.set(su.passage_id, su);
+        }
+        ensureEvidenceCardsForPassages(
+          secUnits,
+          liveEvidenceCards,
+          freshState,
+          allAcceptedAssertions
+        );
+        const secWork = freshState.works[secondaryHit.passage.work_id];
+        const secLabel =
+          secWork?.official_identifiers[0]?.normalized ||
+          secWork?.title_th ||
+          secondaryHit.passage.work_id;
+        const secOriginUri =
+          secUnits[0]?.real_locator?.origin_uri || secondaryHit.passage.real_locator?.origin_uri || "";
+        const fullSecText = secUnits.map((u) => u.exact_text).join("\n");
+        claims.push({
+          claim_id: `clm.${traceId}.multistep_secondary.1`,
+          statement: `[ประเด็นข้อกฎหมายประกอบ (${secLabel})] ${fullSecText}`,
+          claim_type: "direct_source_statement",
+          statement_role: secondaryHit.passage.statement_role,
+          supporting_passage_ids: secUnits.map((u) => u.passage_id),
+          applicable_version_id: secondaryHit.passage.version_id,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "VERIFIED",
+        });
+        answerSections.push(
+          `**ประเด็นภาษี/ข้อกฎหมายประกอบในธุรกรรมเดียวกัน (${secLabel}${secOriginUri ? ` · ต้นฉบับ: ${secOriginUri}` : ""})**:\n${fullSecText}`
+        );
+      }
+    }
+
     if (extractedConditions.size > 0) {
       answerSections.push(
         `**เงื่อนไขสำคัญที่ต้องเป็นไปตามหลักเกณฑ์**:\n${Array.from(extractedConditions)
@@ -1729,7 +1973,10 @@ async function executeCoreKnowledgeQuery(
     answerSections.unshift(
       `**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (\`NEEDS_CLARIFICATION\`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:`
     );
-  } else if (topIsDraft) {
+  } else if (
+    topIsDraft ||
+    answerSections.some((s) => s.includes("ผลของการเปลี่ยนแปลงข้อเท็จจริงต่อเงื่อนไขกฎหมาย"))
+  ) {
     finalStatus = "CONDITIONAL";
   } else if (
     quarantinedCitationsForAnswer.length > 0 &&

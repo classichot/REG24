@@ -17,7 +17,8 @@ export type OfficialRecordType =
   | "full_record"
   | "official_summary"
   | "landing_only"
-  | "third_party_discovery";
+  | "third_party_discovery"
+  | "verified_official_attachment";
 
 export type AccessPermissionKind =
   | "public"
@@ -152,6 +153,7 @@ export interface OfficialLocationRecord {
     | "durable_landing_record"
     | "expiring_direct_asset"
     | "pinned_official_archive"
+    | "official_attachment_origin"
     | "third_party_discovery";
   parent_landing_location_id: string | null;
   original_observed_url: string;
@@ -295,7 +297,8 @@ export type VerifierDecisionOutcome =
   | "insufficient"
   | "conflicting"
   | "needs_review"
-  | "legacy_unverified";
+  | "legacy_unverified"
+  | "user_supplied_unverified";
 
 export type ClaimSupportRole =
   | "primary_authority"
@@ -305,7 +308,8 @@ export type ClaimSupportRole =
   | "exception_or_proviso"
   | "transitional_applicability"
   | "requester_factual_context"
-  | "official_summary_scope";
+  | "official_summary_scope"
+  | "verified_attachment_authority";
 
 export interface ClaimEvidenceReferenceDto {
   link_id: string;
@@ -391,12 +395,29 @@ export interface NewerMaterialUpdateNoticeDto {
   detected_at: string;
 }
 
+export interface AnswerRevisionHistoryEntryDto {
+  answer_revision: string;
+  revision_number: number;
+  supersedes_answer_revision: string | null;
+  generated_at: string;
+  as_of_date: string | null;
+  status: "complete" | "partial" | "insufficient" | "legacy_unverified";
+  actor_id: string;
+  owner_actor_id: string;
+  revision_reason: string;
+  published_claims_count: number;
+}
+
 export interface TraceableAnswerEnvelope {
   schema_version: "reg24.citation-traceability.v1";
   answer_id: string;
   answer_revision: string;
   revision_number: number;
   supersedes_answer_revision: string | null;
+  owner_actor_id?: string;
+  owner_tenant_id?: string;
+  revision_reason?: string;
+  revision_history?: AnswerRevisionHistoryEntryDto[];
   channel: TraceablePublicationChannel;
   generated_at: string;
   as_of_date: string | null;
@@ -493,11 +514,15 @@ export interface TraceabilityAuditEventRecord {
   recorded_at: string;
   event_type:
     | "SOURCE_CAPTURED"
+    | "OFFICIAL_ATTACHMENT_VERIFIED"
+    | "OFFICIAL_ATTACHMENT_REJECTED"
     | "IDENTITY_VERIFIED"
     | "IDENTITY_QUARANTINED"
     | "OCR_AMBIGUITY_QUARANTINED"
     | "OCR_THAI_REVIEW_COMPLETED"
     | "ANSWER_PUBLISHED_ATOMIC"
+    | "ANSWER_REVISION_CREATED"
+    | "SECURITY_UNAUTHORIZED_ANSWER_MUTATION_BLOCKED"
     | "CLAIM_HUMAN_AMBIGUITY_APPROVED"
     | "OFFICIAL_LINK_HEALTH_UPDATED"
     | "OFFICIAL_URL_REPLACEMENT_APPROVED"
@@ -533,6 +558,29 @@ export interface TraceabilityProjectionOutboxItem {
   completed_at: string | null;
 }
 
+export type LegalReviewVerdict =
+  | "PASS_SUPPORTED"
+  | "FAIL_UNSUPPORTED_OR_WEAK_EVIDENCE"
+  | "FAIL_WRONG_LAW_OR_VERSION"
+  | "NEEDS_REFINEMENT";
+
+export interface LegalReviewFeedbackRecord {
+  feedback_id: string;
+  scenario_id: string | null;
+  question_text: string;
+  as_of_date: string | null;
+  answer_revision_id: string | null;
+  answer_status: string;
+  reviewer_name: string;
+  reviewer_actor_id: string;
+  verdict: LegalReviewVerdict;
+  checked_original_source: boolean;
+  comments_th: string;
+  cited_evidence_ids: string[];
+  environment_scope: "staging" | "trial";
+  recorded_at: string;
+}
+
 export interface PersistedCitationTraceabilityState {
   initialized_for_release_id: string | null;
   publication_gate_mode: "enforced" | "verified_readonly" | "generation_disabled";
@@ -543,11 +591,22 @@ export interface PersistedCitationTraceabilityState {
   extraction_revisions: Record<string, ExtractionRevisionRecord>;
   passages: Record<string, EvidencePassageRecord>;
   graph_assertions: Record<string, EvidencedGraphAssertionRecord>;
-  published_answers: Record<string, TraceableAnswerEnvelope & { actor_id: string; tenant_id: string; question_text: string }>;
+  published_answers: Record<
+    string,
+    TraceableAnswerEnvelope & {
+      actor_id: string;
+      tenant_id: string;
+      owner_actor_id: string;
+      owner_tenant_id: string;
+      revision_reason: string;
+      question_text: string;
+    }
+  >;
   claim_evidence_links: Record<string, ClaimEvidenceReferenceDto & { answer_revision: string; claim_id: string; verifier_or_reviewer_id: string; ruleset_version: string; verified_at: string }>;
   audit_events: TraceabilityAuditEventRecord[];
   reconciliation_tasks: Record<string, ReconciliationTaskRecord>;
   projection_outbox: Record<string, TraceabilityProjectionOutboxItem>;
+  legal_review_feedback?: Record<string, LegalReviewFeedbackRecord>;
 }
 
 export interface BatchIngestionStageCounts {

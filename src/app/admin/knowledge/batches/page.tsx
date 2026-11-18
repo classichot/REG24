@@ -544,6 +544,19 @@ export default function KnowledgeBatchesUatPage() {
             </p>
           </div>
           <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+            <a
+              href="/legal-review"
+              style={{
+                background: "#1d4ed8",
+                color: "#fff",
+                textDecoration: "none",
+                padding: "9px 14px",
+                fontSize: "13px",
+                fontWeight: 800,
+              }}
+            >
+              ⚖ เปิดห้องทดสอบทีมกฎหมาย &amp; บันทึก Feedback (/legal-review)
+            </a>
             <button
               onClick={() => {
                 if (data?.uat_cases?.[0]) {

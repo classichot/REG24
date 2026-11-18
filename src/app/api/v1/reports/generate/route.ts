@@ -33,12 +33,34 @@ export async function POST(req: NextRequest) {
       { store, channel: "report" }
     );
 
+    const isWithheld =
+      grounded.status === "NEEDS_CLARIFICATION" ||
+      grounded.status === "INSUFFICIENT_EVIDENCE" ||
+      grounded.status === "REVIEW_REQUIRED";
+
+    const sanitizedReport = isWithheld
+      ? {
+          ...report,
+          executive_summary_th: grounded.answer,
+          executive_summary_en: grounded.answer,
+          grounded_status: grounded.status,
+          clarification_questions: grounded.clarification_questions,
+          traceable_answer: grounded.traceable_answer || null,
+        }
+      : {
+          ...report,
+          grounded_status: grounded.status,
+          clarification_questions: grounded.clarification_questions,
+          traceable_answer: grounded.traceable_answer || null,
+        };
+
     return NextResponse.json({
-      status: "ok",
-      report: {
-        ...report,
-        traceable_answer: grounded.traceable_answer || null,
-      },
+      status: isWithheld ? grounded.status : "ok",
+      grounded_status: grounded.status,
+      clarification_questions: grounded.clarification_questions,
+      coverage_warnings: grounded.coverage_warnings,
+      applicable_date: grounded.applicable_date,
+      report: sanitizedReport,
       traceable_answer: grounded.traceable_answer || null,
     });
   } catch (err) {

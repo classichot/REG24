@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { resolveTraceableEvidenceById } from "../../../../../../core/knowledge/claim-traceability-engine";
+import { resolveTraceableEvidenceWithPostgres } from "../../../../../../core/knowledge/claim-traceability-engine";
 import { resolveAuthorizedEvidence } from "../../../../../../core/knowledge/evidence";
 import { sha256Bytes } from "../../../../../../core/knowledge/identity";
 import { getDefaultKnowledgeStore } from "../../../../../../core/knowledge/store";
@@ -23,7 +23,7 @@ export async function GET(
     const gate = await enforceTrialAccessAndRateLimit(req, actor, "citation_open");
     const store = getDefaultKnowledgeStore();
 
-    const pinned = resolveTraceableEvidenceById(store, decodedId, actor);
+    const pinned = await resolveTraceableEvidenceWithPostgres(store, decodedId, actor);
     const legacyResolved = resolveAuthorizedEvidence(store, decodedId, actor);
 
     const effectiveAllowed = pinned.ok || legacyResolved.allowed;

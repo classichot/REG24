@@ -968,25 +968,45 @@ export default function Reg24ModernistPage() {
       } = fallback;
 
       try {
-        // Consult Knowledge GraphRAG store first when querying RD tax rulings or explicit กค identifiers
+        // Consult Knowledge GraphRAG store first when querying RD tax rulings, Revenue Code, or historical law
         const looksLikeTaxOrRulingQuery =
-          scope === "rd" || /กค\s*[0-9๐-๙]|ข้อหารือ|สรรพากร|ภาษีมูลค่าเพิ่ม|ประมวลรัษฎากร|มาตรา\s*65\s*ตรี/i.test(baseQ);
+          scope === "rd" ||
+          /กค\s*[0-9๐-๙]|ข้อหารือ|สรรพากร|ภาษี|อากรแสตมป์|ประมวลรัษฎากร|มาตรา\s*[0-9๐-๙]|พระราชกฤษฎีกา|ท\.ป\./i.test(
+            baseQ
+          );
         if (looksLikeTaxOrRulingQuery) {
+          const explicitApplicableDate = chips.tm ? `${year}-05-01` : null;
           const kgRes = await fetch("/api/v1/knowledge/query", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               question: baseQ,
-              applicable_date: asOfDate,
+              applicable_date: explicitApplicableDate,
               mode: /กค\s*[0-9๐-๙]/.test(baseQ) ? "exact_lookup" : "standard",
             }),
           });
           if (kgRes.ok) {
             const kgJson = await kgRes.json();
             const kgAns = kgJson?.answer;
-            if (kgAns && (kgAns.evidence?.length > 0 || kgAns.status === "INSUFFICIENT_EVIDENCE")) {
+            if (
+              kgAns &&
+              (kgAns.evidence?.length > 0 ||
+                kgAns.status === "NEEDS_CLARIFICATION" ||
+                kgAns.status === "INSUFFICIENT_EVIDENCE" ||
+                kgAns.status === "REVIEW_REQUIRED" ||
+                kgAns.status === "CONDITIONAL")
+            ) {
+              const clarificationSuffix =
+                Array.isArray(kgAns.clarification_questions) &&
+                kgAns.clarification_questions.length > 0
+                  ? `\n\nคำถามเพื่อยืนยันข้อเท็จจริง/ช่วงเวลา:\n${kgAns.clarification_questions
+                      .map((cq: string) => `- ${cq}`)
+                      .join("\n")}`
+                  : "";
+              const effectiveDateLabel =
+                kgAns.applicable_date || (lang === "th" ? "ตามข้อเท็จจริงในคำถาม" : "per query facts");
               finalPayload = {
-                answer: kgAns.answer,
+                answer: `${kgAns.answer}${clarificationSuffix}`,
                 citations:
                   Array.isArray(kgAns.evidence) && kgAns.evidence.length > 0
                     ? kgAns.evidence.slice(0, 4).map(
@@ -998,8 +1018,8 @@ export default function Reg24ModernistPage() {
                     : [],
                 note:
                   lang === "th"
-                    ? `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · ข้อมูล ณ ${asOfDate}`
-                    : `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · Law as of ${asOfDate}`,
+                    ? `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · ขอบเขตเวลา: ${effectiveDateLabel}`
+                    : `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · Temporal scope: ${effectiveDateLabel}`,
                 traceableAnswer: kgAns.traceable_answer || kgJson?.traceable_answer || null,
               };
             }

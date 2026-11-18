@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import {
   exportTraceableAnswer,
-  reopenSavedTraceableAnswer,
+  hydratePostgresSourcesIntoStore,
+  reopenSavedTraceableAnswerWithPostgres,
   type SupportedExportFormat,
 } from "../../../../../../../core/knowledge/claim-traceability-engine";
 import {
@@ -41,7 +42,8 @@ export async function GET(
             : "markdown";
 
     const store = getDefaultKnowledgeStore();
-    const reopened = reopenSavedTraceableAnswer(store, decodeURIComponent(id), actor);
+    await hydratePostgresSourcesIntoStore(store, actor);
+    const reopened = await reopenSavedTraceableAnswerWithPostgres(store, decodeURIComponent(id), actor);
     if (!reopened.found || !reopened.answer) {
       return NextResponse.json(
         { ok: false, error: reopened.error_th || "Saved answer not found or restricted" },
@@ -94,6 +96,7 @@ export async function POST(
     }
 
     const store = getDefaultKnowledgeStore();
+    await hydratePostgresSourcesIntoStore(store, actor);
     const exported = exportTraceableAnswer(store, {
       answer: body.traceable_answer,
       format: body.format || "markdown",
