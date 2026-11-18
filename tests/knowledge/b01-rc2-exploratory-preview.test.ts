@@ -166,6 +166,7 @@ describe("B01-rc2 Isolated Exploratory Preview, Trial Scope Controls & Custom Ow
     const tmpTrialDir = fs.mkdtempSync(path.join(os.tmpdir(), "reg24-trial-verify-"));
     try {
       fs.cpSync(previewDir, tmpTrialDir, { recursive: true });
+      fs.rmSync(path.join(tmpTrialDir, "trial_audit_log.jsonl"), { force: true });
       const disposableStore = new DurableKnowledgeStore(tmpTrialDir);
       setDefaultKnowledgeStoreForTesting(disposableStore);
 

@@ -104,6 +104,9 @@ function resolveActiveDbTransport(): TrialDbTransport | null {
   if (customDbTransport) {
     return customDbTransport;
   }
+  if (process.env.VITEST && process.env.REG24_ALLOW_LIVE_DB_IN_VITEST !== "1") {
+    return null;
+  }
   const dbUrl = (process.env.DATABASE_URL || "").trim();
   if (!dbUrl) return null;
 

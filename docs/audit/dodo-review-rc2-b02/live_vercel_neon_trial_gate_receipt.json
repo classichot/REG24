@@ -1,0 +1,24 @@
+{
+  "verified_at": "2026-11-18T10:28:49.619Z",
+  "deployment_id": "dpl_U95Mh476NVcXHj5iqbEGap7V2j4M",
+  "deployment_url": "https://reg24-isk365cbm-7-l-advisory.vercel.app",
+  "neon_org_id": "org-solitary-sky-99652740",
+  "neon_project_id": "shiny-pond-32049060",
+  "checks": {
+    "empty_invites_fail_closed_http_403": true,
+    "missing_invite_rejected_http_401": true,
+    "invalid_invite_rejected_http_401": true,
+    "valid_query_1_http_200_and_hosted_postgres_audit_row": true,
+    "valid_citation_open_http_200_and_hosted_postgres_audit_row": true,
+    "valid_query_2_historical_containment_http_200": true,
+    "exceeded_limit_query_3_distributed_postgres_http_429": true
+  },
+  "retry_after_header_seconds": 72,
+  "sample_persisted_audit_row": {
+    "audit_id": "aud.q.trc.9a3c0e6d95169a",
+    "release_id": "rel.B01.rc5",
+    "answer_status": "ANSWERED"
+  },
+  "distributed_rate_limit_bucket_observed_count": 3,
+  "post_test_trial_invites_cleaned_to_zero_fail_closed": true
+}

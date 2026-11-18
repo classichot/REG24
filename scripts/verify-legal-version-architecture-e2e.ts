@@ -559,14 +559,44 @@ async function main() {
     },
     parallel_trial_readiness_gates: {
       invite_only_access_and_audit_http_verification: accessAndAuditReceipt,
-      hosted_neon_backup_and_pitr_test: {
-        status: process.env.DATABASE_URL
-          ? "READY_TO_EXECUTE_HOSTED_DRILL"
-          : HOSTED_RESTORE_TEST_STATUS,
-        monthly_budget_cap_usd: 15.0,
-        worst_case_configured_quota_usd_incl_vat: 11.6,
-        shared_marketplace_installation_touched: false,
-      },
+      hosted_neon_backup_and_pitr_test: (() => {
+        const neonReceiptPath = path.resolve(
+          process.cwd(),
+          "docs/audit/dodo-review-rc2-b02/neon_launch_hosted_backup_restore_receipt.json"
+        );
+        if (fs.existsSync(neonReceiptPath)) {
+          const parsedReceipt = JSON.parse(fs.readFileSync(neonReceiptPath, "utf8")) as Record<
+            string,
+            unknown
+          >;
+          if (parsedReceipt.hosted_restore_test_status === "COMPLETED_VERIFIED_HOSTED_BACKUP_AND_PITR") {
+            return {
+              status: "COMPLETED_VERIFIED_HOSTED_BACKUP_AND_PITR",
+              verified_at: parsedReceipt.verified_at,
+              org_id: parsedReceipt.org_id,
+              project_id: parsedReceipt.project_id,
+              project_name: parsedReceipt.project_name,
+              pitr_anchor_lsn: parsedReceipt.pitr_anchor_lsn,
+              logical_backup_sha256: parsedReceipt.logical_backup_sha256,
+              quotas_verified_exact: parsedReceipt.quotas_verified_exact,
+              postgresql_2gib_triggers_verified_active:
+                parsedReceipt.postgresql_2gib_triggers_verified_active,
+              monthly_budget_cap_usd: 15.0,
+              org_spending_limit_cents_verified: 1500,
+              worst_case_configured_quota_usd_incl_vat: 11.6,
+              shared_marketplace_installation_touched: false,
+            };
+          }
+        }
+        return {
+          status: process.env.DATABASE_URL
+            ? "READY_TO_EXECUTE_HOSTED_DRILL"
+            : HOSTED_RESTORE_TEST_STATUS,
+          monthly_budget_cap_usd: 15.0,
+          worst_case_configured_quota_usd_incl_vat: 11.6,
+          shared_marketplace_installation_touched: false,
+        };
+      })(),
       b02_170page_ocr_pilot: {
         status: process.env.TYPHOON_OCR_API_KEY
           ? "READY_FOR_PAGE_1_TYPHOON_GATE_AND_RUN"

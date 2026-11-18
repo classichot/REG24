@@ -206,6 +206,8 @@ export function buildChildBranchConnectionUrl(
   return parsed.toString();
 }
 
+const sleepMs = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export const executeNeonHttpSql: SqlExecutorFn = async <T = Record<string, unknown>>(
   databaseUrl: string,
   query: string,
@@ -217,24 +219,39 @@ export const executeNeonHttpSql: SqlExecutorFn = async <T = Record<string, unkno
       `NON_NEON_HOST_REJECTED: Expected *.neon.tech endpoint for Neon HTTPS SQL, got '${info.host}'.`
     );
   }
-  const resp = await fetch(`https://${info.host}/sql`, {
-    method: "POST",
-    headers: {
-      "Neon-Connection-String": databaseUrl.trim(),
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: JSON.stringify({ query, params }),
-  });
-  if (!resp.ok) {
+  const maxAttempts = 8;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const resp = await fetch(`https://${info.host}/sql`, {
+      method: "POST",
+      headers: {
+        "Neon-Connection-String": databaseUrl.trim(),
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ query, params }),
+    });
+    if (resp.ok) {
+      const json = (await resp.json()) as { rows?: T[]; rowCount?: number };
+      return {
+        rows: Array.isArray(json.rows) ? json.rows : [],
+        rowCount: Number(json.rowCount ?? (Array.isArray(json.rows) ? json.rows.length : 0)),
+      };
+    }
     const errText = await resp.text().catch(() => "");
+    const isTransientEndpointWarmup =
+      resp.status >= 500 ||
+      resp.status === 423 ||
+      resp.status === 429 ||
+      (resp.status === 400 &&
+        /compute|endpoint|starting|initializing|connecting|unavailable|timeout/i.test(errText) &&
+        !/REG24_STORAGE_CAP_EXCEEDED|violates|syntax error|does not exist/i.test(errText));
+    if (isTransientEndpointWarmup && attempt < maxAttempts) {
+      await sleepMs(2000);
+      continue;
+    }
     throw new Error(`NEON_HTTP_SQL_ERROR_${resp.status}: ${errText.slice(0, 240)}`);
   }
-  const json = (await resp.json()) as { rows?: T[]; rowCount?: number };
-  return {
-    rows: Array.isArray(json.rows) ? json.rows : [],
-    rowCount: Number(json.rowCount ?? (Array.isArray(json.rows) ? json.rows.length : 0)),
-  };
+  throw new Error("NEON_HTTP_SQL_RETRY_EXHAUSTED");
 };
 
 export function assertProjectIsIsolatedReg24(project: { id: string; name: string }): void {
@@ -254,20 +271,38 @@ export const defaultNeonApiRequest: NeonApiCallerFn = async <T>(
   apiPath: string,
   body?: unknown
 ): Promise<T> => {
-  const resp = await fetch(`https://console.neon.tech/api/v2${apiPath}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${apiKey.trim()}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-  if (!resp.ok) {
+  const maxAttempts = 12;
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const resp = await fetch(`https://console.neon.tech/api/v2${apiPath}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${apiKey.trim()}`,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+    });
+    if (resp.ok) {
+      return (await resp.json()) as T;
+    }
     const txt = await resp.text().catch(() => "");
+    const isRetryableLockOrRate =
+      resp.status === 423 ||
+      resp.status === 429 ||
+      resp.status === 502 ||
+      resp.status === 503 ||
+      resp.status === 504 ||
+      (resp.status === 404 && method === "DELETE" && attempt > 1);
+    if (resp.status === 404 && method === "DELETE" && attempt > 1) {
+      return {} as T;
+    }
+    if (isRetryableLockOrRate && attempt < maxAttempts) {
+      await sleepMs(2000);
+      continue;
+    }
     throw new Error(`NEON_API_${method}_${apiPath}_HTTP_${resp.status}: ${txt.slice(0, 300)}`);
   }
-  return (await resp.json()) as T;
+  throw new Error(`NEON_API_RETRY_EXHAUSTED_${method}_${apiPath}`);
 };
 
 export async function runIsolatedReg24NeonSetupAndDrill(options: {
@@ -578,7 +613,7 @@ export async function runIsolatedReg24NeonSetupAndDrill(options: {
           type: "read_only",
           autoscaling_limit_min_cu: 0.25,
           autoscaling_limit_max_cu: 0.25,
-          suspend_timeout_seconds: 60,
+          suspend_timeout_seconds: 300,
         },
       ],
     });
@@ -650,7 +685,28 @@ export async function runIsolatedReg24NeonSetupAndDrill(options: {
   return receipt;
 }
 
+function loadDotEnvLocalIfPresent(): void {
+  const envPath = path.resolve(process.cwd(), ".env.local");
+  if (!fs.existsSync(envPath)) return;
+  const content = fs.readFileSync(envPath, "utf8");
+  for (const rawLine of content.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+    const eqIdx = line.indexOf("=");
+    if (eqIdx <= 0) continue;
+    const key = line.slice(0, eqIdx).trim();
+    let val = line.slice(eqIdx + 1).trim();
+    if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      val = val.slice(1, -1);
+    }
+    if (!process.env[key]) {
+      process.env[key] = val;
+    }
+  }
+}
+
 async function cliMain() {
+  loadDotEnvLocalIfPresent();
   const neonApiKey = (process.env.NEON_API_KEY || "").trim();
   const neonOrgId = (process.env.NEON_ORG_ID || "").trim();
   const projectId = (process.env.NEON_PROJECT_ID || "").trim();

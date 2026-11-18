@@ -1,6 +1,6 @@
 {
   "schema_version": "reg24.legal_version_architecture_e2e_evidence.v2",
-  "generated_at": "2026-11-18T07:54:24.207Z",
+  "generated_at": "2026-11-18T10:17:46.311Z",
   "release_id": "rel.B01.rc5",
   "protected_rc1_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
   "protected_rc1_untouched": true,
@@ -44,8 +44,17 @@
       "all_access_and_audit_checks_passed": true
     },
     "hosted_neon_backup_and_pitr_test": {
-      "status": "NOT_YET_EXECUTED_PENDING_ISOLATED_NEON_ORG_CREDENTIALS",
+      "status": "COMPLETED_VERIFIED_HOSTED_BACKUP_AND_PITR",
+      "verified_at": "2026-11-18T10:15:01.879Z",
+      "org_id": "org-solitary-sky-99652740",
+      "project_id": "shiny-pond-32049060",
+      "project_name": "reg24-trial-isolated",
+      "pitr_anchor_lsn": "0/19A1DB0",
+      "logical_backup_sha256": "967ac4a8df40fde94a339f12ff20333a945b84fd9c09fbc3991c2ad49464264e",
+      "quotas_verified_exact": true,
+      "postgresql_2gib_triggers_verified_active": true,
       "monthly_budget_cap_usd": 15,
+      "org_spending_limit_cents_verified": 1500,
       "worst_case_configured_quota_usd_incl_vat": 11.6,
       "shared_marketplace_installation_touched": false
     },
