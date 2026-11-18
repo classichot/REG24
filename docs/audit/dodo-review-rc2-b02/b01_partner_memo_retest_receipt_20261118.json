@@ -1,0 +1,160 @@
+{
+  "schema_version": "reg24.b01_partner_memo_retest_receipt.v1",
+  "generated_at": "2026-11-18T00:28:27.123Z",
+  "release_id": "rel.B01.rc5",
+  "manifest_id": "mfst.b01.mwldatea",
+  "manifest_hash": "ec73d84b9d133bac700e672f6c4a7742e9fdb7cfd1d99b1c0c532330eab4734f",
+  "memo_baseline_reviewed_commit": "fdd4feb2503283454ead44780a6bda259f6f442e",
+  "secondary_citation_24694_live_check": {
+    "ruling_no": "กค 0706/5353",
+    "origin_uri": "https://www.rd.go.th/24694.html",
+    "http_status_on_2026_11_18": 200,
+    "verified_date_th": "12 มิถุนายน 2546",
+    "verified_provisions": "มาตรา 70 ตรี, มาตรา 65 ทวิ (6), มาตรา 65 ตรี (13)(14), มาตรา 41 วรรคหนึ่ง, มาตรา 77/1(8)(ค), มาตรา 87",
+    "disposition_in_lsc15": "Removed from LSC-15 citations by S-1 Citation Gate (unused secondary hit on มาตรา 70 ตรี)."
+  },
+  "s1_citation_gate_30_case_audit": {
+    "total_cases": 30,
+    "unused_citations_remaining": 0
+  },
+  "s6_store_wide_malformed_provisions_removed": {
+    "before_fix_count": 317,
+    "after_fix_count": 0
+  },
+  "tq_proposed_questions_results": [
+    {
+      "id": "TQ-1",
+      "focus": "Temporal: political-party donation in FY ending 30 Jun 2561 — must NOT apply amended s.65 ตรี(3)(ก) and must check accounting-period start date",
+      "question": "บริษัทบริจาคเงินให้พรรคการเมืองในรอบระยะเวลาบัญชีสิ้นสุดวันที่ 30 มิถุนายน 2561 สามารถนำมาหักเป็นรายจ่ายตามมาตรา 65 ตรี (3)(ก) ได้หรือไม่",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "citations": [],
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามเว็บไซต์ทางการกรมสรรพากร (https://www.rd.go.th/5939.html#mata65_3) และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) โดยตรง. ทั้งนี้ ในการพิจารณาสิทธิหักรายจ่ายตามมาตรา 65 ตรี (เช่น รายจ่ายบริจาคแก่พรรคการเมืองตามมาตรา 65 ตรี (3)(ก) ไม่เกิน 50,000 บาท ซึ่งแก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562) กฎหมายกำหนดเงื่อนไขการใช้บ"
+    },
+    {
+      "id": "TQ-2",
+      "focus": "Scope: dividend credit for an undivided estate (กค 0702/1494) — fact-specific with CCC s.42 special domicile condition",
+      "question": "กองมรดกที่ยังมิได้แบ่งได้รับเงินปันผลจะมีสิทธิได้รับเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ หรือไม่ ตามข้อหารือ กค 0702/1494",
+      "status": "ANSWERED",
+      "citations": [
+        {
+          "official_identifier": "กค 0702/1494",
+          "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "official_identifier": "กค 0702/1494",
+          "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "official_identifier": "กค 0702/1494",
+          "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "official_identifier": "กค 0702/1494",
+          "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
+          "origin_uri": "https://www.rd.go.th/68536.html"
+        },
+        {
+          "official_identifier": "มาตรา 47 ทวิ",
+          "work_id": "prov.th.rc.47_ทวิ",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        },
+        {
+          "official_identifier": "มาตรา 47 ทวิ",
+          "work_id": "prov.th.rc.47_ทวิ",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        },
+        {
+          "official_identifier": "มาตรา 47 ทวิ",
+          "work_id": "prov.th.rc.47_ทวิ",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
+        }
+      ],
+      "answer_excerpt": "**สรุปคำตอบตามแนววินิจฉัยเฉพาะราย (`กค 0702/1494`)**: กองมรดกที่ยังมิได้แบ่งมีสิทธิได้รับเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ และมาตรา 48 แห่งประมวลรัษฎากร **เฉพาะตามข้อเท็จจริงของรายนี้** ที่ผู้จัดการมรดกตามคำสั่งศาลได้แสดงเจตนาเลือกเอาสถานที่ในประเทศไทยเป็น **ภูมิลำเนาเฉพาะการตามมาตรา 42 แห่งประมวลกฎหมายแพ่งและพาณิชย์** เพื่อยื่นแบบ ภ.ง.ด.90 ต่อเนื่องกันมา จึงไม่เข้าข้อยกเว้นผู้ไม่มีภูมิลำเนาในประเทศไทยตามมาตรา 47 ทวิ วรรคสาม\n\n**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\nกองมรดก ก. ได้รับเงินได้พึงประเมินเป็นเงินปันผลตามมาตรา 40 (4) (ข) แห่งประมวลรัษฎากร และยื่นแบบแสดงรายการภาษีเงินได้บุคคลธรรมดา (ภ.ง."
+    },
+    {
+      "id": "TQ-3",
+      "focus": "Exception: film-copyright sale abroad by email — 0% VAT under s.80/1(2) with DG Notification No. 105 and tax point under s.78/1(1)(ก)",
+      "question": "การขายลิขสิทธิ์ภาพยนตร์ให้ผู้ซื้อในต่างประเทศโดยส่งไฟล์ทางอีเมล เสียภาษีมูลค่าเพิ่มอัตราใดและจุดความรับผิดเกิดขึ้นเมื่อใด",
+      "status": "ANSWERED",
+      "citations": [
+        {
+          "official_identifier": "กค 0702/1230",
+          "work_id": "work.th.rd.gk_0702_1230_2026_60f73017",
+          "origin_uri": "https://www.rd.go.th/68470.html"
+        },
+        {
+          "official_identifier": "กค 0702/1230",
+          "work_id": "work.th.rd.gk_0702_1230_2026_60f73017",
+          "origin_uri": "https://www.rd.go.th/68470.html"
+        }
+      ],
+      "answer_excerpt": "**สรุปคำตอบตามแนววินิจฉัยเฉพาะราย (`กค 0702/1230`)**: การอนุญาตให้ใช้หรือขายลิขสิทธิ์ภาพยนตร์ให้แก่ผู้ซื้อในต่างประเทศโดยจัดส่งไฟล์ทางไปรษณีย์อิเล็กทรอนิกส์ (Email) เพื่อนำไปใช้ในต่างประเทศเพียงอย่างเดียว เข้าลักษณะเป็นการให้บริการที่กระทำในราชอาณาจักรและใช้บริการในต่างประเทศ ได้รับสิทธิเสียภาษีมูลค่าเพิ่ม **อัตราร้อยละ 0 ตามมาตรา 80/1 (2)** ประกอบ **ประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105)** โดยความรับผิดในการเสียภาษีมูลค่าเพิ่มเกิดขึ้นเมื่อได้รับชำระราคาค่าบริการตาม **มาตรา 78/1 (1) (ก)** แห่งประมวลรัษฎากร\n\n**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\nหารือเกี่ยวกับภาษีมูลค่าเพิ่"
+    },
+    {
+      "id": "TQ-4",
+      "focus": "Missing exception: summons after 2 years — must state Revenue Code s.19 Director-General extension up to 5 years",
+      "question": "เจ้าพนักงานประเมินสามารถออกหมายเรียกตรวจสอบภาษีเมื่อพ้นกำหนด 2 ปีนับแต่วันยื่นแบบแสดงรายการได้หรือไม่ ตามมาตรา 19 แห่งประมวลรัษฎากร",
+      "status": "ANSWERED",
+      "citations": [
+        {
+          "official_identifier": "มาตรา 19",
+          "work_id": "prov.th.rc.19",
+          "origin_uri": "https://www.rd.go.th/5943.html#mata19"
+        },
+        {
+          "official_identifier": "มาตรา 19",
+          "work_id": "prov.th.rc.19",
+          "origin_uri": "https://www.rd.go.th/5943.html#mata19"
+        }
+      ],
+      "answer_excerpt": "**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ตามมาตรา 19 แห่งประมวลรัษฎากร โดยหลักทั่วไปเจ้าพนักงานประเมินต้องออกหมายเรียกผู้ยื่นรายการมาไต่สวนภายใน **2 ปี** นับแต่วันที่ได้ยื่นรายการ (โดยให้เวลาล่วงหน้าไม่น้อยกว่า 7 วันนับแต่วันส่งหมาย) **เว้นแต่** ปรากฏหลักฐานหรือมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร หรือเป็นกรณีจำเป็นเพื่อประโยชน์ในการคืนภาษีอากร **อธิบดีกรมสรรพากรมีอำนาจอนุมัติให้ขยายเวลาออกหมายเรียกเกินกว่า 2 ปีได้ แต่ต้องไม่เกิน 5 ปีนับแต่วันที่ได้ยื่นรายการ** (และกรณีเพื่อประโยชน์ในการคืนภาษีอากร ขยายได้ไม่เกินกำหนดเวลาตามที่มีสิทธิขอคืนภาษีอากร)\n\n**สถานะตัวบทประมวลรัษฎากรและวันใช้บังคับ**: ตัวบทด้านล่างเป็น **ตัวบทรวมแก"
+    },
+    {
+      "id": "TQ-5",
+      "focus": "Insufficient evidence: whether RD 736 covers a 2561 expropriation — decline cleanly without guessing quarantined RD 736 text",
+      "question": "พระราชกฤษฎีกา (ฉบับที่ 736) ใช้บังคับกับการเวนคืนอสังหาริมทรัพย์ในปี 2561 หรือไม่",
+      "status": "INSUFFICIENT_EVIDENCE",
+      "citations": [],
+      "answer_excerpt": "พระราชกฤษฎีกาฯ (ฉบับที่ 736) ยังอยู่ระหว่างรอการตรวจรับรองตัวบทต้นฉบับจากราชกิจจานุเบกษาในชุดข้อมูล rel.B01.rc5 ระบบจึงไม่สรุปหรือคาดเดาตัวบทมาตราและวันบังคับใช้ของพระราชกฤษฎีกาฉบับดังกล่าวโดยไม่มีต้นฉบับที่ผ่านการรับรอง ทั้งนี้ ท่านสามารถตรวจสอบตัวบททางการได้จากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) หรือเว็บไซต์กรมสรรพากร (https://www.rd.go.th) โดยตรง (สถานะระบบ: usable_as_legal_evidence: false)"
+    },
+    {
+      "id": "TQ-6",
+      "focus": "Homonym: descriptive query for 2555 กค 0702/636 — must resolve to 23 มกราคม 2555 WHT co-ownership ruling (rd.go.th/46391.html) and NOT default to 2569 VAT ruling",
+      "question": "ตามหนังสือตอบข้อหารือ กค 0702/636 การโอนอสังหาริมทรัพย์โดยการให้เข้าถือกรรมสิทธิ์รวมต้องหักภาษีเงินได้ ณ ที่จ่ายอย่างไร",
+      "status": "ANSWERED",
+      "citations": [
+        {
+          "official_identifier": "กค 0702/636",
+          "work_id": "work.th.rd.gk_0702_636_2012_394a3877",
+          "origin_uri": "https://www.rd.go.th/46391.html"
+        },
+        {
+          "official_identifier": "กค 0702/636",
+          "work_id": "work.th.rd.gk_0702_636_2012_394a3877",
+          "origin_uri": "https://www.rd.go.th/46391.html"
+        }
+      ],
+      "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\n1. นาง ฉ. ได้จดทะเบียนให้ (โดยไม่มีค่าตอบแทน) ในที่โฉนดที่ดินกรุงเทพมหานคร ให้กับนาง ธ. ซึ่งมีฐานะเป็น ลูกสะใภ้ของนาง ฉ. โดยให้นาง ธ. เข้าถือกรรมสิทธิ์รวมในที่ดินครั้งละหนึ่งส่วน รวมทั้งสิ้น 30 ครั้ง เป็นจำนวน 30 ส่วน (โดยมีการยื่นคำขอจดทะเบียนโอนทุกวัน เว้นเฉพาะวันหยุดเสาร์-อาทิตย์) ซึ่งในการจดทะเบียนโอน 30 ครั้งดังกล่าวพนักงานเจ้าหน้าที่เรียกเก็บภาษีเงินได้หัก ณ ที่จ่าย เป็นจำนวนรวมทั้งสิ้น 2,145,600 บาท ซึ่งหากจดทะเบียนโอนที่ดิน ดังกล่าวในคราวเดียวกันทั้งแปลง พนักงานเจ้าหน้าที่จะต้องเรียกเก็บภาษีเงินได้หัก ณ ที่จ่าย เป็นจำนวนเงิน 9,413,800 บาท ซึ่งมีจำนวน"
+    }
+  ],
+  "post_trial_minor_backlog_logged": [
+    {
+      "backlog_id": "BKL-S2-GAZETTE-PARAGRAPH-VERSIONS",
+      "priority": "Post-20-Nov / B02 Primary Law Phase",
+      "description": "Source historical pre-amendment Revenue Code provisions (including pre-Act 51 s.65 ตรี(3)) directly from Royal Gazette PDFs with per-paragraph effective-date & accounting-period-start intervals before re-enabling historical point-in-time statute answers."
+    },
+    {
+      "backlog_id": "BKL-S5-EXPANDED-OLD-RULING-CROSSCHECK",
+      "priority": "Post-20-Nov / B02 Primary Law Phase",
+      "description": "Expand automated statutory proviso attachment beyond s.19 (e.g. s.49 ทวิ / s.50(5)-(6) gift-to-child cap under Act No. 40 B.E. 2558 and subsequent Royal Decree supersession tables such as RD 282/283)."
+    },
+    {
+      "backlog_id": "BKL-S7-INTERACTIVE-HOMONYM-CHIPS",
+      "priority": "UI Polish Backlog",
+      "description": "Add one-click disambiguation prompt chips in the UI when a bare homonym ruling number (e.g. กค 0702/636) matches multiple years."
+    }
+  ]
+}

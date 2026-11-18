@@ -246,7 +246,6 @@ function seedB01RequiredStatutoryDependencies(
   const touched = ensureCoreAgenciesAndRevenueCodeWork(draft, "B01");
   const verCorpus = getVerifiedStatutoryCorpus();
   const rc65Ter = verCorpus.revenue_code_sections["prov.th.rc.65_ตรี"];
-  const act48 = verCorpus.subordinate_and_amendment_works["statute.th.rc_amendment_48_2562"];
   if (!rc65Ter) {
     return { createdOrReusedWorkIds: touched };
   }
@@ -269,24 +268,6 @@ function seedB01RequiredStatutoryDependencies(
   }
 
   const evidenceArts = [art5939Id];
-  if (act48) {
-    const artP48Id = `art.ver.${act48.artifact_sha256.slice(0, 14)}`;
-    if (!draft.artifacts[artP48Id]) {
-      draft.artifacts[artP48Id] = {
-        artifact_id: artP48Id,
-        actual_bytes_sha256: act48.artifact_sha256,
-        size: act48.artifact_size,
-        MIME: "application/pdf",
-        immutable_uri: `artifact://sha256/${act48.artifact_sha256}`,
-        fetched_at: nowIso,
-        origin_uri: act48.origin_uri,
-        authenticity_status: "official_original",
-        access_scope: "scope.platform.public",
-        rights_status: "approved_public",
-      };
-    }
-    evidenceArts.push(artP48Id);
-  }
 
   if (!draft.works[sec65TerWorkId]) {
     draft.works[sec65TerWorkId] = {
@@ -303,98 +284,33 @@ function seedB01RequiredStatutoryDependencies(
       owner_batch_id: "B02",
       first_loaded_by_batch_id: "B01",
     };
+  } else {
+    draft.works[sec65TerWorkId].identity_evidence = evidenceArts;
   }
   touched.push(sec65TerWorkId);
 
-  // Pre-2019 verbatim statutory text (removing post-2019 Act No. 51 B.E. 2562 parenthetical note)
-  const v1Verbatim = rc65Ter.verbatim_text
-    .replace(/\(\s*แก้ไขเพิ่มเติมโดยพระราชบัญญัติ\s*แก้ไขเพิ่มเติมประมวลรัษฎากร\s*\(ฉบับที่\s*51\)\s*พ\.ศ\.\s*2562[^)]*\)/g, "")
-    .trim();
-
-  const v1Id = "ver.th.rc.65_ตรี.v1_pre2019";
-  draft.versions[v1Id] = {
-    version_id: v1Id,
-    work_id: sec65TerWorkId,
-    version_label: "v1_pre2019",
-    legal_applicability: [
-      {
-        valid_from: "1939-04-01",
-        valid_to: "2019-03-19",
-        conditions: [
-          "ใช้บังคับสำหรับรอบระยะเวลาบัญชีและธุรกรรมก่อนวันที่ 20 มีนาคม 2562 (ก่อนชุดพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร พ.ศ. 2562)",
-        ],
-        date_status: "verified",
-      },
-    ],
-    publication_date: "1939-03-31",
-    decision_date: null,
-    raw_date_text: "ก่อนวันที่ 20 มีนาคม 2562",
-    temporal_evidence_ids: [art5939Id],
-    known_from: draft.versions[v1Id]?.known_from || nowIso,
-    known_to: null,
-    access_scope: "scope.platform.public",
-  };
-  const extV1Id =
-    releaseId === "rel.B01.rc1" ? "ext.ver.rc.65_ter.v1" : `ext.ver.rc.65_ter.v1.${releaseId}`;
-  const hasV1InRelease = Object.values(draft.passages).some(
-    (p) => p.version_id === v1Id && p.extraction_id === extV1Id && p.release_id === releaseId
-  );
-  if (!hasV1InRelease) {
-    draft.extractions[extV1Id] = {
-      extraction_id: extV1Id,
-      artifact_id: art5939Id,
-      work_id: sec65TerWorkId,
-      version_id: v1Id,
-      extractor_version: "verified-statutory-v1.2",
-      model_version: "verbatim-official-rd-html",
-      configuration_version: "cfg.v1.2",
-      raw_text_uri: draft.artifacts[art5939Id].immutable_uri,
-      raw_text: v1Verbatim,
-      normalized_text: v1Verbatim,
-      normalization_log: ["verified_verbatim_rd_5939_html_mata65_3_pre2019"],
-      quality_status: "VALIDATED",
-      accepted_revision: 1,
-      created_at: nowIso,
-    };
-    const psgsV1 = chunkThaiLegalDocument({
-      work_id: sec65TerWorkId,
-      version_id: v1Id,
-      extraction_id: extV1Id,
-      release_id: releaseId,
-      artifact_id: art5939Id,
-      origin_uri: rc65Ter.origin_uri,
-      locator_kind: "html_structural",
-      structural_selector_prefix: "a#mata65_3",
-      header_label: "ประมวลรัษฎากร มาตรา 65 ตรี (v1_pre2019 — ก่อนวันที่ 20 มีนาคม 2562)",
-      structural_path_prefix: ["ประมวลรัษฎากร", "มาตรา 65 ตรี", "v1_pre2019"],
-      raw_text: v1Verbatim,
-      statement_role: "statutory_text",
-      access_scope: "scope.platform.public",
-    });
-    for (const p of psgsV1) {
-      draft.passages[p.passage_id] = p;
-    }
-  }
-
+  // S-2 / LSC-12 Remediation: NEVER reconstruct or synthesize a historical statutory version from current consolidated text!
+  // Only the verbatim current consolidated text on rd.go.th is materialized here; historical pre-amendment periods are
+  // cleanly suppressed until verified directly from the Royal Gazette amending Acts.
   const v2Id = "ver.th.rc.65_ตรี.v2_current";
-  const v2Verbatim = rc65Ter.verbatim_text;
+  const v2Verbatim = rc65Ter.verbatim_text.replace(/<!--[\s\S]*?-->/g, "").trim();
   draft.versions[v2Id] = {
     version_id: v2Id,
     work_id: sec65TerWorkId,
-    version_label: "v2_current",
+    version_label: "consolidated_rd_current",
     legal_applicability: [
       {
-        valid_from: "2019-03-20",
+        valid_from: "2020-01-01",
         valid_to: null,
         conditions: [
-          "ฉบับปัจจุบันหลังการแก้ไขเพิ่มเติมประมวลรัษฎากร พ.ศ. 2562 (รวมถึงพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562 และ (ฉบับที่ 51) พ.ศ. 2562)",
+          "ตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (rd.go.th) — เฉพาะอนุมาตรา (3) แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562 ให้ใช้บังคับกับการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคลซึ่งรอบระยะเวลาบัญชีเริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 เป็นต้นไป ส่วนอนุมาตราอื่นให้ตรวจสอบหมายเหตุท้ายอนุมาตรานั้น",
         ],
         date_status: "verified",
       },
     ],
-    publication_date: "2019-03-20",
+    publication_date: null,
     decision_date: null,
-    raw_date_text: "ตั้งแต่ 20 มีนาคม 2562 เป็นต้นไป",
+    raw_date_text: "ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร (rd.go.th)",
     temporal_evidence_ids: evidenceArts,
     known_from: draft.versions[v2Id]?.known_from || nowIso,
     known_to: null,
@@ -411,13 +327,13 @@ function seedB01RequiredStatutoryDependencies(
       artifact_id: art5939Id,
       work_id: sec65TerWorkId,
       version_id: v2Id,
-      extractor_version: "verified-statutory-v1.2",
+      extractor_version: "verified-statutory-v1.3",
       model_version: "verbatim-official-rd-html",
-      configuration_version: "cfg.v1.2",
+      configuration_version: "cfg.v1.3",
       raw_text_uri: draft.artifacts[art5939Id].immutable_uri,
       raw_text: v2Verbatim,
       normalized_text: v2Verbatim,
-      normalization_log: ["verified_verbatim_rd_5939_html_mata65_3_current"],
+      normalization_log: ["verified_verbatim_rd_5939_html_mata65_3_consolidated"],
       quality_status: "VALIDATED",
       accepted_revision: 1,
       created_at: nowIso,
@@ -431,8 +347,8 @@ function seedB01RequiredStatutoryDependencies(
       origin_uri: rc65Ter.origin_uri,
       locator_kind: "html_structural",
       structural_selector_prefix: "a#mata65_3",
-      header_label: "ประมวลรัษฎากร มาตรา 65 ตรี (v2_current — ฉบับปัจจุบัน)",
-      structural_path_prefix: ["ประมวลรัษฎากร", "มาตรา 65 ตรี", "v2_current"],
+      header_label: "ประมวลรัษฎากร มาตรา 65 ตรี (ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร rd.go.th)",
+      structural_path_prefix: ["ประมวลรัษฎากร", "มาตรา 65 ตรี", "consolidated_rd_current"],
       raw_text: v2Verbatim,
       statement_role: "statutory_text",
       access_scope: "scope.platform.public",
@@ -553,24 +469,38 @@ function materializeVerifiedStatutoryDependency(
   };
 
   const verId = `ver.${dep.normalized_key.replace(/^(?:prov\.|subreg\.|statute\.|sched\.)/, "")}.v1`;
-  const effIso = verified.effective_date_iso || null;
-  const dateStatus = verified.date_status === "verified" && effIso ? "verified" : "unknown_restricted";
+  const isConsolidatedRcProvision =
+    dep.normalized_key.startsWith("prov.th.rc.") || dep.normalized_key.startsWith("sched.th.rc.");
+  const effIso = isConsolidatedRcProvision ? null : verified.effective_date_iso || null;
+  const dateStatus = isConsolidatedRcProvision
+    ? "verified"
+    : verified.date_status === "verified" && effIso
+      ? "verified"
+      : "unknown_restricted";
 
   draft.versions[verId] = {
     version_id: verId,
     work_id: dep.normalized_key,
-    version_label: "v1",
+    version_label: isConsolidatedRcProvision ? "consolidated_rd_current" : "v1",
     legal_applicability: [
       {
         valid_from: effIso,
         valid_to: null,
-        conditions: verified.effective_date_raw ? [verified.effective_date_raw] : [],
+        conditions: isConsolidatedRcProvision
+          ? [
+              "ตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (rd.go.th) — วันเริ่มใช้บังคับของแต่ละวรรคหรืออนุมาตราให้ตรวจสอบจากหมายเหตุแก้ไขเพิ่มเติมท้ายวรรคนั้นและราชกิจจานุเบกษาโดยตรง",
+            ]
+          : verified.effective_date_raw
+            ? [verified.effective_date_raw]
+            : [],
         date_status: dateStatus,
       },
     ],
     publication_date: effIso,
     decision_date: null,
-    raw_date_text: verified.effective_date_raw || null,
+    raw_date_text: isConsolidatedRcProvision
+      ? "ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร (rd.go.th)"
+      : verified.effective_date_raw || null,
     temporal_evidence_ids: [artId],
     known_from: nowIso,
     known_to: null,
@@ -581,7 +511,7 @@ function materializeVerifiedStatutoryDependency(
     releaseId === "rel.B01.rc1"
       ? `ext.ver.${sha256Bytes(dep.normalized_key).slice(0, 12)}`
       : `ext.ver.${sha256Bytes(`${releaseId}:${dep.normalized_key}`).slice(0, 12)}`;
-  const verbatimText = verified.verbatim_text.trim();
+  const verbatimText = verified.verbatim_text.replace(/<!--[\s\S]*?-->/g, "").trim();
   draft.extractions[extVerId] = {
     extraction_id: extVerId,
     artifact_id: artId,

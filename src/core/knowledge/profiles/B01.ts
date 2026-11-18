@@ -72,8 +72,8 @@ function extractRelevantPeriods(text: string): string[] {
 
 function stripRulingHeaderAndCabinetFooter(text: string): string {
   return text
-    .replace(/^ภาษีอากร[\s\S]{0,420}?ข้อ\s*หารือ\s*/u, "")
-    .replace(/\s*เลขตู้\s*[0-9๐-๙/\-\s]{3,25}$/u, "")
+    .replace(/^(?:ภาษีอากร|เลขที่หนังสือ)[\s\S]{0,950}?ข้อ\s*หารือ\s*:?\s*/u, "")
+    .replace(/\s*เลขตู้\s*:?\s*[0-9๐-๙/\-\s]{3,25}$/u, "")
     .trim();
 }
 
@@ -360,6 +360,41 @@ export interface QuarantinedExternalCitation {
 const PALI_ORDINALS_PATTERN =
   "(?:อัฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|จัตวา|เบญจ|สัตต|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ)";
 
+export interface SourceSectionTypoSic {
+  typo_section: string;
+  intended_section: string;
+  note_th: string;
+}
+
+/**
+ * Detects verified typographical section numbers printed in official rd.go.th rulings (S-6 [sic] policy),
+ * e.g. `มาตรา 46 ทวิ แห่งประมวลรัษฎากร` in `กค 0811/11340` (`rd.go.th/23767.html`) where both `ข้อกฎหมาย`
+ * and the quoted statutory valuation language (`การโอนกรรมสิทธิ์หรือสิทธิครอบครองในอสังหาริมทรัพย์...`) are `มาตรา 49 ทวิ`.
+ * Preserves verbatim RD source text untouched while preventing bogus quarantined section records.
+ */
+export function detectSourceSectionTyposSic(
+  provisionsText: string,
+  rulingText: string,
+  originUri?: string | null
+): SourceSectionTypoSic[] {
+  const out: SourceSectionTypoSic[] = [];
+  const normProv = thaiDigitsToArabic(provisionsText || "").replace(/\s+/g, " ");
+  const normRuling = thaiDigitsToArabic(rulingText || "").replace(/\s+/g, " ");
+
+  if (
+    /มาตรา\s*46\s*ทวิ/.test(normRuling) &&
+    (/มาตรา\s*49\s*ทวิ/.test(normProv) || /มาตรา\s*49\s*ทวิ/.test(normRuling))
+  ) {
+    const srcRef = originUri ? ` (${originUri})` : "";
+    out.push({
+      typo_section: "มาตรา 46 ทวิ",
+      intended_section: "มาตรา 49 ทวิ",
+      note_th: `ต้นฉบับทางการกรมสรรพากร${srcRef} พิมพ์เลขมาตราในแนววินิจฉัยเป็น "มาตรา 46 ทวิ แห่งประมวลรัษฎากร" [sic] โดยหัวข้อกฎหมายและบทบัญญัติที่ยกมาอ้างอิงจริงคือ "มาตรา 49 ทวิ แห่งประมวลรัษฎากร" ทั้งนี้ ระบบคงข้อความตามเอกสารต้นฉบับทุกประการโดยไม่แก้ไขถ้อยคำเอง`,
+    });
+  }
+  return out;
+}
+
 export function extractCitedRevenueCodeAndSubRegulations(
   provisionsText: string,
   rulingText: string,
@@ -376,6 +411,14 @@ export function extractCitedRevenueCodeAndSubRegulations(
   const verifiedCorpus = getVerifiedStatutoryCorpus();
   const deps = new Map<string, DependencyRequest>();
   const quarantined = new Map<string, QuarantinedExternalCitation>();
+  const sourceTyposSic = detectSourceSectionTyposSic(provisionsText, rulingText);
+  const sicTypoBaseSecs = new Set(
+    sourceTyposSic.map((t) =>
+      normalizeThaiLegalSectionRef(t.typo_section)
+        .replace(/^มาตรา\s*/, "")
+        .replace(/\s+/g, "_")
+    )
+  );
 
   const isVerifiedTarget = (key: string): boolean => {
     if (extraVerifiedKeys?.has(key)) return true;
@@ -413,9 +456,16 @@ export function extractCitedRevenueCodeAndSubRegulations(
     const tail = chainMatch ? lookahead.slice(chainMatch[0].length) : lookahead;
     const prev = compact.slice(Math.max(0, sm.index - 110), sm.index);
 
-    const govTailMatch = tail.match(
-      /^\s*(?:แห่ง|ตาม|ของ|ใน)?\s*(ประมวล\s*รัษฎากร|พระราชกฤษฎีกา|พ\.ร\.ฎ\.|ประมวลกฎหมายแพ่งและพาณิชย์|ป\.พ\.พ\.|ประมวลกฎหมายที่ดิน|ประมวลกฎหมายอาญา|ประมวลกฎหมายวิธีพิจารณา[^\s,;]{0,40}|พระราชบัญญัติ|พ\.ร\.บ\.|พระราชกำหนด|พ\.ร\.ก\.|กฎกระทรวง|ระเบียบ|คำสั่งกรมสรรพากร|คำสั่ง|ประกาศอธิบดีกรมสรรพากร|ประกาศ)/u
-    );
+    const crossedCommaSeparator = Boolean(chainMatch && /,/.test(chainMatch[0]));
+    // Canonical provision parser (S-6): `มาตรา` belongs only to Codes, Acts, Emergency Decrees, Royal Decrees, or Ministerial Regulations —
+    // NEVER to DG Notifications (`ประกาศ...`), Departmental Orders (`คำสั่ง...`), or Regulations (`ระเบียบ...`), which use `ข้อ`!
+    const govTailMatch = crossedCommaSeparator
+      ? tail.match(
+          /^\s*(?:แห่ง|ตาม|ของ|ใน)\s*(ประมวล\s*รัษฎากร|พระราชกฤษฎีกา|พ\.ร\.ฎ\.|ประมวลกฎหมายแพ่งและพาณิชย์|ป\.พ\.พ\.|ประมวลกฎหมายที่ดิน|ประมวลกฎหมายอาญา|ประมวลกฎหมายวิธีพิจารณา[^\s,;]{0,40}|พระราชบัญญัติ|พ\.ร\.บ\.|พระราชกำหนด|พ\.ร\.ก\.|กฎกระทรวง)/u
+        )
+      : tail.match(
+          /^\s*(?:แห่ง|ตาม|ของ|ใน)?\s*(ประมวล\s*รัษฎากร|พระราชกฤษฎีกา|พ\.ร\.ฎ\.|ประมวลกฎหมายแพ่งและพาณิชย์|ป\.พ\.พ\.|ประมวลกฎหมายที่ดิน|ประมวลกฎหมายอาญา|ประมวลกฎหมายวิธีพิจารณา[^\s,;]{0,40}|พระราชบัญญัติ|พ\.ร\.บ\.|พระราชกำหนด|พ\.ร\.ก\.|กฎกระทรวง)/u
+        );
     let govHead = govTailMatch ? govTailMatch[1].replace(/\s+/g, "") : null;
 
     if (!govHead) {
@@ -575,6 +625,11 @@ export function extractCitedRevenueCodeAndSubRegulations(
   }
 
   for (const [baseSec, cleanLabel] of finalRcSecs.entries()) {
+    if (sicTypoBaseSecs.has(baseSec)) {
+      // Verified source typo in official RD text (e.g. `มาตรา 46 ทวิ` [sic] for `มาตรา 49 ทวิ` in LSC-05):
+      // do not convert an official typo into a bogus quarantined statute citation.
+      continue;
+    }
     const normKey = `prov.th.rc.${baseSec}`;
     if (isVerifiedTarget(normKey)) {
       deps.set(normKey, {
@@ -870,9 +925,7 @@ export async function extractB01(input: ProfileInput): Promise<ProfileResult> {
         structural_selector_prefix: "article > section.requester-facts",
         header_label: headerLabel,
         structural_path_prefix: [normLetterNo || workId, "ข้อเท็จจริงและประเด็นหารือของผู้เสียภาษี"],
-        raw_text: parsedFacts.proposed_treatment
-          ? `${parsedFacts.facts}\n[ข้อเสนอของผู้หารือ: ${parsedFacts.proposed_treatment}]`
-          : parsedFacts.facts,
+        raw_text: parsedFacts.facts,
         statement_role: parsedFacts.proposed_treatment
           ? "requester_proposed_treatment"
           : "requester_facts",

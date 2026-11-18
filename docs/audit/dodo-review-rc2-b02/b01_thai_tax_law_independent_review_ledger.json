@@ -1,9 +1,9 @@
 {
   "schema_version": "reg24.b01_owner_legal_review_ledger.v2",
-  "updated_at": "2026-11-17T17:06:14.130Z",
+  "updated_at": "2026-11-18T00:28:24.502Z",
   "release_id": "rel.B01.rc5",
-  "manifest_id": "mfst.b01.mwjgk5o7",
-  "manifest_hash": "c63bd81e8face7ea5b00fa93905522f52c815f7d75d1cd5007ca29ddea8174a4",
+  "manifest_id": "mfst.b01.mwldatea",
+  "manifest_hash": "ec73d84b9d133bac700e672f6c4a7742e9fdb7cfd1d99b1c0c532330eab4734f",
   "review_governance": {
     "review_authority": "PRODUCT_OWNER_AND_INTERNAL_LEGAL_TEAM",
     "external_counsel_engagement_authorized": false,
@@ -11,10 +11,10 @@
   },
   "summary": {
     "total_cases": 30,
-    "reviewed_pass": 0,
-    "reviewed_needs_correction": 0,
-    "reviewed_exclude_from_trial": 0,
-    "pending_review": 30
+    "initial_memo_pass_at_fdd4feb": 19,
+    "initial_memo_needs_correction_remediated_in_rc5": 10,
+    "excluded_suppressed_from_trial": 1,
+    "final_owner_legal_acceptance_pending": 29
   },
   "cases": [
     {
@@ -38,13 +38,13 @@
         },
         {
           "official_identifier": "กค 0702/1494",
-          "statement_role": "requester_facts",
+          "statement_role": "official_conclusion",
           "origin_uri": "https://www.rd.go.th/68536.html"
         },
         {
-          "official_identifier": "กค 0702/1494",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/68536.html"
+          "official_identifier": "มาตรา 47 ทวิ",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
         },
         {
           "official_identifier": "มาตรา 47 ทวิ",
@@ -58,12 +58,12 @@
         }
       ],
       "legal_check_focus": "Requester facts (estate filing P.N.D.90) separated from complete 3-point Section 47 bis & Section 48 RD conclusion.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Applied non-blocking polish: S-1 citation gate (LSC-08, LSC-17), HTML header strip (LSC-01, LSC-03), plain-Thai quarantine UX (S-7), and >10-year ruling currency advisory (LSC-09, LSC-10)."
     },
     {
       "spotcheck_id": "LSC-02",
@@ -86,12 +86,12 @@
         }
       ],
       "legal_check_focus": "Animal feed supplement importer facts separated from Section 81(2)(ก) juncto Section 81(1)(ง) VAT import exemption conclusion (subject to Department of Livestock Development animal-feed certification).",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-03",
@@ -114,12 +114,12 @@
         }
       ],
       "legal_check_focus": "96.5% gold jewelry import facts separated from non-exemption VAT conclusion.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Applied non-blocking polish: S-1 citation gate (LSC-08, LSC-17), HTML header strip (LSC-01, LSC-03), plain-Thai quarantine UX (S-7), and >10-year ruling currency advisory (LSC-09, LSC-10)."
     },
     {
       "spotcheck_id": "LSC-04",
@@ -152,12 +152,12 @@
         }
       ],
       "legal_check_focus": "Verify requester_facts != official_conclusion, all 4 numbered points rendered through Royal Decree 595 Section 4, and exact rd.go.th/65296.html URL.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-05",
@@ -180,12 +180,12 @@
         }
       ],
       "legal_check_focus": "Historical 0811 ruling separation of facts vs complete official conclusion.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Official RD HTML (rd.go.th/23767.html) contains a source typo ('มาตรา 46 ทวิ' where context/header is 'มาตรา 49 ทวิ'); @fdd4feb converted the typo into a quarantined citation.",
+      "remediation_applied": "Preserved verbatim RD text untouched, added explicit [sic] source-typo disclosure pointing to มาตรา 49 ทวิ, and eliminated the bogus quarantined 'มาตรา 46 ทวิ' record."
     },
     {
       "spotcheck_id": "LSC-06",
@@ -208,12 +208,12 @@
         }
       ],
       "legal_check_focus": "EV motorcycle subsidy & dealer-rebate facts separated from 2-point VAT (Sections 79, 79(1), 82/10(1)) and CIT exemption (Royal Decree 773 Section 3, quarantined external decree disclosed) conclusion.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-07",
@@ -233,35 +233,15 @@
           "official_identifier": "กค 0811/13980",
           "statement_role": "requester_facts",
           "origin_uri": "https://www.rd.go.th/22874.html"
-        },
-        {
-          "official_identifier": "กค 0706/5686",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/35488.html"
-        },
-        {
-          "official_identifier": "กค 0706/2531",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/28989.html"
-        },
-        {
-          "official_identifier": "กค 0706/10677",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/30666.html"
-        },
-        {
-          "official_identifier": "กค 0706/พ./3340",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/29000.html"
         }
       ],
       "legal_check_focus": "Confirm Royal Decree 244 Section 3(5) is linked (not Revenue Code Section 3).",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Question asks about an 'income-tax exemption under RD 244 s.3(5)' (false premise — RD 244 s.3(5) brings commercial sale / ขายฝาก into Specific Business Tax), and @fdd4feb listed 4 unrelated secondary rulings in Cited Original Sources.",
+      "remediation_applied": "Added explicit S-3 premise correction clarifying RD 244 s.3(5) subjects commercial sale / ขายฝาก to Specific Business Tax (s.91/2(6)) + CIT (s.65), and S-1 Citation Gate removed all 4 unused rulings."
     },
     {
       "spotcheck_id": "LSC-08",
@@ -279,37 +259,17 @@
         },
         {
           "official_identifier": "กค 0702/1248",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/52540.html"
-        },
-        {
-          "official_identifier": "กค 0702/1248",
           "statement_role": "requester_facts",
           "origin_uri": "https://www.rd.go.th/68464.html"
-        },
-        {
-          "official_identifier": "กค 0702/1248",
-          "statement_role": "requester_facts",
-          "origin_uri": "https://www.rd.go.th/52540.html"
-        },
-        {
-          "official_identifier": "กค 0811/11384",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/23139.html"
-        },
-        {
-          "official_identifier": "กค 0702/8847",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/49011.html"
         }
       ],
       "legal_check_focus": "Numeric precision (1,470,993,502.74) and Departmental Instructions ท.ป. 1/2528 & ท.ป. 299/2561.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Applied non-blocking polish: S-1 citation gate (LSC-08, LSC-17), HTML header strip (LSC-01, LSC-03), plain-Thai quarantine UX (S-7), and >10-year ruling currency advisory (LSC-09, LSC-10)."
     },
     {
       "spotcheck_id": "LSC-09",
@@ -332,12 +292,12 @@
         }
       ],
       "legal_check_focus": "Verify subordinate Royal Decree / Ministerial Regulation references.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Applied non-blocking polish: S-1 citation gate (LSC-08, LSC-17), HTML header strip (LSC-01, LSC-03), plain-Thai quarantine UX (S-7), and >10-year ruling currency advisory (LSC-09, LSC-10)."
     },
     {
       "spotcheck_id": "LSC-10",
@@ -360,12 +320,12 @@
         }
       ],
       "legal_check_focus": "Mandatory insurance business separation (life vs. non-life) CIT net-profit computation under Sections 65, 65 bis, and 65 ter.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Applied non-blocking polish: S-1 citation gate (LSC-08, LSC-17), HTML header strip (LSC-01, LSC-03), plain-Thai quarantine UX (S-7), and >10-year ruling currency advisory (LSC-09, LSC-10)."
     },
     {
       "spotcheck_id": "LSC-11",
@@ -395,25 +355,15 @@
           "official_identifier": "กค 0702/1903",
           "statement_role": "requester_facts",
           "origin_uri": "https://www.rd.go.th/68482.html"
-        },
-        {
-          "official_identifier": "กค 0811/6874",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/25378.html"
-        },
-        {
-          "official_identifier": "กค 0811/3094",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/25084.html"
         }
       ],
       "legal_check_focus": "Side-by-side comparison preserves negation (ได้รับยกเว้น vs ไม่ได้รับยกเว้น).",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Question asks about 'การขาย' (sales) while both rulings concern 'การนำเข้า' (imports); @fdd4feb labeled rulings as statutory 'versions' with effective periods, omitted the comparison summary, and padded 2 unrelated rulings.",
+      "remediation_applied": "Added S-3 premise note ('การขาย' vs 'การนำเข้า'), added grounded comparison summary (animal feed import VAT-exempt if DLD-certified vs 96.5% gold jewellery import taxable on full import value), removed fake version intervals on rulings, stripped HTML header artefact on 0702/634, and enforced S-1 Citation Gate."
     },
     {
       "spotcheck_id": "LSC-12",
@@ -422,46 +372,15 @@
       "synthetic_test_label_th": null,
       "question": "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
       "applicable_date": "2018-06-30",
-      "observed_status": "ANSWERED",
-      "primary_citations": [
-        {
-          "official_identifier": "มาตรา 65 ตรี",
-          "statement_role": "statutory_text",
-          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
-        },
-        {
-          "official_identifier": "มาตรา 65 ตรี",
-          "statement_role": "statutory_text",
-          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
-        },
-        {
-          "official_identifier": "กค 0811/15738",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/23261.html"
-        },
-        {
-          "official_identifier": "0811(กม.02)/931",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/23965.html"
-        },
-        {
-          "official_identifier": "กค 0811/3075",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/23902.html"
-        },
-        {
-          "official_identifier": "กค 0811/13980",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/22874.html"
-        }
-      ],
-      "legal_check_focus": "Point-in-time version selection before 2019 amendment.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
-      "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "primary_citations": [],
+      "legal_check_focus": "Suppresses unverified pre-amendment historical version (`INSUFFICIENT_EVIDENCE` — never reconstructs historical law from current consolidated text) and warns to check actual accounting-period start date (`>= 1 ม.ค. 2561` under Act No. 51 B.E. 2562).",
+      "review_status": "EXCLUDED_SUPPRESSED_PENDING_ROYAL_GAZETTE",
+      "verdict": "EXCLUDE_FROM_TRIAL",
+      "reviewer_name": "Dodo & Internal Partner-Standard Review Memo (initial @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Saved @fdd4feb answer fabricated a pre-20 Mar 2562 version of s.65 ตรี from current consolidated text (including s.65 ตรี(3)(ก) political-party donation deduction under Act No. 51 B.E. 2562, which applies only to accounting periods beginning on or after 1 Jan 2561).",
+      "remediation_applied": "Removed fabricated v1_pre2019 version completely; REG24 now suppresses unverified historical statutory answers (INSUFFICIENT_EVIDENCE, 0 citations) and explicitly warns to verify the accounting period's actual start date rather than assuming from the end date."
     },
     {
       "spotcheck_id": "LSC-13",
@@ -483,33 +402,33 @@
           "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
         },
         {
-          "official_identifier": "กค 0811/15738",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/23261.html"
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
         },
         {
-          "official_identifier": "0811(กม.02)/931",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/23965.html"
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
         },
         {
-          "official_identifier": "กค 0811/3075",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/23902.html"
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
         },
         {
-          "official_identifier": "0702/6493",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/60865.html"
+          "official_identifier": "มาตรา 65 ตรี",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
         }
       ],
       "legal_check_focus": "Point-in-time version selection after 2019 amendment.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Dated current s.65 ตรี from 2019-03-20, falsely attributed it partly to Act No. 48, recited statute without operative summary, and padded 4 unused rulings.",
+      "remediation_applied": "Removed false 2019-03-20 / Act No. 48 metadata, labeled honestly as current consolidated rd.go.th text (noting Act No. 51 B.E. 2562 for (3) applies to accounting periods starting >= 1 Jan 2561), added grounded operative summary, and enforced S-1 Citation Gate."
     },
     {
       "spotcheck_id": "LSC-14",
@@ -536,28 +455,18 @@
           "origin_uri": "https://www.rd.go.th/31015.html"
         },
         {
-          "official_identifier": "กค 0706/4588",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/24745.html"
-        },
-        {
-          "official_identifier": "กค 0706/1926",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/31010.html"
-        },
-        {
-          "official_identifier": "กค 0702/1683",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/64956.html"
+          "official_identifier": "มาตรา 47 ทวิ",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5937.html#mata47_2"
         }
       ],
       "legal_check_focus": "Section 47 bis statutory text & ruling alignment.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Labeled amended s.47 ทวิ as 'พระราชบัญญัติ... พ.ศ. 2481 (ใช้บังคับ 1 เมษายน 2482)', lacked operative summary, and padded 3 unused rulings beyond กค 0706/2156.",
+      "remediation_applied": "Replaced misleading 2482 whole-section date header with honest consolidated rd.go.th statute status banner, added grounded s.47 ทวิ dividend credit summary, and kept only rendered sources (มาตรา 47 ทวิ & กค 0706/2156)."
     },
     {
       "spotcheck_id": "LSC-15",
@@ -577,35 +486,15 @@
           "official_identifier": "มาตรา 70",
           "statement_role": "statutory_text",
           "origin_uri": "https://www.rd.go.th/5939.html#mata70"
-        },
-        {
-          "official_identifier": "กค 0706/6478",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/32696.html"
-        },
-        {
-          "official_identifier": "กค 0706/392",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/28754.html"
-        },
-        {
-          "official_identifier": "กค 0706/10491",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/36190.html"
-        },
-        {
-          "official_identifier": "กค 0706/5353",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/24694.html"
         }
       ],
       "legal_check_focus": "Cross-border Section 70 WHT scope & conditions.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Labeled amended s.70 as 'ใช้บังคับ 1 เมษายน 2482', recited statute without operative answer, and padded 4 unused rulings (including กค 0706/5353 @ rd.go.th/24694.html which timed out during reviewer check).",
+      "remediation_applied": "Replaced 2482 header with honest consolidated rd.go.th banner, added grounded s.70 cross-border WHT operative summary, removed all 4 unused secondary rulings via S-1 Citation Gate, and verified live that https://www.rd.go.th/24694.html opens (HTTP 200, กค 0706/5353 dated 12 มิถุนายน 2546 on s.70 ตรี)."
     },
     {
       "spotcheck_id": "LSC-16",
@@ -627,33 +516,18 @@
           "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
         },
         {
-          "official_identifier": "กค 0811/2797",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/25458.html"
-        },
-        {
-          "official_identifier": "กค 0706/9095",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/36090.html"
-        },
-        {
-          "official_identifier": "กค 0702/4274",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/43132.html"
-        },
-        {
-          "official_identifier": "กค 0811/6423",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/25393.html"
+          "official_identifier": "มาตรา 80/1",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
         }
       ],
       "legal_check_focus": "Zero-rate VAT Section 80/1 statutory conditions.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Dated all of s.80/1 to 28 Feb 2562 (Act No. 49's amendment date for item (5) only), recited statute without operative answer, and padded 4 unused rulings.",
+      "remediation_applied": "Replaced single-clause 28 Feb 2562 header with honest consolidated rd.go.th banner preserving paragraph-level amendment notes, added grounded 0% VAT operative summary, and enforced S-1 Citation Gate."
     },
     {
       "spotcheck_id": "LSC-17",
@@ -673,35 +547,15 @@
           "official_identifier": "กค 0702/1493",
           "statement_role": "requester_facts",
           "origin_uri": "https://www.rd.go.th/68494.html"
-        },
-        {
-          "official_identifier": "กค 0811/ก.704",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/24118.html"
-        },
-        {
-          "official_identifier": "กค 0702/3734",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/38810.html"
-        },
-        {
-          "official_identifier": "กค 0811/7827",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/25331.html"
-        },
-        {
-          "official_identifier": "0702/4194",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/26627.html"
         }
       ],
       "legal_check_focus": "Ruling กค 0702/1493 rendered from verified RD source while warning that Royal Decree 736 remains quarantined.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Applied non-blocking polish: S-1 citation gate (LSC-08, LSC-17), HTML header strip (LSC-01, LSC-03), plain-Thai quarantine UX (S-7), and >10-year ruling currency advisory (LSC-09, LSC-10)."
     },
     {
       "spotcheck_id": "LSC-18",
@@ -713,12 +567,12 @@
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "primary_citations": [],
       "legal_check_focus": "Direct statutory text request for quarantined Royal Decree 736 must abstain cleanly.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-19",
@@ -730,12 +584,12 @@
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "primary_citations": [],
       "legal_check_focus": "Direct statutory text request for quarantined Royal Decree 773 must abstain cleanly.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-20",
@@ -747,12 +601,12 @@
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "primary_citations": [],
       "legal_check_focus": "Direct statutory text request for unverified Royal Decree 750 must abstain cleanly.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-21",
@@ -770,27 +624,17 @@
         },
         {
           "official_identifier": "กค 0702/636",
-          "statement_role": "official_conclusion",
-          "origin_uri": "https://www.rd.go.th/46391.html"
-        },
-        {
-          "official_identifier": "กค 0702/636",
           "statement_role": "requester_facts",
           "origin_uri": "https://www.rd.go.th/68302.html"
-        },
-        {
-          "official_identifier": "กค 0702/636",
-          "statement_role": "requester_facts",
-          "origin_uri": "https://www.rd.go.th/46391.html"
         }
       ],
       "legal_check_focus": "Exact identifier lookup with full non-truncated 0% VAT conclusion.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-22",
@@ -813,12 +657,12 @@
         }
       ],
       "legal_check_focus": "Exact VAT service tax-point ruling lookup with complete conclusion.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-23",
@@ -838,20 +682,15 @@
           "official_identifier": "กค 0702/1255",
           "statement_role": "requester_proposed_treatment",
           "origin_uri": "https://www.rd.go.th/68530.html"
-        },
-        {
-          "official_identifier": "กค 0702/1255",
-          "statement_role": "requester_proposed_treatment",
-          "origin_uri": "https://www.rd.go.th/68530.html"
         }
       ],
       "legal_check_focus": "Exact 2569 CIT ruling lookup with complete multi-paragraph conclusion.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Facts contained PDF-OCR corruption ('ในส่วนที่เกินนี้ที่ที่ซื้จากมูลหนี้') and duplicated '[ข้อเสนอของผู้หารือ: ...]' paragraph.",
+      "remediation_applied": "Verified against live https://www.rd.go.th/68530.html HTML and corrected OCR corruption to exact official text ('ในส่วนที่เกินจากมูลหนี้'), and removed duplicate '[ข้อเสนอของผู้หารือ: ...]' block."
     },
     {
       "spotcheck_id": "LSC-24",
@@ -874,12 +713,12 @@
         }
       ],
       "legal_check_focus": "Special slash-prefix ruling identifier normalization (`กค 0706/พ./10877`).",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Rendered malformed quarantined provision 'มาตรา 82/10(3) แห่งประกาศอธิบดีกรมสรรพากร'.",
+      "remediation_applied": "Fixed S-6 canonical provision parser so 'มาตรา' never binds across commas or to Notifications/Orders/Regulations (eliminating all 317 malformed references store-wide); มาตรา 82/10(3) now links cleanly to ประมวลรัษฎากร and DG Notification VAT No. 82 is cited by its proper title."
     },
     {
       "spotcheck_id": "LSC-25",
@@ -901,18 +740,23 @@
           "origin_uri": "https://www.rd.go.th/25101.html"
         },
         {
-          "official_identifier": "กค 0811(กม.03)/366",
-          "statement_role": "requester_proposed_treatment",
-          "origin_uri": "https://www.rd.go.th/25101.html"
+          "official_identifier": "มาตรา 19",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5943.html#mata19"
+        },
+        {
+          "official_identifier": "มาตรา 19",
+          "statement_role": "statutory_text",
+          "origin_uri": "https://www.rd.go.th/5943.html#mata19"
         }
       ],
       "legal_check_focus": "Parenthetical bureau-code ruling lookup fidelity.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "REMEDIATED_READY_FOR_LEGAL_TEAM_REVERIFICATION",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "2545 document (กค 0811(กม.03)/366) states a flat 2-year summons period without the current Revenue Code s.19 proviso allowing the Director-General to extend up to 5 years; also is an internal Legal Affairs Bureau opinion (บันทึกกองกฎหมาย), not an external taxpayer ruling.",
+      "remediation_applied": "Preserved verbatim 2545 2-year quotation, labeled document accurately as บันทึกกองกฎหมาย, attached separately sourced verified มาตรา 19 (https://www.rd.go.th/5943.html#mata19), and added a clear legal distinction block stating the up-to-5-year Director-General extension for suspected tax evasion or tax-refund necessity."
     },
     {
       "spotcheck_id": "LSC-26",
@@ -924,12 +768,12 @@
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "primary_citations": [],
       "legal_check_focus": "Labour Protection Act (B05 scope) must abstain cleanly in B01 trial.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-27",
@@ -941,12 +785,12 @@
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "primary_citations": [],
       "legal_check_focus": "Criminal Code question must abstain cleanly in B01 trial.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-28",
@@ -958,12 +802,12 @@
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "primary_citations": [],
       "legal_check_focus": "Supreme Court Deka (B10 scope) must abstain cleanly in B01 trial.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-29",
@@ -975,12 +819,12 @@
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "primary_citations": [],
       "legal_check_focus": "Pure Customs tariff classification (B03 scope) without RD tax context must abstain.",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     },
     {
       "spotcheck_id": "LSC-30",
@@ -992,12 +836,12 @@
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "primary_citations": [],
       "legal_check_focus": "เลขสมมติสำหรับทดสอบ ไม่ใช่ข้อหารือจริง · ผลที่คาดหมาย: ไม่พบข้อมูล / หลักฐานไม่เพียงพอ (Synthetic negative test — must return INSUFFICIENT_EVIDENCE and never invent or substitute a ruling).",
-      "review_status": "PENDING_OWNER_LEGAL_TEAM",
+      "review_status": "MEMO_INITIAL_PASS_AWAITING_FINAL_OWNER_ACCEPTANCE",
       "verdict": null,
-      "reviewer_name": null,
-      "reviewed_at": null,
-      "legal_findings": null,
-      "remediation_applied": null
+      "reviewer_name": "Internal Partner-Standard Review Memo (starting-point review @ fdd4feb)",
+      "reviewed_at": "2026-11-18T00:00:00Z",
+      "legal_findings": "Initial memo verdict @ fdd4feb: PASS (core ruling number, date, facts, conclusion, homonym/abstention verified against official rd.go.th). Final acceptance reserved for Owner & legal team on live candidate.",
+      "remediation_applied": "Retested on latest build; verified unchanged PASS behavior."
     }
   ]
 }

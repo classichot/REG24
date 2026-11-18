@@ -1,18 +1,18 @@
 {
-  "verified_at": "2026-11-17T06:39:21.048Z",
+  "verified_at": "2026-11-18T00:26:59.372Z",
   "candidate_release_id": "rel.B01.rc5",
-  "manifest_id": "mfst.b01.mwjgk5o7",
-  "manifest_hash": "c63bd81e8face7ea5b00fa93905522f52c815f7d75d1cd5007ca29ddea8174a4",
+  "manifest_id": "mfst.b01.mwldatea",
+  "manifest_hash": "ec73d84b9d133bac700e672f6c4a7742e9fdb7cfd1d99b1c0c532330eab4734f",
   "evidence_classification_note": "The 28/28 metric below measures technical snapshot-vs-canonical retrieval parity and non-error response status ONLY; substantive Thai tax-law accuracy and completeness are verified separately against original rd.go.th / Gazette sources and require human Thai tax counsel sign-off.",
   "snapshot_graph_metrics": {
-    "node_count": 11624,
-    "edge_count": 43100,
+    "node_count": 11623,
+    "edge_count": 43114,
     "predicate_breakdown": {
       "ISSUED_BY": 4569,
       "ADDRESSES_ISSUE": 5882,
       "CONSIDERS_FACT_PATTERN": 4569,
-      "INTERPRETS": 12760,
-      "CITES": 12760,
+      "INTERPRETS": 12767,
+      "CITES": 12767,
       "HAS_CONDITION": 2201,
       "HAS_EXCEPTION": 359
     },
@@ -27,7 +27,7 @@
     "disk_snapshot_vs_canonical_top_hits_exact_match": "28/28",
     "evidence_card_edges_vs_cypher_adjacency_exact_match": "28/28",
     "verified_or_clean_abstention_rate": "28/28",
-    "avg_three_pass_test_bundle_ms": 525.53,
+    "avg_three_pass_test_bundle_ms": 569.87,
     "known_non_equivalences_vs_live_neo4j": [
       "Bounded to <=2-hop traversal (TaxRuling <-> Provision/SubordinateRegulation <-> co-interpreting TaxRuling); arbitrary >2-hop path queries (e.g. MATCH p=(a)-[*3..6]->(b)) require Cypher or multi-hop graph engine.",
       "No ad-hoc server-side Cypher analytical aggregations or GDS centrality across batches B01-B10.",
@@ -35,18 +35,18 @@
     ]
   },
   "rebuild_and_replay_benchmark": {
-    "cold_projection_rebuild_wall_clock_ms": 12851.69,
-    "rebuilt_edges_verified": 43100,
+    "cold_projection_rebuild_wall_clock_ms": 13367,
+    "rebuilt_edges_verified": 43114,
     "deterministic_triple_identity_verified": true,
     "cypher_unwind_500_batch_count": 87,
-    "local_cypher_batch_serialization_ms": 0.19,
+    "local_cypher_batch_serialization_ms": 0.15,
     "cloud_neo4j_network_ingestion_status": "UNTESTED_CLOUD_NETWORK_ESTIMATE — 67 parameterized UNWIND batches (33,366 edges) serialized locally; actual AuraDB Bolt network write time will be measured against an isolated target only after configuration approval (never against the preserved live REG24 graph)."
   },
   "disposable_rollback_verification": {
-    "rollback_wall_clock_ms": 3313.28,
+    "rollback_wall_clock_ms": 2938.76,
     "post_rollback_state": "ROLLED_BACK",
-    "b02_shared_primary_works_before": 570,
-    "b02_shared_primary_works_after": 570,
+    "b02_shared_primary_works_before": 568,
+    "b02_shared_primary_works_after": 568,
     "preserved_rc1_intact": true,
     "remaining_rc2_assertions_after_rollback": 0
   },

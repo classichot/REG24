@@ -1,5 +1,5 @@
 {
-  "evaluation_id": "eval.rel.B01.rc5.670338e2",
+  "evaluation_id": "eval.rel.B01.rc5.89780ead",
   "release_id": "rel.B01.rc5",
   "batch_id": "B01",
   "suite_id": "suite.B01.300families.v1.2",
@@ -15,30 +15,30 @@
     "graph_evidence_integrity": 1,
     "graph_semantic_precision": 1,
     "claim_support": 1,
-    "attempted_answer_correctness": 1,
-    "attempted_count": 90,
-    "answerable_holdout_count": 90,
-    "useful_answer_coverage": 1,
-    "abstention_count": 10,
+    "attempted_answer_correctness": 0.9882,
+    "attempted_count": 85,
+    "answerable_holdout_count": 85,
+    "useful_answer_coverage": 0.9882,
+    "abstention_count": 15,
     "prior_batch_regression_passed": true
   },
   "confidence_intervals_95": {
     "attempted_answer_correctness": [
-      0.9591,
-      1
+      0.9363,
+      0.9979
     ],
     "useful_answer_coverage": [
-      0.9591,
-      1
+      0.9363,
+      0.9979
     ],
     "evidence_recall_at_20": [
-      0.9591,
+      0.9568,
       1
     ]
   },
   "ablation_comparison": {
-    "exact_lexical_recall": 0.9667,
-    "hybrid_no_graph_recall": 0.9667,
+    "exact_lexical_recall": 0.9647,
+    "hybrid_no_graph_recall": 0.9647,
     "hybrid_with_graph_recall": 1,
     "graph_improves_or_preserves_accuracy": true
   },
@@ -50,7 +50,7 @@
     },
     "fact_pattern_ruling": {
       "total": 35,
-      "passed": 35,
+      "passed": 34,
       "recall_at_20": 1
     },
     "provision_to_ruling_graph": {
@@ -70,5 +70,5 @@
     }
   },
   "all_automated_gates_passed": true,
-  "evaluated_at": "2026-11-16T16:16:32.120Z"
+  "evaluated_at": "2026-11-18T00:24:26.884Z"
 }

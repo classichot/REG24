@@ -21,7 +21,8 @@ describe("Non-Provisioning Trial Prep: 30-Case Legal Spot-Check Pack & SQL Backu
     expect(pack.automated_guard_summary.zero_synthetic_ext_dep_across_all_30).toBe(true);
     expect(pack.automated_guard_summary.stratum_6_abstentions_passed).toBe(true);
     expect(pack.automated_guard_summary.stratum_4_direct_quarantine_abstentions_passed).toBe(true);
-    expect(pack.automated_guard_summary.all_22_answered_cases_render_complete_source_tail).toBe(
+    expect(pack.automated_guard_summary.lsc12_unverified_historical_statute_suppressed).toBe(true);
+    expect(pack.automated_guard_summary.all_answered_cases_render_complete_source_tail).toBe(
       true
     );
     expect(pack.automated_guard_summary.zero_cutoff_condition_bullets_across_all_30).toBe(true);

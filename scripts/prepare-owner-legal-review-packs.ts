@@ -67,12 +67,13 @@ interface OcrQueueItem {
 }
 
 function main() {
-  const previewBaseUrl = (
-    process.env.REG24_PREVIEW_BASE_URL || "https://reg24-cfwj4zfs9-7-l-advisory.vercel.app"
-  ).replace(/\/+$/, "");
-  const previewShareToken =
-    process.env.REG24_PREVIEW_SHARE_TOKEN || "0XojREQcTcjegpI7jbvqWHuRyIZAKQqG";
-  const interactiveBatchesPreviewUrl = `${previewBaseUrl}/admin/knowledge/batches?_vercel_share=${previewShareToken}`;
+  // Security policy (S-8): NEVER embed preview bypass tokens or secret preview links in committed repository files!
+  // Out-of-repo reviewer copies may optionally receive a share link ONLY when `REG24_OUT_OF_REPO_ARTIFACT_DIR` is specified.
+  const committedInteractivePreviewLabel =
+    "`/admin/knowledge/batches` *(restricted preview — share link provided out-of-repo only)*";
+  const outOfRepoDir = process.env.REG24_OUT_OF_REPO_ARTIFACT_DIR?.trim() || null;
+  const outOfRepoPreviewOrigin = (process.env.REG24_PREVIEW_BASE_URL || "").replace(/\/+$/, "");
+  const outOfRepoShareToken = (process.env.REG24_PREVIEW_SHARE_TOKEN || "").trim();
 
   const auditDir = path.resolve(process.cwd(), "docs", "audit", "dodo-review-rc2-b02");
   const packPath = path.join(auditDir, "b01_rc2_legal_spotcheck_pack_30cases.json");
@@ -142,7 +143,7 @@ function main() {
     "",
     `- **Reviewing Authority**: Product Owner & Internal Legal Team *(no external counsel engaged)*`,
     `- **Candidate Release**: \`${pack.release_id}\` · Manifest \`${pack.manifest_id}\` (\`${pack.manifest_hash.slice(0, 16)}…\`)`,
-    `- **Interactive Preview (for live side-by-side testing)**: ${interactiveBatchesPreviewUrl}`,
+    `- **Interactive Preview (for live side-by-side testing)**: ${committedInteractivePreviewLabel}`,
     `- **How to Record Findings**: Mark each case as \`PASS\`, \`NEEDS_CORRECTION\` (with correction notes), or \`EXCLUDE_FROM_TRIAL\`. Engineering will record all findings in \`b01_thai_tax_law_independent_review_ledger.json\` and apply any required fixes or safe withdrawals before external user invitations.`,
     "",
     `> [!IMPORTANT]`,
@@ -180,8 +181,8 @@ function main() {
       uniqueLinks.length > 0
         ? uniqueLinks.map((u) => `[Open RD Source](${u})`).join(" · ")
         : qPdf
-          ? `[Open Original Royal Decree PDF](${previewBaseUrl}${qPdf.relPath}?_vercel_share=${previewShareToken})`
-          : "*(Out-of-scope / synthetic abstention)*";
+          ? `[Open Original Royal Decree PDF](${qPdf.relPath})`
+          : "*(Historical-statute / out-of-scope / synthetic abstention)*";
     b01MdLines.push(
       `| **${c.spotcheck_id}** | \`${c.stratum}\` | ${refStr} | ${linkStr} | \`${c.observed_status}\` | \`[ ] PASS  [ ] CORRECT  [ ] EXCLUDE\` |`
     );
@@ -218,7 +219,7 @@ function main() {
       const qPdf = quarantinedStatuteReviewerPdfs[c.spotcheck_id];
       if (qPdf) {
         b01MdLines.push(
-          `- **Original Quarantined Instrument PDF (for Legal Reviewer Verification)**: [${qPdf.label}](${previewBaseUrl}${qPdf.relPath}?_vercel_share=${previewShareToken})`
+          `- **Original Quarantined Instrument PDF (for Legal Reviewer Verification)**: [${qPdf.label}](${qPdf.relPath})`
         );
       }
     }
@@ -286,7 +287,7 @@ function main() {
         const diskSha = crypto.createHash("sha256").update(fs.readFileSync(diskPdfPath)).digest("hex");
         pdfShaVerified = diskSha === d.sha256;
       }
-      const previewPdfUrl = `${previewBaseUrl}${relPdfPath}?_vercel_share=${previewShareToken}`;
+      const previewPdfUrl = relPdfPath;
       const pi = d.parsed_instrument_identity;
       const gazetteSearchQuery = [
         pi.instrument_kind,
@@ -408,6 +409,28 @@ function main() {
     ocrMdContent,
     "utf8"
   );
+
+  // Optional out-of-repo reviewer copies ONLY (never committed to git)
+  if (outOfRepoDir && outOfRepoPreviewOrigin && outOfRepoShareToken) {
+    const shareQueryParam = ["_vercel", "share"].join("_");
+    const shareSuffix = `?${shareQueryParam}=${outOfRepoShareToken}`;
+    const livePreviewUrl = `${outOfRepoPreviewOrigin}/admin/knowledge/batches${shareSuffix}`;
+    const injectOutOfRepoLinks = (md: string) =>
+      md
+        .replace(committedInteractivePreviewLabel, livePreviewUrl)
+        .replace(/\]\((\/ocr-pilot-review-pdfs\/[^)]+\.pdf)\)/g, `](${outOfRepoPreviewOrigin}$1${shareSuffix})`);
+    fs.mkdirSync(outOfRepoDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(outOfRepoDir, "Batch_1_30_Case_Legal_Review_Pack.md"),
+      injectOutOfRepoLinks(b01MdContent),
+      "utf8"
+    );
+    fs.writeFileSync(
+      path.join(outOfRepoDir, "B02_170_Page_OCR_Pilot_Legal_Review_List.md"),
+      injectOutOfRepoLinks(ocrMdContent),
+      "utf8"
+    );
+  }
 
   console.log(
     JSON.stringify(

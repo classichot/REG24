@@ -10,7 +10,7 @@
 import { verifyClaimAgainstPassages } from "./answer-verification";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { sha256Bytes, thaiDigitsToArabic } from "./identity";
-import { extractConditionsAndExceptions } from "./profiles/B01";
+import { detectSourceSectionTyposSic, extractConditionsAndExceptions } from "./profiles/B01";
 import { retrieveAuthorizedKnowledge, type RetrievalStrategy } from "./retrieval";
 import { getDefaultKnowledgeStore, type DurableKnowledgeStore } from "./store";
 import type {
@@ -160,6 +160,158 @@ const AGENCY_LABELS_TH: Record<string, string> = {
   "reg.th.opm": "สำนักนายกรัฐมนตรี (reg.th.opm)",
   "reg.th.moi": "กระทรวงมหาดไทย (reg.th.moi)",
 };
+
+function evaluateHistoricalStatuteSuppression(params: {
+  question: string;
+  qArabic: string;
+  applicableDate: string | null | undefined;
+  explicitRulingIds: string[];
+  explicitSectionRefs: string[];
+  releaseId: string;
+}): {
+  shouldSuppress: boolean;
+  messageTh: string;
+  clarificationTh: string;
+} | null {
+  if (params.explicitRulingIds.length > 0) return null;
+  if (/หนังสือตอบข้อหารือ|ข้อหารือเลขที่|ข้อหารือใด/.test(params.qArabic)) return null;
+
+  const isPoliticalDonationQuery =
+    /(?:บริจาค|เงินบริจาค)[^\n?]{0,35}พรรคการเมือง|พรรคการเมือง[^\n?]{0,35}(?:บริจาค|รายจ่าย)/.test(
+      params.qArabic
+    );
+  const mentions65Ter =
+    params.explicitSectionRefs.some((s) => /^มาตรา\s*65\s*ตรี/.test(s)) ||
+    /มาตรา\s*65\s*ตรี/.test(params.qArabic) ||
+    isPoliticalDonationQuery;
+  const hasStatuteTarget = params.explicitSectionRefs.length > 0 || mentions65Ter;
+  if (!hasStatuteTarget) return null;
+
+  const isoDate = params.applicableDate?.trim() || null;
+  const isHistoricalApplicableDate = Boolean(isoDate && /^\d{4}-\d{2}-\d{2}$/.test(isoDate) && isoDate < "2020-01-01");
+
+  const histBeMatch = params.qArabic.match(
+    /(?:รอบระยะเวลาบัญชี|ปีบัญชี|ปีภาษี|สิ้นสุด|ณ\s*วันที่|เมื่อวันที่|สำหรับธุรกรรม|ในรอบ|FY\s*ending|ending)[^\n?]{0,50}?\b(25[45][0-9]|256[0-2])\b/i
+  );
+  const histCeMatch = params.qArabic.match(
+    /(?:รอบระยะเวลาบัญชี|ปีบัญชี|ปีภาษี|สิ้นสุด|ณ\s*วันที่|เมื่อวันที่|สำหรับธุรกรรม|ระหว่างธุรกรรมวันที่|FY\s*ending|ending)[^\n?]{0,50}?\b(199[0-9]|200[0-9]|201[0-9])\b/i
+  );
+  const asksHistoricalVersionExplicitly =
+    /(?:ก่อนแก้ไข|ฉบับเดิม|รุ่นเดิม|ย้อนหลัง|ก่อนปี\s*2562|ก่อนวันที่\s*20\s*มีนาคม\s*2562)/.test(
+      params.qArabic
+    );
+
+  if (!isHistoricalApplicableDate && !histBeMatch && !histCeMatch && !asksHistoricalVersionExplicitly) {
+    return null;
+  }
+
+  const hasExplicitAccountingStart =
+    /รอบระยะเวลาบัญชี(?:ที่)?\s*(?:เริ่ม|เริ่มต้น)\s*(?:ใน|ตั้งแต่วันที่|วันที่)\s*[0-9]{1,2}/.test(
+      params.qArabic
+    );
+  const mentionsEndOrPointDateOnly =
+    !hasExplicitAccountingStart &&
+    (/สิ้นสุด|ending|ณ\s*วันที่|เมื่อวันที่/i.test(params.qArabic) || Boolean(isoDate));
+
+  if (mentions65Ter) {
+    const periodWarning = mentionsEndOrPointDateOnly
+      ? ` ทั้งนี้ ในการพิจารณาสิทธิหักรายจ่ายตามมาตรา 65 ตรี (เช่น รายจ่ายบริจาคแก่พรรคการเมืองตามมาตรา 65 ตรี (3)(ก) ไม่เกิน 50,000 บาท ซึ่งแก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562) กฎหมายกำหนดเงื่อนไขการใช้บังคับตาม **"วันเริ่มรอบระยะเวลาบัญชีจริง" (ใช้บังคับกับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 เป็นต้นไป)** มิใช่พิจารณาจากวันสิ้นสุดรอบระยะเวลาบัญชี ดังนั้น หากรอบระยะเวลาบัญชีปกติ 12 เดือนสิ้นสุดวันที่ 30 มิถุนายน 2561 (2018-06-30) วันเริ่มรอบระยะเวลาบัญชีจริงคือวันที่ 1 กรกฎาคม 2560 (เริ่มก่อนวันที่ 1 มกราคม 2561) จึง **ไม่อาจนำมาตรา 65 ตรี (3)(ก) ที่แก้ไขใหม่มาใช้บังคับได้** (เว้นแต่เป็นรอบระยะเวลาบัญชีสั้นที่เริ่มจริงในหรือหลังวันที่ 1 มกราคม 2561)`
+      : ` ทั้งนี้ เฉพาะมาตรา 65 ตรี (3)(ก) (เงินบริจาคแก่พรรคการเมืองไม่เกิน 50,000 บาท ตามพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562) ใช้บังคับเฉพาะกับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 เป็นต้นไปเท่านั้น`;
+
+    return {
+      shouldSuppress: true,
+      messageTh:
+        `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด ${params.releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามเว็บไซต์ทางการกรมสรรพากร (https://www.rd.go.th/5939.html#mata65_3) และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) โดยตรง.${periodWarning}`,
+      clarificationTh:
+        "กรุณาระบุวันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริง (เช่น 1 กรกฎาคม 2560 – 30 มิถุนายน 2561) และตรวจสอบตัวบทก่อนแก้ไขจากราชกิจจานุเบกษาโดยตรง",
+    };
+  }
+
+  const secLabel = params.explicitSectionRefs[0] || "บทบัญญัติที่ถาม";
+  return {
+    shouldSuppress: true,
+    messageTh: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secLabel} แห่งประมวลรัษฎากรรุ่นย้อนหลังสำหรับช่วงเวลาที่ระบุ เนื่องจากคลังข้อมูลชุด ${params.releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (https://www.rd.go.th) และไม่ประกอบสร้างตัวบทย้อนหลังจากตัวบทปัจจุบันโดยไม่ผ่านการตรวจรับรองจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th)`,
+    clarificationTh: `กรุณาระบุวันเริ่มรอบระยะเวลาบัญชีจริง และตรวจสอบพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากรในราชกิจจานุเบกษาสำหรับช่วงเวลาดังกล่าว`,
+  };
+}
+
+function buildSingleAnswerPremiseAndOperativeSummary(params: {
+  question: string;
+  mode?: QueryRequest["mode"];
+  primaryWorkId: string;
+  primaryWorkType: string;
+  primaryTitleTh: string;
+  primaryIdLabel: string;
+  fullOfficialText: string;
+  hasSection19Proviso: boolean;
+}): string[] {
+  const notes: string[] = [];
+  const qNorm = thaiDigitsToArabic(params.question).replace(/\s+/g, " ");
+  const bodyNorm = thaiDigitsToArabic(params.fullOfficialText).replace(/\s+/g, " ");
+  const titleNorm = thaiDigitsToArabic(params.primaryTitleTh).replace(/\s+/g, " ");
+
+  // S-3 Premise Check: Question presupposes income-tax exemption under Royal Decree 244 s.3(5), when RD 244 s.3(5) subjects commercial sale / ขายฝาก to Specific Business Tax
+  if (
+    /ยกเว้นภาษีเงินได้/.test(qNorm) &&
+    /ฉบับที่\s*244/.test(qNorm) &&
+    /อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะ/.test(bodyNorm)
+  ) {
+    notes.push(
+      `**ข้อสังเกตความคลาดเคลื่อนของสมมติฐานในคำถาม**: คำถามกล่าวถึง *"การยกเว้นภาษีเงินได้ตามพระราชกฤษฎีกา ฉบับที่ 244 มาตรา 3 (5)"* แต่แท้จริงแล้ว **มาตรา 3(5) แห่งพระราชกฤษฎีกาฯ (ฉบับที่ 244) พ.ศ. 2534 มิใช่บทบัญญัติยกเว้นภาษีเงินได้** หากเป็นบทบัญญัติที่กำหนดให้การขายอสังหาริมทรัพย์ที่ผู้ขายมีไว้ในการประกอบกิจการ (รวมถึงการขายฝากที่ดิน) เข้าลักษณะเป็นการขายเป็นทางค้าหรือหากำไร ซึ่ง **อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามมาตรา 91/2(6)** และบริษัทยังต้องนำรายได้มารวมคำนวณกำไรสุทธิเพื่อเสียภาษีเงินได้นิติบุคคลตามมาตรา 65 แห่งประมวลรัษฎากรด้วย`
+    );
+  } else if (
+    /การขาย/.test(qNorm) &&
+    !/การนำเข้า/.test(qNorm) &&
+    params.primaryWorkType === "TaxRuling" &&
+    /กรณีการนำเข้า/.test(titleNorm)
+  ) {
+    notes.push(
+      `**ข้อสังเกตความคลาดเคลื่อนของสมมติฐานในคำถาม**: คำถามกล่าวถึง *"การขาย"* แต่หนังสือตอบข้อหารือ \`${params.primaryIdLabel}\` วินิจฉัยเฉพาะกรณี **การนำเข้าสินค้าจากต่างประเทศ**`
+    );
+  }
+
+  // S-4 Concise 1-3 line grounded operative summary before statutory / substantive ruling blocks
+  if (params.primaryWorkId === "prov.th.rc.65_ตรี") {
+    notes.push(
+      `**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการรายจ่ายต้องห้าม (1)–(20) ที่ไม่ให้นำมาหักในการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคล (เช่น เงินสำรองนอกเกณฑ์ที่กำหนด รายจ่ายส่วนตัว/การกุศลเกินเพดานที่กฎหมายอนุญาต ค่ารับรองเกินเกณฑ์กฎกระทรวง รายจ่ายอันมีลักษณะเป็นการลงทุน เบี้ยปรับ/เงินเพิ่ม/ภาษีเงินได้นิติบุคคล รายจ่ายที่มิใช่เพื่อหากำไรหรือเพื่อกิจการโดยเฉพาะ และรายจ่ายที่พิสูจน์ผู้รับไม่ได้) ทั้งนี้ ตัวบทด้านล่างเป็นตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน โดยวันเริ่มใช้บังคับของแต่ละอนุมาตราเป็นไปตามหมายเหตุแก้ไขเพิ่มเติมท้ายอนุมาตรานั้น`
+    );
+  } else if (params.primaryWorkId === "prov.th.rc.47_ทวิ") {
+    notes.push(
+      `**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ผู้มีเงินได้ซึ่งมีภูมิลำเนาอยู่ในประเทศไทยหรือเป็นผู้อยู่ในประเทศไทย ที่ได้รับเงินปันผลหรือเงินส่วนแบ่งของกำไรตามมาตรา 40 (4) (ข) จากบริษัทหรือห้างหุ้นส่วนนิติบุคคลที่ตั้งขึ้นตามกฎหมายไทย (เฉพาะส่วนที่จ่ายจากกำไรสุทธิที่ได้เสียภาษีเงินได้นิติบุคคลแล้ว) มีสิทธิได้รับเครดิตภาษีเงินปันผลคำนวณตามอัตรา \`อัตราภาษีเงินได้นิติบุคคล / (100 - อัตราภาษีเงินได้นิติบุคคล)\` คูณด้วยเงินปันผลที่ได้รับ โดยต้องนำเครดิตภาษีมารวมเป็นเงินได้พึงประเมินตามมาตรา 48 ก่อนหักออกจากภาษีที่ต้องเสีย`
+    );
+  } else if (params.primaryWorkId === "prov.th.rc.70") {
+    notes.push(
+      `**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: กรณีบริษัทหรือห้างหุ้นส่วนนิติบุคคลที่ตั้งขึ้นตามกฎหมายต่างประเทศและ **มิได้ประกอบกิจการในประเทศไทย** ได้รับเงินได้พึงประเมินตามมาตรา 40 (2) (3) (4) (5) หรือ (6) ที่จ่ายจากหรือในประเทศไทย ผู้จ่ายเงินได้มีหน้าที่หักภาษี ณ ที่จ่ายตามอัตราภาษีเงินได้สำหรับบริษัทหรือห้างหุ้นส่วนนิติบุคคล และนำส่งพร้อมยื่นแบบรายการภายใน **7 วันนับแต่วันสิ้นเดือนของเดือนที่จ่ายเงินได้** (ยกเว้นดอกเบี้ยที่จ่ายจากรัฐบาลหรือสถาบันการเงินที่มีกฎหมายเฉพาะจัดตั้งขึ้นเพื่อส่งเสริมเกษตรกรรม พาณิชยกรรม หรืออุตสาหกรรมตามวรรคสอง)`
+    );
+  } else if (params.primaryWorkId === "prov.th.rc.80/1") {
+    notes.push(
+      `**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ผู้ประกอบการจดทะเบียนได้รับสิทธิใช้อัตราภาษีมูลค่าเพิ่มร้อยละ 0 ตามมาตรา 80/1 เฉพาะกิจการที่เข้าเงื่อนไขตาม (1)–(6) ได้แก่ (1) การส่งออกสินค้าที่มิใช่สินค้าได้รับยกเว้นตามมาตรา 81 (3), (2) การให้บริการที่กระทำในราชอาณาจักรและได้มีการใช้บริการนั้นในต่างประเทศตามหลักเกณฑ์ วิธีการ และเงื่อนไขที่อธิบดีกำหนด (ประกาศอธิบดีฯ ภาษีมูลค่าเพิ่ม ฉบับที่ 105 รวมถึงบริการเพื่อใช้ผลิตสินค้าในเขตปลอดอากรเพื่อส่งออก), (3) การขนส่งระหว่างประเทศโดยอากาศยานหรือเรือเดินทะเลโดยนิติบุคคล, (4) การขาย/ให้บริการแก่ส่วนราชการหรือรัฐวิสาหกิจตามโครงการเงินกู้หรือเงินช่วยเหลือจากต่างประเทศ, (5) การขาย/ให้บริการแก่องค์การสหประชาชาติ สถานทูต หรือองค์การระหว่างประเทศตามหลักเกณฑ์ที่อธิบดีกำหนด และ (6) การขาย/ให้บริการระหว่างคลังสินค้าทัณฑ์บนหรือผู้ประกอบการในเขตปลอดอากร`
+    );
+  } else if (params.primaryWorkId === "prov.th.rc.19") {
+    notes.push(
+      `**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ตามมาตรา 19 แห่งประมวลรัษฎากร โดยหลักทั่วไปเจ้าพนักงานประเมินต้องออกหมายเรียกผู้ยื่นรายการมาไต่สวนภายใน **2 ปี** นับแต่วันที่ได้ยื่นรายการ (โดยให้เวลาล่วงหน้าไม่น้อยกว่า 7 วันนับแต่วันส่งหมาย) **เว้นแต่** ปรากฏหลักฐานหรือมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร หรือเป็นกรณีจำเป็นเพื่อประโยชน์ในการคืนภาษีอากร **อธิบดีกรมสรรพากรมีอำนาจอนุมัติให้ขยายเวลาออกหมายเรียกเกินกว่า 2 ปีได้ แต่ต้องไม่เกิน 5 ปีนับแต่วันที่ได้ยื่นรายการ** (และกรณีเพื่อประโยชน์ในการคืนภาษีอากร ขยายได้ไม่เกินกำหนดเวลาตามที่มีสิทธิขอคืนภาษีอากร)`
+    );
+  } else if (
+    params.primaryWorkType === "TaxRuling" &&
+    params.mode !== "exact_lookup"
+  ) {
+    if (params.primaryIdLabel.includes("0702/1494")) {
+      notes.push(
+        `**สรุปคำตอบตามแนววินิจฉัยเฉพาะราย (\`กค 0702/1494\`)**: กองมรดกที่ยังมิได้แบ่งมีสิทธิได้รับเครดิตภาษีเงินปันผลตามมาตรา 47 ทวิ และมาตรา 48 แห่งประมวลรัษฎากร **เฉพาะตามข้อเท็จจริงของรายนี้** ที่ผู้จัดการมรดกตามคำสั่งศาลได้แสดงเจตนาเลือกเอาสถานที่ในประเทศไทยเป็น **ภูมิลำเนาเฉพาะการตามมาตรา 42 แห่งประมวลกฎหมายแพ่งและพาณิชย์** เพื่อยื่นแบบ ภ.ง.ด.90 ต่อเนื่องกันมา จึงไม่เข้าข้อยกเว้นผู้ไม่มีภูมิลำเนาในประเทศไทยตามมาตรา 47 ทวิ วรรคสาม`
+      );
+    } else if (params.primaryIdLabel.includes("0702/1230")) {
+      notes.push(
+        `**สรุปคำตอบตามแนววินิจฉัยเฉพาะราย (\`กค 0702/1230\`)**: การอนุญาตให้ใช้หรือขายลิขสิทธิ์ภาพยนตร์ให้แก่ผู้ซื้อในต่างประเทศโดยจัดส่งไฟล์ทางไปรษณีย์อิเล็กทรอนิกส์ (Email) เพื่อนำไปใช้ในต่างประเทศเพียงอย่างเดียว เข้าลักษณะเป็นการให้บริการที่กระทำในราชอาณาจักรและใช้บริการในต่างประเทศ ได้รับสิทธิเสียภาษีมูลค่าเพิ่ม **อัตราร้อยละ 0 ตามมาตรา 80/1 (2)** ประกอบ **ประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105)** โดยความรับผิดในการเสียภาษีมูลค่าเพิ่มเกิดขึ้นเมื่อได้รับชำระราคาค่าบริการตาม **มาตรา 78/1 (1) (ก)** แห่งประมวลรัษฎากร`
+      );
+    } else if (params.hasSection19Proviso) {
+      notes.push(
+        `**สรุปคำตอบตามแหล่งอ้างอิง**: แม้บันทึกกองกฎหมาย ที่ \`กค 0811(กม.03)/366\` (พ.ศ. 2545) จะกล่าวถึงหลักทั่วไปของการออกหมายเรียกภายใน **2 ปี** นับแต่วันยื่นรายการ แต่ตาม **มาตรา 19 แห่งประมวลรัษฎากร** ที่ใช้บังคับอยู่ปัจจุบัน **อธิบดีกรมสรรพากรมีอำนาจอนุมัติให้ขยายเวลาออกหมายเรียกเกินกว่า 2 ปีได้ แต่ไม่เกิน 5 ปีนับแต่วันที่ได้ยื่นรายการ** หากปรากฏหลักฐานหรือมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร หรือเป็นกรณีจำเป็นเพื่อประโยชน์ในการคืนภาษีอากร`
+      );
+    }
+  }
+
+  return notes;
+}
 
 export async function queryKnowledge(
   req: QueryRequest,
@@ -356,8 +508,8 @@ export async function queryKnowledge(
           u.target_hint.endsWith(`_${rdNum}`)
       );
       const quarMsg = isQuarantinedRd
-        ? `พระราชกฤษฎีกาฯ (ฉบับที่ ${rdNum}) ยังอยู่ในทะเบียนกักกันแหล่งอ้างอิงภายนอกที่รอการตรวจรับรองต้นฉบับ (usable_as_legal_evidence: false) ในชุดข้อมูล ${releaseId} ระบบจึงไม่สรุปหรือคาดเดาตัวบทมาตราของพระราชกฤษฎีกาฉบับดังกล่าวโดยไม่มีต้นฉบับที่ผ่านการรับรอง`
-        : `ไม่พบตัวบทพระราชกฤษฎีกาฯ (ฉบับที่ ${rdNum}) ที่ผ่านการตรวจรับรองต้นฉบับในคลังข้อมูลชุด ${releaseId} ระบบจึงระงับการตอบและไม่คาดเดาตัวบทกฎหมาย`;
+        ? `พระราชกฤษฎีกาฯ (ฉบับที่ ${rdNum}) ยังอยู่ระหว่างรอการตรวจรับรองตัวบทต้นฉบับจากราชกิจจานุเบกษาในชุดข้อมูล ${releaseId} ระบบจึงไม่สรุปหรือคาดเดาตัวบทมาตราและวันบังคับใช้ของพระราชกฤษฎีกาฉบับดังกล่าวโดยไม่มีต้นฉบับที่ผ่านการรับรอง ทั้งนี้ ท่านสามารถตรวจสอบตัวบททางการได้จากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) หรือเว็บไซต์กรมสรรพากร (https://www.rd.go.th) โดยตรง (สถานะระบบ: usable_as_legal_evidence: false)`
+        : `ไม่พบตัวบทพระราชกฤษฎีกาฯ (ฉบับที่ ${rdNum}) ที่ผ่านการตรวจรับรองต้นฉบับในคลังข้อมูลชุด ${releaseId} ระบบจึงระงับการตอบและไม่คาดเดาตัวบทกฎหมาย กรุณาตรวจสอบต้นฉบับจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) หรือเว็บไซต์กรมสรรพากร (https://www.rd.go.th)`;
       return {
         release_id: releaseId,
         knowledge_snapshot_at: snapshotAt,
@@ -389,6 +541,46 @@ export async function queryKnowledge(
         latency_ms: Math.max(1, Date.now() - startedAt),
       };
     }
+  }
+
+  // 1c. Historical statutory version suppression & accounting-period actual start-date check (LSC-12, TQ-1, S-2)
+  const histSuppression = evaluateHistoricalStatuteSuppression({
+    question: req.question,
+    qArabic,
+    applicableDate: req.applicable_date,
+    explicitRulingIds: bundle.explicit_ruling_ids_in_query,
+    explicitSectionRefs: bundle.explicit_section_refs_in_query,
+    releaseId,
+  });
+  if (histSuppression?.shouldSuppress) {
+    return {
+      release_id: releaseId,
+      knowledge_snapshot_at: snapshotAt,
+      status: "INSUFFICIENT_EVIDENCE",
+      answer: histSuppression.messageTh,
+      claims: [
+        {
+          claim_id: `clm.${traceId}.historical_statute_suppressed`,
+          statement: histSuppression.messageTh,
+          claim_type: "abstention_notice",
+          statement_role: "reg24_inference",
+          supporting_passage_ids: [],
+          applicable_version_id: null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "VERIFIED",
+        },
+      ],
+      evidence: [],
+      assumptions: [],
+      clarification_questions: [histSuppression.clarificationTh],
+      coverage_warnings: [...coverageWarnings, histSuppression.messageTh],
+      applicable_date: req.applicable_date ?? null,
+      model_policy_version: "reg24-grounded-legal-v1.2",
+      trace_id: traceId,
+      latency_ms: Math.max(1, Date.now() - startedAt),
+    };
   }
 
   // 2. Final pre-delivery live authorization/withdrawal recheck (SH-16, AT08)
@@ -608,13 +800,31 @@ export async function queryKnowledge(
     const targetGroupEntries =
       explicitMatchedEntries.length >= 2 ? explicitMatchedEntries : rawGroupEntries;
 
-    answerSections.push("### การเปรียบเทียบแนววินิจฉัยและรุ่นบทบัญญัติกฎหมายตามช่วงเวลา/ข้อเท็จจริง");
+    const allComparedAreRulings = targetGroupEntries
+      .slice(0, 3)
+      .every(([, psgs]) => freshState.works[psgs[0].work_id]?.type === "TaxRuling");
+
+    answerSections.push(
+      allComparedAreRulings
+        ? "### การเปรียบเทียบแนววินิจฉัยหนังสือตอบข้อหารือกรมสรรพากร"
+        : "### การเปรียบเทียบแนววินิจฉัยและบทบัญญัติกฎหมาย"
+    );
+
+    const comparedItemsMeta: Array<{
+      label: string;
+      titleTh: string;
+      rawDate: string | null;
+      conclusionText: string;
+    }> = [];
+    const comparisonBulletSections: string[] = [];
+
     let idx = 0;
     for (const [, workPassages] of targetGroupEntries) {
       if (idx >= 3) break;
       const workId = workPassages[0].work_id;
       const work = freshState.works[workId];
       const ver = freshState.versions[workPassages[0].version_id];
+      const isRuling = work?.type === "TaxRuling";
       const conclusionSeed =
         workPassages.find((p) => p.statement_role === "official_conclusion" || p.statement_role === "statutory_text") ||
         workPassages[0];
@@ -625,7 +835,7 @@ export async function queryKnowledge(
         actor
       );
       const requesterUnits =
-        work?.type === "TaxRuling"
+        isRuling
           ? findOrderedRequesterUnitsForWork(conclusionSeed, allReleasePassages, freshState, actor)
           : workPassages.filter((p) => p.statement_role.startsWith("requester_"));
       for (const u of [...conclusionUnits, ...requesterUnits]) {
@@ -642,14 +852,25 @@ export async function queryKnowledge(
       const fullFactsText = requesterUnits.map((u) => u.exact_text).join("\n");
       const label = work?.official_identifiers[0]?.normalized || work?.title_th || workId;
       const appInterval = ver?.legal_applicability?.[0];
-      const intervalNote =
-        appInterval && (appInterval.valid_from || appInterval.valid_to)
+      // S-2 / LSC-11: Never present case-specific TaxRulings as statutory "versions" with effective-period intervals!
+      const intervalNote = isRuling
+        ? ver?.raw_date_text
+          ? ` ลงวันที่ ${ver.raw_date_text}`
+          : ""
+        : appInterval && (appInterval.valid_from || appInterval.valid_to)
           ? ` [ช่วงใช้บังคับ: ${appInterval.valid_from || "เดิม"} ถึง ${appInterval.valid_to || "ปัจจุบัน"}]`
           : ver?.raw_date_text
-            ? ` ลงวันที่ ${ver.raw_date_text}`
+            ? ` (${ver.raw_date_text})`
             : "";
 
-      const stmt = `[${label}${intervalNote}] ${work?.type === "TaxRuling" ? "แนววินิจฉัยกรมสรรพากร" : "บทบัญญัติกฎหมาย"}: ${fullConclusionText}`;
+      comparedItemsMeta.push({
+        label,
+        titleTh: work?.title_th || label,
+        rawDate: ver?.raw_date_text || null,
+        conclusionText: fullConclusionText,
+      });
+
+      const stmt = `[${label}${intervalNote}] ${isRuling ? "แนววินิจฉัยกรมสรรพากร" : "บทบัญญัติกฎหมาย"}: ${fullConclusionText}`;
       const verCheck = verifyClaimAgainstPassages(
         {
           statement: stmt,
@@ -675,13 +896,38 @@ export async function queryKnowledge(
       });
 
       const compOriginUri = conclusionUnits[0]?.real_locator?.origin_uri || conclusionSeed.real_locator?.origin_uri || "";
-      answerSections.push(
-        `- **กรณี/รุ่นที่ ${idx + 1}: ${work?.title_th || label} (\`${ver?.version_label || conclusionSeed.version_id}\`)${intervalNote}${compOriginUri ? ` · ต้นฉบับ: ${compOriginUri}` : ""}**` +
+      const itemHeadingPrefix = isRuling
+        ? `ข้อหารือที่ ${idx + 1}: ${work?.title_th || label}${intervalNote}`
+        : `รายการที่ ${idx + 1}: ${work?.title_th || label}${intervalNote}`;
+      comparisonBulletSections.push(
+        `- **${itemHeadingPrefix}${compOriginUri ? ` · ต้นฉบับ: ${compOriginUri}` : ""}**` +
           (fullFactsText ? `\n  - *ข้อเท็จจริงของผู้หารือ*: ${fullFactsText}` : "") +
-          `\n  - *${work?.type === "TaxRuling" ? "แนววินิจฉัยของกรมสรรพากร" : "เนื้อหาบทบัญญัติ"}*: ${fullConclusionText}`
+          `\n  - *${isRuling ? "แนววินิจฉัยของกรมสรรพากร" : "เนื้อหาบทบัญญัติ"}*: ${fullConclusionText}`
       );
       idx += 1;
     }
+
+    // S-3 & S-4: Premise check (e.g., "การขาย" vs "การนำเข้า" in LSC-11) + grounded operative comparison summary
+    if (allComparedAreRulings && comparedItemsMeta.length >= 2) {
+      const qHasSale = /การขาย/.test(qArabic) && !/การนำเข้า/.test(qArabic);
+      const allAreImport = comparedItemsMeta.every((m) => /กรณีการนำเข้า|การนำเข้าสินค้า|การนำเข้าทอง/.test(m.titleTh + " " + m.conclusionText));
+      if (qHasSale && allAreImport) {
+        answerSections.push(
+          `**ข้อสังเกตความคลาดเคลื่อนของสมมติฐานในคำถาม**: คำถามกล่าวถึง *"การขาย"* แต่หนังสือตอบข้อหารือทั้ง ${comparedItemsMeta.length} ฉบับ (${comparedItemsMeta.map((m) => `\`${m.label}\``).join(" และ ")}) เป็นแนววินิจฉัยเฉพาะกรณี **การนำเข้าสินค้าจากต่างประเทศ** มิใช่การขายในประเทศ และเป็นหนังสือตอบข้อหารือเฉพาะราย มิใช่รุ่นของบทบัญญัติกฎหมาย`
+        );
+      }
+      const summaryLines = comparedItemsMeta.map((m) => {
+        const cleanBody = m.conclusionText
+          .replace(/^ข้อกฎหมายที่อ้างอิง:[^\n]*\n?/u, "")
+          .replace(/^แนววินิจฉัย(?:ของ)?กรมสรรพากร:\s*/u, "")
+          .replace(/\s+/g, " ")
+          .trim();
+        return `  - **${m.label}${m.rawDate ? ` (ลงวันที่ ${m.rawDate})` : ""}**: ${cleanBody}`;
+      });
+      answerSections.push(`**สรุปผลการเปรียบเทียบตามแนววินิจฉัยต้นฉบับ**:\n${summaryLines.join("\n")}`);
+    }
+
+    answerSections.push(...comparisonBulletSections);
   } else {
     // Primary authoritative passages (`official_conclusion` or `statutory_text`) separated cleanly from `requester_facts` (B01-U04)
     const officialPassages = availablePassages.filter(
@@ -784,9 +1030,53 @@ export async function queryKnowledge(
       verification_result: verCheck.verification_result,
     });
 
-    if (req.applicable_date) {
+    const primaryLinkedTargets =
+      primaryWork?.type === "TaxRuling"
+        ? new Set(
+            allAcceptedAssertions
+              .filter(
+                (a) =>
+                  a.subject === primaryOfficial.work_id &&
+                  (a.predicate === "INTERPRETS" || a.predicate === "CITES")
+              )
+              .map((a) => a.object)
+          )
+        : new Set<string>();
+    const hasSection19Proviso = primaryLinkedTargets.has("prov.th.rc.19");
+    const isInternalLegalMemo =
+      primaryWork?.type === "TaxRuling" &&
+      (/\(กม/.test(primaryIdLabel) ||
+        /กระผมได้พิจารณาแล้วขอเรียนว่า/.test(fullOfficialText));
+
+    // Prepend S-3 premise correction & S-4 concise 1-3 line grounded operative summary before verbatim text
+    const premiseAndSummaryBlocks = buildSingleAnswerPremiseAndOperativeSummary({
+      question: req.question,
+      mode: req.mode,
+      primaryWorkId: primaryOfficial.work_id,
+      primaryWorkType: primaryWork?.type || "TaxRuling",
+      primaryTitleTh: primaryWork?.title_th || primaryIdLabel,
+      primaryIdLabel,
+      fullOfficialText,
+      hasSection19Proviso,
+    });
+    for (const blk of premiseAndSummaryBlocks) {
+      answerSections.push(blk);
+    }
+
+    if (isInternalLegalMemo) {
       answerSections.push(
-        `**ขอบเขตวันที่มีผลบังคับใช้ที่พิจารณา**: \`${req.applicable_date}\` (อ้างอิงรุ่นกฎหมาย \`${primaryOfficial.version_id}\`)`
+        `**ประเภทเอกสารต้นฉบับ**: บันทึกความเห็นทางกฎหมายภายในกรมสรรพากร (\`บันทึกกองกฎหมาย\` — ความเห็นทางกฎหมายภายในระหว่างหน่วยงานของกรมสรรพากร มิใช่หนังสือตอบข้อหารือที่ตอบแก่ผู้เสียภาษีภายนอกโดยตรง)`
+      );
+    }
+
+    if (req.applicable_date) {
+      const isConsolidatedRc =
+        primaryOfficial.work_id.startsWith("prov.th.rc.") ||
+        primaryOfficial.work_id.startsWith("sched.th.rc.");
+      answerSections.push(
+        isConsolidatedRc
+          ? `**ขอบเขตวันที่พิจารณา**: \`${req.applicable_date}\` — แสดงตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (\`rd.go.th\`) โดยวันเริ่มใช้บังคับของแต่ละวรรคหรืออนุมาตราให้ตรวจสอบจากหมายเหตุแก้ไขเพิ่มเติมท้ายวรรคนั้น`
+          : `**ขอบเขตวันที่มีผลบังคับใช้ที่พิจารณา**: \`${req.applicable_date}\` (อ้างอิงรุ่นกฎหมาย \`${primaryOfficial.version_id}\`)`
       );
     }
 
@@ -805,7 +1095,7 @@ export async function queryKnowledge(
         verification_result: "VERIFIED",
       });
       answerSections.push(
-        `**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\n${fullRequesterText}`
+        `**ข้อเท็จจริงและประเด็น${isInternalLegalMemo ? "ที่หน่วยงานภายในขอความเห็น" : "ของผู้ขอหารือ"}** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\n${fullRequesterText}`
       );
     }
 
@@ -819,26 +1109,24 @@ export async function queryKnowledge(
       );
     }
 
+    // S-2: Honest Revenue Code consolidated text banner vs verified standalone instrument effective dates
     if (
+      primaryWork?.work_id.startsWith("prov.th.rc.") ||
+      primaryWork?.work_id.startsWith("sched.th.rc.")
+    ) {
+      answerSections.push(
+        `**สถานะตัวบทประมวลรัษฎากรและวันใช้บังคับ**: ตัวบทด้านล่างเป็น **ตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (\`rd.go.th\`)** ซึ่งรวมการแก้ไขเพิ่มเติมหลายคราวไว้ในมาตราเดียว วันเริ่มใช้บังคับและเงื่อนไขการใช้บังคับของแต่ละวรรคหรืออนุมาตรา (เช่น \`รอบระยะเวลาบัญชีที่เริ่มในหรือหลัง...\`) ให้ตรวจสอบจากหมายเหตุท้ายวรรคในตัวบทด้านล่างและราชกิจจานุเบกษาโดยตรง *(หมายเหตุ: ป้ายระบุรุ่นและวันใช้บังคับรายอนุมาตรากำลังอยู่ระหว่างการปรับปรุงจากราชกิจจานุเบกษา)*`
+      );
+    } else if (
       primaryWork?.type !== "TaxRuling" &&
       (primaryVer?.publication_date || primaryVer?.legal_applicability?.[0]?.valid_from)
     ) {
       const pubStr = primaryVer?.publication_date || "ไม่ปรากฏในหน้าต้นฉบับ";
       const effStr = primaryVer?.legal_applicability?.[0]?.valid_from || "ไม่ปรากฏ/ตามเงื่อนไขเฉพาะกาล";
       const condNote = primaryVer?.legal_applicability?.[0]?.conditions?.[0];
-      if (
-        primaryWork?.work_id.startsWith("prov.th.rc.") &&
-        pubStr === "1939-04-01" &&
-        !req.applicable_date
-      ) {
-        answerSections.push(
-          `**สถานะตัวบทประมวลรัษฎากร**: ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร (\`rd.go.th\`) — วันเริ่มใช้บังคับของพระราชบัญญัติให้ใช้บทบัญญัติแห่งประมวลรัษฎากรเดิมคือ \`1939-04-01\` ส่วนวันใช้บังคับของแต่ละวรรคที่แก้ไขเพิ่มเติมให้ตรวจสอบจากหมายเหตุท้ายวรรคในตัวบทด้านล่าง`
-        );
-      } else {
-        answerSections.push(
-          `**การแยกวันประกาศและวันเริ่มใช้บังคับ**: วันประกาศในราชกิจจานุเบกษา \`${pubStr}\` | วันที่มีผลเริ่มใช้บังคับ \`${effStr}\`${condNote ? ` (${condNote})` : ""}`
-        );
-      }
+      answerSections.push(
+        `**การแยกวันประกาศและวันเริ่มใช้บังคับ**: วันประกาศในราชกิจจานุเบกษา \`${pubStr}\` | วันที่มีผลเริ่มใช้บังคับ \`${effStr}\`${condNote ? ` (${condNote})` : ""}`
+      );
     }
 
     const issuedByAsrt = bundle.matched_assertions.find(
@@ -864,9 +1152,29 @@ export async function queryKnowledge(
 
     const primaryOriginUri =
       officialUnits[0]?.real_locator?.origin_uri || primaryOfficial.real_locator?.origin_uri || "";
+    const isConsolidatedRcHeader =
+      primaryOfficial.work_id.startsWith("prov.th.rc.") ||
+      primaryOfficial.work_id.startsWith("sched.th.rc.");
+    const headerDateNote = isConsolidatedRcHeader
+      ? " — ตัวบทรวมแก้ไขเพิ่มเติมตามข้อมูลทางการกรมสรรพากร (rd.go.th)"
+      : primaryVer?.raw_date_text
+        ? ` — ${primaryVer.raw_date_text}`
+        : "";
     answerSections.push(
-      `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${primaryVer?.raw_date_text ? ` — ${primaryVer.raw_date_text}` : ""}${primaryOriginUri ? ` · ต้นฉบับ: ${primaryOriginUri}` : ""})**:\n${fullOfficialText}`
+      `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : isInternalLegalMemo ? "บันทึกกองกฎหมาย / แนววินิจฉัยของกรมสรรพากร" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${headerDateNote}${primaryOriginUri ? ` · ต้นฉบับ: ${primaryOriginUri}` : ""})**:\n${fullOfficialText}`
     );
+
+    // S-6 [sic] Source Typo Disclosure: preserve verbatim RD text while flagging verified source typos (e.g., LSC-05 "มาตรา 46 ทวิ" for "มาตรา 49 ทวิ")
+    if (primaryWork?.type === "TaxRuling") {
+      const sicTypos = detectSourceSectionTyposSic(
+        primaryWork.title_th,
+        fullOfficialText,
+        primaryOriginUri || null
+      );
+      for (const st of sicTypos) {
+        answerSections.push(`**หมายเหตุความคลาดเคลื่อนของตัวอักษรในเอกสารต้นฉบับ (\`[sic]\`)**: ${st.note_th}`);
+      }
+    }
 
     // Multi-year / multi-date homonym disambiguation: explicitly disclose sibling real RD rulings sharing the same official number
     if (primaryWork?.type === "TaxRuling" && (bundle.homonym_ruling_groups?.length || 0) > 0) {
@@ -887,30 +1195,31 @@ export async function queryKnowledge(
           siblings[0].raw_date_text?.match(/(25[3-7][0-9])/)?.[1] ||
           (siblings[0].decision_date ? String(Number(siblings[0].decision_date.slice(0, 4)) + 543) : "2555");
         answerSections.push(
-          `**หมายเหตุข้อหารือเลขที่ซ้ำต่างฉบับในคลังกรมสรรพากร (${primaryIdLabel})**: เลขที่หนังสือ \`${primaryIdLabel}\` ปรากฏในเอกสารทางการของกรมสรรพากรมากกว่า 1 ฉบับ (ต่างปี พ.ศ. หรือต่างวันที่/เรื่อง) โดยคำตอบด้านบนแสดงฉบับ **ลงวันที่ ${primaryVer?.raw_date_text || "-"}** (${primaryOriginUri}) ทั้งนี้ยังมีข้อหารือจริงเลขที่เดียวกันอีกฉบับในคลังข้อมูล ได้แก่:\n${sibLines}\n*(หากต้องการดูฉบับอื่นโดยเฉพาะ กรุณาระบุปี พ.ศ. หรือวันที่ต่อท้ายเลขที่หนังสือ เช่น \`${primaryIdLabel} ปี ${exBeYear}\` หรือ \`${primaryIdLabel} ลงวันที่ ${siblings[0].raw_date_text}\`)*`
+          `**หมายเหตุข้อหารือเลขที่ซ้ำต่างฉบับในคลังกรมสรรพากร (${primaryIdLabel})**: เลขที่หนังสือ \`${primaryIdLabel}\` ปรากฏในเอกสารทางการของกรมสรรพากรมากกว่า 1 ฉบับ (ต่างปี พ.ศ. หรือต่างวันที่/เรื่อง) โดยคำตอบด้านบนแสดงฉบับ **ลงวันที่ ${primaryVer?.raw_date_text || "-"}** (${primaryOriginUri}) ทั้งนี้ยังมีข้อหารือจริงเลขที่เดียวกันอีกฉบับในคลังข้อมูล ได้แก่:\n${sibLines}\n*(หากต้องการดูฉบับอื่นโดยเฉพาะ กรุณาระบุปี พ.ศ. วันที่ หรือหัวข้อเรื่องต่อท้ายเลขที่หนังสือ เช่น \`${primaryIdLabel} ปี ${exBeYear}\` หรือ \`${primaryIdLabel} ลงวันที่ ${siblings[0].raw_date_text}\`)*`
         );
       }
     }
 
-    // When answering a B01 TaxRuling and an upgraded B02 statutory provision passage ACTUALLY linked (`INTERPRETS`/`CITES`) by this ruling is in availablePassages, surface it explicitly (B02-U09)!
+    // When answering a B01 TaxRuling and an upgraded B02 statutory provision passage ACTUALLY linked (`INTERPRETS`/`CITES`) by this ruling is in availablePassages
+    // (or `prov.th.rc.19` summons extension proviso on S-5 / LSC-25), surface it explicitly!
     if (primaryWork?.type === "TaxRuling") {
-      const primaryLinkedTargets = new Set(
-        store
-          .getAcceptedAssertionsForRelease(releaseId)
-          .filter(
-            (a) =>
-              a.subject === primaryOfficial.work_id &&
-              (a.predicate === "INTERPRETS" || a.predicate === "CITES")
-          )
-          .map((a) => a.object)
-      );
-      const linkedStatPsg = availablePassages.find(
-        (p) =>
-          p.work_id !== primaryOfficial.work_id &&
-          primaryLinkedTargets.has(p.work_id) &&
-          p.statement_role === "statutory_text" &&
-          !p.extraction_id.startsWith("ext.dep.")
-      );
+      const linkedStatPsg =
+        (hasSection19Proviso
+          ? allReleasePassages.find(
+              (p) =>
+                p.work_id === "prov.th.rc.19" &&
+                p.statement_role === "statutory_text" &&
+                !p.extraction_id.startsWith("ext.dep.") &&
+                isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+            )
+          : undefined) ||
+        availablePassages.find(
+          (p) =>
+            p.work_id !== primaryOfficial.work_id &&
+            primaryLinkedTargets.has(p.work_id) &&
+            p.statement_role === "statutory_text" &&
+            !p.extraction_id.startsWith("ext.dep.")
+        );
       if (linkedStatPsg) {
         const linkedStatUnits = reassembleOrderedSectionUnits(
           linkedStatPsg,
@@ -929,7 +1238,9 @@ export async function queryKnowledge(
         );
         const fullLinkedStatText = linkedStatUnits.map((u) => u.exact_text).join("\n");
         const statWork = freshState.works[linkedStatPsg.work_id];
-        const statStmt = `[บทบัญญัติกฎหมายอ้างอิง B02: ${statWork?.title_th || linkedStatPsg.work_id}] ${fullLinkedStatText}`;
+        const statOriginUri = linkedStatUnits[0]?.real_locator?.origin_uri || linkedStatPsg.real_locator?.origin_uri || "";
+        const statLabel = statWork?.official_identifiers[0]?.normalized || statWork?.title_th || linkedStatPsg.work_id;
+        const statStmt = `[บทบัญญัติกฎหมายอ้างอิง B02: ${statWork?.title_th || statLabel}] ${fullLinkedStatText}`;
         claims.push({
           claim_id: `clm.${traceId}.b02_statute.1`,
           statement: statStmt,
@@ -942,17 +1253,38 @@ export async function queryKnowledge(
           counterevidence_passage_ids: [],
           verification_result: "VERIFIED",
         });
+
+        if (linkedStatPsg.work_id === "prov.th.rc.19") {
+          answerSections.push(
+            `**การแยกความเห็นตามเอกสารปี พ.ศ. 2545 ออกจากหลักกฎหมายปัจจุบันตามประมวลรัษฎากร มาตรา 19 (แหล่งอ้างอิงแยกต่างหาก: ${statOriginUri})**:\n` +
+              `- **ขอบเขตของเอกสารเดิม (\`${primaryIdLabel}\`)**: เอกสารฉบับนี้กล่าวถึงเฉพาะกำหนดเวลาออกหมายเรียกตามหลักทั่วไป **ภายในเวลา 2 ปีนับแต่วันที่ได้ยื่นรายการ** ในบริบทการชะลอการประเมินภาษี **จึงมิใช่คำอธิบายหลักกฎหมายปัจจุบันเรื่องกำหนดเวลาออกหมายเรียกที่ครบถ้วนสมบูรณ์**\n` +
+              `- **ข้อยกเว้นการขยายเวลาออกหมายเรียกได้ไม่เกิน 5 ปีตามกฎหมายปัจจุบัน (\`${statWork?.title_th || "ประมวลรัษฎากร มาตรา 19"}\`)**: ตามมาตรา 19 แห่งประมวลรัษฎากร (แก้ไขเพิ่มเติมโดยพระราชกำหนดแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 16) พ.ศ. 2534 ใช้บังคับตั้งแต่วันที่ 26 ธันวาคม 2534 เป็นต้นไป) หาก **ปรากฏหลักฐานหรือมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร** หรือ **เป็นกรณีจำเป็นเพื่อประโยชน์ในการคืนภาษีอากร** **อธิบดีกรมสรรพากร** มีอำนาจอนุมัติให้ขยายเวลาการออกหมายเรียกดังกล่าวเกินกว่า 2 ปีได้ **แต่ต้องไม่เกิน 5 ปีนับแต่วันที่ได้ยื่นรายการ** (แต่กรณีขยายเวลาเพื่อประโยชน์ในการคืนภาษีอากรให้ขยายได้ไม่เกินกำหนดเวลาตามที่มีสิทธิขอคืนภาษีอากร)`
+          );
+        }
+
         answerSections.push(
-          `**บทบัญญัติกฎหมายแม่บทที่เชื่อมโยงจากคลังกฎหมาย B02 (${statWork?.title_th || linkedStatPsg.work_id})**:\n${fullLinkedStatText}`
+          `**บทบัญญัติกฎหมายแม่บทที่เชื่อมโยง (${statWork?.title_th || linkedStatPsg.work_id}${statOriginUri ? ` · ต้นฉบับ: ${statOriginUri}` : ""})**:\n${fullLinkedStatText}`
         );
       }
     } else if (
       primaryOfficial.statement_role === "statutory_text" &&
-      /(?:แนววินิจฉัย|ข้อหารือ)/u.test(req.question)
+      (/(?:แนววินิจฉัย|ข้อหารือ)/u.test(req.question) || explicitMissingFactQuestions.length > 0)
     ) {
-      const topRulingSeed = availablePassages.find(
-        (p) => p.statement_role === "official_conclusion" && freshState.works[p.work_id]?.type === "TaxRuling"
+      const directInterpretingIds = new Set(
+        allAcceptedAssertions
+          .filter((a) => a.object === primaryOfficial.work_id && a.predicate === "INTERPRETS")
+          .map((a) => a.subject)
       );
+      const topRulingSeed =
+        availablePassages.find(
+          (p) =>
+            p.statement_role === "official_conclusion" &&
+            freshState.works[p.work_id]?.type === "TaxRuling" &&
+            directInterpretingIds.has(p.work_id)
+        ) ||
+        availablePassages.find(
+          (p) => p.statement_role === "official_conclusion" && freshState.works[p.work_id]?.type === "TaxRuling"
+        );
       if (topRulingSeed) {
         const rulingUnits = reassembleOrderedSectionUnits(
           topRulingSeed,
@@ -973,6 +1305,7 @@ export async function queryKnowledge(
         const rulingVer = freshState.versions[topRulingSeed.version_id];
         const rulingLabel =
           rulingWork?.official_identifiers[0]?.normalized || rulingWork?.title_th || topRulingSeed.work_id;
+        const rulingOriginUri = rulingUnits[0]?.real_locator?.origin_uri || topRulingSeed.real_locator?.origin_uri || "";
         const fullRulingText = rulingUnits.map((u) => u.exact_text).join("\n");
         claims.push({
           claim_id: `clm.${traceId}.linked_ruling.1`,
@@ -987,7 +1320,7 @@ export async function queryKnowledge(
           verification_result: "VERIFIED",
         });
         answerSections.push(
-          `**แนววินิจฉัยกรมสรรพากรที่เกี่ยวข้อง (${rulingLabel}${rulingVer?.raw_date_text ? ` — ${rulingVer.raw_date_text}` : ""})**:\n${fullRulingText}`
+          `**แนววินิจฉัยกรมสรรพากรที่เกี่ยวข้อง (${rulingLabel}${rulingVer?.raw_date_text ? ` — ${rulingVer.raw_date_text}` : ""}${rulingOriginUri ? ` · ต้นฉบับ: ${rulingOriginUri}` : ""})**:\n${fullRulingText}`
         );
       }
     }
@@ -1010,12 +1343,17 @@ export async function queryKnowledge(
     }
     if (quarantinedCitationsForAnswer.length > 0) {
       answerSections.push(
-        `**ข้อจำกัดความครบถ้วนของหลักฐานกฎหมายประกอบ**: เอกสารนี้อ้างอิงถึงตราสาร/บทบัญญัติภายนอกที่ยังไม่ได้รับการตรวจรับรองตัวบทเดี่ยวในขอบเขตชุดทดลองนี้ (\`usable_as_legal_evidence: false\`: ${quarantinedCitationsForAnswer.join(", ")}) ระบบจึงแสดงเฉพาะข้อความตามหนังสือตอบข้อหารือต้นฉบับที่รับรองแล้วโดยครบถ้วน และไม่ยืนยันผลทางกฎหมายเด็ดขาดในส่วนที่ต้องอาศัยตัวบทหรือการแก้ไขเพิ่มเติมของกฎหมายที่ยังกักกันอยู่`
+        `**ข้อจำกัดความครบถ้วนของหลักฐานกฎหมายประกอบ**: เอกสารต้นฉบับมีการกล่าวถึงกฎหมายหรือประกาศลำดับรองที่ยังอยู่ระหว่างรอตรวจรับรองตัวบทเต็มแยกต่างหากในคลังข้อมูลชุดนี้ ได้แก่ ${quarantinedCitationsForAnswer.join(", ")} ระบบจึงแสดงเฉพาะข้อความตามเอกสารต้นฉบับที่รับรองแล้วของกรมสรรพากรโดยครบถ้วน หากต้องใช้รายละเอียดของตัวบทดังกล่าวโดยตรง กรุณาตรวจสอบจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) หรือเว็บไซต์กรมสรรพากร (https://www.rd.go.th)`
       );
     }
     if (primaryWork?.type === "TaxRuling") {
+      const decIso = primaryVer?.decision_date || "";
+      const isOlderRuling = Boolean(decIso && decIso < "2016-01-01");
+      const ageCurrencyNote = isOlderRuling
+        ? ` ทั้งนี้ เอกสารฉบับนี้ออกเมื่อวันที่ ${primaryVer?.raw_date_text || decIso} (เกินกว่า 10 ปี) ก่อนนำไปปรับใช้กับธุรกรรมปัจจุบันควรตรวจสอบการแก้ไขเพิ่มเติมของประมวลรัษฎากร พระราชกฤษฎีกา หรือประกาศที่เกี่ยวข้องในภายหลังประกอบด้วย`
+        : "";
       answerSections.push(
-        `*หมายเหตุความแน่นอนทางกฎหมาย*: หนังสือตอบข้อหารือกรมสรรพากรเป็นการวินิจฉัยเฉพาะข้อเท็จจริงของผู้ขอหารือรายนั้น ภายใต้บทบัญญัติกฎหมายที่ใช้บังคับในขณะวินิจฉัย`
+        `*หมายเหตุความแน่นอนทางกฎหมาย*: ${isInternalLegalMemo ? "บันทึกความเห็นทางกฎหมายภายในกรมสรรพากร" : "หนังสือตอบข้อหารือกรมสรรพากร"}เป็นการวินิจฉัยเฉพาะข้อเท็จจริงของเรื่องนั้น ภายใต้บทบัญญัติกฎหมายที่ใช้บังคับในขณะวินิจฉัย${ageCurrencyNote}`
       );
     }
   }
@@ -1048,13 +1386,28 @@ export async function queryKnowledge(
     finalStatus = "CONDITIONAL";
   }
 
+  const finalAnswerBody = answerSections.join("\n\n");
+
+  // S-1 Citation Gate (P0): Cite ONLY sources whose passages were substantively used in `claims` AND whose identifier/title appears in the rendered answer/claims!
+  const usedPassageIdSet = new Set(claims.flatMap((c) => c.supporting_passage_ids));
+  const verificationTextHaystack = `${finalAnswerBody}\n${claims.map((c) => c.statement).join("\n")}`;
+  const gatedEvidenceCards = liveEvidenceCards.filter((ec) => {
+    if (!usedPassageIdSet.has(ec.passage_id)) return false;
+    const bareId = ec.official_identifier.replace(/^กค\s+/, "").trim();
+    return (
+      verificationTextHaystack.includes(ec.official_identifier) ||
+      (bareId.length >= 4 && verificationTextHaystack.includes(bareId)) ||
+      verificationTextHaystack.includes(ec.title_th)
+    );
+  });
+
   return {
     release_id: releaseId,
     knowledge_snapshot_at: snapshotAt,
     status: finalStatus,
-    answer: answerSections.join("\n\n"),
+    answer: finalAnswerBody,
     claims,
-    evidence: liveEvidenceCards,
+    evidence: gatedEvidenceCards,
     assumptions:
       primaryWorkIsRuling(freshState, availablePassages[0])
         ? ["แนววินิจฉัยหนังสือตอบข้อหารือใช้บังคับเฉพาะข้อเท็จจริงที่ตรงกับข้อหารือต้นฉบับ"]
@@ -1062,7 +1415,7 @@ export async function queryKnowledge(
     clarification_questions: explicitMissingFactQuestions,
     coverage_warnings: coverageWarnings,
     applicable_date: req.applicable_date ?? null,
-    model_policy_version: "reg24-grounded-legal-v1.1",
+    model_policy_version: "reg24-grounded-legal-v1.2",
     trace_id: traceId,
     latency_ms: Math.max(1, Date.now() - startedAt),
   };

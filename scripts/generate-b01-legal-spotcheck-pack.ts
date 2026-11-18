@@ -146,7 +146,8 @@ export const B01_LEGAL_SPOTCHECK_30_SPECS: LegalSpotCheckCaseSpec[] = [
       "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
     mode: "standard",
     applicable_date: "2018-06-30",
-    legal_check_focus: "Point-in-time version selection before 2019 amendment.",
+    legal_check_focus:
+      "Suppresses unverified pre-amendment historical version (`INSUFFICIENT_EVIDENCE` — never reconstructs historical law from current consolidated text) and warns to check actual accounting-period start date (`>= 1 ม.ค. 2561` under Act No. 51 B.E. 2562).",
   },
   {
     spotcheck_id: "LSC-13",
@@ -384,7 +385,7 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
 
     const bulletLines = (ans.answer || "")
       .split("\n")
-      .filter((line) => line.startsWith("- ") && !line.startsWith("- **กรณี/รุ่นที่"));
+      .filter((line) => line.startsWith("- ") && !line.startsWith("- **"));
     const cutoffBulletCount = bulletLines.filter((b) => {
       const text = b.slice(2).trim();
       // Flag any legacy 220-char slice, dangling leading Thai vowel, or false date/word trigger
@@ -450,7 +451,10 @@ export async function buildB01LegalSpotCheckPack(storeDir?: string) {
       stratum_4_direct_quarantine_abstentions_passed: items
         .filter((i) => ["LSC-18", "LSC-19", "LSC-20"].includes(i.spotcheck_id))
         .every((i) => i.observed_status === "INSUFFICIENT_EVIDENCE"),
-      all_22_answered_cases_render_complete_source_tail: answeredItemsWithSource.every(
+      lsc12_unverified_historical_statute_suppressed:
+        items.find((i) => i.spotcheck_id === "LSC-12")?.observed_status === "INSUFFICIENT_EVIDENCE" &&
+        (items.find((i) => i.spotcheck_id === "LSC-12")?.citations.length ?? 99) === 0,
+      all_answered_cases_render_complete_source_tail: answeredItemsWithSource.every(
         (i) => i.technical_response_checks.full_conclusion_tail_rendered_in_answer === true
       ),
       zero_cutoff_condition_bullets_across_all_30: items.every(

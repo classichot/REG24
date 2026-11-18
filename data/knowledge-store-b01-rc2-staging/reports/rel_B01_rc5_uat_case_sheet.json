@@ -30,8 +30,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.342c6afa51fc33",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.9a6c4c9d0d6286",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -66,8 +66,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.bfc5df2b0829ae",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.9720b3616dbc8e",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -101,8 +101,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.24b807e0b48dba",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.0708d37cf1dacc",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -136,8 +136,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.ec274651f7915b",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.6be69b7e262562",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -176,8 +176,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.9cd0d7a5a1e791",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.397a8958b4fe58",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -216,8 +216,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.fb8930de47b3da",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.50149f266235b9",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -250,8 +250,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.b72cb7d0e9c726",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.9aec7112c1a02e",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -283,8 +283,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.25b32a7a72a5f7",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.1857970b23d8f2",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -301,22 +301,23 @@
     "question": "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
     "applicable_date": "2018-06-30",
     "expected_status": [
-      "ANSWERED"
+      "INSUFFICIENT_EVIDENCE"
     ],
     "expected_claims": [
+      "ระงับ",
+      "รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561"
+    ],
+    "required_evidence": [],
+    "forbidden_claims": [
       "v1_pre2019",
-      "ก่อนวันที่ 20 มีนาคม 2562"
+      "ให้หักได้ไม่เกินห้าหมื่นบาท"
     ],
-    "required_evidence": [
-      "prov.th.rc.65_ตรี"
-    ],
-    "forbidden_claims": [],
     "severity": "P0",
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.c8590067471176",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.629c161f89ca80",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -337,19 +338,23 @@
       "ANSWERED"
     ],
     "expected_claims": [
-      "v2_current",
-      "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562"
+      "มาตรา 65 ตรี",
+      "ตัวบทรวมแก้ไขเพิ่มเติม",
+      "(ฉบับที่ 51) พ.ศ. 2562"
     ],
     "required_evidence": [
       "prov.th.rc.65_ตรี"
     ],
-    "forbidden_claims": [],
+    "forbidden_claims": [
+      "ฉบับที่ 48",
+      "v1_pre2019"
+    ],
     "severity": "P0",
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.391e1a1caf0946",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.1ff076b94c1138",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -381,8 +386,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.84e9fec11f1ab8",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.39cc41504a0d18",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -414,8 +419,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.3d2eae6d82303a",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.17d7ed5c647c01",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -429,7 +434,7 @@
     "fixture_ids": [
       "work.th.rd.gk_0811_13980_1997_74b835fc"
     ],
-    "question": "ค้นหาแนววินิจฉัย กค 0811/13980 ลงวันที่ 13 ตุลาคม 2540 และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน",
+    "question": "ค้นหาแนววินิจฉัย กค 0811/13980 — ภาษีเงินได้นิติบุคคลและภาษีธุรกิจเฉพาะ การขายฝากที่ดินของบริษัทหรือห้างหุ้นส่วน นิติบุคคล ข้อ กฎหมายประเด็นปัญหา ลงวันที่ 13 ตุลาคม 2540 และตรวจสอบว่าเอกสารซ้ำรวมเป็นรายการเดียวพร้อมเก็บหลักฐานต้นฉบับครบถ้วน",
     "applicable_date": null,
     "expected_status": [
       "ANSWERED"
@@ -445,8 +450,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.844728a152d491",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.7026eef33f7a09",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -477,8 +482,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.8c8b5593409a64",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.c21eb7b08e1696",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -509,8 +514,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.1e3510a7f5bbf3",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.eecc814d980dc1",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -544,8 +549,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.9698ca20121d74",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.0f57080337e471",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -576,8 +581,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.eef17cbfacb844",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.103268525d0212",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -608,8 +613,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.845ab693a41003",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.02cd9d4a313fc7",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -637,8 +642,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.5919500bb0f1ac",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.be699918afe6ff",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   },
@@ -666,8 +671,8 @@
     "evaluator_results": {
       "automated_precheck_passed": true,
       "citation_resolved": true,
-      "trace_id": "trc.2850be38d4dd22",
-      "verified_at": "2026-11-16T16:16:32.120Z"
+      "trace_id": "trc.c78da4a7c5b960",
+      "verified_at": "2026-11-18T00:24:26.884Z"
     },
     "owner_result": null
   }

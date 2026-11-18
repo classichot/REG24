@@ -125,10 +125,11 @@ const EXPLORATORY_B01_REPRESENTATIVE_QUESTIONS: Array<{
   },
   {
     id: "Q6",
-    label: "6. Historical Statute @ 2018-06-30 (มาตรา 65 ตรี v1_pre2019)",
+    label: "6. Historical Statute @ 2018-06-30 (มาตรา 65 ตรี — ระงับตัวบทย้อนหลังที่ยังไม่รับรองจากราชกิจจานุเบกษา)",
     question: "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
     mode: "standard",
     date: "2018-06-30",
+    expectedResultLabelTh: "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ",
   },
   {
     id: "Q7",
@@ -860,6 +861,19 @@ export default function KnowledgeBatchesUatPage() {
                 <h2 style={{ margin: "4px 0 0", fontSize: "19px" }}>
                   Test Grounded Question → Claim Ledger → Exact Source Passage &amp; Related Provisions
                 </h2>
+                <div
+                  style={{
+                    marginTop: "10px",
+                    padding: "10px 14px",
+                    background: "rgba(245, 158, 11, 0.12)",
+                    border: "1px solid rgba(245, 158, 11, 0.45)",
+                    color: "#fde68a",
+                    fontSize: "12.5px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  <strong>หมายเหตุสำหรับการทดสอบภายใน (Internal Restricted Trial Notice):</strong> ตัวบทประมวลรัษฎากรในชุดนี้เป็นตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (<code>rd.go.th</code>) ป้ายระบุรุ่นและวันเริ่มใช้บังคับรายอนุมาตรากำลังอยู่ระหว่างการปรับปรุงจากราชกิจจานุเบกษา ทั้งนี้ ระบบระงับคำตอบตัวบทกฎหมายย้อนหลังที่ยังไม่ได้รับรองจากราชกิจจานุเบกษา (เช่น <code>LSC-12</code> มาตรา 65 ตรี ปี 2561) ชั่วคราว และให้ตรวจสอบวันเริ่มรอบระยะเวลาบัญชีจริงเสมอ
+                </div>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto auto", gap: "10px", flexWrap: "wrap" }}>

@@ -194,7 +194,7 @@ describe("Empirical Verification of Snapshot-Based Graph Retrieval, Rebuild & Ro
     );
     expect(q13980.answer).not.toContain("พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 515)");
 
-    // Bitemporal ProvisionVersion check (Section 65 ter pre-2019 vs current)
+    // Temporal Statute Guard (S-2 / LSC-12): Unverified pre-2020 historical statute version is suppressed cleanly (`INSUFFICIENT_EVIDENCE`), while current consolidated `v2_current` answers current dates
     const pre2019Res = await queryKnowledge(
       {
         question: "เบี้ยปรับหรือเงินเพิ่มตามประมวลรัษฎากร มาตรา 65 ตรี ถือเป็นรายจ่ายต้องห้ามหรือไม่?",
@@ -215,10 +215,9 @@ describe("Empirical Verification of Snapshot-Based Graph Retrieval, Rebuild & Ro
       OWNER_ACTOR,
       { store }
     );
-    expect(["ANSWERED", "CONDITIONAL"]).toContain(pre2019Res.status);
+    expect(pre2019Res.status).toBe("INSUFFICIENT_EVIDENCE");
+    expect(pre2019Res.evidence).toEqual([]);
     expect(["ANSWERED", "CONDITIONAL"]).toContain(post2019Res.status);
-    expect(pre2019Res.evidence.some((e) => e.version_id.includes("v1_pre2019"))).toBe(true);
-    expect(pre2019Res.evidence.some((e) => e.version_id.includes("v2_current"))).toBe(false);
     expect(post2019Res.evidence.some((e) => e.version_id.includes("v2_current"))).toBe(true);
 
     // Ablation proof: Provision-to-Ruling graph traversal (`hybrid_with_graph` vs `hybrid_no_graph`)

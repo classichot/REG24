@@ -271,10 +271,10 @@ export function buildB01BoundUatCases(store: DurableKnowledgeStore, releaseId: s
       fixture_ids: ["prov.th.rc.65_ตรี"],
       question: "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
       applicable_date: "2018-06-30",
-      expected_status: ["ANSWERED"],
-      expected_claims: ["v1_pre2019", "ก่อนวันที่ 20 มีนาคม 2562"],
-      required_evidence: ["prov.th.rc.65_ตรี"],
-      forbidden_claims: [],
+      expected_status: ["INSUFFICIENT_EVIDENCE"],
+      expected_claims: ["ระงับ", "รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561"],
+      required_evidence: [],
+      forbidden_claims: ["v1_pre2019", "ให้หักได้ไม่เกินห้าหมื่นบาท"],
       severity: "P0",
       evaluator_results: null,
       owner_result: null,
@@ -291,9 +291,9 @@ export function buildB01BoundUatCases(store: DurableKnowledgeStore, releaseId: s
         "ประมวลรัษฎากร มาตรา 65 ตรี ณ วันที่ 2025-01-15 ใช้บทบัญญัติรุ่นปัจจุบันใดบังคับ",
       applicable_date: "2025-01-15",
       expected_status: ["ANSWERED"],
-      expected_claims: ["v2_current", "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 48) พ.ศ. 2562"],
+      expected_claims: ["มาตรา 65 ตรี", "ตัวบทรวมแก้ไขเพิ่มเติม", "(ฉบับที่ 51) พ.ศ. 2562"],
       required_evidence: ["prov.th.rc.65_ตรี"],
-      forbidden_claims: [],
+      forbidden_claims: ["ฉบับที่ 48", "v1_pre2019"],
       severity: "P0",
       evaluator_results: null,
       owner_result: null,
@@ -587,10 +587,10 @@ export function buildB02BoundUatCases(store: DurableKnowledgeStore, releaseId: s
       fixture_ids: ["prov.th.rc.65_ตรี"],
       question: "ประมวลรัษฎากร มาตรา 65 ตรี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
       applicable_date: "2018-06-30",
-      expected_status: ["ANSWERED", "CONDITIONAL"],
-      expected_claims: ["v1_pre2019"],
-      required_evidence: ["prov.th.rc.65_ตรี"],
-      forbidden_claims: [],
+      expected_status: ["INSUFFICIENT_EVIDENCE"],
+      expected_claims: ["ระงับ", "รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561"],
+      required_evidence: [],
+      forbidden_claims: ["v1_pre2019"],
       severity: "P0",
       evaluator_results: null,
       owner_result: null,
@@ -606,9 +606,9 @@ export function buildB02BoundUatCases(store: DurableKnowledgeStore, releaseId: s
       question: "ประมวลรัษฎากร มาตรา 65 ตรี ณ วันที่ 2025-01-15 ใช้บทบัญญัติรุ่นปัจจุบันใดบังคับ",
       applicable_date: "2025-01-15",
       expected_status: ["ANSWERED", "CONDITIONAL"],
-      expected_claims: ["v2_current"],
+      expected_claims: ["มาตรา 65 ตรี", "ตัวบทรวมแก้ไขเพิ่มเติม"],
       required_evidence: ["prov.th.rc.65_ตรี"],
-      forbidden_claims: [],
+      forbidden_claims: ["ฉบับที่ 48", "v1_pre2019"],
       severity: "P0",
       evaluator_results: null,
       owner_result: null,
@@ -1198,8 +1198,8 @@ export async function evaluateRelease(
           slice: "temporal_version_selection",
           question: "ประมวลรัษฎากร มาตรา 65 ตรี มีหลักเกณฑ์รายจ่ายต้องห้ามอย่างไร",
           applicable_date: isPre2019 ? "2018-06-30" : "2025-01-15",
-          expected_work_ids: ["prov.th.rc.65_ตรี"],
-          expect_abstention: false,
+          expected_work_ids: isPre2019 ? [] : ["prov.th.rc.65_ตรี"],
+          expect_abstention: isPre2019,
         });
       } else {
         families.push({
@@ -1275,8 +1275,8 @@ export async function evaluateRelease(
         slice: "temporal_version_selection",
         question: "ประมวลรัษฎากร มาตรา 65 ตรี มีหลักเกณฑ์รายจ่ายต้องห้ามอย่างไร",
         applicable_date: isPre2019 ? "2018-06-30" : "2025-01-15",
-        expected_work_ids: ["prov.th.rc.65_ตรี"],
-        expect_abstention: false,
+        expected_work_ids: isPre2019 ? [] : ["prov.th.rc.65_ตรี"],
+        expect_abstention: isPre2019,
       });
     } else {
       families.push({
@@ -1395,9 +1395,7 @@ export async function evaluateRelease(
         const citesExpected = ans.evidence.some((e) => expSet.has(e.work_id));
         const dateOk =
           !fam.applicable_date ||
-          (fam.applicable_date === "2018-06-30"
-            ? ans.evidence.some((e) => e.version_id.includes("v1_pre2019"))
-            : ans.evidence.some((e) => e.version_id.includes("v2_current")));
+          ans.evidence.some((e) => e.version_id.includes("v2_current"));
         if (citesExpected && dateOk) {
           attemptedCorrectCount += 1;
           sliceBreakdown[fam.slice].passed += 1;
@@ -1406,11 +1404,12 @@ export async function evaluateRelease(
         abstentionCount += 1;
       }
     } else {
-      // Abstention / missing-fact holdout family
+      // Abstention / missing-fact / suppressed-historical-statute holdout family
       const ans = await queryKnowledge(
         {
           question: fam.question,
           release_id: releaseId,
+          applicable_date: fam.applicable_date,
           mode: fam.question.includes("กค") ? "exact_lookup" : "standard",
         },
         actor,

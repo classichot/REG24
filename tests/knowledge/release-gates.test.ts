@@ -533,7 +533,7 @@ describe("Tasks F3, F4, F5 & F7 — Ontology, Projections, Retrieval, Answer Ver
     expect(spoofQuery.evidence.some((e) => e.passage_id === "psg.private.secret")).toBe(false);
     expect(spoofQuery.status).toBe("INSUFFICIENT_EVIDENCE");
 
-    // AT05: Querying Revenue Code Sec. 65 ter for 2018-06-30 selects pre-2019 version v1, while 2025-01-15 selects current version v2
+    // AT05 / S-2: Querying Revenue Code Sec. 65 ter for unverified historical date 2018-06-30 suppresses cleanly (zero fabricated pre-2019 version), while 2025-01-15 selects consolidated current version v2
     const q2018 = await queryKnowledge(
       {
         question: "ประมวลรัษฎากร มาตรา 65 ตรี ใช้บังคับอย่างไร",
@@ -552,7 +552,8 @@ describe("Tasks F3, F4, F5 & F7 — Ontology, Projections, Retrieval, Answer Ver
       OWNER_ACTOR,
       { store }
     );
-    expect(q2018.evidence.some((e) => e.version_id.includes("v1_pre2019"))).toBe(true);
+    expect(q2018.status).toBe("INSUFFICIENT_EVIDENCE");
+    expect(q2018.evidence).toEqual([]);
     expect(q2025.evidence.some((e) => e.version_id.includes("v2_current"))).toBe(true);
 
     // AT12a: Deliberately nonexistent ruling number -> INSUFFICIENT_EVIDENCE, zero fabricated citations

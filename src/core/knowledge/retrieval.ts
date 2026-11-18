@@ -279,6 +279,17 @@ export function retrieveAuthorizedKnowledge(
           return { rawQualifier: gdm[1].trim(), isoDate: iso, yearCe: iso.slice(0, 4) };
         }
       }
+      const globalRulingYearRe =
+        /(?<!ปีภาษี\s*)(?<!รอบระยะเวลาบัญชี\s*)(?<!รอบบัญชี\s*)(?:ฉบับปี(?:\s*พ\.ศ\.)?|ลงปี(?:\s*พ\.ศ\.)?|\(\s*(?:ปี\s*(?:พ\.ศ\.\s*)?|พ\.ศ\.\s*)(25[3-7][0-9])\s*\))\s*(25[3-7][0-9])?/;
+      const gym = qArabicForQualifier.match(globalRulingYearRe);
+      const beYr = gym?.[1] || gym?.[2];
+      if (beYr) {
+        return {
+          rawQualifier: `ปี พ.ศ. ${beYr}`,
+          isoDate: null,
+          yearCe: String(Number(beYr) - 543),
+        };
+      }
     }
     return null;
   };
@@ -457,9 +468,64 @@ export function retrieveAuthorizedKnowledge(
   };
 
   // Stage 1: Exact identifier & comparison work boost (always outranks fuzzy lexical/vector scores)
+  const unpinnedHomonymWorkIds = new Set(
+    homonymRulingGroups
+      .filter((g) => !g.pinned_by_date_or_year && g.works.length > 1)
+      .flatMap((g) => g.works.map((w) => w.work_id))
+  );
+  const genericLookupStopwords = new Set([
+    "ค้นหา",
+    "หนังสือ",
+    "หนังสือตอบ",
+    "หนังสือตอบข้อหารือ",
+    "ตอบข้อหารือ",
+    "ข้อหารือ",
+    "เลขที่",
+    "กรมสรรพากร",
+    "แนววินิจฉัย",
+    "วินิจฉัย",
+    "อย่างไร",
+    "หรือไม่",
+    "เรื่อง",
+    "ตาม",
+    "กรณี",
+  ]);
+  const qTokens = tokenizeThaiLegalForIndex(params.question);
+  const distinctiveHomonymTokens = qTokens.filter(
+    (t) =>
+      t.length >= 3 &&
+      !genericLookupStopwords.has(t) &&
+      !/^(?:กค|[0-9]{2,6})$/.test(t)
+  );
+  // Also check explicit non-tax-period year mention (e.g. "กค 0702/636 ... ปี 2555") when disambiguating homonyms
+  const looseBeYears = new Set<string>(
+    (qArabicForQualifier.match(/(?<!ปีภาษี\s*)(?<!รอบระยะเวลาบัญชี\s*)(?:ปี(?:\s*พ\.ศ\.)?|พ\.ศ\.)\s*(25[3-7][0-9])/g) || [])
+      .map((s) => s.match(/(25[3-7][0-9])/)?.[1] || "")
+      .filter(Boolean)
+  );
+
   for (const wid of explicitWorkIds) {
     const fullTitleBonus = exactFullTitleWorkIds.has(wid) ? 8.0 : 0.0;
-    for (const p of passagesByWorkId.get(wid) || []) {
+    const workPassages = passagesByWorkId.get(wid) || [];
+    let homonymTopicBonus = 0;
+    if (unpinnedHomonymWorkIds.has(wid)) {
+      const wObj = state.works[wid];
+      const wVer = workPassages[0] ? state.versions[workPassages[0].version_id] : undefined;
+      const wCombined = thaiDigitsToArabic(
+        `${wObj?.title_th || ""} ${workPassages.map((wp) => wp.exact_text).join(" ")}`
+      ).toLowerCase();
+      for (const dt of distinctiveHomonymTokens) {
+        if (wCombined.includes(dt)) {
+          const inTitle = thaiDigitsToArabic(wObj?.title_th || "").toLowerCase().includes(dt);
+          homonymTopicBonus += inTitle ? 3.5 : 1.5;
+        }
+      }
+      const wBeYear = wVer?.decision_date ? String(Number(wVer.decision_date.slice(0, 4)) + 543) : "";
+      if (wBeYear && looseBeYears.has(wBeYear)) {
+        homonymTopicBonus += 10.0;
+      }
+    }
+    for (const p of workPassages) {
       const ver = state.versions[p.version_id];
       const decYr = Number((ver?.decision_date || "").slice(0, 4)) || 2000;
       const recencyTieBreak =
@@ -470,7 +536,7 @@ export function retrieveAuthorizedKnowledge(
         p.statement_role === "official_conclusion" || p.statement_role === "statutory_text"
           ? 40.0
           : 32.0;
-      addScore(p.passage_id, roleBoost + fullTitleBonus + recencyTieBreak, "exact_id");
+      addScore(p.passage_id, roleBoost + fullTitleBonus + homonymTopicBonus + recencyTieBreak, "exact_id");
     }
   }
   for (const wid of secondarySectionWorkIds) {
@@ -481,7 +547,6 @@ export function retrieveAuthorizedKnowledge(
   }
 
   // Stage 2: Scoped Lexical Candidate Generation (Top 40)
-  const qTokens = tokenizeThaiLegalForIndex(params.question);
   const lexicalScored: Array<{ passage_id: string; lexScore: number }> = [];
 
   if (qTokens.length > 0) {
@@ -648,18 +713,23 @@ export function retrieveAuthorizedKnowledge(
     // Hop 1: Direct provisions interpreted/cited by seed rulings + sibling passages (requester_facts <-> official_conclusion)
     const hop1ProvisionIds = new Set<string>();
     for (const wid of seedWorkIds) {
-      let maxWorkLexVecScore = 0;
-      for (const p of passagesByWorkId.get(wid) || []) {
+      const workPsgs = passagesByWorkId.get(wid) || [];
+      let maxRequesterSiblingScore = 0;
+      for (const p of workPsgs) {
+        if (!p.statement_role.startsWith("requester_")) continue;
         const cur = scoreMap.get(p.passage_id);
-        if (cur && !cur.sources.has("exact_id") && cur.score > maxWorkLexVecScore) {
-          maxWorkLexVecScore = cur.score;
+        if (cur && !cur.sources.has("exact_id") && cur.score > maxRequesterSiblingScore) {
+          maxRequesterSiblingScore = cur.score;
         }
       }
-      for (const p of passagesByWorkId.get(wid) || []) {
+      for (const p of workPsgs) {
+        const ownScore = scoreMap.get(p.passage_id)?.score || 0;
+        const transferredNeeded =
+          p.statement_role === "official_conclusion" && maxRequesterSiblingScore > ownScore
+            ? (maxRequesterSiblingScore - ownScore) + 2.2
+            : 1.8;
         const siblingBoost =
-          p.statement_role === "official_conclusion"
-            ? Math.max(1.8, maxWorkLexVecScore * 0.65)
-            : 1.0;
+          p.statement_role === "official_conclusion" ? transferredNeeded : 1.0;
         addScore(p.passage_id, siblingBoost, "graph_hop");
       }
     }
