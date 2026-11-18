@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { resolveTraceableEvidenceById } from "../../../../../../core/knowledge/claim-traceability-engine";
 import { resolveAuthorizedEvidence } from "../../../../../../core/knowledge/evidence";
 import { sha256Bytes } from "../../../../../../core/knowledge/identity";
 import { getDefaultKnowledgeStore } from "../../../../../../core/knowledge/store";
@@ -17,41 +18,101 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    const decodedId = decodeURIComponent(id);
     const actor = resolveServerActor(req);
     const gate = await enforceTrialAccessAndRateLimit(req, actor, "citation_open");
     const store = getDefaultKnowledgeStore();
-    const resolved = resolveAuthorizedEvidence(store, id, actor);
+
+    const pinned = resolveTraceableEvidenceById(store, decodedId, actor);
+    const legacyResolved = resolveAuthorizedEvidence(store, decodedId, actor);
+
+    const effectiveAllowed = pinned.ok || legacyResolved.allowed;
+    const effectiveStatus = effectiveAllowed ? 200 : pinned.http_status;
+
     const auditStatus = await appendTrialAuditEvent(store, {
-      audit_id: `aud.ev.${sha256Bytes(`${actor.actor_id}:${id}:${Date.now()}`).slice(0, 14)}`,
+      audit_id: `aud.ev.${sha256Bytes(`${actor.actor_id}:${decodedId}:${Date.now()}`).slice(0, 14)}`,
       event_type: "TRIAL_CITATION_OPEN",
       recorded_at: new Date().toISOString(),
       actor_id: actor.actor_id,
       actor_role: actor.role,
       invite_fingerprint: gate.inviteFingerprint,
-      passage_id: id,
-      work_id: resolved.passage?.work_id || null,
-      official_identifier: resolved.official_identifier || null,
-      origin_uri: resolved.locator?.origin_uri || null,
-      http_status: resolved.http_status,
+      passage_id: decodedId,
+      work_id: pinned.evidence?.doc_id || legacyResolved.passage?.work_id || null,
+      official_identifier:
+        pinned.evidence?.source_native_id || legacyResolved.official_identifier || null,
+      origin_uri:
+        pinned.evidence?.official_location.exact_official_url ||
+        legacyResolved.locator?.origin_uri ||
+        null,
+      http_status: effectiveStatus,
     });
 
     const headers: Record<string, string> = {
       "x-reg24-ratelimit-backend": gate.rateLimitBackend,
       "x-reg24-ratelimit-remaining": String(gate.remainingInWindow),
       "x-reg24-audit-status": auditStatus.backend,
+      "Cache-Control": "private, no-store",
     };
     if (auditStatus.error) {
       headers["x-reg24-audit-error"] = auditStatus.error.slice(0, 200);
     }
 
-    if (!resolved.allowed) {
+    if (!effectiveAllowed) {
       return NextResponse.json(
-        { ok: false, error: resolved.error || "Evidence not found or restricted", audit_status: auditStatus },
-        { status: resolved.http_status, headers }
+        {
+          ok: false,
+          unavailable_code: pinned.unavailable_code || "NOT_FOUND_OR_RESTRICTED",
+          error:
+            pinned.error_th ||
+            legacyResolved.error ||
+            "Evidence not found or restricted",
+          audit_status: auditStatus,
+        },
+        { status: 404, headers }
       );
     }
+
+    // Backwards-compatible `evidence` object enriched with full `pinned_evidence` contract (Section 6)
+    const compatEvidence = legacyResolved.allowed
+      ? legacyResolved
+      : {
+          allowed: true,
+          http_status: 200 as const,
+          passage: {
+            passage_id: pinned.evidence!.evidence_id,
+            work_id: pinned.evidence!.doc_id,
+            version_id: pinned.evidence!.version_id,
+            exact_text: pinned.evidence!.verbatim_quote,
+            contextualized_header: pinned.evidence!.original_title_th,
+            statement_role: "statutory_text",
+            structural_path: pinned.evidence!.section_paragraph_path,
+            critical_tokens_flagged: [],
+          },
+          work_title_th: pinned.evidence!.original_title_th,
+          official_identifier:
+            pinned.evidence!.source_native_id || pinned.evidence!.original_title_th,
+          authority_type: pinned.evidence!.source_family,
+          authenticity_status: "official_original",
+          is_derivative: false,
+          locator: {
+            kind: pinned.evidence!.physical_page_start !== null ? "pdf_page" : "html_structural",
+            artifact_id: pinned.evidence!.version_id,
+            origin_uri: pinned.evidence!.official_location.exact_official_url,
+            physical_page_index:
+              pinned.evidence!.physical_page_start !== null
+                ? pinned.evidence!.physical_page_start - 1
+                : undefined,
+            printed_page_label: pinned.evidence!.printed_page_start,
+          },
+        };
+
     return NextResponse.json(
-      { ok: true, evidence: resolved, audit_status: auditStatus },
+      {
+        ok: true,
+        evidence: compatEvidence,
+        pinned_evidence: pinned.evidence || null,
+        audit_status: auditStatus,
+      },
       { status: 200, headers }
     );
   } catch (err) {

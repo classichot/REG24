@@ -35,6 +35,7 @@ import {
   type UATCase,
   type UnresolvedReferenceRecord,
 } from "./contracts";
+import type { PersistedCitationTraceabilityState } from "./citation-contracts";
 
 export interface IdempotencyRecord {
   key: string;
@@ -170,6 +171,7 @@ export interface CanonicalPersistedState {
   reviews: Record<string, ReviewQueueItem>;
   withdrawals: Record<string, WithdrawalRestriction>;
   active_vector_ids_by_release: Record<string, string[]>;
+  citation_ledger?: PersistedCitationTraceabilityState;
 }
 
 function createEmptyState(): CanonicalPersistedState {

@@ -8,6 +8,7 @@ import type {
   ReleaseReport,
   UATCase,
 } from "@/core/knowledge/contracts";
+import { OfficialCitationTraceabilityPanel } from "@/components/OfficialCitationTraceabilityPanel";
 
 interface BatchGateBoardItem {
   batch_id: string;
@@ -1176,6 +1177,20 @@ export default function KnowledgeBatchesUatPage() {
                           ))}
                         </ul>
                       </div>
+                    )}
+
+                    {/* Official-Source Atomic Claim Traceability, Thai Evidence Panel, Save/Reopen & Export */}
+                    {answerResult.traceable_answer && (
+                      <OfficialCitationTraceabilityPanel
+                        envelope={answerResult.traceable_answer}
+                        questionText={question}
+                        onReopenedEnvelope={(reopened, qTxt) => {
+                          if (qTxt) setQuestion(qTxt);
+                          setAnswerResult((prev) =>
+                            prev ? { ...prev, traceable_answer: reopened } : prev
+                          );
+                        }}
+                      />
                     )}
 
                     {/* Evidence Citations */}

@@ -24,6 +24,8 @@ import {
   LfdeCuratorConsoleSection,
 } from "@/components/lfde/LfdeWorkspace";
 import { Reg24LandingPage } from "@/components/Reg24LandingPage";
+import { OfficialCitationTraceabilityPanel } from "@/components/OfficialCitationTraceabilityPanel";
+import type { TraceableAnswerEnvelope } from "@/core/knowledge/citation-contracts";
 
 type ThemeMode = "dark" | "light";
 type AccentMode = "electric" | "chartreuse" | "highlighter" | "volt";
@@ -64,6 +66,7 @@ interface ResearchResultState {
   answer?: string;
   citations?: CitationItem[];
   note?: string;
+  traceableAnswer?: TraceableAnswerEnvelope | null;
 }
 
 const T = {
@@ -957,7 +960,12 @@ export default function Reg24ModernistPage() {
         ];
       }
 
-      let finalPayload = fallback;
+      let finalPayload: {
+        answer: string;
+        citations: CitationItem[];
+        note: string;
+        traceableAnswer?: TraceableAnswerEnvelope | null;
+      } = fallback;
 
       try {
         // Consult Knowledge GraphRAG store first when querying RD tax rulings or explicit กค identifiers
@@ -992,6 +1000,7 @@ export default function Reg24ModernistPage() {
                   lang === "th"
                     ? `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · ข้อมูล ณ ${asOfDate}`
                     : `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · Law as of ${asOfDate}`,
+                traceableAnswer: kgAns.traceable_answer || kgJson?.traceable_answer || null,
               };
             }
           }
@@ -1195,6 +1204,7 @@ export default function Reg24ModernistPage() {
         answer: finalPayload.answer,
         citations: finalPayload.citations,
         note: finalPayload.note,
+        traceableAnswer: finalPayload.traceableAnswer || null,
       });
       setTraceN(5);
       setTraceMs(Date.now() - t0);
@@ -3198,6 +3208,17 @@ h1{font-size:24px;border-bottom:2px solid #111;padding-bottom:12px}
                         >
                           {result.note}
                         </p>
+                        {result.traceableAnswer && (
+                          <OfficialCitationTraceabilityPanel
+                            envelope={result.traceableAnswer}
+                            questionText={result.q}
+                            onReopenedEnvelope={(reopened) =>
+                              setResult((prev) =>
+                                prev ? { ...prev, traceableAnswer: reopened } : prev
+                              )
+                            }
+                          />
+                        )}
                         <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", paddingTop: "4px" }}>
                           <button
                             type="button"

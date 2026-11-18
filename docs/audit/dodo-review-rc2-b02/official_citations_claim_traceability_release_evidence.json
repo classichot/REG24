@@ -1,0 +1,167 @@
+{
+  "generated_at": "2026-11-18T12:21:40.270Z",
+  "batch_id": "B01",
+  "release_id": "rel.B01.rc5",
+  "inventory_reconciliation": {
+    "batch_id": "B01",
+    "release_id": "rel.B01.rc5",
+    "documents": {
+      "discovered": 4962,
+      "captured": 4962,
+      "verified": 4961,
+      "eligible": 4961,
+      "quarantined": 1,
+      "quarantined_by_reason": {
+        "WITHDRAWN_BY_OPERATOR": 1,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:External non-tax sector statute cited in ruling facts/reasoning; recorded explicitly as unresolved dependency rather than fabricating placeholder law.": 14,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:External standalone Act cited in ruling; quarantined explicitly as unresolved dependency rather than generating placeholder law.": 326,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:External non-Revenue-Code statutory provision cited in ruling; isolated from Revenue Code and quarantined while external statute text is unverified.": 515,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:Section belongs to Royal Decree (not Revenue Code); quarantined as unresolved until verbatim Royal Decree text is verified (DEF-B01-02 / DEF-B01-03).": 228,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:Departmental Order ท.ป. quarantined as unresolved until verbatim text is verified.": 36,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:Royal Decree section citation without verified decree number; quarantined.": 62,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:Civil and Commercial Code provision cited in tax ruling; kept strictly separate from Revenue Code and quarantined while CCC text is unverified.": 488,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:Cited Revenue Code section (e.g. repealed historical provision) not present in verified consolidated text; quarantined as unresolved rather than generating placeholder text.": 43,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:DG VAT Notification quarantined as unresolved until verbatim text is verified.": 61,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:Royal Decree cited in ruling does not yet have verified verbatim statutory text in staging; quarantined as unresolved.": 77,
+        "UNRESOLVED_EXTERNAL_DEPENDENCY:Ministerial Regulation provision quarantined until verbatim text is verified.": 9
+      },
+      "by_source_family": {
+        "gazette_enactment": {
+          "discovered": 393,
+          "eligible": 393,
+          "quarantined": 0
+        },
+        "supreme_court_decision": {
+          "discovered": 0,
+          "eligible": 0,
+          "quarantined": 0
+        },
+        "council_of_state_opinion": {
+          "discovered": 0,
+          "eligible": 0,
+          "quarantined": 0
+        },
+        "revenue_department_ruling": {
+          "discovered": 4569,
+          "eligible": 4568,
+          "quarantined": 1
+        }
+      }
+    },
+    "passages": {
+      "discovered": 11490,
+      "captured": 11490,
+      "verified": 11490,
+      "eligible": 11482,
+      "quarantined": 8,
+      "quarantined_by_reason": {
+        "PASSAGE_NOT_ELIGIBLE": 8
+      }
+    }
+  },
+  "section_8_acceptance_measurements": {
+    "batch_id": "B01",
+    "release_id": "rel.B01.rc5",
+    "measured_at": "2026-11-18T12:21:09.274Z",
+    "published_claim_coverage": {
+      "numerator": 6,
+      "denominator": 6,
+      "ratio": 1,
+      "unsegmented_rendered_claims_detected": 0,
+      "passes_100_percent_gate": true
+    },
+    "published_citation_traceability": {
+      "numerator": 11,
+      "denominator": 11,
+      "ratio": 1,
+      "channels_verified": [
+        "chat",
+        "api",
+        "mcp",
+        "saved_answer",
+        "export",
+        "report",
+        "research"
+      ],
+      "passes_100_percent_gate": true
+    },
+    "semantic_support_acceptance": {
+      "adjudicated_cases": 5,
+      "supported_claims": 6,
+      "unsupported_claims": 0,
+      "material_omitted_qualifications": 0,
+      "passes_zero_defect_gate": true,
+      "case_adjudications": [
+        {
+          "case_id": "B01-CT-01",
+          "as_of_date": null,
+          "expected_outcome": "complete",
+          "actual_status": "complete",
+          "reviewer_id": "legal.reviewer@reg24.th",
+          "adjudication": "PASS"
+        },
+        {
+          "case_id": "B01-CT-02",
+          "as_of_date": null,
+          "expected_outcome": "complete",
+          "actual_status": "complete",
+          "reviewer_id": "legal.reviewer@reg24.th",
+          "adjudication": "PASS"
+        },
+        {
+          "case_id": "B01-CT-03",
+          "as_of_date": null,
+          "expected_outcome": "complete",
+          "actual_status": "complete",
+          "reviewer_id": "legal.reviewer@reg24.th",
+          "adjudication": "PASS"
+        },
+        {
+          "case_id": "B01-CT-04-NEG-HIST",
+          "as_of_date": "2018-06-30",
+          "expected_outcome": "insufficient",
+          "actual_status": "insufficient",
+          "reviewer_id": "legal.reviewer@reg24.th",
+          "adjudication": "PASS"
+        },
+        {
+          "case_id": "B01-CT-05-NEG-MISSING",
+          "as_of_date": null,
+          "expected_outcome": "insufficient",
+          "actual_status": "insufficient",
+          "reviewer_id": "legal.reviewer@reg24.th",
+          "adjudication": "PASS"
+        }
+      ]
+    },
+    "official_link_availability": {
+      "verified_reachable_count": 4962,
+      "total_checked_locations": 4962,
+      "checked_at": "2026-11-18T12:21:09.274Z",
+      "failed_locations": []
+    },
+    "coverage_and_withholding": {
+      "eligible_documents": 4961,
+      "inventory_documents": 4962,
+      "document_eligibility_ratio": 0.9997984683595325,
+      "answered_questions": 3,
+      "partial_questions": 0,
+      "withheld_questions": 2,
+      "attempted_questions": 5,
+      "withheld_by_reason": {},
+      "positive_fixtures_non_empty_verified": true
+    },
+    "all_release_gates_passed": true
+  },
+  "owners_demo_receipt": {
+    "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
+    "saved_answer_revision": "ans.trc.65bc609f1fd496.r1",
+    "official_url_inspected": "https://www.rd.go.th/68302.html",
+    "displayed_locator": "PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+    "original_quote_preserved_after_later_ingestion": true,
+    "update_notice_surfaced_on_reopen": true,
+    "markdown_export_bytes": 8221,
+    "fresh_2027_query_selected_later_version": true,
+    "passage_removal_prevented_new_claim_publication": true
+  }
+}

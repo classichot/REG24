@@ -8,6 +8,9 @@ import {
   type RequestedResearchModeInput,
   type DeliverableOutputFormat,
 } from '@/core/agentic-rag/agentic-legal-research-engine';
+import { resolveServerActor } from '@/core/knowledge/http-auth';
+import { queryKnowledge } from '@/core/knowledge/query';
+import { getDefaultKnowledgeStore } from '@/core/knowledge/store';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,13 +93,28 @@ export async function POST(request: NextRequest) {
       requested_tenant_document_scope: body.requested_tenant_document_scope,
     });
 
+    const actor = resolveServerActor(request);
+    const store = getDefaultKnowledgeStore();
+    const grounded = await queryKnowledge(
+      {
+        question: questionText,
+        applicable_date: body.as_of_date || null,
+      },
+      actor,
+      { store, channel: 'research' }
+    );
+
     return NextResponse.json({
       success: true,
       prd_reference: 'REG24-PRD-AGENTRAG-001',
       mission_id: mission.mission_id,
       status: mission.status,
       mode: mission.router_decision.selected_mode,
-      mission,
+      mission: {
+        ...mission,
+        traceable_answer: grounded.traceable_answer || null,
+      },
+      traceable_answer: grounded.traceable_answer || null,
     });
   } catch (error) {
     return NextResponse.json(

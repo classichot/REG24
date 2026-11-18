@@ -8,6 +8,12 @@
  */
 
 import { verifyClaimAgainstPassages } from "./answer-verification";
+import {
+  attachTraceableEnvelopeToGroundedAnswer,
+  getUnifiedCitationLedgerView,
+  tryAnswerFromOnboardedCitationSources,
+} from "./claim-traceability-engine";
+import type { TraceablePublicationChannel } from "./citation-contracts";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { sha256Bytes, thaiDigitsToArabic } from "./identity";
 import { detectSourceSectionTyposSic, extractConditionsAndExceptions } from "./profiles/B01";
@@ -253,11 +259,86 @@ export async function queryKnowledge(
   options?: {
     store?: DurableKnowledgeStore;
     retrievalStrategy?: RetrievalStrategy;
+    channel?: TraceablePublicationChannel;
+    persistAnswerAtomically?: boolean;
+  }
+): Promise<GroundedAnswer> {
+  const store = options?.store || getDefaultKnowledgeStore();
+  const state = store.getState();
+  const fallbackCandidateRel = Object.values(state.releases)
+    .filter(
+      (r) =>
+        r.state === "READY_FOR_UAT" ||
+        r.state === "ACCEPTED" ||
+        r.state === "ACCEPTED_WITH_DECLARED_GAPS"
+    )
+    .sort(
+      (a, b) =>
+        b.updated_at.localeCompare(a.updated_at) ||
+        b.release_id.localeCompare(a.release_id)
+    )[0]?.release_id;
+  const releaseId = req.release_id || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
+
+  // Check if directly onboarded citation_ledger sources match (native PDFs, Thai scans, amended versions)
+  const directOnboarded = tryAnswerFromOnboardedCitationSources(store, {
+    question: req.question,
+    applicable_date: req.applicable_date ?? null,
+    release_id: releaseId,
+    actor,
+    channel: options?.channel || "api",
+    persist: options?.persistAnswerAtomically,
+  });
+  if (directOnboarded) {
+    return directOnboarded;
+  }
+
+  const baseAnswer = await executeCoreKnowledgeQuery(req, actor, options);
+  const generatedAt = new Date().toISOString();
+  const withTimestamp: GroundedAnswer = {
+    ...baseAnswer,
+    generated_at: generatedAt,
+  };
+  const traceableEnvelope = attachTraceableEnvelopeToGroundedAnswer(store, withTimestamp, {
+    question: req.question,
+    actor,
+    channel: options?.channel || "api",
+    persist: options?.persistAnswerAtomically,
+  });
+
+  // If a required passage on a Batch 1 work was explicitly withdrawn in citation_ledger, reflect the withheld status!
+  if (
+    traceableEnvelope.status === "insufficient" &&
+    withTimestamp.status === "ANSWERED" &&
+    withTimestamp.claims.some((c) => c.claim_type !== "abstention_notice")
+  ) {
+    return {
+      ...withTimestamp,
+      status: "INSUFFICIENT_EVIDENCE",
+      answer: traceableEnvelope.rendered_answer_th,
+      claims: [],
+      evidence: [],
+      traceable_answer: traceableEnvelope,
+    };
+  }
+
+  return {
+    ...withTimestamp,
+    traceable_answer: traceableEnvelope,
+  };
+}
+
+async function executeCoreKnowledgeQuery(
+  req: QueryRequest,
+  actor: Actor,
+  options?: {
+    store?: DurableKnowledgeStore;
+    retrievalStrategy?: RetrievalStrategy;
   }
 ): Promise<GroundedAnswer> {
   const startedAt = Date.now();
   const store = options?.store || getDefaultKnowledgeStore();
   const state = store.getState();
+  const citationView = getUnifiedCitationLedgerView(store, req.release_id);
 
   const fallbackCandidateRel = Object.values(state.releases)
     .filter(
@@ -481,7 +562,8 @@ export async function queryKnowledge(
   // 2. Final pre-delivery live authorization/withdrawal recheck (SH-16, AT08)
   const freshState = store.getState();
   let liveVerifiedHits = bundle.top_hits.filter((h) =>
-    isPassageCurrentlyAuthorizedAndActive(freshState, h.passage, actor)
+    isPassageCurrentlyAuthorizedAndActive(freshState, h.passage, actor) &&
+    citationView.passages[h.passage.passage_id]?.eligible_for_publication !== false
   );
   // In exact_lookup mode with an explicit ruling identifier OR explicit Act+Section lookup, scope citations strictly (B01-U01, B02-U01)
   if (
@@ -599,7 +681,9 @@ export async function queryKnowledge(
       `หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ ${quarantinedCitationsForAnswer.join(", ")} — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน`
     );
   }
-  const allReleasePassages = store.getPassagesForRelease(releaseId);
+  const allReleasePassages = store
+    .getPassagesForRelease(releaseId)
+    .filter((p) => citationView.passages[p.passage_id]?.eligible_for_publication !== false);
   const allAcceptedAssertions = store.getAcceptedAssertionsForRelease(releaseId);
 
   const extractedConditions = new Set<string>();

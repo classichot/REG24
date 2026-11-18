@@ -10,6 +10,7 @@ import {
   knowledgeApiErrorResponse,
   resolveServerActor,
 } from "../../../../../core/knowledge/http-auth";
+import type { TraceablePublicationChannel } from "../../../../../core/knowledge/citation-contracts";
 
 export async function POST(req: Request) {
   try {
@@ -20,8 +21,12 @@ export async function POST(req: Request) {
       question?: string;
       release_id?: string;
       applicable_date?: string | null;
+      as_of_date?: string | null;
       mode?: "standard" | "exact_lookup" | "comparison";
       comparison_work_ids?: string[];
+      channel?: TraceablePublicationChannel;
+      persist_answer?: boolean;
+      stream?: boolean;
     };
 
     if (!body.question || typeof body.question !== "string" || !body.question.trim()) {
@@ -30,16 +35,21 @@ export async function POST(req: Request) {
 
     const store = getDefaultKnowledgeStore();
     const qClean = body.question.trim();
+    const effectiveAsOf = body.applicable_date ?? body.as_of_date ?? null;
     const answer = await queryKnowledge(
       {
         question: qClean,
         release_id: body.release_id,
-        applicable_date: body.applicable_date ?? null,
+        applicable_date: effectiveAsOf,
         mode: body.mode,
         comparison_work_ids: body.comparison_work_ids,
       },
       actor,
-      { store }
+      {
+        store,
+        channel: body.channel || "api",
+        persistAnswerAtomically: Boolean(body.persist_answer),
+      }
     );
 
     const relRec = store.getState().releases[answer.release_id];
@@ -73,8 +83,42 @@ export async function POST(req: Request) {
       headers["x-reg24-audit-error"] = auditStatus.error.slice(0, 200);
     }
 
+    const wantsStream =
+      body.stream === true ||
+      (req.headers.get("accept") || "").toLowerCase().includes("text/event-stream");
+
+    if (wantsStream && answer.traceable_answer) {
+      // Section 1 Release Invariant: Stream progress or ALREADY VALIDATED claim groups ONLY!
+      const env = answer.traceable_answer;
+      const sseLines: string[] = [];
+      sseLines.push(
+        `event: progress\ndata: ${JSON.stringify({ stage: "retrieval_and_claim_validation_complete", as_of_date: env.as_of_date })}\n\n`
+      );
+      for (const validatedClaim of env.claims) {
+        sseLines.push(
+          `event: validated_claim\ndata: ${JSON.stringify(validatedClaim)}\n\n`
+        );
+      }
+      sseLines.push(
+        `event: complete\ndata: ${JSON.stringify({ ok: true, traceable_answer: env, audit_status: auditStatus })}\n\n`
+      );
+      return new Response(sseLines.join(""), {
+        status: 200,
+        headers: {
+          ...headers,
+          "Content-Type": "text/event-stream; charset=utf-8",
+          "Cache-Control": "no-cache, no-transform",
+        },
+      });
+    }
+
     return NextResponse.json(
-      { ok: true, answer, audit_status: auditStatus },
+      {
+        ok: true,
+        answer,
+        traceable_answer: answer.traceable_answer || null,
+        audit_status: auditStatus,
+      },
       { status: 200, headers }
     );
   } catch (err) {

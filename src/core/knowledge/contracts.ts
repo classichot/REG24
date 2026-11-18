@@ -10,6 +10,7 @@
  */
 
 import type { KnowledgeEntityType, KnowledgeTypedPredicate } from "../graph/graph-schema";
+import type { TraceableAnswerEnvelope } from "./citation-contracts";
 
 export type BatchId =
   | "B01"
@@ -486,6 +487,7 @@ export interface EvidenceCard {
 export interface GroundedAnswer {
   release_id: string;
   knowledge_snapshot_at: string;
+  generated_at?: string;
   status: AnswerStatus;
   answer: string;
   claims: ClaimLedgerItem[];
@@ -497,6 +499,7 @@ export interface GroundedAnswer {
   model_policy_version: string;
   trace_id: string;
   latency_ms: number;
+  traceable_answer?: TraceableAnswerEnvelope;
 }
 
 // ============================================================================

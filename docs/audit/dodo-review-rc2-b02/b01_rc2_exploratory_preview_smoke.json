@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-18T11:06:24.321Z",
+  "generated_at": "2026-11-18T12:29:56.392Z",
   "protected_live_canonical_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
   "protected_live_canonical_untouched": true,
   "preview_store_dir": "data/knowledge-store-b01-rc2-staging",
@@ -196,7 +196,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 556,
+      "latency_ms": 799,
       "evidence_count": 2,
       "citations": [
         {
@@ -231,7 +231,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 762,
+      "latency_ms": 737,
       "evidence_count": 7,
       "citations": [
         {
@@ -306,7 +306,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 856,
+      "latency_ms": 598,
       "evidence_count": 2,
       "citations": [
         {
@@ -341,7 +341,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 649,
+      "latency_ms": 584,
       "evidence_count": 4,
       "citations": [
         {
@@ -396,7 +396,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 949,
+      "latency_ms": 615,
       "evidence_count": 2,
       "citations": [
         {
@@ -431,7 +431,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 835,
+      "latency_ms": 657,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (https://www.rd.go.th/5939.html#mata65_3) และไม่ป",
@@ -445,7 +445,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 851,
+      "latency_ms": 787,
       "evidence_count": 2,
       "citations": [
         {
@@ -480,7 +480,7 @@
       "expected_result_label_th": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 486,
+      "latency_ms": 493,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/999999 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc5) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน",
@@ -494,7 +494,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 613,
+      "latency_ms": 747,
       "evidence_count": 4,
       "citations": [
         {
@@ -549,7 +549,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 596,
+      "latency_ms": 760,
       "evidence_count": 5,
       "citations": [
         {
@@ -614,7 +614,7 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 500,
+      "latency_ms": 742,
       "evidence_count": 2,
       "citations": [
         {
@@ -649,7 +649,7 @@
       "expected_result_label_th": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 431,
+      "latency_ms": 676,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/1495 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc5) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน",

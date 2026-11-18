@@ -53,6 +53,15 @@ import {
   reg24OcrV2Service,
   resolveOcrPrincipalFromHeaders,
 } from "@/packages/ocr-v2";
+import {
+  exportTraceableAnswer,
+  reopenSavedTraceableAnswer,
+  resolveTraceableEvidenceById,
+  type SupportedExportFormat,
+} from "@/core/knowledge/claim-traceability-engine";
+import { resolveServerActor } from "@/core/knowledge/http-auth";
+import { queryKnowledge } from "@/core/knowledge/query";
+import { getDefaultKnowledgeStore } from "@/core/knowledge/store";
 
 export const MCP_TOOLS_CATALOG = [
   {
@@ -1067,7 +1076,167 @@ export const MCP_TOOLS_CATALOG = [
       properties: {},
     },
   },
+  // Official-Source Citations & Claim Traceability MCP Contract (Shared Serializer — Section 6 & T07/T13)
+  {
+    name: "reg24.citations.ask_traceable",
+    description:
+      "Ask a Thai legal question and return the canonical TraceableAnswerEnvelope (answer revision, separate as_of_date vs generated_at, ordered atomic claims, premise IDs, official URLs, permanent REG24 resolver links, and pinpoints)",
+    inputSchema: {
+      type: "object",
+      required: ["question"],
+      properties: {
+        question: { type: "string" },
+        as_of_date: { type: "string" },
+        release_id: { type: "string" },
+        persist_answer: { type: "boolean", default: false },
+      },
+    },
+  },
+  {
+    name: "reg24.citations.get_saved_answer",
+    description:
+      "Reopen a saved historical TraceableAnswerEnvelope by answer_revision or answer_id through the shared serializer, preserving pinned wording/versions and surfacing separate update notices when newer material exists",
+    inputSchema: {
+      type: "object",
+      required: ["answer_id"],
+      properties: {
+        answer_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.citations.resolve_evidence",
+    description:
+      "Resolve a permanent REG24 evidence passage ID with caller authorization checks, pinned metadata, typed anchors, and current official link health",
+    inputSchema: {
+      type: "object",
+      required: ["evidence_id"],
+      properties: {
+        evidence_id: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "reg24.citations.export_answer",
+    description:
+      "Export a saved TraceableAnswerEnvelope to markdown, pdf_html, word_doc, or json while enforcing publication gates, legacy warnings, and caller authorization",
+    inputSchema: {
+      type: "object",
+      required: ["answer_id"],
+      properties: {
+        answer_id: { type: "string" },
+        format: { type: "string", enum: ["markdown", "pdf_html", "word_doc", "json"], default: "markdown" },
+      },
+    },
+  },
 ];
+
+const CITATION_TRACEABILITY_MCP_TOOL_NAMES = new Set<string>([
+  "reg24.citations.ask_traceable",
+  "reg24.citations.get_saved_answer",
+  "reg24.citations.resolve_evidence",
+  "reg24.citations.export_answer",
+]);
+
+async function executeCitationTraceabilityMcpTool(
+  req: NextRequest,
+  toolName: string,
+  args: Record<string, unknown>
+): Promise<{ status: number; body: Record<string, unknown> }> {
+  const actor = resolveServerActor(req);
+  const store = getDefaultKnowledgeStore();
+
+  if (toolName === "reg24.citations.ask_traceable") {
+    const q = String(args.question || args.query || "").trim();
+    if (!q) {
+      return { status: 400, body: { ok: false, error: "question is required" } };
+    }
+    const ans = await queryKnowledge(
+      {
+        question: q,
+        applicable_date: args.as_of_date ? String(args.as_of_date) : null,
+        release_id: args.release_id ? String(args.release_id) : undefined,
+      },
+      actor,
+      {
+        store,
+        channel: "mcp",
+        persistAnswerAtomically: Boolean(args.persist_answer),
+      }
+    );
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        traceable_answer: ans.traceable_answer,
+      },
+    };
+  }
+
+  if (toolName === "reg24.citations.get_saved_answer") {
+    const id = String(args.answer_id || args.answer_revision || "").trim();
+    const reopened = reopenSavedTraceableAnswer(store, id, actor);
+    if (!reopened.found || !reopened.answer) {
+      return {
+        status: reopened.http_status,
+        body: { ok: false, error: reopened.error_th || "Not found or restricted" },
+      };
+    }
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        traceable_answer: {
+          ...reopened.answer,
+          channel: "mcp" as const,
+        },
+      },
+    };
+  }
+
+  if (toolName === "reg24.citations.resolve_evidence") {
+    const eid = String(args.evidence_id || "").trim();
+    const resolved = resolveTraceableEvidenceById(store, eid, actor);
+    return {
+      status: resolved.http_status,
+      body: resolved as unknown as Record<string, unknown>,
+    };
+  }
+
+  if (toolName === "reg24.citations.export_answer") {
+    const id = String(args.answer_id || args.answer_revision || "").trim();
+    const fmt = (String(args.format || "markdown") as SupportedExportFormat) || "markdown";
+    const reopened = reopenSavedTraceableAnswer(store, id, actor);
+    if (!reopened.found || !reopened.answer) {
+      return {
+        status: reopened.http_status,
+        body: { ok: false, error: reopened.error_th || "Not found or restricted" },
+      };
+    }
+    const exported = exportTraceableAnswer(store, {
+      answer: reopened.answer,
+      format: fmt,
+      actor,
+    });
+    if (!exported.allowed) {
+      return {
+        status: exported.http_status,
+        body: { ok: false, error: exported.error_th || "Export blocked" },
+      };
+    }
+    return {
+      status: 200,
+      body: {
+        ok: true,
+        filename: exported.filename,
+        mime_type: exported.mime_type,
+        content: exported.content,
+      },
+    };
+  }
+
+  return { status: 400, body: { ok: false, error: `Unknown citation tool '${toolName}'` } };
+}
 
 const OCR_V2_MCP_TOOL_NAMES = new Set<string>([
   "reg24.ocr_v2.search_published",
@@ -2199,6 +2368,28 @@ export async function POST(req: NextRequest) {
         const toolName = String(params?.name || "");
         const toolArgs: MCPCommonInput = params?.arguments || {};
 
+        if (CITATION_TRACEABILITY_MCP_TOOL_NAMES.has(toolName)) {
+          const ctOut = await executeCitationTraceabilityMcpTool(
+            req,
+            toolName,
+            toolArgs as Record<string, unknown>
+          );
+          return NextResponse.json({
+            jsonrpc: "2.0",
+            id,
+            result: {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(ctOut.body, null, 2),
+                },
+              ],
+              structuredContent: ctOut.body,
+              isError: ctOut.status >= 400,
+            },
+          });
+        }
+
         if (OCR_V2_MCP_TOOL_NAMES.has(toolName)) {
           const ocrOut = executeOcrV2McpTool(
             req,
@@ -2434,6 +2625,15 @@ export async function POST(req: NextRequest) {
     // Direct REST-style MCP tool call
     const toolName = String(body.tool || body.name || "reg24.list_modules");
     const input: MCPCommonInput = body.input || body.arguments || body;
+
+    if (CITATION_TRACEABILITY_MCP_TOOL_NAMES.has(toolName)) {
+      const ctOut = await executeCitationTraceabilityMcpTool(
+        req,
+        toolName,
+        input as Record<string, unknown>
+      );
+      return NextResponse.json(ctOut.body, { status: ctOut.status });
+    }
 
     if (OCR_V2_MCP_TOOL_NAMES.has(toolName)) {
       const ocrOut = executeOcrV2McpTool(
