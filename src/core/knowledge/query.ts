@@ -664,6 +664,99 @@ export async function queryKnowledge(
   );
 
   if (isComparisonMode) {
+    // Guard historical period comparisons (`APPLICABLE_LAW_AT_TIME`) against unverified historical statutory versions or anachronistic rulings
+    if (temporalCtx.query_intent === "APPLICABLE_LAW_AT_TIME" && temporalCtx.has_any_temporal_anchor) {
+      for (const cp of availablePassages.slice(0, 6)) {
+        const cw = freshState.works[cp.work_id];
+        const cv = freshState.versions[cp.version_id];
+        if (cp.statement_role === "statutory_text" && !cp.work_id.startsWith("statute.th.rc_amendment_")) {
+          const cUnits = reassembleOrderedSectionUnits(cp, allReleasePassages, freshState, actor);
+          const cEval = evaluateStatutoryVersionApplicability({
+            work: cw,
+            version: cv,
+            verbatimText: cUnits.map((u) => u.exact_text).join("\n"),
+            question: normalizedQuestionForIdentifiers,
+            temporalCtx,
+            releaseId,
+            originUri: cUnits[0]?.real_locator?.origin_uri || cp.real_locator?.origin_uri || "",
+          });
+          if (cEval.action === "CONTAIN_UNVERIFIED_HISTORICAL_VERSION" && cEval.containment_message_th) {
+            return {
+              release_id: releaseId,
+              knowledge_snapshot_at: snapshotAt,
+              status: "INSUFFICIENT_EVIDENCE",
+              answer: cEval.containment_message_th,
+              claims: [
+                {
+                  claim_id: `clm.${traceId}.cmp_historical_contained`,
+                  statement: cEval.containment_message_th,
+                  claim_type: "abstention_notice",
+                  statement_role: "reg24_inference",
+                  supporting_passage_ids: [],
+                  applicable_version_id: null,
+                  factual_conditions: [],
+                  exceptions: [],
+                  counterevidence_passage_ids: [],
+                  verification_result: "VERIFIED",
+                },
+              ],
+              evidence: [],
+              assumptions: [],
+              clarification_questions: cEval.clarification_question_th
+                ? [cEval.clarification_question_th]
+                : [],
+              coverage_warnings: [...coverageWarnings, cEval.containment_message_th],
+              applicable_date: req.applicable_date ?? null,
+              model_policy_version: "reg24-grounded-legal-v1.3",
+              trace_id: traceId,
+              latency_ms: Math.max(1, Date.now() - startedAt),
+            };
+          }
+        } else if (cw?.type === "TaxRuling" && cp.statement_role === "official_conclusion") {
+          const rUnits = reassembleOrderedSectionUnits(cp, allReleasePassages, freshState, actor);
+          const rEval = evaluateRulingTemporalApplicability({
+            rulingWork: cw,
+            rulingVersion: cv,
+            conclusionText: rUnits.map((u) => u.exact_text).join("\n"),
+            temporalCtx,
+            releaseId,
+          });
+          if (rEval.shouldContainAnachronism && rEval.messageTh) {
+            return {
+              release_id: releaseId,
+              knowledge_snapshot_at: snapshotAt,
+              status: "INSUFFICIENT_EVIDENCE",
+              answer: rEval.messageTh,
+              claims: [
+                {
+                  claim_id: `clm.${traceId}.cmp_ruling_anachronism_contained`,
+                  statement: rEval.messageTh,
+                  claim_type: "abstention_notice",
+                  statement_role: "reg24_inference",
+                  supporting_passage_ids: [],
+                  applicable_version_id: null,
+                  factual_conditions: [],
+                  exceptions: [],
+                  counterevidence_passage_ids: [],
+                  verification_result: "VERIFIED",
+                },
+              ],
+              evidence: [],
+              assumptions: [],
+              clarification_questions: [
+                "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงเวลาที่ถาม หรือค้นหาเปรียบเทียบข้อหารือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น",
+              ],
+              coverage_warnings: [...coverageWarnings, rEval.messageTh],
+              applicable_date: req.applicable_date ?? null,
+              model_policy_version: "reg24-grounded-legal-v1.3",
+              trace_id: traceId,
+              latency_ms: Math.max(1, Date.now() - startedAt),
+            };
+          }
+        }
+      }
+    }
+
     // Group hits by canonical work_id OR by version_id when comparing two versions of the same statutory provision (B01-U03, B02-U03)
     const distinctWorkIds = new Set(
       availablePassages
@@ -866,7 +959,10 @@ export async function queryKnowledge(
       };
 
       pushStatCand(primaryOfficial);
-      for (const ap of availablePassages) {
+      for (const ap of [
+        ...availablePassages,
+        ...bundle.top_hits.map((h) => h.passage),
+      ]) {
         if (ap.work_id.startsWith("statute.th.rc_amendment_")) {
           for (const asrt of allAcceptedAssertions) {
             if (asrt.subject === ap.work_id && asrt.predicate === "AMENDS") {
@@ -908,12 +1004,18 @@ export async function queryKnowledge(
           originUri: candOriginUri,
         });
 
+        const explicitSecSet = new Set(bundle.explicit_section_refs_in_query || []);
+        const isExplicitlyNamedSection = Boolean(
+          candWork?.official_identifiers.some((oid) => explicitSecSet.has(oid.normalized))
+        );
         const isInitialPrimary = candPsg.work_id === primaryOfficial.work_id;
         const shouldAdoptSecondary =
           !isInitialPrimary &&
-          candEval.has_direct_clause_match &&
-          (primaryOfficial.work_id.startsWith("statute.th.rc_amendment_") ||
-            candEval.action !== "ALLOW_CURRENT_CONSOLIDATED");
+          ((candEval.has_direct_clause_match &&
+            (primaryOfficial.work_id.startsWith("statute.th.rc_amendment_") ||
+              candEval.action !== "ALLOW_CURRENT_CONSOLIDATED")) ||
+            (isExplicitlyNamedSection &&
+              candEval.action === "CONTAIN_UNVERIFIED_HISTORICAL_VERSION"));
 
         if (isInitialPrimary || shouldAdoptSecondary) {
           if (

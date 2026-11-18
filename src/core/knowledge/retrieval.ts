@@ -14,7 +14,10 @@ import {
   parseThaiBuddhistDateToIso,
   thaiDigitsToArabic,
 } from "./identity";
-import { normalizeBilingualQueryForRetrieval } from "./temporal-versioning";
+import {
+  normalizeBilingualQueryForRetrieval,
+  parseFlexibleThaiOrEnglishDateToIso,
+} from "./temporal-versioning";
 import {
   computeDeterministicLegalEmbedding,
   cosineSimilarity,
@@ -442,14 +445,19 @@ export function retrieveAuthorizedKnowledge(
     }
   }
 
+  const normalizedApplicableDate =
+    parseFlexibleThaiOrEnglishDateToIso(params.applicable_date) ||
+    params.applicable_date ||
+    null;
+
   // Filter passages by temporal applicability (AT05, AT13), preserving multi-version comparison when requested (B02-U03)
   let candidatePool = allAuthorizedPassages.filter((p) =>
-    queryIsVersionComparison && !params.applicable_date
+    queryIsVersionComparison && !normalizedApplicableDate
       ? true
-      : isVersionApplicableOnDate(state, p, params.applicable_date, explicitWorkIds)
+      : isVersionApplicableOnDate(state, p, normalizedApplicableDate, explicitWorkIds)
   );
   // Fallback if applicable_date filtered out rulings whose ruling issue_date is in BE 2569 while querying general tax rules without explicit historical statute conflict
-  if (candidatePool.length === 0 && params.applicable_date && sectionRefs.length === 0) {
+  if (candidatePool.length === 0 && normalizedApplicableDate && sectionRefs.length === 0) {
     candidatePool = allAuthorizedPassages.filter((p) => state.works[p.work_id]?.type !== "ProvisionVersion");
   }
 
@@ -651,10 +659,9 @@ export function retrieveAuthorizedKnowledge(
     });
 
   // Stage 2b: Data-Driven Statutory `amendment_ledger` Concept Indexing across B01..B10
-  // Ensures unspaced Thai compound phrases (e.g. `บริษัทบริจาคเงินให้พรรคการเมือง` where odd character offsets
-  // bypass 2-step n-grams) and descriptive queries without explicit section numbers always surface the governing
-  // statutory `LegalWork` into `top_hits` ahead of boilerplate TaxRuling wording.
-  if (rulingIds.length === 0) {
+  // Runs even when a ruling ID is also present in the prompt so mixed ruling + historical-law questions
+  // always surface the implicated statutory `LegalWork` into `top_hits` for temporal applicability evaluation.
+  {
     const qSubstrHay = thaiDigitsToArabic(bilingualExpandedQuery).toLowerCase();
     for (const [wid, wPsgs] of passagesByWorkId.entries()) {
       const w = state.works[wid];

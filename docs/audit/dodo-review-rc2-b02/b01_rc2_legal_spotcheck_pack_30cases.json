@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-18T02:56:42.285Z",
+  "generated_at": "2026-11-18T07:51:10.176Z",
   "release_id": "rel.B01.rc5",
   "manifest_id": "mfst.b01.mwlizi6u",
   "manifest_hash": "5dc00a1da0d11fd7e9fcd550a935e2e549ff9a5a344d99fdd809bb267f8fe821",
@@ -28,7 +28,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.572d880b4f62ca",
+      "trace_id": "trc.b1a0e39d39be8c",
       "coverage_warnings": [
         "หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ มาตรา 37 แห่งประมวลกฎหมายแพ่งและพาณิชย์, มาตรา 42 แห่งประมวลกฎหมายแพ่งและพาณิชย์, มาตรา 1599 แห่งประมวลกฎหมายแพ่งและพาณิชย์, มาตรา 1600 แห่งประมวลกฎหมายแพ่งและพาณิชย์ — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน"
       ],
@@ -122,7 +122,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.339d439837a536",
+      "trace_id": "trc.9913a6ecd9f83c",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -174,7 +174,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.d0cea16e0400a6",
+      "trace_id": "trc.1c48cd7aef6ed0",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -226,7 +226,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.5fa498dd97e226",
+      "trace_id": "trc.9b58e1750d7212",
       "coverage_warnings": [
         "หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ มาตรา 6 (1) แห่งพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 595), มาตรา 6 แห่งพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 595), มาตรา 4 แห่งพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 595) — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน"
       ],
@@ -300,7 +300,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.f7d4de48599445",
+      "trace_id": "trc.05df9c31c87578",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -352,7 +352,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.3dd8a6b3947518",
+      "trace_id": "trc.d1b7e1e8b54a34",
       "coverage_warnings": [
         "หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ มาตรา 3 แห่งพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 773) — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน"
       ],
@@ -406,7 +406,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.2156ef5e8764ae",
+      "trace_id": "trc.6371ca2b79f6a1",
       "coverage_warnings": [
         "หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ มาตรา 3(5) แห่งพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 244), มาตรา 491 แห่งประมวลกฎหมายแพ่งและพาณิชย์ — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน"
       ],
@@ -460,7 +460,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.789938e6bc562c",
+      "trace_id": "trc.f6c4a8459ab356",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -512,7 +512,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.fab60a4977d9d8",
+      "trace_id": "trc.bed084d91863ec",
       "coverage_warnings": [
         "หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ พระราชบัญญัติว่าด้วยการเวนคืนอสังหาริมทรัพย์ พ.ศ.2530, พระราชบัญญัติทางหลวง พ.ศ.2535 — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน"
       ],
@@ -566,7 +566,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.9db404cfb3387d",
+      "trace_id": "trc.49530b3216cb7a",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -618,7 +618,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.757f42270967cf",
+      "trace_id": "trc.db144fe5b7a910",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -690,7 +690,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.4ba4ab3873a8b4",
+      "trace_id": "trc.14c9f6ab94cfb4",
       "coverage_warnings": [
         "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (https://www.rd.go.th/5939.html#mata65_3) และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองจากราชกิจจานุเบกษา (https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/prk16.pdf) โดยตรง. ทั้งนี้ กฎหมายกำหนดเงื่อนไขการใช้บังคับตาม **\"วันเริ่มรอบระยะเวลาบัญชีจริง\" (รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 / `2018-01-01` เป็นต้นไป)** มิใช่พิจารณาจากวันสิ้นสุดรอบระยะเวลาบัญชี (`2018-06-30`) และมิใช่วันประกาศราชกิจจานุเบกษา (`2019-04-17`) ดังนั้น หากรอบระยะเวลาบัญชีปกติ 12 เดือนสิ้นสุดวันที่ `2018-06-30` วันเริ่มรอบระยะเวลาบัญชีจริงคือวันที่ `2017-07-01` (1 กรกฎาคม 2560 สำหรับงวดสิ้นสุด 30 มิถุนายน 2561) ซึ่งเริ่มก่อนวันที่ 1 มกราคม พ.ศ. 2561 **จึงไม่อาจนำมาตรา 65 ตรี (3)(ก) ที่แก้ไขใหม่มาใช้บังคับได้** (เว้นแต่เป็นรอบระยะเวลาบัญชีสั้นที่เริ่มต้นจริงในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561) (อ้างอิงบทเฉพาะกาล: https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf)"
       ],
@@ -723,7 +723,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.fbd809b3bbe9cf",
+      "trace_id": "trc.dcfd76ff66c814",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -815,7 +815,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.51e6e89ba4637d",
+      "trace_id": "trc.093a5ae343f4bd",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -887,7 +887,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.aabdde704a625c",
+      "trace_id": "trc.dcdc39d13f380a",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -939,7 +939,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.b2102993df5a8b",
+      "trace_id": "trc.cf2afb29cb8c30",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -1001,7 +1001,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.e0e63d38b56f64",
+      "trace_id": "trc.d768646bce77e3",
       "coverage_warnings": [
         "หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ มาตรา 25 แห่งพระราชบัญญัติว่าด้วยการเวนคืนอสังหาริมทรัพย์, มาตรา 27 แห่งพระราชบัญญัติว่าด้วยการเวนคืนอสังหาริมทรัพย์, พระราชกฤษฎีกา (ฉบับที่ 736) พ.ศ. 2564, พระราชบัญญัติว่าด้วยการเวนคืนอสังหาริมทรัพย์ พ.ศ. 2562 — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน"
       ],
@@ -1055,7 +1055,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.2a60d46631868b",
+      "trace_id": "trc.0e5680bc4677f7",
       "coverage_warnings": [
         "พระราชกฤษฎีกาฯ (ฉบับที่ 736) ยังอยู่ระหว่างรอการตรวจรับรองตัวบทต้นฉบับจากราชกิจจานุเบกษาในชุดข้อมูล rel.B01.rc5 ระบบจึงไม่สรุปหรือคาดเดาตัวบทมาตราและวันบังคับใช้ของพระราชกฤษฎีกาฉบับดังกล่าวโดยไม่มีต้นฉบับที่ผ่านการรับรอง ทั้งนี้ ท่านสามารถตรวจสอบตัวบททางการได้จากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) หรือเว็บไซต์กรมสรรพากร (https://www.rd.go.th) โดยตรง (สถานะระบบ: usable_as_legal_evidence: false)"
       ],
@@ -1088,7 +1088,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.02c8cbb140be9e",
+      "trace_id": "trc.8a38e76b90b5c8",
       "coverage_warnings": [
         "พระราชกฤษฎีกาฯ (ฉบับที่ 773) ยังอยู่ระหว่างรอการตรวจรับรองตัวบทต้นฉบับจากราชกิจจานุเบกษาในชุดข้อมูล rel.B01.rc5 ระบบจึงไม่สรุปหรือคาดเดาตัวบทมาตราและวันบังคับใช้ของพระราชกฤษฎีกาฉบับดังกล่าวโดยไม่มีต้นฉบับที่ผ่านการรับรอง ทั้งนี้ ท่านสามารถตรวจสอบตัวบททางการได้จากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) หรือเว็บไซต์กรมสรรพากร (https://www.rd.go.th) โดยตรง (สถานะระบบ: usable_as_legal_evidence: false)"
       ],
@@ -1121,7 +1121,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.61888bcddc76fb",
+      "trace_id": "trc.4e94c033e5fcd5",
       "coverage_warnings": [
         "ไม่พบตัวบทพระราชกฤษฎีกาฯ (ฉบับที่ 750) ที่ผ่านการตรวจรับรองต้นฉบับในคลังข้อมูลชุด rel.B01.rc5 ระบบจึงระงับการตอบและไม่คาดเดาตัวบทกฎหมาย กรุณาตรวจสอบต้นฉบับจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) หรือเว็บไซต์กรมสรรพากร (https://www.rd.go.th)"
       ],
@@ -1154,7 +1154,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.009f972368ef99",
+      "trace_id": "trc.b0be1a0b076d6b",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -1206,7 +1206,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.df7bdf9d5b18c3",
+      "trace_id": "trc.ebc3a902309573",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -1258,7 +1258,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.9e94018debf216",
+      "trace_id": "trc.8479d6d4a857be",
       "coverage_warnings": [
         "หมายเหตุขอบเขตหลักฐาน: เอกสารที่อ้างอิงมีการกล่าวถึงกฎหมายภายนอกที่ยังอยู่ในทะเบียนกักกัน (usable_as_legal_evidence: false) ได้แก่ พระราชบัญญัติคุ้มครองผู้บริโภค พ.ศ. 2522 — ระบบแสดงเฉพาะเนื้อหาหนังสือตอบข้อหารือ/บทบัญญัติที่รับรองต้นฉบับแล้ว และไม่ใช้ตัวบทที่ถูกกักกันเป็นหลักฐานยืนยัน"
       ],
@@ -1312,7 +1312,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.0ee689a2286e49",
+      "trace_id": "trc.5b521d4ba965a4",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -1364,7 +1364,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "ANSWERED",
-      "trace_id": "trc.7801c8a9e4b1fb",
+      "trace_id": "trc.3b265f05189c55",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {
@@ -1436,7 +1436,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.7f53146a7a7609",
+      "trace_id": "trc.a3fe966974ee92",
       "coverage_warnings": [
         "ประเด็นคำถามเกี่ยวกับ \"พระราชบัญญัติคุ้มครองแรงงาน\" อยู่นอกขอบเขตคลังข้อมูลที่ผ่านการรับรองในชุดทดลองใช้งานปัจจุบัน (rel.B01.rc5: ครอบคลุมหนังสือตอบข้อหารือกรมสรรพากร 4,578 รายการ ประมวลรัษฎากร และกฎหมายลำดับรองของกรมสรรพากรที่ตรวจสอบต้นฉบับแล้วเท่านั้น) ระบบจึงระงับการตอบและไม่คาดเดาข้อกฎหมายนอกขอบเขต"
       ],
@@ -1469,7 +1469,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.fd616837ae7802",
+      "trace_id": "trc.3282d9a254d69b",
       "coverage_warnings": [
         "ประเด็นคำถามเกี่ยวกับ \"ประมวลกฎหมายอาญา\" อยู่นอกขอบเขตคลังข้อมูลที่ผ่านการรับรองในชุดทดลองใช้งานปัจจุบัน (rel.B01.rc5: ครอบคลุมหนังสือตอบข้อหารือกรมสรรพากร 4,578 รายการ ประมวลรัษฎากร และกฎหมายลำดับรองของกรมสรรพากรที่ตรวจสอบต้นฉบับแล้วเท่านั้น) ระบบจึงระงับการตอบและไม่คาดเดาข้อกฎหมายนอกขอบเขต"
       ],
@@ -1502,7 +1502,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.7c4f2b30cc212e",
+      "trace_id": "trc.bb4b522dc3a9c8",
       "coverage_warnings": [
         "ประเด็นคำถามเกี่ยวกับ \"คำพิพากษาศาลฎีกา\" อยู่นอกขอบเขตคลังข้อมูลที่ผ่านการรับรองในชุดทดลองใช้งานปัจจุบัน (rel.B01.rc5: ครอบคลุมหนังสือตอบข้อหารือกรมสรรพากร 4,578 รายการ ประมวลรัษฎากร และกฎหมายลำดับรองของกรมสรรพากรที่ตรวจสอบต้นฉบับแล้วเท่านั้น) ระบบจึงระงับการตอบและไม่คาดเดาข้อกฎหมายนอกขอบเขต"
       ],
@@ -1535,7 +1535,7 @@
       "expected_result_label_th": null,
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.1fb4266a006deb",
+      "trace_id": "trc.698cf8a5fb7a74",
       "coverage_warnings": [
         "ประเด็นคำถามเกี่ยวกับ \"พิกัดอัตราศุลกากร\" อยู่นอกขอบเขตคลังข้อมูลที่ผ่านการรับรองในชุดทดลองใช้งานปัจจุบัน (rel.B01.rc5: ครอบคลุมหนังสือตอบข้อหารือกรมสรรพากร 4,578 รายการ ประมวลรัษฎากร และกฎหมายลำดับรองของกรมสรรพากรที่ตรวจสอบต้นฉบับแล้วเท่านั้น) ระบบจึงระงับการตอบและไม่คาดเดาข้อกฎหมายนอกขอบเขต"
       ],
@@ -1568,7 +1568,7 @@
       "expected_result_label_th": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
       "observed_release_id": "rel.B01.rc5",
       "observed_status": "INSUFFICIENT_EVIDENCE",
-      "trace_id": "trc.b8f67cd8170488",
+      "trace_id": "trc.c5ec16760a438a",
       "coverage_warnings": [],
       "zero_synthetic_ext_dep_verified": true,
       "technical_response_checks": {

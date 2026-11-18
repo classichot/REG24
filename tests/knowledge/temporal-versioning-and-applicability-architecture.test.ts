@@ -1,13 +1,21 @@
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
+import { POST as postQueryRoute } from "../../src/app/api/v1/knowledge/query/route";
 import { getVerifiedStatutoryCorpus } from "../../src/core/data/verified-statutory-loader";
 import type { Actor } from "../../src/core/knowledge/contracts";
+import { sha256Bytes } from "../../src/core/knowledge/identity";
 import { extractB02 } from "../../src/core/knowledge/profiles/B02";
 import { queryKnowledge } from "../../src/core/knowledge/query";
-import { DurableKnowledgeStore } from "../../src/core/knowledge/store";
+import {
+  DurableKnowledgeStore,
+  setDefaultKnowledgeStoreForTesting,
+} from "../../src/core/knowledge/store";
+import { setCustomTrialAuditSink, type TrialAuditEvent } from "../../src/core/knowledge/trial-gate";
 import {
   extractAmendmentLedgerFromStatutoryText,
   extractBalancedParentheticalSpans,
+  parseFlexibleMonthYearToRange,
+  parseFlexibleThaiOrEnglishDateToIso,
 } from "../../src/core/knowledge/temporal-versioning";
 
 const LEGAL_REVIEW_ACTOR: Actor = {
@@ -450,5 +458,305 @@ describe("REG24 Durable Statutory Versioning, Temporal Applicability & Multi-Bat
       true
     );
     assertS1CitationGate(explicit1903, "Explicit lookup 0702/1903");
+  });
+
+  it("6. Dodo Finding A — Alternative Date & Period Formats (Slash, Dot, Dash, B.E. YYYY-MM-DD, Month+Year, Split FY, 2-Digit Years, Thai+CE)", async () => {
+    const store = new DurableKnowledgeStore(PREVIEW_STORE_DIR);
+
+    // 6A. Direct unit checks across diverse Thai & English date formats
+    expect(parseFlexibleThaiOrEnglishDateToIso("30/06/2561")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("30/06/61")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("30-06-2018")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("30.06.2018")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("06/30/2018")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("2561-06-30")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("2561/06/30")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("30 มิถุนายน 2018")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("30 มิย 61")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("30-Jun-2018")).toBe("2018-06-30");
+    expect(parseFlexibleThaiOrEnglishDateToIso("15-Jan-19")).toBe("2019-01-15");
+    expect(parseFlexibleMonthYearToRange("พฤษภาคม 2560")).toEqual({
+      startIso: "2017-05-01",
+      endIso: "2017-05-31",
+      yearCe: 2017,
+      month: 5,
+    });
+    expect(parseFlexibleMonthYearToRange("June 2018")).toEqual({
+      startIso: "2018-06-01",
+      endIso: "2018-06-30",
+      yearCe: 2018,
+      month: 6,
+    });
+
+    // 6B. End-to-end containment across alternative pre-amendment / straddling date formats
+    const altHistoricalCases: Array<{
+      label: string;
+      question: string;
+      applicable_date?: string | null;
+    }> = [
+      {
+        label: "Slash B.E. date in prose (30/06/2561)",
+        question:
+          "รอบระยะเวลาบัญชีสิ้นสุด 30/06/2561 บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+      },
+      {
+        label: "Buddhist-year YYYY-MM-DD in API applicable_date (2561-06-30)",
+        question: "ประมวลรัษฎากร มาตรา 65 ตรี ใช้บังคับอย่างไรสำหรับรอบระยะเวลาบัญชีนี้",
+        applicable_date: "2561-06-30",
+      },
+      {
+        label: "Slash B.E. date in API applicable_date (30/06/2561)",
+        question: "ประมวลรัษฎากร มาตรา 65 ตรี ใช้บังคับอย่างไร",
+        applicable_date: "30/06/2561",
+      },
+      {
+        label: "Thai Month + Year without day (ในเดือนพฤษภาคม 2560)",
+        question:
+          "ในเดือนพฤษภาคม 2560 บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักรายจ่ายนิติบุคคลได้ไหม",
+      },
+      {
+        label: "English Month + Year without day (In May 2017)",
+        question:
+          "In May 2017, our Thai company donated 50,000 THB to a political party. Is it deductible?",
+      },
+      {
+        label: "Split fiscal year FY 2017/18",
+        question:
+          "For FY 2017/18, could a Thai company deduct a 50,000 THB political party contribution?",
+      },
+      {
+        label: "Compact FY2017 without space",
+        question: "Could a Thai company deduct a political party donation in FY2017?",
+      },
+      {
+        label: "Two-digit Thai B.E. year (ในปี 60)",
+        question: "ในปี 60 บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+      },
+      {
+        label: "Dot C.E. date on s.80/1(5) (27.02.2019)",
+        question:
+          "เมื่อวันที่ 27.02.2019 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิ VAT 0% หรือไม่",
+      },
+    ];
+
+    for (const tc of altHistoricalCases) {
+      const res = await queryKnowledge(
+        {
+          question: tc.question,
+          release_id: TARGET_RELEASE_ID,
+          applicable_date: tc.applicable_date ?? null,
+        },
+        LEGAL_REVIEW_ACTOR,
+        { store }
+      );
+      expect(res.status, tc.label).toBe("INSUFFICIENT_EVIDENCE");
+      expect(res.evidence, tc.label).toEqual([]);
+      expect(res.answer, tc.label).toContain("ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง");
+    }
+
+    // 6C. Post-cutoff alternative date formats (`01/02/2561 - 30/06/2561` & `28/02/2562`) -> Verified with Royal Gazette proof!
+    const slashShortFyOk = await queryKnowledge(
+      {
+        question:
+          "บริษัทมีรอบระยะเวลาบัญชี 01/02/2561 - 30/06/2561 บริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+        release_id: TARGET_RELEASE_ID,
+      },
+      LEGAL_REVIEW_ACTOR,
+      { store }
+    );
+    expect(["ANSWERED", "CONDITIONAL"]).toContain(slashShortFyOk.status);
+    expect(slashShortFyOk.evidence.some((e) => e.work_id === "prov.th.rc.65_ตรี")).toBe(true);
+    expect(
+      slashShortFyOk.evidence.some((e) => e.work_id === "statute.th.rc_amendment_51_2562")
+    ).toBe(true);
+    assertS1CitationGate(slashShortFyOk, "Slash short FY 01/02/2561 - 30/06/2561");
+
+    // 6D. Mid-month straddle (`ในเดือนกุมภาพันธ์ 2562` on s.80/1(5) effective `2019-02-28`) -> NEEDS_CLARIFICATION
+    const feb2562Straddle = await queryKnowledge(
+      {
+        question:
+          "ในเดือนกุมภาพันธ์ 2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือไม่",
+        release_id: TARGET_RELEASE_ID,
+      },
+      LEGAL_REVIEW_ACTOR,
+      { store }
+    );
+    expect(feb2562Straddle.status).toBe("NEEDS_CLARIFICATION");
+    expect(feb2562Straddle.clarification_questions[0]).toContain("2019-02-28");
+    assertS1CitationGate(feb2562Straddle, "Mid-month straddle Feb 2562");
+  });
+
+  it("7. Dodo Finding B — Questions That Include a Ruling Number: Enforces period-law containment while preserving genuine historical ruling lookups", async () => {
+    const store = new DurableKnowledgeStore(PREVIEW_STORE_DIR);
+
+    const mixedRulingAndHistoricalPeriodCases: Array<{
+      label: string;
+      question: string;
+      mode?: "standard" | "exact_lookup" | "comparison";
+      applicable_date?: string | null;
+    }> = [
+      {
+        label: "Ruling กค 0702/1903 (2567) applied to historical import on 15/03/2540",
+        question:
+          "ตามหนังสือตอบข้อหารือ กค 0702/1903 หากบริษัทนำเข้าสารเสริมสำหรับสัตว์เมื่อวันที่ 15/03/2540 จะได้รับยกเว้นภาษีมูลค่าเพิ่มหรือไม่",
+      },
+      {
+        label: "English ruling GorKor 0702/1903 applied to May 1997 import",
+        question:
+          "Can we apply ruling GorKor 0702/1903 to an animal feed supplement import in May 1997?",
+      },
+      {
+        label: "Ruling กค 0811(กม.03)/366 combined with s.65 ter political donation on 30/06/2561",
+        question:
+          "อ้างอิง กค 0811(กม.03)/366 สำหรับรอบระยะเวลาบัญชีสิ้นสุด 30/06/2561 บริษัทหักเงินบริจาคพรรคการเมืองตามมาตรา 65 ตรี ได้หรือไม่",
+      },
+      {
+        label: "English ruling GK 0702/1494 combined with FY 2017/18 political donation",
+        question:
+          "Under ruling GK 0702/1494 and Section 65 ter, could our company deduct a 50,000 THB political party donation for FY 2017/18?",
+      },
+      {
+        label: "exact_lookup mode with ruling กค 0702/1494 + historical May 2560 political donation",
+        question:
+          "ตาม กค 0702/1494 ในเดือนพฤษภาคม 2560 บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักรายจ่ายได้ไหม",
+        mode: "exact_lookup",
+      },
+      {
+        label: "Old ruling กค 0811/11340 (B.E. 2542) asked to establish applicable law in B.E. 2558",
+        question:
+          "ตามหนังสือตอบข้อหารือ กค 0811/11340 ในปี 2558 กฎหมายเรื่องการโอนหุ้นใช้บังคับอย่างไร",
+      },
+      {
+        label: "Comparison of two rulings (กค 0702/1903 vs กค 0702/634) for imports in B.E. 2540",
+        question:
+          "เปรียบเทียบ กค 0702/1903 กับ กค 0702/634 สำหรับการนำเข้าในปี 2540 ว่าเสียภาษีมูลค่าเพิ่มอย่างไร",
+        mode: "comparison",
+      },
+      {
+        label: "Comparison of Section 65 ter between 30/06/2561 and 15/01/2568",
+        question:
+          "เปรียบเทียบมาตรา 65 ตรี กรณีบริจาคพรรคการเมือง ระหว่างรอบบัญชีสิ้นสุด 30/06/2561 กับ 15/01/2568",
+        mode: "comparison",
+      },
+    ];
+
+    for (const rc of mixedRulingAndHistoricalPeriodCases) {
+      const res = await queryKnowledge(
+        {
+          question: rc.question,
+          release_id: TARGET_RELEASE_ID,
+          mode: rc.mode ?? "standard",
+          applicable_date: rc.applicable_date ?? null,
+        },
+        LEGAL_REVIEW_ACTOR,
+        { store }
+      );
+      expect(res.status, rc.label).toBe("INSUFFICIENT_EVIDENCE");
+      expect(res.evidence, rc.label).toEqual([]);
+      expect(res.answer, rc.label).toMatch(/ไม่พบข้อมูล|หลักฐานไม่เพียงพอ/);
+    }
+
+    // Confirm genuine homonym & dated historical ruling lookups STILL answer cleanly!
+    const homonym2555 = await queryKnowledge(
+      {
+        question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636 ปี 2555",
+        release_id: TARGET_RELEASE_ID,
+        mode: "exact_lookup",
+      },
+      LEGAL_REVIEW_ACTOR,
+      { store }
+    );
+    expect(homonym2555.status).toBe("ANSWERED");
+    expect(homonym2555.answer).toContain("23 มกราคม 2555");
+    assertS1CitationGate(homonym2555, "Homonym lookup 0702/636 year 2555");
+  });
+
+  it("8. Full HTTP Answer Flow, Invite-Only Gate & Audit Verification (POST /api/v1/knowledge/query)", async () => {
+    const prevInviteOnly = process.env.REG24_TRIAL_INVITE_ONLY;
+    const prevAllowedHashes = process.env.REG24_TRIAL_ALLOWED_INVITE_SHA256;
+    const validInviteCode = "INV-7L-TRIAL-20NOV-TEST";
+    const validInviteSha = sha256Bytes(validInviteCode);
+    const capturedAudits: TrialAuditEvent[] = [];
+
+    try {
+      setDefaultKnowledgeStoreForTesting(new DurableKnowledgeStore(PREVIEW_STORE_DIR));
+      setCustomTrialAuditSink({
+        append: (ev) => {
+          capturedAudits.push(ev);
+        },
+      });
+      process.env.REG24_TRIAL_INVITE_ONLY = "1";
+      process.env.REG24_TRIAL_ALLOWED_INVITE_SHA256 = validInviteSha;
+
+      // 8A. Uninvited caller is rejected fail-closed with 401/403
+      const unauthReq = new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ question: "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/1903" }),
+      });
+      const unauthRes = await postQueryRoute(unauthReq);
+      expect([401, 403]).toContain(unauthRes.status);
+
+      // 8B. Invited caller asking unsupported historical-law question (ruling + slash date) -> HTTP 200, INSUFFICIENT_EVIDENCE, 0 citations, audited
+      const histReq = new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-reg24-trial-invite": validInviteCode,
+        },
+        body: JSON.stringify({
+          question:
+            "อ้างอิง กค 0811(กม.03)/366 สำหรับรอบระยะเวลาบัญชีสิ้นสุด 30/06/2561 บริษัทหักเงินบริจาคพรรคการเมืองตามมาตรา 65 ตรี ได้หรือไม่",
+          release_id: TARGET_RELEASE_ID,
+        }),
+      });
+      const histRes = await postQueryRoute(histReq);
+      expect(histRes.status).toBe(200);
+      expect(histRes.headers.get("x-reg24-audit-status")).toBe("custom_sink");
+      expect(histRes.headers.get("x-reg24-ratelimit-backend")).toBeTruthy();
+      const histJson = (await histRes.json()) as {
+        ok: boolean;
+        answer: { status: string; evidence: unknown[]; answer: string };
+        audit_status: { persisted_durable: boolean };
+      };
+      expect(histJson.ok).toBe(true);
+      expect(histJson.audit_status.persisted_durable).toBe(true);
+      expect(histJson.answer.status).toBe("INSUFFICIENT_EVIDENCE");
+      expect(histJson.answer.evidence).toEqual([]);
+      expect(histJson.answer.answer).toContain("ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง");
+
+      // 8C. Invited caller asking verified post-cutoff period (`01/02/2561 - 30/06/2561`) -> HTTP 200, ANSWERED/CONDITIONAL, co-cites statute + Gazette p51.pdf
+      const okReq = new Request("http://localhost/api/v1/knowledge/query", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-reg24-trial-invite": validInviteCode,
+        },
+        body: JSON.stringify({
+          question:
+            "บริษัทมีรอบระยะเวลาบัญชี 01/02/2561 - 30/06/2561 บริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+          release_id: TARGET_RELEASE_ID,
+        }),
+      });
+      const okRes = await postQueryRoute(okReq);
+      expect(okRes.status).toBe(200);
+      const okJson = (await okRes.json()) as {
+        ok: boolean;
+        answer: { status: string; evidence: Array<{ work_id: string }> };
+      };
+      expect(["ANSWERED", "CONDITIONAL"]).toContain(okJson.answer.status);
+      expect(okJson.answer.evidence.some((e) => e.work_id === "prov.th.rc.65_ตรี")).toBe(true);
+      expect(
+        okJson.answer.evidence.some((e) => e.work_id === "statute.th.rc_amendment_51_2562")
+      ).toBe(true);
+      expect(capturedAudits.length).toBe(2);
+    } finally {
+      setCustomTrialAuditSink(null);
+      setDefaultKnowledgeStoreForTesting(null);
+      if (prevInviteOnly === undefined) delete process.env.REG24_TRIAL_INVITE_ONLY;
+      else process.env.REG24_TRIAL_INVITE_ONLY = prevInviteOnly;
+      if (prevAllowedHashes === undefined) delete process.env.REG24_TRIAL_ALLOWED_INVITE_SHA256;
+      else process.env.REG24_TRIAL_ALLOWED_INVITE_SHA256 = prevAllowedHashes;
+    }
   });
 });
