@@ -1,0 +1,591 @@
+{
+  "schema_version": "reg24.legal_version_architecture_e2e_evidence.v1",
+  "generated_at": "2026-11-18T02:55:26.680Z",
+  "release_id": "rel.B01.rc5",
+  "protected_rc1_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
+  "protected_rc1_untouched": true,
+  "verified_gazette_amending_acts": [
+    {
+      "work_id": "statute.th.rc_amendment_51_2562",
+      "title_th": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+      "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf",
+      "artifact_sha256": "f322f1365a7cee694877273be1493f97876b7503a756b9ba95a2de5c462d293a",
+      "gazette_publication_date": "2019-04-16",
+      "enactment_effective_date": "2019-04-17",
+      "s65_ter_3_applicability_basis": "ACCOUNTING_PERIOD_START",
+      "s65_ter_3_applicability_from": "2018-01-01"
+    },
+    {
+      "work_id": "statute.th.rc_amendment_49_2562",
+      "title_th": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562",
+      "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p49.pdf",
+      "artifact_sha256": "aaedf3963752cc8e1de09ecf0a079cd79b638c9de75081d1590baeb7bc352879",
+      "gazette_publication_date": "2019-02-27",
+      "enactment_effective_date": "2019-02-28",
+      "s80_1_5_applicability_basis": "TRANSACTION_OR_EVENT_DATE",
+      "s80_1_5_applicability_from": "2019-02-28"
+    }
+  ],
+  "corpus_wide_amendment_ledger_coverage": {
+    "amended_revenue_code_sections_parsed": 174,
+    "total_parenthetical_amendment_notes_parsed": 326,
+    "unverified_historical_provisions_contained": true
+  },
+  "e2e_summary": {
+    "total_cases": 12,
+    "passed_cases": 12,
+    "all_passed": true
+  },
+  "cases": [
+    {
+      "case_id": "LV-01",
+      "category": "1_original_and_alternative_wording_containment",
+      "language": "th",
+      "question": "ประมวลรัษฎากร มาตรา 65 ตรี สำหรับรอบระยะเวลาบัญชี ณ วันที่ 2018-06-30 ใช้บทบัญญัติรุ่นใดบังคับ",
+      "applicable_date": "2018-06-30",
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "กรุณาระบุวันเริ่มต้นของรอบระยะเวลาบัญชีจริง (เช่น เริ่ม 1 กรกฎาคม 2560 ถึง 30 มิถุนายน 2561 หรือเริ่มใน/หลังวันที่ 1 มกราคม 2561) เพื่อยืนยันบทบัญญัติที่ใช้บังคับ"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (https://www.rd.go.th/5939.html#mata65_3) และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองจากราชกิจจานุเบกษา (https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/prk16.pdf) โดยตรง. ทั้งนี้ กฎหมายกำหนดเงื่อนไขการใช้บังคับตาม **\"วันเริ่มรอบระยะเวลาบัญชีจริง\" (รอบระยะเวลาบัญชีที่เริ่"
+    },
+    {
+      "case_id": "LV-02",
+      "category": "1_original_and_alternative_wording_containment",
+      "language": "th",
+      "question": "ในปี 2560 บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท สามารถนำมาหักเป็นรายจ่ายในการคำนวณกำไรสุทธิได้ไหม",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "กรุณาระบุวันเริ่มต้นของรอบระยะเวลาบัญชีจริง (เช่น เริ่ม 1 กรกฎาคม 2560 ถึง 30 มิถุนายน 2561 หรือเริ่มใน/หลังวันที่ 1 มกราคม 2561) เพื่อยืนยันบทบัญญัติที่ใช้บังคับ"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (https://www.rd.go.th/5939.html#mata65_3) และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองจากราชกิจจานุเบกษา (https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/prk16.pdf) โดยตรง. ทั้งนี้ ตาม **พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562** บทบัญญัติที่แก้ไขใหม"
+    },
+    {
+      "case_id": "LV-03",
+      "category": "1_original_and_alternative_wording_containment",
+      "language": "en",
+      "question": "Can a Thai company deduct a 50,000 baht donation to a political party for its fiscal year ended 30 June 2018?",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "กรุณาระบุวันเริ่มต้นของรอบระยะเวลาบัญชีจริง (เช่น เริ่ม 1 กรกฎาคม 2560 ถึง 30 มิถุนายน 2561 หรือเริ่มใน/หลังวันที่ 1 มกราคม 2561) เพื่อยืนยันบทบัญญัติที่ใช้บังคับ"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (https://www.rd.go.th/5939.html#mata65_3) และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองจากราชกิจจานุเบกษา (https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/prk16.pdf) โดยตรง. ทั้งนี้ กฎหมายกำหนดเงื่อนไขการใช้บังคับตาม **\"วันเริ่มรอบระยะเวลาบัญชีจริง\" (รอบระยะเวลาบัญชีที่เริ่"
+    },
+    {
+      "case_id": "LV-04",
+      "category": "1_original_and_alternative_wording_containment",
+      "language": "en",
+      "question": "Did selling goods to a foreign economic and trade office in Thailand on 15 January 2019 qualify for 0% VAT?",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "กรุณาตรวจสอบตัวบทก่อนการแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาสำหรับธุรกรรมก่อนวันมีผลใช้บังคับดังกล่าว"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ประมวลรัษฎากร มาตรา 80/1 (5) สำหรับธุรกรรมวันที่ `2019-01-15` เนื่องจากบทบัญญัติฉบับปัจจุบันแก้ไขเพิ่มเติมโดย **พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562** (ราชกิจจานุเบกษา เล่ม 136 ตอนที่ 23 ก หน้า 1–3 วันที่ 27 กุมภาพันธ์ 2562 · https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p49.pdf) ซึ่งมีผลใช้บังคับตั้งแต่วันที่ `2019-02-28` เป็นต้นไป จึง **ไม่อาจนำบทบัญญัติที่แก้ไขใหม่มาใช้บังคับย้อนหลังกับวันที"
+    },
+    {
+      "case_id": "LV-05",
+      "category": "2_amendment_boundaries_start_vs_end_vs_enactment",
+      "language": "th",
+      "question": "บริษัทมีรอบระยะเวลาบัญชีเริ่มวันที่ 1 กรกฎาคม 2560 ถึงวันที่ 30 มิถุนายน 2561 บริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "หากต้องการตรวจสอบตัวบทก่อนแก้ไขโดยตรง กรุณาอ้างอิงเอกสารราชกิจจานุเบกษาต้นฉบับตามลิงก์ที่แสดง"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ประมวลรัษฎากร มาตรา 65 ตรี (รายการที่ไม่ให้ถือเป็นรายจ่ายในการคำนวณกำไรสุทธิ) รุ่นย้อนหลังชั่วคราว สำหรับรอบระยะเวลาบัญชีที่เริ่มต้นวันที่ `2017-07-01`: ตาม **พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562** (ราชกิจจานุเบกษา เล่ม 136 ตอนที่ 50 ก หน้า 103–105 วันที่ 16 เมษายน 2562 · https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf) บทบัญญัติที่แก้ไขใหม่ใน ประมวลรัษฎากร มาตรา 65 ตรี (รายการที่ไม่ให้ถื"
+    },
+    {
+      "case_id": "LV-06",
+      "category": "2_amendment_boundaries_start_vs_end_vs_enactment",
+      "language": "th",
+      "question": "บริษัทตั้งใหม่มีรอบระยะเวลาบัญชีเริ่มวันที่ 1 กุมภาพันธ์ 2561 ถึงวันที่ 30 มิถุนายน 2561 บริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "clarification_questions": [],
+      "cited_works": [
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการรายจ่ายต้องห้าม (1)–(20) ที่ไม่ให้นำมาหักในการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคล (เช่น เงินสำรองนอกเกณฑ์ที่กำหนด รายจ่ายส่วนตัว/การกุศลเกินเพดานที่กฎหมายอนุญาต ค่ารับรองเกินเกณฑ์กฎกระทรวง รายจ่ายอันมีลักษณะเป็นการลงทุน เบี้ยปรับ/เงินเพิ่ม/ภาษีเงินได้นิติบุคคล รายจ่ายที่มิใช่เพื่อหากำไรหรือเพื่อกิจการโดยเฉพาะ และรายจ่ายที่พิสูจน์ผู้รับไม่ได้) ทั้งนี้ ตัวบทด้านล่างเป็นตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน โดยวันเริ่มใช้บังคับของแต"
+    },
+    {
+      "case_id": "LV-07",
+      "category": "2_amendment_boundaries_start_vs_end_vs_enactment",
+      "language": "en",
+      "question": "Our Thai company has an accounting period from 1 January 2018 to 31 December 2018 and donated 50,000 THB to a political party. Is it deductible?",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "clarification_questions": [],
+      "cited_works": [
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการรายจ่ายต้องห้าม (1)–(20) ที่ไม่ให้นำมาหักในการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคล (เช่น เงินสำรองนอกเกณฑ์ที่กำหนด รายจ่ายส่วนตัว/การกุศลเกินเพดานที่กฎหมายอนุญาต ค่ารับรองเกินเกณฑ์กฎกระทรวง รายจ่ายอันมีลักษณะเป็นการลงทุน เบี้ยปรับ/เงินเพิ่ม/ภาษีเงินได้นิติบุคคล รายจ่ายที่มิใช่เพื่อหากำไรหรือเพื่อกิจการโดยเฉพาะ และรายจ่ายที่พิสูจน์ผู้รับไม่ได้) ทั้งนี้ ตัวบทด้านล่างเป็นตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน โดยวันเริ่มใช้บังคับของแต"
+    },
+    {
+      "case_id": "LV-08",
+      "category": "2_amendment_boundaries_start_vs_end_vs_enactment",
+      "language": "th",
+      "question": "เมื่อวันที่ 28 กุมภาพันธ์ 2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ เสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 ตามมาตรา 80/1 (5) ได้หรือไม่",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "clarification_questions": [],
+      "cited_works": [
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        },
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_49_2562",
+          "version_id": "ver.th.rc_amendment_49_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p49.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ผู้ประกอบการจดทะเบียนได้รับสิทธิใช้อัตราภาษีมูลค่าเพิ่มร้อยละ 0 ตามมาตรา 80/1 เฉพาะกิจการที่เข้าเงื่อนไขตาม (1)–(6) ได้แก่ (1) การส่งออกสินค้าที่มิใช่สินค้าได้รับยกเว้นตามมาตรา 81 (3), (2) การให้บริการที่กระทำในราชอาณาจักรและได้มีการใช้บริการนั้นในต่างประเทศตามหลักเกณฑ์ วิธีการ และเงื่อนไขที่อธิบดีกำหนด (ประกาศอธิบดีฯ ภาษีมูลค่าเพิ่ม ฉบับที่ 105 รวมถึงบริการเพื่อใช้ผลิตสินค้าในเขตปลอดอากรเพื่อส่งออก), (3) การขนส่งระหว่างประเทศโดยอากาศยานหรือเรือเดินทะเลโดยนิติบุคคล, (4) การขาย"
+    },
+    {
+      "case_id": "LV-09",
+      "category": "3_missing_relevant_date_clarification",
+      "language": "th",
+      "question": "บริษัทบริจาคเงินให้พรรคการเมือง 40,000 บาท สามารถนำมาหักเป็นรายจ่ายในการคำนวณกำไรสุทธิได้หรือไม่",
+      "applicable_date": null,
+      "observed_status": "NEEDS_CLARIFICATION",
+      "clarification_questions": [
+        "กรุณาระบุ **วันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริง** (เนื่องจาก พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562 กำหนดให้ใช้บังคับเฉพาะรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 2018-01-01 เป็นต้นไป)"
+      ],
+      "cited_works": [
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการรายจ่ายต้องห้าม (1)–(20) ที่ไม่ให้นำมาหักในการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคล (เช่น เงินสำรองนอกเกณฑ์ที่กำหนด รายจ่ายส่วนตัว/การกุศลเกินเพดานที่กฎหมายอนุญาต ค่ารับรองเกินเกณฑ์กฎกระทรวง รายจ่ายอันมีลักษณะเป็นการลงทุน เบี้ยปรับ/เงินเพิ่ม/ภ"
+    },
+    {
+      "case_id": "LV-10",
+      "category": "3_missing_relevant_date_clarification",
+      "language": "en",
+      "question": "Can our Thai company deduct a 40,000 THB donation to a political party?",
+      "applicable_date": null,
+      "observed_status": "NEEDS_CLARIFICATION",
+      "clarification_questions": [
+        "กรุณาระบุ **วันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริง** (เนื่องจาก พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562 กำหนดให้ใช้บังคับเฉพาะรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 2018-01-01 เป็นต้นไป)"
+      ],
+      "cited_works": [
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการรายจ่ายต้องห้าม (1)–(20) ที่ไม่ให้นำมาหักในการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคล (เช่น เงินสำรองนอกเกณฑ์ที่กำหนด รายจ่ายส่วนตัว/การกุศลเกินเพดานที่กฎหมายอนุญาต ค่ารับรองเกินเกณฑ์กฎกระทรวง รายจ่ายอันมีลักษณะเป็นการลงทุน เบี้ยปรับ/เงินเพิ่ม/ภ"
+    },
+    {
+      "case_id": "LV-11",
+      "category": "4_historical_document_lookup_vs_period_law",
+      "language": "en",
+      "question": "Please find Revenue Department ruling GorKor 0811(KorMor.03)/366",
+      "applicable_date": null,
+      "observed_status": "ANSWERED",
+      "clarification_questions": [],
+      "cited_works": [
+        {
+          "work_id": "work.th.rd.gk_0811_กม_03_366_2002_bb497a7f",
+          "version_id": "ver.th.rd.gk_0811_กม_03_366_2002_bb497a7f.v1",
+          "official_identifier": "กค 0811(กม.03)/366",
+          "origin_uri": "https://www.rd.go.th/25101.html"
+        },
+        {
+          "work_id": "work.th.rd.gk_0811_กม_03_366_2002_bb497a7f",
+          "version_id": "ver.th.rd.gk_0811_กม_03_366_2002_bb497a7f.v1",
+          "official_identifier": "กค 0811(กม.03)/366",
+          "origin_uri": "https://www.rd.go.th/25101.html"
+        },
+        {
+          "work_id": "prov.th.rc.19",
+          "version_id": "ver.th.rc.19.v1",
+          "official_identifier": "มาตรา 19",
+          "origin_uri": "https://www.rd.go.th/5943.html#mata19"
+        },
+        {
+          "work_id": "prov.th.rc.19",
+          "version_id": "ver.th.rc.19.v1",
+          "official_identifier": "มาตรา 19",
+          "origin_uri": "https://www.rd.go.th/5943.html#mata19"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สรุปคำตอบตามแหล่งอ้างอิง**: แม้บันทึกกองกฎหมาย ที่ `กค 0811(กม.03)/366` (พ.ศ. 2545) จะกล่าวถึงหลักทั่วไปของการออกหมายเรียกภายใน **2 ปี** นับแต่วันยื่นรายการ แต่ตาม **มาตรา 19 แห่งประมวลรัษฎากร** ที่ใช้บังคับอยู่ปัจจุบัน **อธิบดีกรมสรรพากรมีอำนาจอนุมัติให้ขยายเวลาออกหมายเรียกเกินกว่า 2 ปีได้ แต่ไม่เกิน 5 ปีนับแต่วันที่ได้ยื่นรายการ** หากปรากฏหลักฐานหรือมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร หรือเป็นกรณีจำเป็นเพื่อประโยชน์ในการคืนภาษีอากร\n\n**ประเภทเอกสารต้นฉบับ**: บันทึกความเห็นทางกฎหมายภายในกรม"
+    },
+    {
+      "case_id": "LV-12",
+      "category": "4_historical_document_lookup_vs_period_law",
+      "language": "th",
+      "question": "ในปี 2540 บริษัทนำเข้าสารเสริมสำหรับสัตว์จากต่างประเทศ ได้รับยกเว้นภาษีมูลค่าเพิ่มหรือไม่",
+      "applicable_date": null,
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงปีที่ถามจากราชกิจจานุเบกษา หรือระบุเลขที่หนังสือตอบข้อหารือที่ต้องการค้นหาโดยตรง"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. 2540 ที่ผ่านการรับรองอย่างเพียงพอ — แนววินิจฉัยที่ใกล้เคียงที่สุดในคลังข้อมูลชุด rel.B01.rc5 คือหนังสือตอบข้อหารือ `กค 0706/9957` ลงวันที่ 1 ธันวาคม 2549 ซึ่งออกภายหลังช่วงปีที่ถาม (พ.ศ. 2540) ระบบจึงระงับการนำแนววินิจฉัยเฉพาะรายในภายหลังมาสรุปเป็นกฎหมายที่ใช้บังคับย้อนหลังโดยไม่มีตัวบทที่ผ่านการรับรองสำหรับปี พ.ศ. 2540 (หากต้องการอ่านข้อหารือ `กค 0706/9957` โดยตรง กรุณาระบุเลขที่หนังสือในคำค้นหา)"
+    }
+  ]
+}

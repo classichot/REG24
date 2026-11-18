@@ -1,5 +1,5 @@
 {
-  "evaluation_id": "eval.rel.B01.rc5.89780ead",
+  "evaluation_id": "eval.rel.B01.rc5.94aaa1bf",
   "release_id": "rel.B01.rc5",
   "batch_id": "B01",
   "suite_id": "suite.B01.300families.v1.2",
@@ -70,5 +70,5 @@
     }
   },
   "all_automated_gates_passed": true,
-  "evaluated_at": "2026-11-18T00:24:26.884Z"
+  "evaluated_at": "2026-11-18T02:54:50.310Z"
 }

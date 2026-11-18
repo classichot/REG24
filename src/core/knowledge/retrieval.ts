@@ -14,6 +14,7 @@ import {
   parseThaiBuddhistDateToIso,
   thaiDigitsToArabic,
 } from "./identity";
+import { normalizeBilingualQueryForRetrieval } from "./temporal-versioning";
 import {
   computeDeterministicLegalEmbedding,
   cosineSimilarity,
@@ -78,8 +79,12 @@ function isVersionApplicableOnDate(
   }
 
   // If the user explicitly asked for a specific TaxRuling by letter number, allow retrieving it so we can display its date context;
-  // for statutory Provisions (`prov.th.rc.65_ตรี`), ALWAYS enforce `legal_applicability` intervals (`v1_pre2019` vs `v2_current`)!
+  // for consolidated statutory Provisions (`is_consolidated_derived === true`), keep them in candidatePool so `evaluateStatutoryVersionApplicability`
+  // can evaluate per-clause `amendment_ledger` (`ACCOUNTING_PERIOD_START`, `ASSESSABLE_TAX_YEAR`, `TRANSACTION_OR_EVENT_DATE`) instead of dropping via scalar `valid_from`!
   if (explicitlyQueriedWorkIds.has(passage.work_id) && work?.type === "TaxRuling") {
+    return true;
+  }
+  if (ver.is_consolidated_derived) {
     return true;
   }
 
@@ -107,7 +112,8 @@ export function extractExplicitIdentifiersFromQuery(question: string): {
   sectionRefs: string[];
   instrumentHints: string[];
 } {
-  const arabic = thaiDigitsToArabic(question);
+  const { normalizedQuestionForIdentifiers } = normalizeBilingualQueryForRetrieval(question);
+  const arabic = thaiDigitsToArabic(normalizedQuestionForIdentifiers);
   // Match standard 'กค 0702/636', historical 4-digit RD bureau codes ('0811(กม)/806', 'กค 0706/พ./1234'),
   // and similar-looking / malformed ruling codes ('กค 702/1494', 'กค 0702-999999', 'กค 0702/1494ก') so typos never silently substitute!
   const rawRulings: string[] = [
@@ -172,14 +178,16 @@ export function retrieveAuthorizedKnowledge(
   const maxPassages = params.max_passages ?? 12;
   const state = store.getState();
 
+  const { normalizedQuestionForIdentifiers, bilingualExpandedQuery } =
+    normalizeBilingualQueryForRetrieval(params.question);
   const { rulingIds, sectionRefs, instrumentHints } = extractExplicitIdentifiersFromQuery(
     params.question
   );
   const queryAsksAboutDraft = /ร่างพระราชบัญญัติ|ร่างกฎหมาย|วิเคราะห์ร่าง|กรรมาธิการ|มาตรา\s*77/.test(
-    thaiDigitsToArabic(params.question)
+    thaiDigitsToArabic(normalizedQuestionForIdentifiers)
   );
   const queryIsVersionComparison = /เปรียบเทียบ|ก่อนแก้ไข|หลังแก้ไข|ฉบับเดิม|ฉบับปัจจุบัน/.test(
-    params.question
+    normalizedQuestionForIdentifiers
   );
 
   const workMatchesInstrumentHint = (w: CanonicalPersistedState["works"][string]): boolean => {
@@ -233,7 +241,9 @@ export function retrieveAuthorizedKnowledge(
   const yearMismatchedRulingLookups: NonNullable<RetrievalBundle["year_mismatched_ruling_lookups"]> = [];
   const homonymRulingGroups: NonNullable<RetrievalBundle["homonym_ruling_groups"]> = [];
 
-  const qArabicForQualifier = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").trim();
+  const qArabicForQualifier = thaiDigitsToArabic(normalizedQuestionForIdentifiers)
+    .replace(/\s+/g, " ")
+    .trim();
   const extractRulingDateOrYearQualifier = (
     rId: string
   ): { rawQualifier: string; isoDate: string | null; yearCe: string | null } | null => {
@@ -408,7 +418,8 @@ export function retrieveAuthorizedKnowledge(
   }
 
   // Also match named Statute / SubordinateLegislation instruments directly when queried by title or explicit code!
-  const qNormFull = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").trim();
+  const qNormFullRaw = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").trim();
+  const qNormFull = thaiDigitsToArabic(normalizedQuestionForIdentifiers).replace(/\s+/g, " ").trim();
   const exactFullTitleWorkIds = new Set<string>();
   const nonGenericHints = instrumentHints.filter((h) => h !== "ประมวลรัษฎากร");
   for (const w of Object.values(state.works)) {
@@ -421,7 +432,7 @@ export function retrieveAuthorizedKnowledge(
       continue;
     }
     const wTitleNorm = thaiDigitsToArabic(w.title_th).replace(/\s+/g, " ").trim();
-    if (wTitleNorm.length >= 10 && qNormFull.includes(wTitleNorm)) {
+    if (wTitleNorm.length >= 10 && (qNormFullRaw.includes(wTitleNorm) || qNormFull.includes(wTitleNorm))) {
       explicitWorkIds.add(w.work_id);
       exactFullTitleWorkIds.add(w.work_id);
       continue;
@@ -490,7 +501,7 @@ export function retrieveAuthorizedKnowledge(
     "ตาม",
     "กรณี",
   ]);
-  const qTokens = tokenizeThaiLegalForIndex(params.question);
+  const qTokens = tokenizeThaiLegalForIndex(bilingualExpandedQuery);
   const distinctiveHomonymTokens = qTokens.filter(
     (t) =>
       t.length >= 3 &&
@@ -639,9 +650,49 @@ export function retrieveAuthorizedKnowledge(
       addScore(item.passage_id, item.lexScore * 2.5 + rrf * 10, "lexical");
     });
 
+  // Stage 2b: Data-Driven Statutory `amendment_ledger` Concept Indexing across B01..B10
+  // Ensures unspaced Thai compound phrases (e.g. `บริษัทบริจาคเงินให้พรรคการเมือง` where odd character offsets
+  // bypass 2-step n-grams) and descriptive queries without explicit section numbers always surface the governing
+  // statutory `LegalWork` into `top_hits` ahead of boilerplate TaxRuling wording.
+  if (rulingIds.length === 0) {
+    const qSubstrHay = thaiDigitsToArabic(bilingualExpandedQuery).toLowerCase();
+    for (const [wid, wPsgs] of passagesByWorkId.entries()) {
+      const w = state.works[wid];
+      if (!w || w.type === "TaxRuling" || wPsgs.length === 0) continue;
+      const ver = state.versions[wPsgs[0].version_id];
+      const ledger = ver?.amendment_ledger;
+      if (!ledger || ledger.length === 0) continue;
+      for (const item of ledger) {
+        if (!item.amending_work_id) continue;
+        let kwHits = 0;
+        let hasSpecificPhrase = false;
+        for (const kw of item.topic_keywords || []) {
+          if (kw.length < 5 || kw.startsWith("(")) continue;
+          if (/^(?:ในต่างประเทศ|ในประเทศไทย|ในราชอาณาจักร|นอกประเทศ)/.test(kw)) continue;
+          if (qSubstrHay.includes(kw.toLowerCase())) {
+            kwHits += 1;
+            if (kw.length >= 9 || kw.includes(" ")) hasSpecificPhrase = true;
+          }
+        }
+        if (hasSpecificPhrase || kwHits >= 2) {
+          const statBoost = Math.min(26.0, 14.0 + kwHits * 4.0);
+          for (const sp of wPsgs) {
+            addScore(sp.passage_id, statBoost, "lexical");
+          }
+          if (item.amending_work_id) {
+            for (const ap of passagesByWorkId.get(item.amending_work_id) || []) {
+              addScore(ap.passage_id, 12.0, "lexical");
+            }
+          }
+          break;
+        }
+      }
+    }
+  }
+
   // Stage 3: Scoped Vector Candidate Generation (Top 40) when strategy != exact_lexical
   if (strategy !== "exact_lexical") {
-    const qVec = computeDeterministicLegalEmbedding(params.question);
+    const qVec = computeDeterministicLegalEmbedding(bilingualExpandedQuery);
     const vecSnap = loadVectorProjectionSnapshot(store, params.release_id);
     const vecScored: Array<{ passage_id: string; sim: number }> = [];
 
@@ -756,6 +807,9 @@ export function retrieveAuthorizedKnowledge(
         if (!wrongInstrumentSectionWorkIds.has(asrt.object)) {
           hop1ProvisionIds.add(asrt.object);
         }
+      }
+      if (seedWorkIds.has(asrt.object) && asrt.predicate === "AMENDS") {
+        hop1ProvisionIds.add(asrt.subject);
       }
       if (
         seedWorkIds.has(asrt.object) &&

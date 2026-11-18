@@ -4,6 +4,7 @@
  */
 
 import { chunkThaiLegalDocument } from "../extraction";
+import { extractAmendmentLedgerFromStatutoryText } from "../temporal-versioning";
 import {
   buildDeterministicWorkId,
   normalizeThaiLegalSectionRef,
@@ -806,6 +807,9 @@ export async function extractB02(input: ProfileInput): Promise<ProfileResult> {
     known_to: null,
     is_consolidated_derived: cls.isConsolidatedDerived,
     draft_or_enacted_status: cls.draftStatus,
+    amendment_ledger: isNonEnactedDraft
+      ? undefined
+      : extractAmendmentLedgerFromStatutoryText(workId, fullText),
     access_scope: input.access_scope,
   };
 

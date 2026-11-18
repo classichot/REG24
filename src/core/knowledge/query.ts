@@ -13,6 +13,14 @@ import { sha256Bytes, thaiDigitsToArabic } from "./identity";
 import { detectSourceSectionTyposSic, extractConditionsAndExceptions } from "./profiles/B01";
 import { retrieveAuthorizedKnowledge, type RetrievalStrategy } from "./retrieval";
 import { getDefaultKnowledgeStore, type DurableKnowledgeStore } from "./store";
+import {
+  evaluateRulingTemporalApplicability,
+  evaluateStatutoryVersionApplicability,
+  formatAmendmentLedgerSummaryTh,
+  normalizeBilingualQueryForRetrieval,
+  parseQueryTemporalAndIntentContext,
+  type StatutoryVersionEvaluationResult,
+} from "./temporal-versioning";
 import type {
   Actor,
   AnswerStatus,
@@ -160,80 +168,6 @@ const AGENCY_LABELS_TH: Record<string, string> = {
   "reg.th.opm": "สำนักนายกรัฐมนตรี (reg.th.opm)",
   "reg.th.moi": "กระทรวงมหาดไทย (reg.th.moi)",
 };
-
-function evaluateHistoricalStatuteSuppression(params: {
-  question: string;
-  qArabic: string;
-  applicableDate: string | null | undefined;
-  explicitRulingIds: string[];
-  explicitSectionRefs: string[];
-  releaseId: string;
-}): {
-  shouldSuppress: boolean;
-  messageTh: string;
-  clarificationTh: string;
-} | null {
-  if (params.explicitRulingIds.length > 0) return null;
-  if (/หนังสือตอบข้อหารือ|ข้อหารือเลขที่|ข้อหารือใด/.test(params.qArabic)) return null;
-
-  const isPoliticalDonationQuery =
-    /(?:บริจาค|เงินบริจาค)[^\n?]{0,35}พรรคการเมือง|พรรคการเมือง[^\n?]{0,35}(?:บริจาค|รายจ่าย)/.test(
-      params.qArabic
-    );
-  const mentions65Ter =
-    params.explicitSectionRefs.some((s) => /^มาตรา\s*65\s*ตรี/.test(s)) ||
-    /มาตรา\s*65\s*ตรี/.test(params.qArabic) ||
-    isPoliticalDonationQuery;
-  const hasStatuteTarget = params.explicitSectionRefs.length > 0 || mentions65Ter;
-  if (!hasStatuteTarget) return null;
-
-  const isoDate = params.applicableDate?.trim() || null;
-  const isHistoricalApplicableDate = Boolean(isoDate && /^\d{4}-\d{2}-\d{2}$/.test(isoDate) && isoDate < "2020-01-01");
-
-  const histBeMatch = params.qArabic.match(
-    /(?:รอบระยะเวลาบัญชี|ปีบัญชี|ปีภาษี|สิ้นสุด|ณ\s*วันที่|เมื่อวันที่|สำหรับธุรกรรม|ในรอบ|FY\s*ending|ending)[^\n?]{0,50}?\b(25[45][0-9]|256[0-2])\b/i
-  );
-  const histCeMatch = params.qArabic.match(
-    /(?:รอบระยะเวลาบัญชี|ปีบัญชี|ปีภาษี|สิ้นสุด|ณ\s*วันที่|เมื่อวันที่|สำหรับธุรกรรม|ระหว่างธุรกรรมวันที่|FY\s*ending|ending)[^\n?]{0,50}?\b(199[0-9]|200[0-9]|201[0-9])\b/i
-  );
-  const asksHistoricalVersionExplicitly =
-    /(?:ก่อนแก้ไข|ฉบับเดิม|รุ่นเดิม|ย้อนหลัง|ก่อนปี\s*2562|ก่อนวันที่\s*20\s*มีนาคม\s*2562)/.test(
-      params.qArabic
-    );
-
-  if (!isHistoricalApplicableDate && !histBeMatch && !histCeMatch && !asksHistoricalVersionExplicitly) {
-    return null;
-  }
-
-  const hasExplicitAccountingStart =
-    /รอบระยะเวลาบัญชี(?:ที่)?\s*(?:เริ่ม|เริ่มต้น)\s*(?:ใน|ตั้งแต่วันที่|วันที่)\s*[0-9]{1,2}/.test(
-      params.qArabic
-    );
-  const mentionsEndOrPointDateOnly =
-    !hasExplicitAccountingStart &&
-    (/สิ้นสุด|ending|ณ\s*วันที่|เมื่อวันที่/i.test(params.qArabic) || Boolean(isoDate));
-
-  if (mentions65Ter) {
-    const periodWarning = mentionsEndOrPointDateOnly
-      ? ` ทั้งนี้ ในการพิจารณาสิทธิหักรายจ่ายตามมาตรา 65 ตรี (เช่น รายจ่ายบริจาคแก่พรรคการเมืองตามมาตรา 65 ตรี (3)(ก) ไม่เกิน 50,000 บาท ซึ่งแก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562) กฎหมายกำหนดเงื่อนไขการใช้บังคับตาม **"วันเริ่มรอบระยะเวลาบัญชีจริง" (ใช้บังคับกับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 เป็นต้นไป)** มิใช่พิจารณาจากวันสิ้นสุดรอบระยะเวลาบัญชี ดังนั้น หากรอบระยะเวลาบัญชีปกติ 12 เดือนสิ้นสุดวันที่ 30 มิถุนายน 2561 (2018-06-30) วันเริ่มรอบระยะเวลาบัญชีจริงคือวันที่ 1 กรกฎาคม 2560 (เริ่มก่อนวันที่ 1 มกราคม 2561) จึง **ไม่อาจนำมาตรา 65 ตรี (3)(ก) ที่แก้ไขใหม่มาใช้บังคับได้** (เว้นแต่เป็นรอบระยะเวลาบัญชีสั้นที่เริ่มจริงในหรือหลังวันที่ 1 มกราคม 2561)`
-      : ` ทั้งนี้ เฉพาะมาตรา 65 ตรี (3)(ก) (เงินบริจาคแก่พรรคการเมืองไม่เกิน 50,000 บาท ตามพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562) ใช้บังคับเฉพาะกับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 เป็นต้นไปเท่านั้น`;
-
-    return {
-      shouldSuppress: true,
-      messageTh:
-        `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด ${params.releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามเว็บไซต์ทางการกรมสรรพากร (https://www.rd.go.th/5939.html#mata65_3) และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) โดยตรง.${periodWarning}`,
-      clarificationTh:
-        "กรุณาระบุวันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริง (เช่น 1 กรกฎาคม 2560 – 30 มิถุนายน 2561) และตรวจสอบตัวบทก่อนแก้ไขจากราชกิจจานุเบกษาโดยตรง",
-    };
-  }
-
-  const secLabel = params.explicitSectionRefs[0] || "บทบัญญัติที่ถาม";
-  return {
-    shouldSuppress: true,
-    messageTh: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secLabel} แห่งประมวลรัษฎากรรุ่นย้อนหลังสำหรับช่วงเวลาที่ระบุ เนื่องจากคลังข้อมูลชุด ${params.releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (https://www.rd.go.th) และไม่ประกอบสร้างตัวบทย้อนหลังจากตัวบทปัจจุบันโดยไม่ผ่านการตรวจรับรองจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th)`,
-    clarificationTh: `กรุณาระบุวันเริ่มรอบระยะเวลาบัญชีจริง และตรวจสอบพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากรในราชกิจจานุเบกษาสำหรับช่วงเวลาดังกล่าว`,
-  };
-}
 
 function buildSingleAnswerPremiseAndOperativeSummary(params: {
   question: string;
@@ -434,7 +368,8 @@ export async function queryKnowledge(
   }
 
   // 1b. Out-of-scope non-RD legal domain & quarantined external statute guard (Trial Scope Control)
-  const qArabic = thaiDigitsToArabic(req.question);
+  const { normalizedQuestionForIdentifiers } = normalizeBilingualQueryForRetrieval(req.question);
+  const qArabic = thaiDigitsToArabic(normalizedQuestionForIdentifiers);
   const hasTaxContext =
     /ภาษี|อากรแสตมป์|รัษฎากร|สรรพากร|หัก\s*ณ\s*ที่จ่าย|ภ\.ง\.ด\.|ภ\.พ\.|กค\s*\d|0\d{3}\s*\/|เครดิตภาษี|มูลค่าเพิ่ม|นิติบุคคล|บุคคลธรรมดา|ธุรกิจเฉพาะ/i.test(
       qArabic
@@ -541,46 +476,6 @@ export async function queryKnowledge(
         latency_ms: Math.max(1, Date.now() - startedAt),
       };
     }
-  }
-
-  // 1c. Historical statutory version suppression & accounting-period actual start-date check (LSC-12, TQ-1, S-2)
-  const histSuppression = evaluateHistoricalStatuteSuppression({
-    question: req.question,
-    qArabic,
-    applicableDate: req.applicable_date,
-    explicitRulingIds: bundle.explicit_ruling_ids_in_query,
-    explicitSectionRefs: bundle.explicit_section_refs_in_query,
-    releaseId,
-  });
-  if (histSuppression?.shouldSuppress) {
-    return {
-      release_id: releaseId,
-      knowledge_snapshot_at: snapshotAt,
-      status: "INSUFFICIENT_EVIDENCE",
-      answer: histSuppression.messageTh,
-      claims: [
-        {
-          claim_id: `clm.${traceId}.historical_statute_suppressed`,
-          statement: histSuppression.messageTh,
-          claim_type: "abstention_notice",
-          statement_role: "reg24_inference",
-          supporting_passage_ids: [],
-          applicable_version_id: null,
-          factual_conditions: [],
-          exceptions: [],
-          counterevidence_passage_ids: [],
-          verification_result: "VERIFIED",
-        },
-      ],
-      evidence: [],
-      assumptions: [],
-      clarification_questions: [histSuppression.clarificationTh],
-      coverage_warnings: [...coverageWarnings, histSuppression.messageTh],
-      applicable_date: req.applicable_date ?? null,
-      model_policy_version: "reg24-grounded-legal-v1.2",
-      trace_id: traceId,
-      latency_ms: Math.max(1, Date.now() - startedAt),
-    };
   }
 
   // 2. Final pre-delivery live authorization/withdrawal recheck (SH-16, AT08)
@@ -748,11 +643,19 @@ export async function queryKnowledge(
 
   // 4. Missing material facts check (AT12b, B01-U09)
   const explicitMissingFactQuestions = detectMissingFactSignals(req.question);
-  if (explicitMissingFactQuestions.length > 0) {
+  const hasExplicitUnknownFactSignal = explicitMissingFactQuestions.length > 0;
+  if (hasExplicitUnknownFactSignal) {
     for (const cond of Array.from(extractedConditions).slice(0, 2)) {
       explicitMissingFactQuestions.push(`เงื่อนไขตามแนววินิจฉัยที่ต้องตรวจสอบ: ${cond}`);
     }
   }
+
+  const temporalCtx = parseQueryTemporalAndIntentContext({
+    question: normalizedQuestionForIdentifiers,
+    applicableDate: req.applicable_date,
+    mode: req.mode,
+    explicitRulingIds: bundle.explicit_ruling_ids_in_query,
+  });
 
   const claims: ClaimLedgerItem[] = [];
   const answerSections: string[] = [];
@@ -931,14 +834,137 @@ export async function queryKnowledge(
   } else {
     // Primary authoritative passages (`official_conclusion` or `statutory_text`) separated cleanly from `requester_facts` (B01-U04)
     const officialPassages = availablePassages.filter(
-      (p) => p.statement_role === "official_conclusion" || p.statement_role === "statutory_text"
+      (p, idx) =>
+        p.statement_role === "official_conclusion" ||
+        p.statement_role === "statutory_text" ||
+        (idx === 0 && p.statement_role === "secondary_commentary")
     );
     const requesterPassages = availablePassages.filter((p) =>
       p.statement_role.startsWith("requester_")
     );
 
-    const primaryOfficial =
+    let primaryOfficial =
       singleExplicitRulingPassage || officialPassages[0] || availablePassages[0];
+    let activeStatutoryEval: StatutoryVersionEvaluationResult | null = null;
+
+    // Post-retrieval, data-model-driven statutory version & applicability selection (B01..B10)
+    if (temporalCtx.query_intent === "APPLICABLE_LAW_AT_TIME") {
+      const candidateStatPassages: Passage[] = [];
+      const seenStatWorkIds = new Set<string>();
+      const pushStatCand = (p: Passage | undefined) => {
+        if (
+          !p ||
+          p.statement_role !== "statutory_text" ||
+          p.work_id.startsWith("statute.th.rc_amendment_") ||
+          p.extraction_id.startsWith("ext.dep.") ||
+          seenStatWorkIds.has(p.work_id)
+        ) {
+          return;
+        }
+        seenStatWorkIds.add(p.work_id);
+        candidateStatPassages.push(p);
+      };
+
+      pushStatCand(primaryOfficial);
+      for (const ap of availablePassages) {
+        if (ap.work_id.startsWith("statute.th.rc_amendment_")) {
+          for (const asrt of allAcceptedAssertions) {
+            if (asrt.subject === ap.work_id && asrt.predicate === "AMENDS") {
+              const targetPsg = allReleasePassages.find(
+                (rp) =>
+                  rp.work_id === asrt.object &&
+                  rp.statement_role === "statutory_text" &&
+                  !rp.extraction_id.startsWith("ext.dep.") &&
+                  isPassageCurrentlyAuthorizedAndActive(freshState, rp, actor)
+              );
+              pushStatCand(targetPsg);
+            }
+          }
+        } else {
+          pushStatCand(ap);
+        }
+      }
+
+      for (const candPsg of candidateStatPassages) {
+        const candWork = freshState.works[candPsg.work_id];
+        const candVer = freshState.versions[candPsg.version_id];
+        const candUnits = reassembleOrderedSectionUnits(
+          candPsg,
+          allReleasePassages,
+          freshState,
+          actor
+        );
+        const candFullText = candUnits.map((u) => u.exact_text).join("\n");
+        const candOriginUri =
+          candUnits[0]?.real_locator?.origin_uri || candPsg.real_locator?.origin_uri || "";
+
+        const candEval = evaluateStatutoryVersionApplicability({
+          work: candWork,
+          version: candVer,
+          verbatimText: candFullText,
+          question: normalizedQuestionForIdentifiers,
+          temporalCtx,
+          releaseId,
+          originUri: candOriginUri,
+        });
+
+        const isInitialPrimary = candPsg.work_id === primaryOfficial.work_id;
+        const shouldAdoptSecondary =
+          !isInitialPrimary &&
+          candEval.has_direct_clause_match &&
+          (primaryOfficial.work_id.startsWith("statute.th.rc_amendment_") ||
+            candEval.action !== "ALLOW_CURRENT_CONSOLIDATED");
+
+        if (isInitialPrimary || shouldAdoptSecondary) {
+          if (
+            candEval.action === "CONTAIN_UNVERIFIED_HISTORICAL_VERSION" &&
+            candEval.containment_message_th
+          ) {
+            return {
+              release_id: releaseId,
+              knowledge_snapshot_at: snapshotAt,
+              status: "INSUFFICIENT_EVIDENCE",
+              answer: candEval.containment_message_th,
+              claims: [
+                {
+                  claim_id: `clm.${traceId}.historical_version_contained`,
+                  statement: candEval.containment_message_th,
+                  claim_type: "abstention_notice",
+                  statement_role: "reg24_inference",
+                  supporting_passage_ids: [],
+                  applicable_version_id: null,
+                  factual_conditions: [],
+                  exceptions: [],
+                  counterevidence_passage_ids: [],
+                  verification_result: "VERIFIED",
+                },
+              ],
+              evidence: [],
+              assumptions: [],
+              clarification_questions: candEval.clarification_question_th
+                ? [candEval.clarification_question_th]
+                : [],
+              coverage_warnings: [...coverageWarnings, candEval.containment_message_th],
+              applicable_date: req.applicable_date ?? null,
+              model_policy_version: "reg24-grounded-legal-v1.3",
+              trace_id: traceId,
+              latency_ms: Math.max(1, Date.now() - startedAt),
+            };
+          }
+
+          primaryOfficial = candPsg;
+          activeStatutoryEval = candEval;
+          if (
+            candEval.action === "ASK_FOR_MISSING_RELEVANT_DATE" &&
+            candEval.clarification_question_th
+          ) {
+            explicitMissingFactQuestions.push(candEval.clarification_question_th);
+          }
+          break;
+        }
+      }
+    }
+
     const primaryWork = freshState.works[primaryOfficial.work_id];
     const primaryVer = freshState.versions[primaryOfficial.version_id];
     const primaryIdLabel =
@@ -953,6 +979,52 @@ export async function queryKnowledge(
     );
     const officialUnitIds = officialUnits.map((u) => u.passage_id);
     const fullOfficialText = officialUnits.map((u) => u.exact_text).join("\n");
+
+    // Guard against projecting a post-period TaxRuling (citing later-enacted statutes) backward onto an earlier period query
+    if (
+      primaryWork?.type === "TaxRuling" &&
+      temporalCtx.query_intent === "APPLICABLE_LAW_AT_TIME"
+    ) {
+      const rulingTempEval = evaluateRulingTemporalApplicability({
+        rulingWork: primaryWork,
+        rulingVersion: primaryVer,
+        conclusionText: fullOfficialText,
+        temporalCtx,
+        releaseId,
+      });
+      if (rulingTempEval.shouldContainAnachronism && rulingTempEval.messageTh) {
+        return {
+          release_id: releaseId,
+          knowledge_snapshot_at: snapshotAt,
+          status: "INSUFFICIENT_EVIDENCE",
+          answer: rulingTempEval.messageTh,
+          claims: [
+            {
+              claim_id: `clm.${traceId}.ruling_anachronism_contained`,
+              statement: rulingTempEval.messageTh,
+              claim_type: "abstention_notice",
+              statement_role: "reg24_inference",
+              supporting_passage_ids: [],
+              applicable_version_id: null,
+              factual_conditions: [],
+              exceptions: [],
+              counterevidence_passage_ids: [],
+              verification_result: "VERIFIED",
+            },
+          ],
+          evidence: [],
+          assumptions: [],
+          clarification_questions: [
+            "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงปีที่ถามจากราชกิจจานุเบกษา หรือระบุเลขที่หนังสือตอบข้อหารือที่ต้องการค้นหาโดยตรง",
+          ],
+          coverage_warnings: [...coverageWarnings, rulingTempEval.messageTh],
+          applicable_date: req.applicable_date ?? null,
+          model_policy_version: "reg24-grounded-legal-v1.3",
+          trace_id: traceId,
+          latency_ms: Math.max(1, Date.now() - startedAt),
+        };
+      }
+    }
 
     const requesterUnitsFromStore =
       primaryWork?.type === "TaxRuling"
@@ -1062,6 +1134,9 @@ export async function queryKnowledge(
     for (const blk of premiseAndSummaryBlocks) {
       answerSections.push(blk);
     }
+    if (activeStatutoryEval?.explanation_banner_th) {
+      answerSections.push(activeStatutoryEval.explanation_banner_th);
+    }
 
     if (isInternalLegalMemo) {
       answerSections.push(
@@ -1109,14 +1184,21 @@ export async function queryKnowledge(
       );
     }
 
-    // S-2: Honest Revenue Code consolidated text banner vs verified standalone instrument effective dates
+    // S-2: Honest Revenue Code consolidated text banner + structured per-clause Amendment History & Applicability Ledger
     if (
       primaryWork?.work_id.startsWith("prov.th.rc.") ||
       primaryWork?.work_id.startsWith("sched.th.rc.")
     ) {
       answerSections.push(
-        `**สถานะตัวบทประมวลรัษฎากรและวันใช้บังคับ**: ตัวบทด้านล่างเป็น **ตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (\`rd.go.th\`)** ซึ่งรวมการแก้ไขเพิ่มเติมหลายคราวไว้ในมาตราเดียว วันเริ่มใช้บังคับและเงื่อนไขการใช้บังคับของแต่ละวรรคหรืออนุมาตรา (เช่น \`รอบระยะเวลาบัญชีที่เริ่มในหรือหลัง...\`) ให้ตรวจสอบจากหมายเหตุท้ายวรรคในตัวบทด้านล่างและราชกิจจานุเบกษาโดยตรง *(หมายเหตุ: ป้ายระบุรุ่นและวันใช้บังคับรายอนุมาตรากำลังอยู่ระหว่างการปรับปรุงจากราชกิจจานุเบกษา)*`
+        `**สถานะตัวบทประมวลรัษฎากรและวันใช้บังคับ**: ตัวบทด้านล่างเป็น **ตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (\`rd.go.th\`)** ซึ่งรวมการแก้ไขเพิ่มเติมหลายคราวไว้ในมาตราเดียว วันเริ่มใช้บังคับและเงื่อนไขการใช้บังคับของแต่ละวรรคหรืออนุมาตรา (เช่น \`รอบระยะเวลาบัญชีที่เริ่มในหรือหลัง...\`) พิจารณาตามหมายเหตุการแก้ไขเพิ่มเติมท้ายวรรคและพระราชบัญญัติแก้ไขเพิ่มเติมในราชกิจจานุเบกษาโดยไม่เหมารวมว่าวันประกาศใช้บังคับกับรอบระยะเวลาบัญชีเป็นวันเดียวกัน`
       );
+      const ledgerSummary = formatAmendmentLedgerSummaryTh(
+        primaryVer?.amendment_ledger,
+        activeStatutoryEval?.matched_amendment
+      );
+      if (ledgerSummary) {
+        answerSections.push(ledgerSummary);
+      }
     } else if (
       primaryWork?.type !== "TaxRuling" &&
       (primaryVer?.publication_date || primaryVer?.legal_applicability?.[0]?.valid_from)
@@ -1163,6 +1245,55 @@ export async function queryKnowledge(
     answerSections.push(
       `**${isDraftOrHistory ? "สาระสำคัญของร่างกฎหมาย/รายงานวิเคราะห์ร่าง" : primaryOfficial.statement_role === "statutory_text" ? "บทบัญญัติกฎหมาย" : isInternalLegalMemo ? "บันทึกกองกฎหมาย / แนววินิจฉัยของกรมสรรพากร" : "แนววินิจฉัยของกรมสรรพากร"} (${primaryIdLabel}${headerDateNote}${primaryOriginUri ? ` · ต้นฉบับ: ${primaryOriginUri}` : ""})**:\n${fullOfficialText}`
     );
+
+    // Attach verified Royal Gazette Amending Act (`p49.pdf`, `p51.pdf`, etc.) when transitional/effective-date proof is cited
+    if (activeStatutoryEval?.amending_work_id_to_cite) {
+      const amendWorkId = activeStatutoryEval.amending_work_id_to_cite;
+      const amendSeed = allReleasePassages.find(
+        (p) =>
+          p.work_id === amendWorkId &&
+          p.statement_role === "statutory_text" &&
+          !p.extraction_id.startsWith("ext.dep.") &&
+          isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+      );
+      if (amendSeed) {
+        const amendUnits = reassembleOrderedSectionUnits(
+          amendSeed,
+          allReleasePassages,
+          freshState,
+          actor
+        );
+        for (const au of amendUnits) {
+          verificationPassageMap.set(au.passage_id, au);
+        }
+        ensureEvidenceCardsForPassages(
+          amendUnits,
+          liveEvidenceCards,
+          freshState,
+          allAcceptedAssertions
+        );
+        const amendWork = freshState.works[amendWorkId];
+        const amendTitle = amendWork?.title_th || amendWorkId;
+        const amendOriginUri =
+          amendUnits[0]?.real_locator?.origin_uri || amendSeed.real_locator?.origin_uri || "";
+        const fullAmendText = amendUnits.map((u) => u.exact_text).join("\n");
+        claims.push({
+          claim_id: `clm.${traceId}.amending_act.1`,
+          statement: `[${amendTitle}] ${fullAmendText}`,
+          claim_type: "direct_source_statement",
+          statement_role: "statutory_text",
+          supporting_passage_ids: amendUnits.map((u) => u.passage_id),
+          applicable_version_id: amendSeed.version_id,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "VERIFIED",
+        });
+        answerSections.push(
+          `**พระราชบัญญัติแก้ไขเพิ่มเติมและบทเฉพาะกาลที่ยืนยันการใช้บังคับ (${amendTitle}${amendOriginUri ? ` · ต้นฉบับราชกิจจานุเบกษา: ${amendOriginUri}` : ""})**:\n${fullAmendText}`
+        );
+      }
+    }
 
     // S-6 [sic] Source Typo Disclosure: preserve verbatim RD text while flagging verified source typos (e.g., LSC-05 "มาตรา 46 ทวิ" for "มาตรา 49 ทวิ")
     if (primaryWork?.type === "TaxRuling") {
@@ -1268,7 +1399,7 @@ export async function queryKnowledge(
       }
     } else if (
       primaryOfficial.statement_role === "statutory_text" &&
-      (/(?:แนววินิจฉัย|ข้อหารือ)/u.test(req.question) || explicitMissingFactQuestions.length > 0)
+      (/(?:แนววินิจฉัย|ข้อหารือ)/u.test(req.question) || hasExplicitUnknownFactSignal)
     ) {
       const directInterpretingIds = new Set(
         allAcceptedAssertions
@@ -1391,13 +1522,18 @@ export async function queryKnowledge(
   // S-1 Citation Gate (P0): Cite ONLY sources whose passages were substantively used in `claims` AND whose identifier/title appears in the rendered answer/claims!
   const usedPassageIdSet = new Set(claims.flatMap((c) => c.supporting_passage_ids));
   const verificationTextHaystack = `${finalAnswerBody}\n${claims.map((c) => c.statement).join("\n")}`;
+  const normHaystack = thaiDigitsToArabic(verificationTextHaystack).replace(/\s+/g, " ");
   const gatedEvidenceCards = liveEvidenceCards.filter((ec) => {
     if (!usedPassageIdSet.has(ec.passage_id)) return false;
     const bareId = ec.official_identifier.replace(/^กค\s+/, "").trim();
+    const normId = thaiDigitsToArabic(ec.official_identifier).replace(/\s+/g, " ").trim();
+    const normTitle = thaiDigitsToArabic(ec.title_th).replace(/\s+/g, " ").trim();
     return (
       verificationTextHaystack.includes(ec.official_identifier) ||
       (bareId.length >= 4 && verificationTextHaystack.includes(bareId)) ||
-      verificationTextHaystack.includes(ec.title_th)
+      verificationTextHaystack.includes(ec.title_th) ||
+      (normId.length >= 4 && normHaystack.includes(normId)) ||
+      (normTitle.length >= 6 && normHaystack.includes(normTitle))
     );
   });
 

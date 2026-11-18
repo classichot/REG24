@@ -175,11 +175,41 @@ export interface LegalWork {
   instrument_code?: string;
 }
 
+export type ApplicabilityBasis =
+  | "ACCOUNTING_PERIOD_START"
+  | "ACCOUNTING_PERIOD_END"
+  | "ASSESSABLE_TAX_YEAR"
+  | "TRANSACTION_OR_EVENT_DATE"
+  | "CASE_SPECIFIC_OPINION"
+  | "CONSOLIDATED_MULTI_AMENDMENT";
+
+export interface ProvisionAmendmentLedgerItem {
+  subprovision_label: string | null;
+  amending_instrument_title_th: string;
+  amending_work_id: string | null;
+  amending_source_uri: string | null;
+  royal_gazette_ref: string | null;
+  gazette_publication_date: string | null;
+  enactment_effective_date: string | null;
+  applicability_basis: ApplicabilityBasis;
+  applicability_from_date: string | null;
+  applicability_from_tax_year_be: number | null;
+  applicability_rule_th: string;
+  saving_clause_th?: string | null;
+  pre_amendment_verified_version_id: string | null;
+  pre_amendment_source_uri?: string | null;
+  clause_excerpt_th?: string | null;
+  topic_keywords?: string[];
+}
+
 export interface ApplicabilityInterval {
   valid_from: string | null;
   valid_to: string | null;
   conditions: string[];
   date_status: "verified" | "unknown_restricted" | "retroactive_evidenced" | "transitional";
+  applicability_basis?: ApplicabilityBasis;
+  enactment_effective_date?: string | null;
+  applicability_from_tax_year_be?: number | null;
 }
 
 export interface LegalVersion {
@@ -195,6 +225,7 @@ export interface LegalVersion {
   known_to: string | null;
   is_consolidated_derived?: boolean;
   draft_or_enacted_status?: "ENACTED_ORIGINAL" | "ENACTED_AMENDMENT" | "CONSOLIDATED_DERIVED" | "DRAFT_BILL" | "LEGISLATIVE_HISTORY" | "UNOFFICIAL_TRANSLATION";
+  amendment_ledger?: ProvisionAmendmentLedgerItem[];
   access_scope: string;
 }
 

@@ -33,6 +33,7 @@ import { KnowledgeJobManager } from "./jobs";
 import { buildReleaseProjectionsFromOutbox } from "./projections";
 import { extractB01, normalizeB01TaxTypes } from "./profiles/B01";
 import { extractB02 } from "./profiles/B02";
+import { extractAmendmentLedgerFromStatutoryText } from "./temporal-versioning";
 import { selectStratifiedAuditSample } from "./review";
 import {
   getDefaultKnowledgeStore,
@@ -294,18 +295,20 @@ function seedB01RequiredStatutoryDependencies(
   // cleanly suppressed until verified directly from the Royal Gazette amending Acts.
   const v2Id = "ver.th.rc.65_ตรี.v2_current";
   const v2Verbatim = rc65Ter.verbatim_text.replace(/<!--[\s\S]*?-->/g, "").trim();
+  const v2AmendmentLedger = extractAmendmentLedgerFromStatutoryText(sec65TerWorkId, v2Verbatim);
   draft.versions[v2Id] = {
     version_id: v2Id,
     work_id: sec65TerWorkId,
     version_label: "consolidated_rd_current",
     legal_applicability: [
       {
-        valid_from: "2020-01-01",
+        valid_from: null,
         valid_to: null,
         conditions: [
           "ตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (rd.go.th) — เฉพาะอนุมาตรา (3) แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562 ให้ใช้บังคับกับการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคลซึ่งรอบระยะเวลาบัญชีเริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 เป็นต้นไป ส่วนอนุมาตราอื่นให้ตรวจสอบหมายเหตุท้ายอนุมาตรานั้น",
         ],
         date_status: "verified",
+        applicability_basis: "CONSOLIDATED_MULTI_AMENDMENT",
       },
     ],
     publication_date: null,
@@ -314,6 +317,9 @@ function seedB01RequiredStatutoryDependencies(
     temporal_evidence_ids: evidenceArts,
     known_from: draft.versions[v2Id]?.known_from || nowIso,
     known_to: null,
+    is_consolidated_derived: true,
+    draft_or_enacted_status: "CONSOLIDATED_DERIVED",
+    amendment_ledger: v2AmendmentLedger,
     access_scope: "scope.platform.public",
   };
   const extV2Id =
@@ -358,7 +364,76 @@ function seedB01RequiredStatutoryDependencies(
     }
   }
 
-  return { createdOrReusedWorkIds: touched };
+  // Materialize verified native-digital Royal Gazette Amending Acts (`p49.pdf`, `p51.pdf`) and link `AMENDS` edges
+  const verifiedAmendSpecs: Array<{
+    amendKey: string;
+    targetWorkId: string;
+    ruleCond: string;
+  }> = [
+    {
+      amendKey: "statute.th.rc_amendment_51_2562",
+      targetWorkId: "prov.th.rc.65_ตรี",
+      ruleCond:
+        "มาตรา 4 และมาตรา 5 วรรคสอง แก้ไขเพิ่มเติมมาตรา 65 ตรี (3) ให้ใช้บังคับกับรอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 เป็นต้นไป",
+    },
+    {
+      amendKey: "statute.th.rc_amendment_49_2562",
+      targetWorkId: "prov.th.rc.80/1",
+      ruleCond:
+        "มาตรา 2 และมาตรา 3 แก้ไขเพิ่มเติมมาตรา 80/1 (5) ใช้บังคับตั้งแต่วันที่ 28 กุมภาพันธ์ พ.ศ. 2562 เป็นต้นไป",
+    },
+  ];
+  for (const spec of verifiedAmendSpecs) {
+    const ok = materializeVerifiedStatutoryDependency(
+      draft,
+      {
+        citation_raw: spec.amendKey,
+        normalized_key: spec.amendKey,
+        target_type: "Statute",
+        instrument_title_th:
+          verCorpus.subordinate_and_amendment_works[spec.amendKey]?.title_th || spec.amendKey,
+        section_label: null,
+        owner_batch_id: "B02",
+        first_loaded_by_batch_id: "B01",
+        required_by_work_id: spec.targetWorkId,
+      },
+      releaseId,
+      nowIso
+    );
+    if (ok) {
+      touched.push(spec.amendKey);
+      const amendPsg = Object.values(draft.passages).find(
+        (p) => p.work_id === spec.amendKey && p.release_id === releaseId
+      );
+      if (amendPsg) {
+        const asrtId = `asrt.amends.${releaseId}.${spec.amendKey}.${spec.targetWorkId}`;
+        draft.assertions[asrtId] = {
+          assertion_id: asrtId,
+          release_id: releaseId,
+          subject: spec.amendKey,
+          subject_type: "Statute",
+          predicate: "AMENDS",
+          object: spec.targetWorkId,
+          object_type: spec.targetWorkId === "prov.th.rc.65_ตรี" ? "ProvisionVersion" : "Provision",
+          qualifications: { conditions: [spec.ruleCond], exceptions: [] },
+          evidence_ids: [amendPsg.passage_id],
+          statement_role: "statutory_text",
+          state: "ACCEPTED",
+          review_id: null,
+          validity: {
+            valid_from:
+              verCorpus.subordinate_and_amendment_works[spec.amendKey]?.effective_date_iso || null,
+            valid_to: null,
+          },
+          confidence: 1.0,
+          legal_certainty: "settled_statutory",
+          scope: "scope.platform.public",
+        };
+      }
+    }
+  }
+
+  return { createdOrReusedWorkIds: Array.from(new Set(touched)) };
 }
 
 /**
@@ -478,6 +553,11 @@ function materializeVerifiedStatutoryDependency(
       ? "verified"
       : "unknown_restricted";
 
+  const verbatimText = verified.verbatim_text.replace(/<!--[\s\S]*?-->/g, "").trim();
+  const parsedAmendLedger = isConsolidatedRcProvision
+    ? extractAmendmentLedgerFromStatutoryText(dep.normalized_key, verbatimText)
+    : undefined;
+
   draft.versions[verId] = {
     version_id: verId,
     work_id: dep.normalized_key,
@@ -494,6 +574,9 @@ function materializeVerifiedStatutoryDependency(
             ? [verified.effective_date_raw]
             : [],
         date_status: dateStatus,
+        applicability_basis: isConsolidatedRcProvision
+          ? "CONSOLIDATED_MULTI_AMENDMENT"
+          : "TRANSACTION_OR_EVENT_DATE",
       },
     ],
     publication_date: effIso,
@@ -504,6 +587,9 @@ function materializeVerifiedStatutoryDependency(
     temporal_evidence_ids: [artId],
     known_from: nowIso,
     known_to: null,
+    is_consolidated_derived: isConsolidatedRcProvision,
+    draft_or_enacted_status: isConsolidatedRcProvision ? "CONSOLIDATED_DERIVED" : "ENACTED_ORIGINAL",
+    amendment_ledger: parsedAmendLedger,
     access_scope: "scope.platform.public",
   };
 
@@ -511,7 +597,6 @@ function materializeVerifiedStatutoryDependency(
     releaseId === "rel.B01.rc1"
       ? `ext.ver.${sha256Bytes(dep.normalized_key).slice(0, 12)}`
       : `ext.ver.${sha256Bytes(`${releaseId}:${dep.normalized_key}`).slice(0, 12)}`;
-  const verbatimText = verified.verbatim_text.replace(/<!--[\s\S]*?-->/g, "").trim();
   draft.extractions[extVerId] = {
     extraction_id: extVerId,
     artifact_id: artId,
@@ -2216,6 +2301,11 @@ export async function rollbackRelease(
       // Remove only release-exclusive passages, assertions, and vectors; NEVER delete shared law works!
       for (const asrtId of rel.created_assertion_ids) {
         delete draft.assertions[asrtId];
+      }
+      for (const [aid, asrt] of Object.entries(draft.assertions)) {
+        if (asrt.release_id === releaseId) {
+          delete draft.assertions[aid];
+        }
       }
       for (const psgId of rel.created_passage_ids) {
         delete draft.passages[psgId];

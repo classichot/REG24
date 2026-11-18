@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-18T00:26:30.095Z",
+  "generated_at": "2026-11-18T02:57:17.838Z",
   "protected_live_canonical_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
   "protected_live_canonical_untouched": true,
   "preview_store_dir": "data/knowledge-store-b01-rc2-staging",
@@ -28,8 +28,8 @@
   ],
   "current_candidate_release_id": "rel.B01.rc5",
   "candidate_rc2_state": "READY_FOR_UAT",
-  "candidate_rc2_manifest_id": "mfst.b01.mwldatea",
-  "candidate_rc2_manifest_hash": "ec73d84b9d133bac700e672f6c4a7742e9fdb7cfd1d99b1c0c532330eab4734f",
+  "candidate_rc2_manifest_id": "mfst.b01.mwlizi6u",
+  "candidate_rc2_manifest_hash": "5dc00a1da0d11fd7e9fcd550a935e2e549ff9a5a344d99fdd809bb267f8fe821",
   "active_release_id": null,
   "owner_decision": null,
   "inventory": {
@@ -46,10 +46,10 @@
     "canonical_works_new": 4567,
     "works_reused": 402,
     "legal_versions_new": 4569,
-    "extraction_revisions_new": 4960,
-    "accepted_passages": 11486,
-    "accepted_assertions": 43114,
-    "active_vectors": 11486
+    "extraction_revisions_new": 4962,
+    "accepted_passages": 11490,
+    "accepted_assertions": 43116,
+    "active_vectors": 11490
   },
   "quarantined_external_references": 1859,
   "safely_excluded_incomplete_or_inquiry_only_works": [
@@ -196,11 +196,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 144,
+      "latency_ms": 248,
       "evidence_count": 2,
       "citations": [
         {
-          "passage_id": "psg.232964344b4b3c",
+          "passage_id": "psg.d1889d64070d85",
           "work_id": "work.th.rd.gk_0702_636_2026_ec1b79d8",
           "official_identifier": "กค 0702/636",
           "raw_date_text": "5 กุมภาพันธ์ 2569",
@@ -210,7 +210,7 @@
           "origin_uri": "https://www.rd.go.th/68302.html"
         },
         {
-          "passage_id": "psg.e92f0aea5bf7d6",
+          "passage_id": "psg.82d4661be187db",
           "work_id": "work.th.rd.gk_0702_636_2026_ec1b79d8",
           "official_identifier": "กค 0702/636",
           "raw_date_text": "5 กุมภาพันธ์ 2569",
@@ -231,11 +231,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 191,
+      "latency_ms": 281,
       "evidence_count": 7,
       "citations": [
         {
-          "passage_id": "psg.1582b8c4efa47a",
+          "passage_id": "psg.ab3a5922de035b",
           "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
           "official_identifier": "กค 0702/1494",
           "raw_date_text": "13 มีนาคม 2569",
@@ -245,7 +245,7 @@
           "origin_uri": "https://www.rd.go.th/68536.html"
         },
         {
-          "passage_id": "psg.0e2985b66411bd",
+          "passage_id": "psg.212f3aaa247b8c",
           "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
           "official_identifier": "กค 0702/1494",
           "raw_date_text": "13 มีนาคม 2569",
@@ -255,7 +255,7 @@
           "origin_uri": "https://www.rd.go.th/68536.html"
         },
         {
-          "passage_id": "psg.f5829d432b4d15",
+          "passage_id": "psg.112c268f107c57",
           "work_id": "work.th.rd.gk_0702_1494_2026_f445ed1a",
           "official_identifier": "กค 0702/1494",
           "raw_date_text": "13 มีนาคม 2569",
@@ -306,11 +306,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 194,
+      "latency_ms": 306,
       "evidence_count": 2,
       "citations": [
         {
-          "passage_id": "psg.fe9b06653c882b",
+          "passage_id": "psg.b7c93c9a8e7274",
           "work_id": "work.th.rd.gk_0811_13980_1997_74b835fc",
           "official_identifier": "กค 0811/13980",
           "raw_date_text": "13 ตุลาคม 2540",
@@ -320,7 +320,7 @@
           "origin_uri": "https://www.rd.go.th/22874.html"
         },
         {
-          "passage_id": "psg.3e5019345992ac",
+          "passage_id": "psg.40cb53c418739a",
           "work_id": "work.th.rd.gk_0811_13980_1997_74b835fc",
           "official_identifier": "กค 0811/13980",
           "raw_date_text": "13 ตุลาคม 2540",
@@ -341,11 +341,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 173,
+      "latency_ms": 348,
       "evidence_count": 4,
       "citations": [
         {
-          "passage_id": "psg.4e5a8af1e75574",
+          "passage_id": "psg.64cadcac5222b4",
           "work_id": "work.th.rd.gk_0702_634_2026_a3ba2d58",
           "official_identifier": "กค 0702/634",
           "raw_date_text": "5 กุมภาพันธ์ 2569",
@@ -355,7 +355,7 @@
           "origin_uri": "https://www.rd.go.th/68308.html"
         },
         {
-          "passage_id": "psg.8a36fa4339501e",
+          "passage_id": "psg.e79039212fcf3d",
           "work_id": "work.th.rd.gk_0702_1903_2026_b1d563eb",
           "official_identifier": "กค 0702/1903",
           "raw_date_text": "8 เมษายน 2569",
@@ -365,7 +365,7 @@
           "origin_uri": "https://www.rd.go.th/68482.html"
         },
         {
-          "passage_id": "psg.45a3dd2507d963",
+          "passage_id": "psg.71bc354ef4e227",
           "work_id": "work.th.rd.gk_0702_634_2026_a3ba2d58",
           "official_identifier": "กค 0702/634",
           "raw_date_text": "5 กุมภาพันธ์ 2569",
@@ -375,7 +375,7 @@
           "origin_uri": "https://www.rd.go.th/68308.html"
         },
         {
-          "passage_id": "psg.380dc6c5d9598e",
+          "passage_id": "psg.284baebdd31c0f",
           "work_id": "work.th.rd.gk_0702_1903_2026_b1d563eb",
           "official_identifier": "กค 0702/1903",
           "raw_date_text": "8 เมษายน 2569",
@@ -396,11 +396,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 203,
+      "latency_ms": 327,
       "evidence_count": 2,
       "citations": [
         {
-          "passage_id": "psg.1230f4e64ed21a",
+          "passage_id": "psg.c2f7a307f05c17",
           "work_id": "work.th.rd.gk_0702_1248_2026_b8bef81c",
           "official_identifier": "กค 0702/1248",
           "raw_date_text": "5 มีนาคม 2569",
@@ -410,7 +410,7 @@
           "origin_uri": "https://www.rd.go.th/68464.html"
         },
         {
-          "passage_id": "psg.17e649609b57b4",
+          "passage_id": "psg.b159f24c4febb0",
           "work_id": "work.th.rd.gk_0702_1248_2026_b8bef81c",
           "official_identifier": "กค 0702/1248",
           "raw_date_text": "5 มีนาคม 2569",
@@ -431,11 +431,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 155,
+      "latency_ms": 229,
       "evidence_count": 0,
       "citations": [],
-      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามเว็บไซต์ทางการกรมสรรพากร (https://www.rd.go.th/",
-      "answer_tail_200": "ีจริงคือวันที่ 1 กรกฎาคม 2560 (เริ่มก่อนวันที่ 1 มกราคม 2561) จึง **ไม่อาจนำมาตรา 65 ตรี (3)(ก) ที่แก้ไขใหม่มาใช้บังคับได้** (เว้นแต่เป็นรอบระยะเวลาบัญชีสั้นที่เริ่มจริงในหรือหลังวันที่ 1 มกราคม 2561)"
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร มาตรา 65 ตรี รุ่นย้อนหลังชั่วคราว เนื่องจากคลังข้อมูลชุด rel.B01.rc5 เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (https://www.rd.go.th/5939.html#mata65_3) และไม่ป",
+      "answer_tail_200": ") ที่แก้ไขใหม่มาใช้บังคับได้** (เว้นแต่เป็นรอบระยะเวลาบัญชีสั้นที่เริ่มต้นจริงในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561) (อ้างอิงบทเฉพาะกาล: https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf)"
     },
     {
       "id": "Q7_quarantined_rd736_0702_1493",
@@ -445,11 +445,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 159,
+      "latency_ms": 250,
       "evidence_count": 2,
       "citations": [
         {
-          "passage_id": "psg.4febd0e02cc437",
+          "passage_id": "psg.d8a6e909e889e5",
           "work_id": "work.th.rd.gk_0702_1493_2026_c76989ef",
           "official_identifier": "กค 0702/1493",
           "raw_date_text": "13 มีนาคม 2569",
@@ -459,7 +459,7 @@
           "origin_uri": "https://www.rd.go.th/68494.html"
         },
         {
-          "passage_id": "psg.72f0840c440d68",
+          "passage_id": "psg.884c38587bc20e",
           "work_id": "work.th.rd.gk_0702_1493_2026_c76989ef",
           "official_identifier": "กค 0702/1493",
           "raw_date_text": "13 มีนาคม 2569",
@@ -480,7 +480,7 @@
       "expected_result_label_th": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 127,
+      "latency_ms": 257,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/999999 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc5) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน",
@@ -494,11 +494,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 188,
+      "latency_ms": 293,
       "evidence_count": 4,
       "citations": [
         {
-          "passage_id": "psg.e717ee15c1f282",
+          "passage_id": "psg.f03df4e5a4075e",
           "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
           "official_identifier": "กค 0702/4825",
           "raw_date_text": "28 สิงหาคม 2566",
@@ -508,7 +508,7 @@
           "origin_uri": "https://www.rd.go.th/65296.html"
         },
         {
-          "passage_id": "psg.9335a56f017a2f",
+          "passage_id": "psg.ae21537e5801bf",
           "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
           "official_identifier": "กค 0702/4825",
           "raw_date_text": "28 สิงหาคม 2566",
@@ -518,7 +518,7 @@
           "origin_uri": "https://www.rd.go.th/65296.html"
         },
         {
-          "passage_id": "psg.47c8ea2d3f005e",
+          "passage_id": "psg.c64754b40646c8",
           "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
           "official_identifier": "กค 0702/4825",
           "raw_date_text": "28 สิงหาคม 2566",
@@ -528,7 +528,7 @@
           "origin_uri": "https://www.rd.go.th/65296.html"
         },
         {
-          "passage_id": "psg.ed217aac2206a4",
+          "passage_id": "psg.8c666cec4f476c",
           "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
           "official_identifier": "กค 0702/4825",
           "raw_date_text": "28 สิงหาคม 2566",
@@ -549,11 +549,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 156,
+      "latency_ms": 219,
       "evidence_count": 5,
       "citations": [
         {
-          "passage_id": "psg.8d3168dbdac902",
+          "passage_id": "psg.b5b33c159848e6",
           "work_id": "work.th.rd.gk_0702_2994_2014_fa0ff441",
           "official_identifier": "กค 0702/2994",
           "raw_date_text": "15 พฤษภาคม 2557",
@@ -563,7 +563,7 @@
           "origin_uri": "https://www.rd.go.th/52912.html"
         },
         {
-          "passage_id": "psg.d15b644d5f6576",
+          "passage_id": "psg.b92ec157627122",
           "work_id": "work.th.rd.gk_0702_2994_2014_fa0ff441",
           "official_identifier": "กค 0702/2994",
           "raw_date_text": "15 พฤษภาคม 2557",
@@ -573,7 +573,7 @@
           "origin_uri": "https://www.rd.go.th/52912.html"
         },
         {
-          "passage_id": "psg.8cb307be4499a4",
+          "passage_id": "psg.7b7ce4a6e60f7a",
           "work_id": "work.th.rd.gk_0702_2994_2014_fa0ff441",
           "official_identifier": "กค 0702/2994",
           "raw_date_text": "15 พฤษภาคม 2557",
@@ -583,7 +583,7 @@
           "origin_uri": "https://www.rd.go.th/52912.html"
         },
         {
-          "passage_id": "psg.5ef83afeb5a9e2",
+          "passage_id": "psg.b00b21cc1b0013",
           "work_id": "work.th.rd.gk_0702_2994_2014_fa0ff441",
           "official_identifier": "กค 0702/2994",
           "raw_date_text": "15 พฤษภาคม 2557",
@@ -593,7 +593,7 @@
           "origin_uri": "https://www.rd.go.th/52912.html"
         },
         {
-          "passage_id": "psg.0e8f9f63c8871e",
+          "passage_id": "psg.f9875510101f04",
           "work_id": "work.th.rd.gk_0702_2994_2014_fa0ff441",
           "official_identifier": "กค 0702/2994",
           "raw_date_text": "15 พฤษภาคม 2557",
@@ -614,11 +614,11 @@
       "expected_result_label_th": null,
       "release_id": "rel.B01.rc5",
       "status": "ANSWERED",
-      "latency_ms": 167,
+      "latency_ms": 289,
       "evidence_count": 2,
       "citations": [
         {
-          "passage_id": "psg.1566199732fe48",
+          "passage_id": "psg.bc50960a1ca578",
           "work_id": "work.th.rd.gk_0702_636_2012_394a3877",
           "official_identifier": "กค 0702/636",
           "raw_date_text": "23 มกราคม 2555",
@@ -628,7 +628,7 @@
           "origin_uri": "https://www.rd.go.th/46391.html"
         },
         {
-          "passage_id": "psg.3d61832b2eb4d7",
+          "passage_id": "psg.a4fe36d19ea209",
           "work_id": "work.th.rd.gk_0702_636_2012_394a3877",
           "official_identifier": "กค 0702/636",
           "raw_date_text": "23 มกราคม 2555",
@@ -649,7 +649,7 @@
       "expected_result_label_th": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
       "release_id": "rel.B01.rc5",
       "status": "INSUFFICIENT_EVIDENCE",
-      "latency_ms": 142,
+      "latency_ms": 228,
       "evidence_count": 0,
       "citations": [],
       "answer_excerpt": "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ กค 0702/1495 ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (rel.B01.rc5) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน",

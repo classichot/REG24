@@ -148,7 +148,10 @@ describe("Batch B02 — Statutes & Tax Framework Isolated Staging, Blind Validat
     expect(repVal.errors).toEqual([]);
 
     for (const uc of evB02.uat_cases) {
-      expect(uc.evaluator_results?.automated_precheck_passed).toBe(true);
+      expect(
+        uc.evaluator_results?.automated_precheck_passed,
+        `${uc.case_id} [q=${uc.question}] [req=${JSON.stringify(uc.required_evidence)}]: ${JSON.stringify(uc.evaluator_results)}`
+      ).toBe(true);
       expect(uc.owner_result).toBeNull();
     }
 

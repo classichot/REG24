@@ -3,11 +3,11 @@
   "schema_version": "1.1",
   "batch_id": "B01",
   "release_id": "rel.B01.rc5",
-  "candidate_url": "https://reg24-theta.vercel.app/admin/knowledge/batches?batch=B01&release=rel.B01.rc5",
-  "code_commit": "9b1b6a883523624031202892b3372eb1005e39ab",
-  "manifest_hash": "ec73d84b9d133bac700e672f6c4a7742e9fdb7cfd1d99b1c0c532330eab4734f",
-  "inventory_snapshot_id": "inv.b01.mwldatea",
-  "source_cutoff_at": "2026-11-18T00:12:54.226Z",
+  "candidate_url": "https://reg24-git-review-b01-rc2-b02-rc1-staging-7-l-advisory.vercel.app/admin/knowledge/batches?batch=B01&release=rel.B01.rc5",
+  "code_commit": "de4839f144ce56eebfb83034dd5157a726ad4f0c",
+  "manifest_hash": "5dc00a1da0d11fd7e9fcd550a935e2e549ff9a5a344d99fdd809bb267f8fe821",
+  "inventory_snapshot_id": "inv.b01.mwlizi6u",
+  "source_cutoff_at": "2026-11-18T02:52:04.182Z",
   "previous_accepted_release_id": null,
   "scope_classification": "FULL_BATCH_CANDIDATE",
   "scope_label": "FULL-SCOPE CANDIDATE (4,578 admitted physical files in B01 scope; 0 deferred; 572 out-of-scope)",
@@ -25,7 +25,7 @@
     "supersedes_manifest_hash": "2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444",
     "prior_release_preserved_state": "READY_FOR_UAT",
     "prior_chat_approval_preserved": true,
-    "explanation": "Transparent candidate supersession: Product Owner granted chat-based approval for Batch 01 prior to the 14 November 2026 independent quality review, while rel.B01.rc1 (mfst.b01.mwgj0yb3, hash 2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444) remained READY_FOR_UAT with user_decision=null in canonical-state.json.gz. Per Owner instruction (15 November 2026), rel.B01.rc1 and the original chat approval history are preserved unaltered in the audit trail without retroactive modification or re-approval; rel.B01.rc5 (mfst.b01.mwldatea) links directly to rel.B01.rc1 and may supersede it only upon formal Owner UAT acceptance."
+    "explanation": "Transparent candidate supersession: Product Owner granted chat-based approval for Batch 01 prior to the 14 November 2026 independent quality review, while rel.B01.rc1 (mfst.b01.mwgj0yb3, hash 2059e51ee9bf2ba3fe26fc8f0b6abb4e5ed942be0a2e3cace8df116a41c2e444) remained READY_FOR_UAT with user_decision=null in canonical-state.json.gz. Per Owner instruction (15 November 2026), rel.B01.rc1 and the original chat approval history are preserved unaltered in the audit trail without retroactive modification or re-approval; rel.B01.rc5 (mfst.b01.mwlizi6u) links directly to rel.B01.rc1 and may supersede it only upon formal Owner UAT acceptance."
   },
   "status": "READY_FOR_UAT",
   "inventory": {
@@ -42,10 +42,10 @@
     "canonical_works_new": 4567,
     "works_reused": 402,
     "legal_versions_new": 4569,
-    "extraction_revisions_new": 4960,
-    "accepted_passages": 11486,
-    "accepted_assertions": 43114,
-    "active_vectors": 11486
+    "extraction_revisions_new": 4962,
+    "accepted_passages": 11490,
+    "accepted_assertions": 43116,
+    "active_vectors": 11490
   },
   "dependency_manifest_uri": "report://knowledge/rel_B01_rc5_dependency_manifest.json",
   "coverage_gaps": [],
@@ -69,11 +69,11 @@
       "release_id": "rel.B01.rc5",
       "projection_kind": "LEXICAL",
       "generation": "gen.rel.B01.rc5.r1",
-      "item_count": 11486,
-      "manifest_checksum": "04c10165adcda948ddd899baf18fae9987d79b68119c2579296c17381cb85026",
+      "item_count": 11490,
+      "manifest_checksum": "cd56a3aac7e1222f7642d48782788b99b85ec0dcf3f3a55292d373150c777b0e",
       "completion_state": "COMPLETED",
       "adapter_mode": "durable_disk",
-      "recorded_at": "2026-11-18T00:14:10.825Z",
+      "recorded_at": "2026-11-18T02:53:19.417Z",
       "error": null
     },
     {
@@ -81,11 +81,11 @@
       "release_id": "rel.B01.rc5",
       "projection_kind": "VECTOR",
       "generation": "gen.rel.B01.rc5.r1",
-      "item_count": 11486,
-      "manifest_checksum": "1c2b6535be809466be12c5d2f32012f79553272de148b18de417800a2cc2ec25",
+      "item_count": 11490,
+      "manifest_checksum": "03d820e491e89e610e0341ead132daf275e79285b05558bd918dd7c1104816f0",
       "completion_state": "COMPLETED",
       "adapter_mode": "durable_disk",
-      "recorded_at": "2026-11-18T00:14:10.825Z",
+      "recorded_at": "2026-11-18T02:53:19.417Z",
       "error": null
     },
     {
@@ -93,11 +93,11 @@
       "release_id": "rel.B01.rc5",
       "projection_kind": "GRAPH_LOCAL_DURABLE",
       "generation": "gen.rel.B01.rc5.r1",
-      "item_count": 43114,
-      "manifest_checksum": "897b406122d80cbe319b0a3724a597cee0f847a430c69ff35313bd588e4d1715",
+      "item_count": 43116,
+      "manifest_checksum": "f1d8429d6a92afdf256c740be4a9595814a19c57777855e161d8bbe1fac0ddb4",
       "completion_state": "COMPLETED",
       "adapter_mode": "durable_disk",
-      "recorded_at": "2026-11-18T00:14:10.825Z",
+      "recorded_at": "2026-11-18T02:53:19.417Z",
       "error": null
     }
   ],

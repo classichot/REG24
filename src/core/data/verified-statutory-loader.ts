@@ -61,7 +61,26 @@ export function getVerifiedStatutoryCorpus(): VerifiedStatutoryCorpus {
     return cachedStatutoryCorpus;
   }
   const raw = zlib.gunzipSync(fs.readFileSync(gzPath)).toString("utf8");
-  cachedStatutoryCorpus = JSON.parse(raw) as VerifiedStatutoryCorpus;
+  const parsed = JSON.parse(raw) as VerifiedStatutoryCorpus;
+  const extraGazettePath = path.join(
+    process.cwd(),
+    "src",
+    "core",
+    "data",
+    "verified-gazette-amendments.json"
+  );
+  if (fs.existsSync(extraGazettePath)) {
+    const extra = JSON.parse(fs.readFileSync(extraGazettePath, "utf8")) as Record<
+      string,
+      VerifiedSubregOrAmendmentWork
+    >;
+    for (const [k, v] of Object.entries(extra)) {
+      if (!parsed.subordinate_and_amendment_works[k]) {
+        parsed.subordinate_and_amendment_works[k] = v;
+      }
+    }
+  }
+  cachedStatutoryCorpus = parsed;
   return cachedStatutoryCorpus;
 }
 
