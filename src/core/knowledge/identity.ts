@@ -80,35 +80,50 @@ const THAI_MONTHS: Record<string, string> = {
   "ธ.ค.": "12",
 };
 
+function daysInCalendarMonthUtc(yearCe: number, month1Based: number): number {
+  if (month1Based < 1 || month1Based > 12) return 0;
+  return new Date(Date.UTC(yearCe, month1Based, 0)).getUTCDate();
+}
+
 /**
  * Parses Thai Buddhist Era dates (e.g. "5 กุมภาพันธ์ 2569" or "ลงวันที่ 22 เมษายน พ.ศ. ๒๕๖๙")
- * into ISO-8601 YYYY-MM-DD. Never fabricates a date when missing or invalid (SH-10).
+ * into ISO-8601 YYYY-MM-DD. Never fabricates a date when missing, partial (year-only/month-only),
+ * or calendar-invalid (SH-10).
  */
 export function parseThaiBuddhistDateToIso(rawDate: string | null | undefined): string | null {
   if (!rawDate || !rawDate.trim()) return null;
-  const normalized = thaiDigitsToArabic(rawDate).trim();
+  const normalized = thaiDigitsToArabic(rawDate).replace(/\s+/g, " ").trim();
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
-    const yr = Number(normalized.slice(0, 4));
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (isoMatch) {
+    let yr = Number(isoMatch[1]);
+    const mm = Number(isoMatch[2]);
+    const dd = Number(isoMatch[3]);
     if (yr >= 2400) {
-      return `${yr - 543}${normalized.slice(4)}`;
+      yr -= 543;
     }
-    if (yr >= 1900 && yr <= 2200) {
-      return normalized;
-    }
-    return null;
+    if (yr < 1900 || yr > 2200) return null;
+    const maxDay = daysInCalendarMonthUtc(yr, mm);
+    if (maxDay === 0 || dd < 1 || dd > maxDay) return null;
+    return `${String(yr).padStart(4, "0")}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
   }
 
-  const m = normalized.match(/(\d{1,2})\s*([ก-๙.]+?)\s*(?:พ\.ศ\.\s*)?(\d{4})/);
+  const m = normalized.match(
+    /(\d{1,2})\s*(?:เดือน)?\s*([ก-๙.]+?)\s*(?:(พ\.ศ\.|ค\.ศ\.)\s*)?(\d{4})/
+  );
   if (!m) return null;
   const day = Number(m[1]);
   const monthCode = THAI_MONTHS[m[2]];
-  let year = Number(m[3]);
-  if (!monthCode || day < 1 || day > 31) return null;
-  if (year >= 2400) {
+  const eraMarker = m[3];
+  let year = Number(m[4]);
+  if (!monthCode) return null;
+  if (eraMarker === "พ.ศ." || (!eraMarker && year >= 2400)) {
     year -= 543;
   }
   if (year < 1850 || year > 2150) return null;
+  const monthNum = Number(monthCode);
+  const maxDay = daysInCalendarMonthUtc(year, monthNum);
+  if (maxDay === 0 || day < 1 || day > maxDay) return null;
   return `${String(year).padStart(4, "0")}-${monthCode}-${String(day).padStart(2, "0")}`;
 }
 

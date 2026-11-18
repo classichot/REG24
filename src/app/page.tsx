@@ -907,7 +907,7 @@ export default function Reg24ModernistPage() {
       const effectiveQueryForApi = uploadedDocText
         ? `${baseQ}\n\n[Attached Document (${uploadedDocName || "Document"}): ${uploadedDocText.slice(0, 1500)}]`
         : baseQ;
-      const asOfDate = chips.tm ? `${year}-05-01` : "2026-10-22";
+      const asOfDate = chips.tm ? String(year) : null;
       const t0 = Date.now();
 
       if (trIntervalRef.current) clearInterval(trIntervalRef.current);
@@ -975,7 +975,7 @@ export default function Reg24ModernistPage() {
             baseQ
           );
         if (looksLikeTaxOrRulingQuery) {
-          const explicitApplicableDate = chips.tm ? `${year}-05-01` : null;
+          const explicitApplicableDate = chips.tm ? String(year) : null;
           const kgRes = await fetch("/api/v1/knowledge/query", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-11-18T18:13:30.483Z",
+  "generated_at": "2026-11-18T19:23:04.175Z",
   "batch_id": "B01",
   "release_id": "rel.B01.rc5",
   "inventory_reconciliation": {
@@ -62,7 +62,7 @@
   "section_8_acceptance_measurements": {
     "batch_id": "B01",
     "release_id": "rel.B01.rc5",
-    "measured_at": "2026-11-18T18:13:07.381Z",
+    "measured_at": "2026-11-18T19:22:35.935Z",
     "published_claim_coverage": {
       "numerator": 7,
       "denominator": 7,
@@ -137,7 +137,7 @@
     "official_link_availability": {
       "verified_reachable_count": 4962,
       "total_checked_locations": 4962,
-      "checked_at": "2026-11-18T18:13:07.381Z",
+      "checked_at": "2026-11-18T19:22:35.935Z",
       "failed_locations": []
     },
     "coverage_and_withholding": {
@@ -155,12 +155,12 @@
   },
   "owners_demo_receipt": {
     "question": "ค้นหาหนังสือตอบข้อหารือเลขที่ กค 0702/636",
-    "saved_answer_revision": "ans.trc.858b30d99b3a27.r1",
+    "saved_answer_revision": "ans.trc.b8f7ee15fd3544.r1",
     "official_url_inspected": "https://www.rd.go.th/68302.html",
     "displayed_locator": "PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
     "original_quote_preserved_after_later_ingestion": true,
     "update_notice_surfaced_on_reopen": true,
-    "markdown_export_bytes": 8221,
+    "markdown_export_bytes": 8223,
     "fresh_2027_query_selected_later_version": true,
     "passage_removal_prevented_new_claim_publication": true
   }

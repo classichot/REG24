@@ -248,4 +248,56 @@ export const CHALLENGING_THAI_TAX_SCENARIOS: ChallengingTaxScenario[] = [
     as_of_date: null,
     mode: "comparison",
   },
+  {
+    scenario_id: "LSC-UNSEEN-13",
+    category: "historical_law",
+    category_label_th: "4d. คำถามระบุเฉพาะปี พ.ศ./ค.ศ. โดยไม่ระบุวันเริ่มรอบบัญชี (Year-Only Boundary — No Invented Dates)",
+    title_th: "ถามเฉพาะ 'ปี 2561' สำหรับการบริจาคเงินให้พรรคการเมืองโดยไม่บอกวันเริ่มต้นรอบระยะเวลาบัญชี",
+    legal_focus_th:
+      "ทดสอบว่าระบบไม่เสกวันที่ 2018-01-01 หรือ 2018-12-31 ขึ้นมาเองเมื่อคำถามระบุเพียง 'ปี 2561' เนื่องจากบริษัทที่มีรอบบัญชีไม่ตรงปีปฏิทิน (เช่น 1 ก.ค. 2560 – 30 มิ.ย. 2561) เริ่มก่อน 1 ม.ค. 2561",
+    expected_behavior_th:
+      "ต้องคืนสถานะ NEEDS_CLARIFICATION เพื่อขอทราบวันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริง โดยไม่แต่งวันที่ขึ้นเอง",
+    question_th:
+      "ปี 2561 บริษัทจ่ายเงินบริจาคให้พรรคการเมือง 50,000 บาท นำมาหักเป็นรายจ่ายตามประมวลรัษฎากร มาตรา 65 ตรี (3) ได้หรือไม่?",
+    as_of_date: null,
+  },
+  {
+    scenario_id: "LSC-UNSEEN-14",
+    category: "historical_law",
+    category_label_th: "4e. คำถามภาษาอังกฤษและไทยที่ระบุเฉพาะเดือนโดยไม่มีปี (Month-Only Thai & English)",
+    title_th: "ถามภาระภาษีโดยระบุเฉพาะเดือน ('เดือนกุมภาพันธ์' / 'In Feb') โดยไม่ระบุปี",
+    legal_focus_th:
+      "ทดสอบการจับคำถามที่ระบุเฉพาะเดือนแบบย่อและแบบเต็มทั้งภาษาไทยและภาษาอังกฤษโดยไม่มีคำบุพบทเฉพาะเจาะจง",
+    expected_behavior_th:
+      "ต้องคืนสถานะ NEEDS_CLARIFICATION และขอให้ระบุปี พ.ศ./ค.ศ. ให้ครบถ้วน ห้ามสมมติปีปัจจุบันเอง",
+    question_th:
+      "In Feb, our Thai company sold goods to a foreign economic and trade office in Thailand. Does 0% VAT under Section 80/1 (5) apply?",
+    as_of_date: null,
+  },
+  {
+    scenario_id: "LSC-UNSEEN-15",
+    category: "multi_step",
+    category_label_th: "1c. คำถามใหม่ภาษาอังกฤษหลายขั้นตอน (Unseen English Cross-Border WHT + Section 70)",
+    title_th: "วิเคราะห์ภาระภาษีหัก ณ ที่จ่ายและข้อยกเว้นตามมาตรา 70 เป็นภาษาอังกฤษ",
+    legal_focus_th:
+      "ทดสอบคำถามภาษาอังกฤษที่ไม่ได้อยู่ในชุดข้อสอบเดิม เพื่อตรวจการจับบทบัญญัติ มาตรา 70 กำหนดเวลา 7 วันนับแต่วันสิ้นเดือน และข้อยกเว้นดอกเบี้ย",
+    expected_behavior_th:
+      "ต้องตอบตามประมวลรัษฎากร มาตรา 70 พร้อมระบุหน้าที่หัก ณ ที่จ่าย กำหนดนำส่งภายใน 7 วันนับแต่วันสิ้นเดือน และข้อยกเว้นวรรคสองโดยผูกหลักฐานครบถ้วน",
+    question_th:
+      "A Thai company pays service fees and interest to a foreign company not carrying on business in Thailand in 2025. What are the withholding tax obligations, remittance deadline, and exceptions under Section 70 of the Revenue Code?",
+    as_of_date: "2025-09-01",
+  },
+  {
+    scenario_id: "LSC-UNSEEN-16",
+    category: "exceptions",
+    category_label_th: "2b. คำถามใหม่เรื่องการจำหน่ายหนี้สูญและเกณฑ์กฎกระทรวง (Unseen Bad-Debt / Subordinate Rule Nuance)",
+    title_th: "การจำหน่ายหนี้สูญจากบัญชีลูกหนี้ต่างประเทศเกิน 500,000 บาท ตามมาตรา 65 ทวิ (9)",
+    legal_focus_th:
+      "ทดสอบคำถามข้อเท็จจริงใหม่ที่ต้องค้นหาแนววินิจฉัยและแจ้งข้อจำกัดหากกฎกระทรวงฉบับเต็มอยู่ในทะเบียนกักกัน",
+    expected_behavior_th:
+      "แสดงหลักเกณฑ์ตามข้อหารือที่ผ่านการรับรองในคลังข้อมูล พร้อมแจ้งคำเตือนขอบเขตหลักฐานหากมีการอ้างถึงกฎกระทรวงที่รอตรวจรับรองตัวบทเต็ม",
+    question_th:
+      "บริษัทไทยมีลูกหนี้การค้าในต่างประเทศค้างชำระเกิน 500,000 บาท จะจำหน่ายหนี้สูญออกจากบัญชีลูกหนี้ในการคำนวณกำไรสุทธิปี 2568 ตามมาตรา 65 ทวิ (9) ต้องดำเนินการอย่างไร?",
+    as_of_date: "2025-10-01",
+  },
 ];

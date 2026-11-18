@@ -9,6 +9,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { evaluateSubstantiveClaimSupport } from "./answer-verification";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { arabicDigitsToThai, sha256Bytes, thaiDigitsToArabic } from "./identity";
 import { formatOfficialLinkStatusNoticeTh } from "./link-health";
@@ -20,7 +21,10 @@ import {
   normalizeThaiSearchTextOnly,
   REVIEWED_OFFICIAL_PUBLISHER_REGISTRY,
 } from "./source-onboarding";
-import { parseQueryTemporalAndIntentContext } from "./temporal-versioning";
+import {
+  parseQueryTemporalAndIntentContext,
+  resolveTemporalInputToIsoInterval,
+} from "./temporal-versioning";
 import {
   appendAuditEventToPostgres,
   inspectExistingAnswerOwnershipInPostgres,
@@ -64,8 +68,8 @@ import type {
   VerifierDecisionOutcome,
 } from "./citation-contracts";
 
-export const CLAIM_VERIFIER_VERSION = "reg24-claim-verifier-v2.0";
-export const CLAIM_RULESET_VERSION = "th-official-traceability-2026.11";
+export const CLAIM_VERIFIER_VERSION = "reg24-claim-verifier-v2.1";
+export const CLAIM_RULESET_VERSION = "th-official-traceability-2026.11.2";
 
 export const CLAIM_TYPE_LABELS_TH: Record<AtomicClaimType, string> = {
   legal_proposition: "ข้อกฎหมายจากแหล่งอ้างอิงทางการ",
@@ -827,6 +831,8 @@ export function validateAndBuildTraceableAnswer(
     .map((id) => view.passages[id])
     .filter((p): p is EvidencePassageRecord => Boolean(p));
 
+  const asOfInterval = resolveTemporalInputToIsoInterval(input.as_of_date);
+
   for (let idx = 0; idx < input.proposed_claims.length; idx++) {
     const prop = input.proposed_claims[idx];
     const claimId = prop.claim_id || `clm.${answerRevision}.${idx + 1}`;
@@ -1027,14 +1033,38 @@ export function validateAndBuildTraceableAnswer(
           break;
         }
 
-        if (input.as_of_date && doc.source_family === "gazette_enactment") {
-          const afterFrom = !ver.effective_from || input.as_of_date >= ver.effective_from;
-          const beforeTo = !ver.effective_to || input.as_of_date <= ver.effective_to;
-          if (!afterFrom || !beforeTo) {
+        if (input.as_of_date && input.as_of_date.trim()) {
+          if (asOfInterval.kind === "incomplete_or_invalid") {
             claimDecision = "insufficient";
-            withholdReasonCode = "UNVERIFIED_HISTORICAL_VERSION";
-            withholdExplanationTh = `ยังยืนยันข้อกฎหมายจากเอกสารทางการสำหรับวันที่ที่ถาม (${input.as_of_date}) ไม่ได้ เนื่องจากรุ่นเอกสารที่พบมีผลใช้บังคับในช่วงเวลาอื่น`;
+            withholdReasonCode = "MISSING_APPLICABLE_DATE";
+            withholdExplanationTh = `วันที่อ้างอิงที่ระบุ (${input.as_of_date}) ไม่สมบูรณ์หรือไม่ถูกต้องตามปฏิทิน จึงไม่สามารถยืนยันรุ่นกฎหมายที่ใช้บังคับได้โดยไม่คาดเดา`;
             break;
+          }
+          if (
+            asOfInterval.startIso &&
+            asOfInterval.endIso &&
+            doc.source_family === "gazette_enactment"
+          ) {
+            const effFrom = ver.effective_from;
+            const effTo = ver.effective_to;
+            const afterFrom = !effFrom || asOfInterval.startIso >= effFrom;
+            const beforeTo = !effTo || asOfInterval.endIso <= effTo;
+            const altStraddles =
+              asOfInterval.ambiguousAltIso !== null &&
+              ((effFrom !== null &&
+                (asOfInterval.startIso >= effFrom) !==
+                  (asOfInterval.ambiguousAltIso >= effFrom)) ||
+                (effTo !== null &&
+                  (asOfInterval.endIso <= effTo) !==
+                    (asOfInterval.ambiguousAltIso <= effTo)));
+            if (!afterFrom || !beforeTo || altStraddles) {
+              claimDecision = "insufficient";
+              withholdReasonCode = altStraddles
+                ? "MISSING_APPLICABLE_DATE"
+                : "UNVERIFIED_HISTORICAL_VERSION";
+              withholdExplanationTh = `ยังยืนยันข้อกฎหมายจากเอกสารทางการสำหรับช่วงเวลาที่ถาม (${input.as_of_date}) ไม่ได้ เนื่องจากรุ่นเอกสารที่พบมีผลใช้บังคับในช่วงเวลาอื่นหรือคร่อมจุดเปลี่ยนรุ่นกฎหมาย`;
+              break;
+            }
           }
         }
 
@@ -1120,6 +1150,32 @@ export function validateAndBuildTraceableAnswer(
 
       if (claimDecision !== "supported") {
         break;
+      }
+    }
+
+    // Material Issue 1: Substantive claim-to-evidence support check!
+    // An unrelated claim attached to a real, eligible source MUST remain unverified ('insufficient', published: false), NEVER 'supported'!
+    if (claimDecision === "supported" && validRefsForClaim.length > 0) {
+      const substantiveCheck = evaluateSubstantiveClaimSupport({
+        claim_text: prop.text,
+        passages: validRefsForClaim.map((ref) => {
+          const psg = view.passages[ref.evidence_id]!;
+          const doc = view.documents[ref.doc_id];
+          return {
+            passage_id: psg.passage_id,
+            doc_id: psg.doc_id,
+            verbatim_text: psg.verbatim_text,
+            doc_title_th: doc?.original_title_th || null,
+            source_native_id: doc?.source_native_id || null,
+            section_path: psg.section_paragraph_path,
+          };
+        }),
+      });
+      if (!substantiveCheck.supported) {
+        claimDecision = "insufficient";
+        withholdReasonCode = "INSUFFICIENT_CORPUS_EVIDENCE";
+        withholdExplanationTh = substantiveCheck.detail_th;
+        validRefsForClaim.length = 0;
       }
     }
 
@@ -1429,7 +1485,7 @@ export function commitTraceableAnswerAtomically(
     }
   }
 
-  // Referential integrity & eligibility pre-check across all claims and links
+  // Referential integrity, eligibility & substantive claim-to-evidence support pre-check across all claims and links
   for (const link of links) {
     const psg = unified.passages[link.evidence_id];
     const ver = unified.versions[link.version_id];
@@ -1447,6 +1503,31 @@ export function commitTraceableAnswerAtomically(
     if (!psg.eligible_for_publication || !doc.eligible_for_citation) {
       throw new Error(
         `INELIGIBLE_EVIDENCE_REJECTED_422: Passage '${link.evidence_id}' or document '${doc.doc_id}' is quarantined/ineligible and cannot support a published claim.`
+      );
+    }
+  }
+
+  for (const sc of envelope.claims) {
+    if (sc.verification_decision !== "supported") continue;
+    const scLinks = links.filter((l) => l.claim_id === sc.claim_id);
+    const substantive = evaluateSubstantiveClaimSupport({
+      claim_text: sc.text,
+      passages: scLinks.map((l) => {
+        const psg = unified.passages[l.evidence_id]!;
+        const doc = unified.documents[l.doc_id];
+        return {
+          passage_id: psg.passage_id,
+          doc_id: psg.doc_id,
+          verbatim_text: psg.verbatim_text,
+          doc_title_th: doc?.original_title_th || null,
+          source_native_id: doc?.source_native_id || null,
+          section_path: psg.section_paragraph_path,
+        };
+      }),
+    });
+    if (!substantive.supported) {
+      throw new Error(
+        `UNSUPPORTED_ANSWER_REJECTED_422: Claim '${sc.claim_id}' cannot be committed as 'supported' because the attached source does not substantively support it (${substantive.reason_code}).`
       );
     }
   }
@@ -2052,6 +2133,20 @@ export function attachTraceableEnvelopeToGroundedAnswer(
         support_groups: segGroups,
       });
     }
+  }
+
+  if (grounded.status === "NEEDS_CLARIFICATION") {
+    const clarNotice =
+      grounded.clarification_questions && grounded.clarification_questions.length > 0
+        ? `ต้องการข้อมูลเพิ่มเติมเพื่อยืนยันรุ่นกฎหมาย/เงื่อนไขที่ใช้บังคับ: ${grounded.clarification_questions.join(" · ")}`
+        : "ต้องการข้อมูลวันที่หรือข้อเท็จจริงเพิ่มเติมเพื่อยืนยันรุ่นกฎหมายที่ใช้บังคับ";
+    proposed.push({
+      claim_id: `clm.${grounded.trace_id}.clarification_required`,
+      text: clarNotice,
+      claim_type: "legal_proposition",
+      scope_topic_th: "ช่วงเวลาหรือข้อเท็จจริงที่ต้องยืนยันเพิ่มเติม",
+      support_groups: [],
+    });
   }
 
   return validateAndBuildTraceableAnswer(store, {
@@ -2991,6 +3086,17 @@ export function approveDocumentedAmbiguityWithEvidence(
     persist_atomically: false,
   });
 
+  if (
+    nextEnvelopeBuilt.status === "insufficient" ||
+    nextEnvelopeBuilt.claims.length === 0 ||
+    !nextEnvelopeBuilt.claims.some((c) => c.verification_decision === "supported")
+  ) {
+    const reasonDetail =
+      nextEnvelopeBuilt.unresolved_issues[0]?.explanation_th ||
+      "Attached evidence does not substantively support the proposed claim.";
+    throw new Error(`UNSUPPORTED_ANSWER_REJECTED_422: ${reasonDetail}`);
+  }
+
   const allLinks = nextEnvelopeBuilt.claims.flatMap((clm) =>
     clm.evidence_references.map((ref) => ({
       ...ref,
@@ -3509,26 +3615,71 @@ export function tryAnswerFromOnboardedCitationSources(
     };
   };
 
-  if (!params.applicable_date && (temporalCtx.has_yearless_partial_date || temporalCtx.has_vague_historical_reference)) {
+  const appInterval = resolveTemporalInputToIsoInterval(params.applicable_date);
+
+  if (
+    temporalCtx.has_invalid_calendar_date ||
+    temporalCtx.has_yearless_partial_date ||
+    temporalCtx.has_vague_historical_reference ||
+    appInterval.kind === "incomplete_or_invalid"
+  ) {
+    const isInvalidCal = Boolean(temporalCtx.has_invalid_calendar_date);
     return buildTemporalWithheldAnswer(
       "NEEDS_CLARIFICATION",
       "MISSING_APPLICABLE_DATE",
-      "ไม่สามารถสรุปตัวบทกฎหมายที่ใช้บังคับได้โดยไม่คาดเดา เนื่องจากคำถามระบุช่วงเวลาไม่สมบูรณ์หรือคลุมเครือ กรุณาระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ของธุรกรรมหรือวันเริ่มต้นรอบระยะเวลาบัญชีให้ชัดเจน",
+      isInvalidCal
+        ? "วันที่ที่ระบุไม่ถูกต้องตามปฏิทิน ระบบจึงไม่คาดเดาหรือเปลี่ยนเป็นวันที่อื่นโดยพลการ กรุณาระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ที่ถูกต้องตามปฏิทิน"
+        : "ไม่สามารถสรุปตัวบทกฎหมายที่ใช้บังคับได้โดยไม่คาดเดา เนื่องจากคำถามหรือพารามิเตอร์ระบุช่วงเวลาไม่สมบูรณ์หรือคลุมเครือ (เช่น ระบุเฉพาะเดือนโดยไม่มีปี) กรุณาระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ของธุรกรรมหรือวันเริ่มต้นรอบระยะเวลาบัญชีให้ชัดเจน",
       [
-        "กรุณาระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ของรายการหรือธุรกรรมที่ต้องการตรวจสอบ",
+        "กรุณาระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ของรายการหรือธุรกรรมที่ต้องการตรวจสอบให้ครบถ้วน",
         "หากเป็นภาษีเงินได้นิติบุคคล กรุณาระบุวันเริ่มต้นและวันสิ้นสุดรอบระยะเวลาบัญชี",
       ],
       null
     );
   }
 
-  let effectiveAsOfDate: string | null =
-    params.applicable_date ||
+  // Compute exact query interval `[queryStartIso, queryEndIso]` and truthful `effectiveAsOfDate` label (NEVER inventing `-12-31` or `-05-01`!)
+  let queryStartIso: string | null =
+    appInterval.startIso ||
     temporalCtx.accounting_period_start_iso ||
     temporalCtx.point_in_time_date_iso ||
     temporalCtx.transaction_date_iso ||
+    (temporalCtx.transaction_year_ce !== null ? `${temporalCtx.transaction_year_ce}-01-01` : null) ||
+    (temporalCtx.assessable_tax_year_ce !== null ? `${temporalCtx.assessable_tax_year_ce}-01-01` : null) ||
     temporalCtx.accounting_period_end_iso ||
     null;
+  let queryEndIso: string | null =
+    appInterval.endIso ||
+    temporalCtx.accounting_period_end_iso ||
+    temporalCtx.point_in_time_date_iso ||
+    temporalCtx.transaction_date_end_iso ||
+    temporalCtx.transaction_date_iso ||
+    (temporalCtx.transaction_year_ce !== null ? `${temporalCtx.transaction_year_ce}-12-31` : null) ||
+    (temporalCtx.assessable_tax_year_ce !== null ? `${temporalCtx.assessable_tax_year_ce}-12-31` : null) ||
+    temporalCtx.accounting_period_start_iso ||
+    null;
+
+  let effectiveAsOfDate: string | null =
+    appInterval.canonicalLabel ||
+    temporalCtx.accounting_period_start_iso ||
+    temporalCtx.point_in_time_date_iso ||
+    (temporalCtx.transaction_date_iso &&
+    (!temporalCtx.transaction_date_end_iso ||
+      temporalCtx.transaction_date_end_iso === temporalCtx.transaction_date_iso)
+      ? temporalCtx.transaction_date_iso
+      : null) ||
+    (temporalCtx.transaction_date_iso &&
+    temporalCtx.transaction_date_end_iso &&
+    temporalCtx.transaction_date_iso.slice(0, 7) === temporalCtx.transaction_date_end_iso.slice(0, 7)
+      ? temporalCtx.transaction_date_iso.slice(0, 7)
+      : null) ||
+    (temporalCtx.transaction_year_ce !== null ? String(temporalCtx.transaction_year_ce) : null) ||
+    (temporalCtx.assessable_tax_year_ce !== null ? String(temporalCtx.assessable_tax_year_ce) : null) ||
+    temporalCtx.accounting_period_end_iso ||
+    null;
+
+  const effectiveAmbiguousAltIso =
+    appInterval.ambiguousAltIso || temporalCtx.ambiguous_numeric_date_alt_iso;
 
   // Check multi-version amendment boundaries & uncertain/straddling dates across matched documents
   for (const doc of authorizedDocs) {
@@ -3538,13 +3689,9 @@ export function tryAnswerFromOnboardedCitationSources(
     ].sort();
 
     // 1. Ambiguous DD/MM vs MM/DD slash date straddling an amendment effective_from
-    if (
-      !params.applicable_date &&
-      temporalCtx.point_in_time_date_iso &&
-      temporalCtx.ambiguous_numeric_date_alt_iso
-    ) {
-      const d1 = temporalCtx.point_in_time_date_iso;
-      const d2 = temporalCtx.ambiguous_numeric_date_alt_iso;
+    if (queryStartIso && queryStartIso === queryEndIso && effectiveAmbiguousAltIso) {
+      const d1 = queryStartIso;
+      const d2 = effectiveAmbiguousAltIso;
       const lo = d1 < d2 ? d1 : d2;
       const hi = d1 < d2 ? d2 : d1;
       const straddled = distinctEffectiveDates.find((eff) => eff > lo && eff <= hi);
@@ -3552,44 +3699,38 @@ export function tryAnswerFromOnboardedCitationSources(
         return buildTemporalWithheldAnswer(
           "NEEDS_CLARIFICATION",
           "MISSING_APPLICABLE_DATE",
-          `รูปแบบวันที่ตัวเลขในคำถามมีความกำกวมระหว่างวัน/เดือน และคร่อมวันที่มีผลใช้บังคับของการแก้ไขกฎหมาย (${straddled}) กรุณาระบุชื่อเดือนหรือวันที่แบบ YYYY-MM-DD ให้ชัดเจน`,
+          `รูปแบบวันที่ตัวเลขมีความกำกวมระหว่างวัน/เดือน และคร่อมวันที่มีผลใช้บังคับของการแก้ไขกฎหมาย (${straddled}) กรุณาระบุชื่อเดือนหรือวันที่แบบ YYYY-MM-DD ให้ชัดเจน`,
           [`กรุณายืนยันวันที่ที่แน่นอนในรูปแบบ YYYY-MM-DD (เนื่องจากมีจุดเปลี่ยนรุ่นกฎหมายเมื่อ ${straddled})`],
           null
         );
       }
     }
 
-    // 2. Partial date range or year-only reference straddling an amendment effective_from
-    if (!params.applicable_date) {
-      const rangeStart =
-        temporalCtx.transaction_date_iso ||
-        (temporalCtx.transaction_year_ce ? `${temporalCtx.transaction_year_ce}-01-01` : null);
-      const rangeEnd =
-        temporalCtx.transaction_date_end_iso ||
-        (temporalCtx.transaction_year_ce && !temporalCtx.point_in_time_date_iso
-          ? `${temporalCtx.transaction_year_ce}-12-31`
-          : null);
-      if (rangeStart && rangeEnd && rangeStart < rangeEnd) {
-        const straddled = distinctEffectiveDates.find((eff) => eff > rangeStart && eff <= rangeEnd);
-        if (straddled) {
-          return buildTemporalWithheldAnswer(
-            "NEEDS_CLARIFICATION",
-            "MISSING_APPLICABLE_DATE",
-            `ช่วงเวลาที่ระบุ (${rangeStart} ถึง ${rangeEnd}) คร่อมวันที่มีผลใช้บังคับของการแก้ไขเพิ่มเติม ${doc.source_native_id || doc.original_title_th} (${straddled}) กรุณาระบุวัน เดือน ปี ที่เกิดรายการให้ชัดเจนเพื่อเลือกรุ่นกฎหมายที่ถูกต้อง`,
-            [`รายการเกิดขึ้นก่อนหรือตั้งแต่วันที่ ${straddled} เป็นต้นไป?`],
-            null
-          );
-        }
-        if (!effectiveAsOfDate) {
-          effectiveAsOfDate = rangeEnd;
-        }
+    // 2. Partial date range (month+year, quarter, or year-only in question OR `applicable_date`) straddling an amendment effective_from or effective_to!
+    if (queryStartIso && queryEndIso && queryStartIso < queryEndIso) {
+      const straddledEffFrom = distinctEffectiveDates.find(
+        (eff) => eff > queryStartIso! && eff <= queryEndIso!
+      );
+      const straddledEffTo = versions
+        .map((v) => v.effective_to)
+        .filter((d): d is string => Boolean(d))
+        .find((effTo) => effTo >= queryStartIso! && effTo < queryEndIso!);
+      const straddled = straddledEffFrom || straddledEffTo;
+      if (straddled) {
+        return buildTemporalWithheldAnswer(
+          "NEEDS_CLARIFICATION",
+          "MISSING_APPLICABLE_DATE",
+          `ช่วงเวลาที่ระบุ (${effectiveAsOfDate || `${queryStartIso}..${queryEndIso}`}) คร่อมจุดเปลี่ยนวันที่มีผลใช้บังคับของ ${doc.source_native_id || doc.original_title_th} (${straddled}) กรุณาระบุวัน เดือน ปี ที่เกิดรายการให้ชัดเจนเพื่อเลือกรุ่นกฎหมายที่ถูกต้องโดยไม่คาดเดา`,
+          [`รายการเกิดขึ้นก่อนหรือตั้งแต่วันที่ ${straddled} เป็นต้นไป?`],
+          null
+        );
       }
     }
 
     // 3. Multiple amendment versions exist, NO temporal anchor given, and user did not ask for current law
     if (
       distinctEffectiveDates.length >= 2 &&
-      !effectiveAsOfDate &&
+      !queryStartIso &&
       !temporalCtx.has_any_temporal_anchor &&
       !asksCurrentExplicitly
     ) {
@@ -3610,7 +3751,7 @@ export function tryAnswerFromOnboardedCitationSources(
       const asksUnverifiedPrior =
         temporalCtx.is_upper_bounded_before_period ||
         temporalCtx.asks_pre_amendment_version_explicitly ||
-        (effectiveAsOfDate !== null && effectiveAsOfDate < earliestEff);
+        (queryEndIso !== null && queryEndIso < earliestEff);
 
       if (asksUnverifiedPrior) {
         const docNativeNorm = normalizeThaiSearchTextOnly(
@@ -3623,10 +3764,11 @@ export function tryAnswerFromOnboardedCitationSources(
           return wNorm.length >= 3 && wNorm === docNativeNorm;
         });
         const hasVerifiedMatchingPrior =
-          effectiveAsOfDate !== null &&
+          queryStartIso !== null &&
+          queryEndIso !== null &&
           versions.some((v) => {
-            const okFrom = !v.effective_from || effectiveAsOfDate! >= v.effective_from;
-            const okTo = !v.effective_to || effectiveAsOfDate! <= v.effective_to;
+            const okFrom = !v.effective_from || queryStartIso! >= v.effective_from;
+            const okTo = !v.effective_to || queryEndIso! <= v.effective_to;
             return Boolean(v.effective_from) && okFrom && okTo;
           });
         if (!hasCanonicalBaseline && !hasVerifiedMatchingPrior) {
@@ -3642,15 +3784,18 @@ export function tryAnswerFromOnboardedCitationSources(
     }
   }
 
-  // Select applicable versions per matched document for `effectiveAsOfDate` (Section 4.4, T04)
+  // Select applicable versions per matched document for `[queryStartIso, queryEndIso]` (Section 4.4, T04)
   const candidatePassageIds = new Set<string>();
   const proposedClaims: ProposedStructuredClaimInput[] = [];
   const evidenceCards: GroundedAnswer["evidence"] = [];
   const runtimeAssumptions: string[] = [];
-  if (asksCurrentExplicitly && !effectiveAsOfDate) {
-    effectiveAsOfDate = new Date().toISOString().slice(0, 10);
+  if (asksCurrentExplicitly && !queryStartIso) {
+    const todayIso = new Date().toISOString().slice(0, 10);
+    queryStartIso = todayIso;
+    queryEndIso = todayIso;
+    effectiveAsOfDate = todayIso;
     runtimeAssumptions.push(
-      `อ้างอิงรุ่นกฎหมายที่มีผลใช้บังคับในปัจจุบัน ณ วันที่ ${effectiveAsOfDate} ตามคำถามของผู้ใช้`
+      `อ้างอิงรุ่นกฎหมายที่มีผลใช้บังคับในปัจจุบัน ณ วันที่ ${todayIso} ตามคำถามของผู้ใช้`
     );
   }
 
@@ -3660,10 +3805,10 @@ export function tryAnswerFromOnboardedCitationSources(
   const selectVersionForDoc = (doc: OfficialDocumentRecord): DocumentVersionRecord | null | "FALLBACK_CANONICAL" => {
     const versions = Object.values(rawLedger.versions).filter((v) => v.doc_id === doc.doc_id);
     if (versions.length === 0) return null;
-    if (effectiveAsOfDate) {
+    if (queryStartIso && queryEndIso) {
       const matching = versions.filter((v) => {
-        const okFrom = !v.effective_from || effectiveAsOfDate! >= v.effective_from;
-        const okTo = !v.effective_to || effectiveAsOfDate! <= v.effective_to;
+        const okFrom = !v.effective_from || queryStartIso! >= v.effective_from;
+        const okTo = !v.effective_to || queryEndIso! <= v.effective_to;
         return okFrom && okTo;
       });
       if (matching.length > 0) {

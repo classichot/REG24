@@ -1,5 +1,5 @@
 {
-  "verified_at": "2026-11-18T18:00:50.440Z",
+  "verified_at": "2026-11-18T19:23:12.995Z",
   "credentials_redacted": true,
   "neon_project_id": "shiny-pond-32049060",
   "neon_project_name": "reg24-trial-isolated",
@@ -31,20 +31,22 @@
     "storage_ceiling_2gib_triggers_installed": true
   },
   "runtime_durability_and_protection_verified": {
-    "saved_answer_id": "ans.trc.onb.082fb85098cc",
+    "saved_answer_id": "ans.trc.onb.bc82aba60cd4",
     "saved_revisions_verified": [
-      "ans.trc.onb.082fb85098cc.r1",
-      "ans.trc.onb.082fb85098cc.r2"
+      "ans.trc.onb.bc82aba60cd4.r1",
+      "ans.trc.onb.bc82aba60cd4.r2"
     ],
-    "verified_attachment_passage_id": "epsg.69e58e46fa5eeb76",
-    "legal_feedback_id": "lfb.stg.f135313ad950",
+    "verified_attachment_passage_id": "epsg.4854ff03558b4aff",
+    "legal_feedback_id": "lfb.stg.f29ec7f717d1",
     "cold_start_container_restart_survival": true,
     "cross_user_overwrite_blocked_403": true,
+    "unrelated_claim_attached_to_real_source_rejected_422": true,
+    "year_only_and_month_only_no_invented_dates_verified": true,
     "cross_deployment_vercel_preview_survival": "PENDING_LIVE_URL_PASS"
   },
   "hosted_neon_pitr_restore_verified": {
-    "pitr_anchor_lsn": "0/1C9A030",
-    "pitr_anchor_timestamp_utc": "2026-11-18 18:00:46.906862+00",
+    "pitr_anchor_lsn": "0/1CE7CB0",
+    "pitr_anchor_timestamp_utc": "2026-11-18 19:23:09.474625+00",
     "restored_published_answers_r1_and_r2": true,
     "restored_claim_evidence_links_and_passages": true,
     "restored_audit_events_and_legal_feedback": true,

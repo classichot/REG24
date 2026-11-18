@@ -242,6 +242,8 @@ async function main() {
   let dbUnsupportedClaimBlocked = false;
   let coldStartRestartVerified = false;
   let crossUser403Verified = false;
+  let unrelatedClaimWithRealSourceRejected422 = false;
+  let yearOnlyAndMonthOnlySafeVerified = false;
   let crossDeploymentLiveVerified = false;
   let pitrRecoveredAllTablesVerified = false;
   let pitrChildBranchDeleted = false;
@@ -403,6 +405,57 @@ async function main() {
       }
     }
 
+    // Verify Dodo Issue 1 on Container B: Unrelated claim attached to REAL eligible source (`attachedPassageId`) is rejected with 422!
+    try {
+      await saveOrReviseAnswerServerVerified(storeB, {
+        submitted_envelope: {
+          ...reopenedOnB.answer!,
+          answer_id: `ans.unrelated.${runSuffix}`,
+          answer_revision: `ans.unrelated.${runSuffix}.r1`,
+          status: "complete",
+          claims: [
+            {
+              ...reopenedOnB.answer!.claims[0],
+              text: "การขายอสังหาริมทรัพย์เป็นทางค้าหรือหากำไรอยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะในอัตราร้อยละ 3.3",
+              verification_decision: "supported",
+              published: true,
+            },
+          ],
+        },
+        question_text: "ภาระภาษีธุรกิจเฉพาะจากการขายอสังหาริมทรัพย์",
+        actor: ownerActor,
+      });
+    } catch (e) {
+      if (String(e).includes("UNSUPPORTED_ANSWER_REJECTED_422")) {
+        unrelatedClaimWithRealSourceRejected422 = true;
+      }
+    }
+
+    // Verify Dodo Issue 2 on Container B: Year-only (`ปี 2561`) & Month-only (`In Feb`) questions return NEEDS_CLARIFICATION with zero invented dates!
+    const yrOnlyCheck = await queryKnowledge(
+      {
+        question:
+          "ปี 2561 บริษัทจ่ายเงินบริจาคให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายตามมาตรา 65 ตรี (3) ได้หรือไม่",
+        release_id: "rel.B01.rc5",
+      },
+      ownerActor,
+      { store: storeB }
+    );
+    const moOnlyCheck = await queryKnowledge(
+      {
+        question:
+          "In Feb, our Thai company sold goods to a foreign economic and trade office in Thailand. Does 0% VAT under Section 80/1 (5) apply?",
+        release_id: "rel.B01.rc5",
+      },
+      ownerActor,
+      { store: storeB }
+    );
+    yearOnlyAndMonthOnlySafeVerified =
+      yrOnlyCheck.status === "NEEDS_CLARIFICATION" &&
+      !yrOnlyCheck.answer.includes("2018-12-31") &&
+      !yrOnlyCheck.answer.includes("2018-05-01") &&
+      moOnlyCheck.status === "NEEDS_CLARIFICATION";
+
     // 5. Optional Live Vercel Preview Cross-Deployment Check (when `--live-url` is provided)
     if (liveDeploymentUrl) {
       const shareUrlObj = new URL(liveDeploymentUrl);
@@ -555,6 +608,9 @@ async function main() {
       legal_feedback_id: savedFeedbackId,
       cold_start_container_restart_survival: coldStartRestartVerified,
       cross_user_overwrite_blocked_403: crossUser403Verified,
+      unrelated_claim_attached_to_real_source_rejected_422:
+        unrelatedClaimWithRealSourceRejected422,
+      year_only_and_month_only_no_invented_dates_verified: yearOnlyAndMonthOnlySafeVerified,
       cross_deployment_vercel_preview_survival: liveDeploymentUrl
         ? crossDeploymentLiveVerified
         : "PENDING_LIVE_URL_PASS",
@@ -572,6 +628,8 @@ async function main() {
       dbUnsupportedClaimBlocked &&
       coldStartRestartVerified &&
       crossUser403Verified &&
+      unrelatedClaimWithRealSourceRejected422 &&
+      yearOnlyAndMonthOnlySafeVerified &&
       pitrRecoveredAllTablesVerified &&
       pitrChildBranchDeleted &&
       (!liveDeploymentUrl || crossDeploymentLiveVerified),

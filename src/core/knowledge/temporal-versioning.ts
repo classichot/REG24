@@ -142,11 +142,13 @@ function expandThaiMonthTokens(input: string): string {
   for (const [abbr, full] of Object.entries(TH_SHORT_MONTH_TO_FULL)) {
     s = s.split(abbr).join(full);
   }
-  // Expand undotted Thai month abbreviations ONLY when bounded by a day/เดือน and a year so `กค 0702/...` is never touched
+  // Expand undotted Thai month abbreviations ONLY when bounded by a day/เดือน (and NOT `กค` ruling IDs!)
   s = s.replace(
-    /(?:(\b[0-9]{1,2}\s+)|(เดือน\s*))(มค|กพ|มีค|เมย|พค|มิย|กค|สค|กย|ตค|พย|ธค)(?=\s*(?:พ\.ศ\.|ค\.ศ\.)?\s*[0-9]{2,4}\b)/g,
-    (_m, dayPart, monthWord, abbr) =>
-      `${dayPart || monthWord || ""}${TH_UNDOTTED_SHORT_MONTH_TO_FULL[abbr] || abbr} `
+    /(?:(\b[0-9]{1,2}\s+)|(เดือน\s*))(มค|กพ|มีค|เมย|พค|มิย|กค|สค|กย|ตค|พย|ธค)(?=\s*(?:พ\.ศ\.|ค\.ศ\.)?\s*[0-9]{2,4}\b|\s|$)/g,
+    (_m, dayPart, monthWord, abbr) => {
+      if (abbr === "กค" && !monthWord) return _m;
+      return `${dayPart || monthWord || ""}${TH_UNDOTTED_SHORT_MONTH_TO_FULL[abbr] || abbr} `;
+    }
   );
   return s;
 }
@@ -172,11 +174,80 @@ const EN_SUBCLAUSE_LETTER_TO_THAI: Record<string, string> = {
   e: "จ",
 };
 
+const TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD =
+  "(?!\\s*(?:[,./][0-9]|%|บาท|ล้าน|แสน|หมื่น|พัน|ร้อย|เปอร์เซ็นต์|วัน|เดือน|ปี|คน|ราย|ฉบับ|ข้อ|เท่า|หุ้น|แห่ง|แปลง|baht|thb|million|percent|days?|months?|years?|promoters?|companies|employees|items?))";
+
+/**
+ * Detects explicit impossible calendar dates (e.g. `2019-02-30`, `2019-02-29` non-leap, `31/06/2018`,
+ * `30 กุมภาพันธ์ 2562`, `31 มิถุนายน 2561`, `29 Feb 2019`, `June 31, 2018`) so invalid dates
+ * are flagged for clarification rather than silently ignored or truncated into month-year ranges.
+ */
+export function detectInvalidCalendarDateInText(raw: string | null | undefined): boolean {
+  if (!raw || !raw.trim()) return false;
+  const s = expandThaiMonthTokens(thaiDigitsToArabic(raw).replace(/\s+/g, " ").trim());
+
+  for (const m of s.matchAll(/\b((?:19|20|24|25)\d{2})[\/.\-](\d{1,2})[\/.\-](\d{1,2})(?:T|\b)/g)) {
+    const yr = resolveFlexibleYearTokenToCe(m[1]);
+    const mm = Number(m[2]);
+    const dd = Number(m[3]);
+    if (yr === null || !isValidIsoComponents(yr, mm, dd)) return true;
+  }
+
+  for (const m of s.matchAll(/\b([0-9]{1,2})[\/.\-]([0-9]{1,2})[\/.\-]((?:19|20|24|25)[0-9]{2})\b/g)) {
+    const a = Number(m[1]);
+    const b = Number(m[2]);
+    const yr = resolveFlexibleYearTokenToCe(m[3]);
+    if (yr === null) return true;
+    const validDmy = a >= 1 && a <= 31 && b >= 1 && b <= 12 && isValidIsoComponents(yr, b, a);
+    const validMdy = a >= 1 && a <= 12 && b > 12 && b <= 31 && isValidIsoComponents(yr, a, b);
+    if (!validDmy && !validMdy) return true;
+  }
+
+  for (const m of s.matchAll(
+    /([0-9]{1,2})\s*(?:เดือน)?\s*(มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(?:(พ\.ศ\.|ค\.ศ\.)\s*)?((?:19|20|24|25)[0-9]{2})/g
+  )) {
+    const dd = Number(m[1]);
+    const mm = Number(TH_MONTH_NAME_TO_MM[m[2]] || 0);
+    const eraHint = m[3] === "พ.ศ." ? "BE" : m[3] === "ค.ศ." ? "CE" : null;
+    const yr = resolveFlexibleYearTokenToCe(m[4], eraHint);
+    if (yr === null || !isValidIsoComponents(yr, mm, dd)) return true;
+  }
+
+  const sEn = s
+    .replace(/\b([0-9]{1,2})-([a-zA-Z]{3,9})-((?:19|20|24|25)?[0-9]{2})\b/g, "$1 $2 $3")
+    .replace(/\b([a-zA-Z]{3,9})-([0-9]{1,2})-((?:19|20|24|25)?[0-9]{2})\b/g, "$1 $2, $3");
+
+  for (const m of sEn.matchAll(
+    /\b([0-9]{1,2})(?:st|nd|rd|th)?\s+(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)[a-z.]*,?\s*(?:(b\.?e\.?|พ\.ศ\.|c\.?e\.?|a\.?d\.?)\s*)?((?:19|20|24|25)[0-9]{2})\b/gi
+  )) {
+    const dd = Number(m[1]);
+    const mm = Number(EN_MONTH_MAP[m[2].toLowerCase().replace(/\.$/, "")] || 0);
+    const marker = (m[3] || "").toLowerCase();
+    const eraHint = marker.includes("b") || marker.includes("พ") ? "BE" : marker ? "CE" : null;
+    const yr = resolveFlexibleYearTokenToCe(m[4], eraHint);
+    if (yr === null || !isValidIsoComponents(yr, mm, dd)) return true;
+  }
+
+  for (const m of sEn.matchAll(
+    /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)[a-z.]*\s+([0-9]{1,2})(?:st|nd|rd|th)?,?\s*(?:(b\.?e\.?|c\.?e\.?)\s*)?((?:19|20|24|25)[0-9]{2})\b/gi
+  )) {
+    const mm = Number(EN_MONTH_MAP[m[1].toLowerCase().replace(/\.$/, "")] || 0);
+    const dd = Number(m[2]);
+    const marker = (m[3] || "").toLowerCase();
+    const eraHint = marker.includes("b") ? "BE" : marker ? "CE" : null;
+    const yr = resolveFlexibleYearTokenToCe(m[4], eraHint);
+    if (yr === null || !isValidIsoComponents(yr, mm, dd)) return true;
+  }
+
+  return false;
+}
+
 /**
  * Parses Thai Buddhist/Common Era dates (`1 ม.ค. 2561`, `วันที่ 30 เดือนมิถุนายน พ.ศ. 2561`, `30 มิ.ย. 61`, `30 มิถุนายน 2018`),
  * English dates (`30 June 2018`, `June 30, 2018`, `30-Jun-2018`, `30-Jun-18`, `1 Jan B.E. 2561`),
  * numeric slash/dot/dash dates (`30/06/2561`, `30/06/2018`, `30-06-2018`, `30.06.2018`, `30/06/61`, `06/30/2018`),
  * and year-first dates (`2018-06-30`, `2018/06/30`, `2561-06-30`, `2018-06-30T00:00:00Z`) into canonical ISO `YYYY-MM-DD`.
+ * Never invents a date from year-only, month-only, month+year, or monetary/rate numbers following a month.
  */
 export function parseFlexibleThaiOrEnglishDateToIso(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -192,6 +263,7 @@ export function parseFlexibleThaiOrEnglishDateToIso(raw: string | null | undefin
     if (yr !== null && isValidIsoComponents(yr, mm, dd)) {
       return `${yr}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
     }
+    return null;
   }
 
   // 2. Numeric Day/Month/Year or unambiguous US Month/Day/Year (`30/06/2561`, `1/7/60`, `30-06-2018`, `30.06.2018`, `06/30/2018`)
@@ -210,62 +282,86 @@ export function parseFlexibleThaiOrEnglishDateToIso(raw: string | null | undefin
         return `${yr}-${String(a).padStart(2, "0")}-${String(b).padStart(2, "0")}`;
       }
     }
+    return null;
   }
 
   // 3. Thai full/abbreviated month with optional `ที่` / `เดือน` / `พ.ศ.` / `ค.ศ.` and 2- or 4-digit B.E. or C.E. year
+  //    Guards 2-digit years against matching monetary amounts (`50,000 บาท`), rates (`7%`), or counts!
   s = expandThaiMonthTokens(s);
-  const thFlex = s.match(
-    /([0-9]{1,2})\s*(?:เดือน)?\s*(มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(?:(พ\.ศ\.|ค\.ศ\.)\s*)?((?:19|20|24|25)[0-9]{2}|[0-7][0-9])\b/
+  const thFlexRe = new RegExp(
+    `([0-9]{1,2})\\s*(?:เดือน)?\\s*(มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\\s*(?:(พ\\.ศ\\.|ค\\.ศ\\.)\\s*)?((?:19|20|24|25)[0-9]{2}|[0-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})`
   );
+  const thFlex = s.match(thFlexRe);
   if (thFlex) {
     const dd = Number(thFlex[1]);
     const mm = Number(TH_MONTH_NAME_TO_MM[thFlex[2]] || 0);
     const eraHint = thFlex[3] === "พ.ศ." ? "BE" : thFlex[3] === "ค.ศ." ? "CE" : null;
-    const yr = resolveFlexibleYearTokenToCe(thFlex[4], eraHint);
+    const yr = resolveFlexibleYearTokenToCe(thFlex[4].trim(), eraHint);
     if (yr !== null && isValidIsoComponents(yr, mm, dd)) {
       return `${yr}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
     }
+    return null;
   }
   const thIsoFallback = parseThaiBuddhistDateToIso(s);
   if (thIsoFallback) return thIsoFallback;
 
-  // Normalize hyphenated English dates (`30-Jun-2018`, `15-Jan-19`, `Jun-30-2018`) to spaces
-  const sEn = s.replace(
-    /\b([0-9]{1,2})-([a-zA-Z]{3,9})-((?:19|20|24|25)?[0-9]{2})\b/g,
-    "$1 $2 $3"
-  ).replace(
-    /\b([a-zA-Z]{3,9})-([0-9]{1,2})-((?:19|20|24|25)?[0-9]{2})\b/g,
-    "$1 $2, $3"
+  // 4. Hyphenated English dates (`30-Jun-2018`, `15-Jan-19`, `Jun-30-2018`, `Jun-30-18`) — hyphen explicitly binds the 2-digit year!
+  const hyphDmy = s.match(
+    /\b([0-9]{1,2})-(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)-((?:19|20|24|25)?[0-9]{2})\b/i
   );
+  if (hyphDmy) {
+    const dd = Number(hyphDmy[1]);
+    const mm = Number(EN_MONTH_MAP[hyphDmy[2].toLowerCase()] || 0);
+    const yr = resolveFlexibleYearTokenToCe(hyphDmy[3]);
+    return yr !== null && isValidIsoComponents(yr, mm, dd)
+      ? `${yr}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`
+      : null;
+  }
+  const hyphMdy = s.match(
+    /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)-([0-9]{1,2})-((?:19|20|24|25)?[0-9]{2})\b/i
+  );
+  if (hyphMdy) {
+    const mm = Number(EN_MONTH_MAP[hyphMdy[1].toLowerCase()] || 0);
+    const dd = Number(hyphMdy[2]);
+    const yr = resolveFlexibleYearTokenToCe(hyphMdy[3]);
+    return yr !== null && isValidIsoComponents(yr, mm, dd)
+      ? `${yr}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`
+      : null;
+  }
 
-  // 4. English Day Month Year (`30 June 2018`, `30 Jun 18`, `1 Jan B.E. 2561`)
-  const dmyEn = sEn.match(
-    /\b([0-9]{1,2})(?:st|nd|rd|th)?\s+(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)[a-z.]*,?\s*(?:(b\.?e\.?|พ\.ศ\.|c\.?e\.?|a\.?d\.?)\s*)?((?:19|20|24|25)[0-9]{2}|[0-7][0-9])\b/i
+  // 5. Space-separated English Day Month Year (`30 June 2018`, `30 Jun '18`, `1 Jan B.E. 2561`, `1 Jan B.E. 61`)
+  //    Space-separated bare 2-digit numbers WITHOUT `'`, `B.E.`, or `C.E.` require a 4-digit year so `"On 15 June 20 companies"` never invents 2020!
+  const dmyEn = s.match(
+    /\b([0-9]{1,2})(?:st|nd|rd|th)?\s+(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)[a-z.]*,?\s*(?:(b\.?e\.?|พ\.ศ\.|c\.?e\.?|a\.?d\.?)\s*([0-9]{2,4})|'([0-7][0-9])|((?:19|20|24|25)[0-9]{2}))\b/i
   );
   if (dmyEn) {
     const dd = Number(dmyEn[1]);
     const mm = Number(EN_MONTH_MAP[dmyEn[2].toLowerCase().replace(/\.$/, "")] || 0);
     const marker = (dmyEn[3] || "").toLowerCase();
     const eraHint = marker.includes("b") || marker.includes("พ") ? "BE" : marker ? "CE" : null;
-    const yr = resolveFlexibleYearTokenToCe(dmyEn[4], eraHint);
+    const rawYr = dmyEn[4] || dmyEn[5] || dmyEn[6];
+    const yr = resolveFlexibleYearTokenToCe(rawYr, eraHint);
     if (yr !== null && isValidIsoComponents(yr, mm, dd)) {
       return `${yr}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
     }
+    return null;
   }
 
-  // 5. English Month Day, Year (`June 30, 2018`, `July 1, 2017`, `Jun 30, 18`)
-  const mdyEn = sEn.match(
-    /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)[a-z.]*\s+([0-9]{1,2})(?:st|nd|rd|th)?,?\s*(?:(b\.?e\.?|c\.?e\.?)\s*)?((?:19|20|24|25)[0-9]{2}|[0-7][0-9])\b/i
+  // 6. Space-separated English Month Day, Year (`June 30, 2018`, `July 1, 2017`, `Jun 30, '18`, `Jun 30, B.E. 2561`)
+  const mdyEn = s.match(
+    /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)[a-z.]*\s+([0-9]{1,2})(?:st|nd|rd|th)?,?\s*(?:(b\.?e\.?|c\.?e\.?|a\.?d\.?)\s*([0-9]{2,4})|'([0-7][0-9])|((?:19|20|24|25)[0-9]{2}))\b/i
   );
   if (mdyEn) {
     const mm = Number(EN_MONTH_MAP[mdyEn[1].toLowerCase().replace(/\.$/, "")] || 0);
     const dd = Number(mdyEn[2]);
     const marker = (mdyEn[3] || "").toLowerCase();
     const eraHint = marker.includes("b") ? "BE" : marker ? "CE" : null;
-    const yr = resolveFlexibleYearTokenToCe(mdyEn[4], eraHint);
+    const rawYr = mdyEn[4] || mdyEn[5] || mdyEn[6];
+    const yr = resolveFlexibleYearTokenToCe(rawYr, eraHint);
     if (yr !== null && isValidIsoComponents(yr, mm, dd)) {
       return `${yr}-${String(mm).padStart(2, "0")}-${String(dd).padStart(2, "0")}`;
     }
+    return null;
   }
 
   return null;
@@ -275,6 +371,8 @@ export function parseFlexibleThaiOrEnglishDateToIso(raw: string | null | undefin
  * Parses month-and-year expressions lacking a specific day (`พฤษภาคม 2560`, `มิ.ย. 61`, `มิ.ย. 2018`,
  * `May 2017`, `June 2018`, `Jun-2018`, `06/2018`, `06/2561`, `2018-06`, `2561-06`) into exact
  * first-of-month (`startIso`) and last-of-month (`endIso`) ISO dates.
+ * Strictly guarded so full 3-part dates (valid or invalid, like `2019-02-30` or `15/06/2018`) and
+ * month-only questions followed by monetary amounts (`มิถุนายน 50,000 บาท`) never match here!
  */
 export function parseFlexibleMonthYearToRange(raw: string | null | undefined): {
   startIso: string;
@@ -283,6 +381,7 @@ export function parseFlexibleMonthYearToRange(raw: string | null | undefined): {
   month: number;
 } | null {
   if (!raw) return null;
+  if (detectInvalidCalendarDateInText(raw)) return null;
   const s = expandThaiMonthTokens(thaiDigitsToArabic(raw).replace(/\s+/g, " ").trim());
   if (!s) return null;
 
@@ -298,19 +397,20 @@ export function parseFlexibleMonthYearToRange(raw: string | null | undefined): {
     };
   };
 
-  // Thai Month + Year (`พฤษภาคม 2560`, `เดือนมิถุนายน 61`, `มิถุนายน 2018`)
-  const thMy = s.match(
-    /(?:เดือน)?\s*(มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(?:(พ\.ศ\.|ค\.ศ\.)\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9])\b/
+  // Thai Month + Year (`พฤษภาคม 2560`, `เดือนมิถุนายน 61`, `มิถุนายน 2018`) — must NOT be preceded by day-of-month!
+  const thMyRe = new RegExp(
+    `(?<![0-9]\\s*)(?<!วันที่\\s*[0-9]{1,2}\\s*)(?:เดือน)?\\s*(มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\\s*(?:(พ\\.ศ\\.|ค\\.ศ\\.)\\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})`
   );
+  const thMy = s.match(thMyRe);
   if (thMy) {
     const mm = Number(TH_MONTH_NAME_TO_MM[thMy[1]] || 0);
     const eraHint = thMy[2] === "พ.ศ." ? "BE" : thMy[2] === "ค.ศ." ? "CE" : null;
-    return buildRange(resolveFlexibleYearTokenToCe(thMy[3], eraHint), mm);
+    return buildRange(resolveFlexibleYearTokenToCe(thMy[3].trim(), eraHint), mm);
   }
 
-  // English Month + Year (`May 2017`, `June 2018`, `Jun-2018`, `Jun B.E. 2561`)
+  // English Month + Year (`May 2017`, `June 2018`, `Jun-2018`, `Jun B.E. 2561`) — must NOT be preceded by day-of-month!
   const enMy = s.match(
-    /\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)[a-z.]*[\s\-]+(?:(b\.?e\.?|พ\.ศ\.)\s*)?((?:19|20|24|25)[0-9]{2})\b/i
+    /(?<![0-9](?:st|nd|rd|th)?[\s\-]+)\b(january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec)[a-z.]*[\s\-]+(?:(b\.?e\.?|พ\.ศ\.)\s*)?((?:19|20|24|25)[0-9]{2})\b/i
   );
   if (enMy) {
     const mm = Number(EN_MONTH_MAP[enMy[1].toLowerCase().replace(/\.$/, "")] || 0);
@@ -318,17 +418,189 @@ export function parseFlexibleMonthYearToRange(raw: string | null | undefined): {
     return buildRange(resolveFlexibleYearTokenToCe(enMy[3], eraHint), mm);
   }
 
-  // Numeric `MM/YYYY` or `YYYY-MM` (`06/2018`, `06/2561`, `2018-06`, `2561-06`)
-  const myNum = s.match(/\b(0?[1-9]|1[0-2])[\/\-]((?:19|20|24|25)[0-9]{2})\b/);
+  // Numeric `MM/YYYY` or `YYYY-MM` (`06/2018`, `06/2561`, `2018-06`, `2561-06`) — must NOT be part of a 3-part `DD/MM/YYYY` or `YYYY-MM-DD`!
+  const myNum = s.match(
+    /(?<![0-9/.\-])(0?[1-9]|1[0-2])[\/\-]((?:19|20|24|25)[0-9]{2})(?![\/.\-][0-9]|[0-9])/
+  );
   if (myNum) {
     return buildRange(resolveFlexibleYearTokenToCe(myNum[2]), Number(myNum[1]));
   }
-  const ymNum = s.match(/\b((?:19|20|24|25)[0-9]{2})[\/\-](0?[1-9]|1[0-2])\b/);
+  const ymNum = s.match(
+    /(?<![0-9/.\-])((?:19|20|24|25)[0-9]{2})[\/\-](0?[1-9]|1[0-2])(?![\/.\-][0-9]|[0-9])/
+  );
   if (ymNum) {
     return buildRange(resolveFlexibleYearTokenToCe(ymNum[1]), Number(ymNum[2]));
   }
 
   return null;
+}
+
+/**
+ * Parses standalone year-only inputs (`"2018"`, `"2561"`, `"พ.ศ. 2561"`, `"ปี 2561"`, `"FY2018"`,
+ * `"fiscal year 2018"`, `"2018 fiscal year"`, `"B.E. 2561"`, `"2561 B.E."`, `"รอบระยะเวลาบัญชีปี 2561"`)
+ * into a 4-digit Common Era year without fabricating a month or day!
+ */
+export function parseFlexibleYearOnlyToCe(raw: string | null | undefined): number | null {
+  if (!raw || !raw.trim()) return null;
+  const s = thaiDigitsToArabic(raw).replace(/\s+/g, " ").trim();
+  const m =
+    /^(?:(?:ในปี|เมื่อปี|สำหรับปี|ของปี|ประจำปี|ปีภาษี|ปีบัญชี|รอบระยะเวลาบัญชี(?:\s*ปี)?|รอบบัญชี(?:\s*ปี)?|งวดบัญชี(?:\s*ปี)?|งวดปี|งบปี|ปี|พ\.ศ\.|ค\.ศ\.|in\s+(?:the\s+)?year|for\s+(?:the\s+)?year|in|for|during|as\s+of|fiscal\s+year|accounting\s+period|tax\s+year|year|FY|B\.?E\.?|C\.?E\.?|A\.?D\.?)\s*)?(?:(พ\.ศ\.|ค\.ศ\.|B\.?E\.?|C\.?E\.?|A\.?D\.?)\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9])\s*(?:(B\.?E\.?|C\.?E\.?|A\.?D\.?|fiscal\s+year|accounting\s+period|tax\s+year))?$/i.exec(
+      s
+    );
+  if (!m) return null;
+  const marker = `${m[1] || ""} ${m[3] || ""} ${s}`.toLowerCase();
+  const eraHint: "BE" | "CE" | null =
+    marker.includes("พ.ศ.") || /\bb\.?e\.?\b/.test(marker)
+      ? "BE"
+      : marker.includes("ค.ศ.") || /\b(?:c\.?e\.?|a\.?d\.?)\b/.test(marker)
+        ? "CE"
+        : null;
+  return resolveFlexibleYearTokenToCe(m[2], eraHint);
+}
+
+/**
+ * Detects yearless month-only or day+month expressions in Thai and English
+ * (e.g. `"เดือนมิถุนายน"`, `"มิถุนายน"`, `"มิ.ย."`, `"15 มิ.ย."`, `"in June"`, `"for Feb"`,
+ * `"June"`, `"15 Jun"`, `"June 15"`, `"during May"`, `"15 May"`), while excluding the English
+ * modal verb `"May a company..."` at sentence start!
+ */
+export function detectYearlessMonthOrPartialDate(scrubbedText: string): boolean {
+  if (!scrubbedText || !scrubbedText.trim()) return false;
+  const expanded = expandThaiMonthTokens(thaiDigitsToArabic(scrubbedText).replace(/\s+/g, " ").trim());
+
+  // 1. Any of the 12 Thai month names (unambiguous in Thai; instrument dates were already scrubbed)
+  if (
+    /(?:มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)/.test(
+      expanded
+    )
+  ) {
+    return true;
+  }
+
+  // 2. English full & abbreviated months (excluding modal "may", handled separately below)
+  if (
+    /\b(?:january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec)\.?(?![a-z])/i.test(
+      expanded
+    )
+  ) {
+    return true;
+  }
+
+  // 3. English "May" ONLY when used as a month (`in May`, `on 15 May`, `May 15`, `for May`, `during May`, `ended May`, `ending May`, `since May`, `as of May`, `month of May`, or standalone `"May"`)
+  if (
+    /^may$/i.test(expanded) ||
+    /\b(?:in|on|during|for|since|from|until|by|as\s+of|ended|ending|starting|beginning|month\s+of|[0-9]{1,2}(?:st|nd|rd|th)?)\s+may\b/i.test(
+      expanded
+    ) ||
+    /\bmay\s+[0-9]{1,2}(?:st|nd|rd|th)?\b/i.test(expanded)
+  ) {
+    return true;
+  }
+
+  // 4. Numeric day/month without year explicitly marked as a date (`วันที่ 15/06`, `วันที่ 30/6`)
+  if (/(?:เมื่อวันที่|ตั้งแต่วันที่|ณ\s*วันที่|วันที่|สิ้นสุดวันที่)\s*[0-9]{1,2}[\/.\-][0-9]{1,2}(?![\/.\-0-9])/.test(expanded)) {
+    return true;
+  }
+
+  return false;
+}
+
+export interface NormalizedTemporalInterval {
+  kind:
+    | "empty"
+    | "exact_day"
+    | "month_year_range"
+    | "sub_year_range"
+    | "year_only_range"
+    | "incomplete_or_invalid";
+  startIso: string | null;
+  endIso: string | null;
+  yearCe: number | null;
+  canonicalLabel: string | null;
+  ambiguousAltIso: string | null;
+}
+
+/**
+ * Resolves any `applicable_date` / `as_of_date` string into an exact ISO interval without
+ * ever inventing a specific month or day (e.g. `"2018"` -> `year_only_range` `2018-01-01..2018-12-31`
+ * with `canonicalLabel: "2018"`, `"June"` or `"2019-02-30"` -> `incomplete_or_invalid`).
+ */
+export function resolveTemporalInputToIsoInterval(
+  raw: string | null | undefined
+): NormalizedTemporalInterval {
+  if (!raw || !raw.trim()) {
+    return {
+      kind: "empty",
+      startIso: null,
+      endIso: null,
+      yearCe: null,
+      canonicalLabel: null,
+      ambiguousAltIso: null,
+    };
+  }
+  const trimmed = raw.trim();
+  if (detectInvalidCalendarDateInText(trimmed)) {
+    return {
+      kind: "incomplete_or_invalid",
+      startIso: null,
+      endIso: null,
+      yearCe: null,
+      canonicalLabel: null,
+      ambiguousAltIso: null,
+    };
+  }
+  const exactIso = parseFlexibleThaiOrEnglishDateToIso(trimmed);
+  if (exactIso) {
+    return {
+      kind: "exact_day",
+      startIso: exactIso,
+      endIso: exactIso,
+      yearCe: Number(exactIso.slice(0, 4)),
+      canonicalLabel: exactIso,
+      ambiguousAltIso: detectAmbiguousNumericDateAlternativeIso(trimmed),
+    };
+  }
+  const myRange = parseFlexibleMonthYearToRange(trimmed);
+  if (myRange) {
+    return {
+      kind: "month_year_range",
+      startIso: myRange.startIso,
+      endIso: myRange.endIso,
+      yearCe: myRange.yearCe,
+      canonicalLabel: myRange.startIso.slice(0, 7),
+      ambiguousAltIso: null,
+    };
+  }
+  const subYr = parseSubYearPartialPeriodToRange(trimmed);
+  if (subYr) {
+    return {
+      kind: "sub_year_range",
+      startIso: subYr.startIso,
+      endIso: subYr.endIso,
+      yearCe: subYr.yearCe,
+      canonicalLabel: `${subYr.startIso}..${subYr.endIso}`,
+      ambiguousAltIso: null,
+    };
+  }
+  const yrOnly = parseFlexibleYearOnlyToCe(trimmed);
+  if (yrOnly !== null) {
+    return {
+      kind: "year_only_range",
+      startIso: `${yrOnly}-01-01`,
+      endIso: `${yrOnly}-12-31`,
+      yearCe: yrOnly,
+      canonicalLabel: String(yrOnly),
+      ambiguousAltIso: null,
+    };
+  }
+  return {
+    kind: "incomplete_or_invalid",
+    startIso: null,
+    endIso: null,
+    yearCe: null,
+    canonicalLabel: null,
+    ambiguousAltIso: null,
+  };
 }
 
 /**
@@ -691,6 +963,7 @@ export interface TemporalFactContext {
   is_upper_bounded_before_period: boolean;
   has_vague_historical_reference: boolean;
   has_yearless_partial_date: boolean;
+  has_invalid_calendar_date?: boolean;
   asks_whether_ruling_applies: boolean;
   asks_pre_amendment_version_explicitly: boolean;
   has_any_temporal_anchor: boolean;
@@ -829,7 +1102,7 @@ function parseSubYearPartialPeriodToRange(scrubbed: string): {
 }
 
 const FLEX_DATE_TOKEN_PATTERN =
-  "(?:(?:19|20|24|25)\\d{2}[\\/.\\-]\\d{1,2}[\\/.\\-]\\d{1,2}|[0-9]{1,2}[\\/.\\-][0-9]{1,2}[\\/.\\-](?:(?:19|20|24|25)[0-9]{2}|[0-7][0-9])|[0-9]{1,2}[\\s\\-]+(?:เดือน)?\\s*[ก-๙a-zA-Z.]+,?\\s*(?:(?:พ\\.ศ\\.|ค\\.ศ\\.|B\\.?E\\.?|C\\.?E\\.?)\\s*)?[0-9]{2,4}|[a-zA-Z.]+[\\s\\-]+[0-9]{1,2}(?:st|nd|rd|th)?,?[\\s\\-]*(?:B\\.?E\\.?\\s*)?[0-9]{2,4})";
+  `(?:(?:19|20|24|25)\\d{2}[\\/.\\-]\\d{1,2}[\\/.\\-]\\d{1,2}|[0-9]{1,2}[\\/.\\-][0-9]{1,2}[\\/.\\-](?:(?:19|20|24|25)[0-9]{2}|[0-7][0-9])|[0-9]{1,2}[\\s\\-]+(?:เดือน)?\\s*[ก-๙a-zA-Z.]+,?\\s*(?:(?:พ\\.ศ\\.|ค\\.ศ\\.|B\\.?E\\.?|C\\.?E\\.?)\\s*)?(?:(?:19|20|24|25)[0-9]{2}|'?[0-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})|[a-zA-Z.]+[\\s\\-]+[0-9]{1,2}(?:st|nd|rd|th)?,?[\\s\\-]*(?:(?:B\\.?E\\.?|C\\.?E\\.?)\\s*)?(?:(?:19|20|24|25)[0-9]{2}|'[0-7][0-9]|(?<=-)[0-7][0-9]\\b))(?![0-9])`;
 
 /**
  * Strips statutory/regulatory enactment title years (`พระราชบัญญัติ... พ.ศ. 2562`, `ท.ป. 299/2561`,
@@ -1001,13 +1274,15 @@ export function parseQueryTemporalAndIntentContext(params: {
   let ambiguousNumericDateAltIso: string | null = null;
   let hasMultipleDistinctPointDates = false;
   let isUpperBoundedBeforePeriod = false;
+  let hasInvalidCalendarDate = detectInvalidCalendarDateInText(scrubbed);
+  let hasExplicitIncompleteAppDate = false;
 
   // 3a-0. Boundary-relative "before / prior to / earlier than" exact date or month-year (`ก่อนวันที่ 28/02/2562`, `before Feb 28, 2019`, `prior to 01/01/2018`, `ก่อนเดือนมีนาคม 2562`)
   const beforeDateRe = new RegExp(
     `(?:ก่อนวันที่|ก่อนเมื่อวันที่|ไม่เกินวันที่|\\bbefore\\b|\\bprior\\s+to\\b|\\bearlier\\s+than\\b)\\s*(${FLEX_DATE_TOKEN_PATTERN})`,
     "i"
   );
-  const beforeDateMatch = scrubbed.match(beforeDateRe);
+  const beforeDateMatch = !hasInvalidCalendarDate ? scrubbed.match(beforeDateRe) : null;
   if (beforeDateMatch && !accountingStart && !accountingEnd && !accountingStartMax) {
     const boundIso = parseFlexibleThaiOrEnglishDateToIso(beforeDateMatch[1]);
     const prevDayIso = boundIso ? shiftIsoDateByDays(boundIso, -1) : null;
@@ -1022,7 +1297,7 @@ export function parseQueryTemporalAndIntentContext(params: {
     }
   }
 
-  if (!transactionDateIso && !accountingStart && !accountingEnd && !accountingStartMax) {
+  if (!hasInvalidCalendarDate && !transactionDateIso && !accountingStart && !accountingEnd && !accountingStartMax) {
     const beforeMyMatch = scrubbed.match(
       /(?:ก่อนเดือน|ก่อนช่วงเดือน|\bbefore\b|\bprior\s+to\b)\s*((?:เดือน)?\s*[ก-๙a-zA-Z.]+[\s\-]+(?:พ\.ศ\.\s*|ค\.ศ\.\s*|B\.?E\.?\s*)?(?:(?:19|20|24|25)[0-9]{2}|[4-7][0-9])|(?:0?[1-9]|1[0-2])\/(?:19|20|24|25)[0-9]{2})\b/i
     );
@@ -1038,7 +1313,7 @@ export function parseQueryTemporalAndIntentContext(params: {
     }
   }
 
-  if (!transactionDateIso && !accountingStart && !accountingEnd && !accountingStartMax) {
+  if (!hasInvalidCalendarDate && !transactionDateIso && !accountingStart && !accountingEnd && !accountingStartMax) {
     const subYr = parseSubYearPartialPeriodToRange(scrubbed);
     if (subYr) {
       transactionDateIso = subYr.startIso;
@@ -1066,33 +1341,41 @@ export function parseQueryTemporalAndIntentContext(params: {
         transactionDateEndIso = uniqueDates[uniqueDates.length - 1];
         transactionYearCe = Number(transactionDateIso.slice(0, 4));
       } else {
-        // Month + Year without day (`ในเดือนพฤษภาคม 2560`, `เมื่อ ม.ค. 2562`, `in May 2017`, `in Feb 2019`, `06/2018`)
-        const txMyMatch = scrubbed.match(
-          /(?:ในเดือน|เมื่อเดือน|เดือน|เมื่อ|ช่วง|\bin\b|\bduring\b|\bon\b|\bfor\b)\s*((?:เดือน)?\s*[ก-๙a-zA-Z.]+[\s\-]+(?:พ\.ศ\.\s*|ค\.ศ\.\s*|B\.?E\.?\s*)?(?:(?:19|20|24|25)[0-9]{2}|[4-7][0-9])|(?:0?[1-9]|1[0-2])\/(?:19|20|24|25)[0-9]{2})\b/i
-        );
-        if (txMyMatch) {
-          const my = parseFlexibleMonthYearToRange(txMyMatch[1]);
-          if (my) {
-            transactionDateIso = my.startIso;
-            transactionDateEndIso = my.endIso;
-            transactionYearCe = my.yearCe;
-          }
+        // Month + Year without day — supports both prepositioned (`ในเดือนพฤษภาคม 2560`, `in Feb 2019`) AND bare Month+Year (`กุมภาพันธ์ 2562`, `February 2019`, `06/2018`, `2019-02`)!
+        const myDirect = parseFlexibleMonthYearToRange(scrubbed);
+        if (myDirect) {
+          transactionDateIso = myDirect.startIso;
+          transactionDateEndIso = myDirect.endIso;
+          transactionYearCe = myDirect.yearCe;
         }
       }
     }
   }
 
   // 3b. Boundary-relative "before year" (`ก่อนปี 2561`, `ก่อน พ.ศ. 2562`, `before 2019`, `prior to 2018`, `pre-2019`)
-  //     AND prose & compact year formats (`ในปี 2560`, `ในปี 60`, `พ.ศ.2560`, `ค.ศ.2017`, `B.E.2560`, `FY2017`, `FY17`, `FY2560`, `in 2017`)
-  if (!transactionYearCe && !assessableTaxYearCe && !accountingStart && !accountingEnd && !accountingStartMax) {
+  //     AND Thai + English year-only formats (`ปี 2561`, `ของปี 2561`, `ในปี 60`, `พ.ศ. 2561`, `รอบบัญชี 2561`, `FY2018`, `fiscal year 2018`, `2018 fiscal year`, `in 2018`, `as of 2018`, `2561 B.E.`, standalone `2561`/`2018`)
+  //     NEVER invents `-01-01` or `-12-31` point dates for year-only inputs!
+  if (
+    !hasInvalidCalendarDate &&
+    !transactionYearCe &&
+    !assessableTaxYearCe &&
+    !accountingStart &&
+    !accountingEnd &&
+    !accountingStartMax
+  ) {
     const beforeYrTh = scrubbed.match(
-      /(?:ก่อนปีภาษี|ก่อนปี|ก่อน\s*พ\.ศ\.|ก่อน\s*ค\.ศ\.)\s*(?:(พ\.ศ\.|ค\.ศ\.)\s*)?(25[0-7][0-9]|24[89][0-9]|(?:199|20[0-3])[0-9]|[4-7][0-9])\b/
+      /(?:ก่อนปีภาษี|ก่อนปี|ก่อน\s*พ\.ศ\.|ก่อน\s*ค\.ศ\.)\s*(?:(พ\.ศ\.|ค\.ศ\.)\s*)?(25[0-7][0-9]|24[89][0-9]|(?:199|20[0-3])[0-9]|[4-7][0-9])(?![0-9])/
     );
     const beforeYrEn = scrubbed.match(
       /\b(?:before\s+|prior\s+to\s+|pre[\s\-]*)(?:year\s+|(B\.?E\.?|C\.?E\.?)\s*)?(25[0-7][0-9]|(?:199|20[0-3])[0-9])\b/i
     );
     if (beforeYrTh) {
-      const eraHint = beforeYrTh[1] === "ค.ศ." ? "CE" : Number(beforeYrTh[2]) >= 1900 && Number(beforeYrTh[2]) < 2400 ? "CE" : "BE";
+      const eraHint =
+        beforeYrTh[1] === "ค.ศ."
+          ? "CE"
+          : Number(beforeYrTh[2]) >= 1900 && Number(beforeYrTh[2]) < 2400
+            ? "CE"
+            : "BE";
       const yrCe = resolveFlexibleYearTokenToCe(beforeYrTh[2], eraHint);
       if (yrCe !== null) {
         transactionYearCe = yrCe - 1;
@@ -1108,81 +1391,114 @@ export function parseQueryTemporalAndIntentContext(params: {
         isUpperBoundedBeforePeriod = true;
       }
     } else {
-      const yrBeProse = scrubbed.match(
-        /(?:(?:ในปี|เมื่อปี|สำหรับปี|ช่วงปี|ระหว่างปี|ปีบัญชี|รอบปี|งวดปี|สำหรับรอบปี)\s*(?:พ\.ศ\.\s*)?(25[0-7][0-9]|24[89][0-9]|[4-6][0-9])|(?:ปี\s*พ\.ศ\.|พ\.ศ\.)\s*(25[0-7][0-9]|24[89][0-9])|(?<!ระยะเวลา\s*)(?<!กำหนด\s*)(?<!เกิน\s*)(?<!ภายใน\s*)(?<!เวลา\s*)\bปี\s*(25[0-7][0-9]|24[89][0-9]))\b/
+      // Note: NEVER use ASCII `\b` before Thai `ปี` (JS treats Thai script as `\W`, so `\bปี` fails at string start and after spaces/Thai chars!)
+      const yrThContext = scrubbed.match(
+        new RegExp(
+          `(?:(?:ในปี|เมื่อปี|สำหรับปี|ช่วงปี|ระหว่างปี|ของปี|ประจำปี|ตอนปี|ตั้งแต่ปี|ย้อนไปปี|ปีบัญชี|รอบระยะเวลาบัญชี(?:\\s*ปี)?|รอบบัญชี(?:\\s*ปี)?|งวดบัญชี(?:\\s*ปี)?|งวดปี|งบปี|สำหรับรอบปี)\\s*(?:(พ\\.ศ\\.|ค\\.ศ\\.)\\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})|(?:ปี\\s*พ\\.ศ\\.|พ\\.ศ\\.)\\s*(25[0-7][0-9]|24[89][0-9]|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD})|(?<!ระยะเวลา\\s*)(?<!กำหนด\\s*)(?<!เกิน\\s*)(?<!ไม่เกิน\\s*)(?<!ภายใน\\s*)(?<!เวลา\\s*)(?<![ก-๙])ปี\\s*((?:19|20|24|25)[0-9]{2}|[4-7][0-9]\\b${TWO_DIGIT_YEAR_DISQUALIFIER_LOOKAHEAD}))(?![0-9])`
+        )
       );
-      const yrCeExplicit = scrubbed.match(/(?:ค\.ศ\.|C\.?E\.?|A\.?D\.?)\s*((?:199|20[0-3])[0-9])\b/i);
-      const yrBeEn = scrubbed.match(/\bB\.?E\.?\s*(25[0-7][0-9]|24[89][0-9])\b/i);
-      const yrFyCompact = scrubbed.match(/\bFY\s*((?:199|20[0-3])[0-9]|25[0-7][0-9]|[124-6][0-9])\b/i);
+      const yrCeExplicit = scrubbed.match(
+        /(?:(?:ค\.ศ\.|C\.?E\.?|A\.?D\.?)\s*((?:199|20[0-3])[0-9])|\b((?:199|20[0-3])[0-9])\s*(?:C\.?E\.?|A\.?D\.?))\b/i
+      );
+      const yrBeEn = scrubbed.match(
+        /\b(?:B\.?E\.?\s*(25[0-7][0-9]|24[89][0-9])|(25[0-7][0-9]|24[89][0-9])\s*B\.?E\.?)\b/i
+      );
+      const yrFyOrPeriodEn = scrubbed.match(
+        /\b(?:(?:fiscal\s+year|accounting\s+period|FY)\s*(?:(B\.?E\.?|C\.?E\.?)\s*)?((?:199|20[0-3])[0-9]|25[0-7][0-9]|[124-6][0-9])|((?:199|20[0-3])[0-9]|25[0-7][0-9])\s+(?:fiscal\s+year|accounting\s+period))\b/i
+      );
       const yrEnProse = scrubbed.match(
-        /\b(?:in|during|for|in\s+year|for\s+year|between)\s*((?:199|20[0-3])[0-9]|25[0-7][0-9])\b/i
+        /\b(?:in|during|for|as\s+of|under|since|from|of|year|in\s+(?:the\s+)?year|for\s+(?:the\s+)?year|between)\s+(?:(B\.?E\.?|C\.?E\.?|A\.?D\.?)\s*)?((?:199|20[0-3])[0-9]|25[0-7][0-9])\b/i
+      );
+      const yrStandalone4Digit = scrubbed.match(
+        /(?<!(?:มาตรา|ข้อ|ฉบับที่|เล่ม|ตอนที่|หน้า|จำนวน|เงิน|บาท|section|sec\.?|no\.?)\s*)(?<![0-9/.,\-])(25[4-7][0-9]|20[0-3][0-9]|199[0-9])(?![0-9/.,\-])(?!\s*(?:บาท|ล้าน|แสน|หมื่น|พัน|คน|วัน|baht|thb))/i
       );
 
-      if (yrBeProse) {
-        const raw = yrBeProse[1] || yrBeProse[2] || yrBeProse[3];
-        transactionYearCe = resolveFlexibleYearTokenToCe(raw, "BE");
+      if (yrThContext) {
+        const rawTok = (yrThContext[2] || yrThContext[3] || yrThContext[4] || "").trim();
+        const eraHint =
+          yrThContext[1] === "ค.ศ."
+            ? "CE"
+            : Number(rawTok) >= 1900 && Number(rawTok) < 2400
+              ? "CE"
+              : "BE";
+        transactionYearCe = resolveFlexibleYearTokenToCe(rawTok, eraHint);
       } else if (yrCeExplicit) {
-        transactionYearCe = Number(yrCeExplicit[1]);
+        transactionYearCe = Number(yrCeExplicit[1] || yrCeExplicit[2]);
       } else if (yrBeEn) {
-        transactionYearCe = Number(yrBeEn[1]) - 543;
-      } else if (yrFyCompact) {
-        const fyYr = resolveFlexibleYearTokenToCe(yrFyCompact[1]);
+        transactionYearCe = Number(yrBeEn[1] || yrBeEn[2]) - 543;
+      } else if (yrFyOrPeriodEn) {
+        const eraHint = yrFyOrPeriodEn[1] && /b/i.test(yrFyOrPeriodEn[1]) ? "BE" : null;
+        const fyYr = resolveFlexibleYearTokenToCe(yrFyOrPeriodEn[2] || yrFyOrPeriodEn[3], eraHint);
         if (fyYr !== null) {
           transactionYearCe = fyYr;
-          accountingEnd = `${fyYr}-12-31`;
         }
       } else if (yrEnProse) {
-        transactionYearCe = resolveFlexibleYearTokenToCe(yrEnProse[1]);
+        const eraHint = yrEnProse[1] && /b/i.test(yrEnProse[1]) ? "BE" : null;
+        transactionYearCe = resolveFlexibleYearTokenToCe(yrEnProse[2], eraHint);
+      } else if (yrStandalone4Digit) {
+        transactionYearCe = resolveFlexibleYearTokenToCe(yrStandalone4Digit[1]);
       }
     }
   }
 
-  // 4. Explicit API `applicable_date` parameter — supports ISO AND alternative formats (`30/06/2561`, `2561-06-30`, `30 Jun 2018`, `06/2018`)!
+  // 4. Explicit API `applicable_date` parameter — normalized as an exact ISO interval without inventing dates!
   let pointInTimeIso: string | null = null;
   if (params.applicableDate && params.applicableDate.trim()) {
     const rawApp = params.applicableDate.trim();
-    pointInTimeIso =
-      parseFlexibleThaiOrEnglishDateToIso(rawApp) ||
-      parseFlexibleMonthYearToRange(rawApp)?.endIso ||
-      null;
-    if (!ambiguousNumericDateAltIso) {
-      ambiguousNumericDateAltIso = detectAmbiguousNumericDateAlternativeIso(rawApp);
-    }
-    if (
-      pointInTimeIso &&
-      /รอบระยะเวลาบัญชี|รอบบัญชี|งวดบัญชี|accounting\s+period|fiscal\s+year|\bFY\b/i.test(scrubbed) &&
-      !accountingStart &&
-      !accountingEnd
+    const appInterval = resolveTemporalInputToIsoInterval(rawApp);
+    if (appInterval.kind === "exact_day") {
+      pointInTimeIso = appInterval.startIso;
+      if (!ambiguousNumericDateAltIso && appInterval.ambiguousAltIso) {
+        ambiguousNumericDateAltIso = appInterval.ambiguousAltIso;
+      }
+      if (
+        pointInTimeIso &&
+        /รอบระยะเวลาบัญชี|รอบบัญชี|งวดบัญชี|accounting\s+period|fiscal\s+year|\bFY\b/i.test(scrubbed) &&
+        !accountingStart &&
+        !accountingEnd
+      ) {
+        accountingEnd = pointInTimeIso;
+      }
+    } else if (
+      appInterval.kind === "month_year_range" ||
+      appInterval.kind === "sub_year_range"
     ) {
-      accountingEnd = pointInTimeIso;
+      transactionDateIso = appInterval.startIso;
+      transactionDateEndIso = appInterval.endIso;
+      transactionYearCe = appInterval.yearCe;
+    } else if (appInterval.kind === "year_only_range") {
+      transactionYearCe = appInterval.yearCe;
+    } else if (appInterval.kind === "incomplete_or_invalid") {
+      if (detectInvalidCalendarDateInText(rawApp)) {
+        hasInvalidCalendarDate = true;
+      }
+      hasExplicitIncompleteAppDate = true;
     }
   }
 
-  // 5. Partial / unclear date signals (yearless day/month or vague relative past)
+  // 5. Partial / unclear / invalid date signals (yearless month/day-month, invalid calendar date, or vague relative past)
   const hasVagueHistoricalReference =
     /(?:เมื่อหลายปีก่อน|เมื่อไม่กี่ปีก่อน|หลายปีที่แล้ว|ไม่กี่ปีที่แล้ว|เมื่อปีก่อนๆ|ปีก่อนๆ|สมัยก่อน|ในอดีต|เมื่อนานมาแล้ว|\b(?:several|many|a\s+few)\s+years\s+ago\b|\bin\s+the\s+past\b|\bin\s+previous\s+years\b|\bsome\s+time\s+ago\b)/i.test(
       scrubbed
     );
 
-  const hasConcreteYearOrIsoAnchor = Boolean(
-    accountingStart ||
-      accountingStartMax ||
-      accountingEnd ||
-      pointInTimeIso ||
-      assessableTaxYearCe !== null ||
-      transactionDateIso ||
-      transactionYearCe !== null
-  );
+  const hasConcreteYearOrIsoAnchor =
+    !hasInvalidCalendarDate &&
+    !hasExplicitIncompleteAppDate &&
+    Boolean(
+      accountingStart ||
+        accountingStartMax ||
+        accountingEnd ||
+        pointInTimeIso ||
+        assessableTaxYearCe !== null ||
+        transactionDateIso ||
+        transactionYearCe !== null
+    );
 
-  const scrubbedExpandedMonths = expandThaiMonthTokens(scrubbed);
   const hasYearlessPartialDate =
-    !hasConcreteYearOrIsoAnchor &&
-    (/(?:(?:เมื่อวันที่|ตั้งแต่วันที่|ณ\s*วันที่|วันที่|สิ้นสุด(?:วันที่)?)\s*[0-9]{1,2}\s*(?:เดือน)?\s*|(?:ในเดือน|เมื่อเดือน|ช่วงเดือน|สิ้นสุดเดือน)\s*)(?:มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)/.test(
-      scrubbedExpandedMonths
-    ) ||
-      /\b(?:on|in|during|ended|ending)\s+(?:[0-9]{1,2}(?:st|nd|rd|th)?\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december)\b/i.test(
-        scrubbedExpandedMonths
-      ));
+    hasInvalidCalendarDate ||
+    hasExplicitIncompleteAppDate ||
+    (!hasConcreteYearOrIsoAnchor && detectYearlessMonthOrPartialDate(scrubbed));
 
   const asksPreAmendmentExplicitly =
     /(?:ก่อนแก้ไข|ฉบับเดิม|รุ่นเดิม|ตัวบทเดิม|ย้อนหลัง|ก่อนวันที่\s*20\s*มีนาคม\s*2562|prior\s+to\s+(?:the\s+)?(?:\d{4}\s+)?amendment|pre[- ]amendment|previous\s+version|historical\s+version)/i.test(
@@ -1211,6 +1527,7 @@ export function parseQueryTemporalAndIntentContext(params: {
     params.explicitRulingIds.length > 0 &&
     !asksWhetherRulingApplies &&
     !pointInTimeIso &&
+    !hasYearlessPartialDate &&
     !asksPreAmendmentExplicitly &&
     !hasVagueHistoricalReference &&
     /(?:ค้นหาหนังสือ|สรุปหนังสือ|ในหนังสือตอบข้อหารือ|แสดงแนววินิจฉัย|วินิจฉัย(?:เรื่อง[^\n?]{0,60})?(?:ไว้)?อย่างไร|\bfind\b|\bsummarize\b|\bwhat\s+did\b)/i.test(
@@ -1261,6 +1578,7 @@ export function parseQueryTemporalAndIntentContext(params: {
     is_upper_bounded_before_period: isUpperBoundedBeforePeriod,
     has_vague_historical_reference: hasVagueHistoricalReference,
     has_yearless_partial_date: hasYearlessPartialDate,
+    has_invalid_calendar_date: hasInvalidCalendarDate,
     asks_whether_ruling_applies: asksWhetherRulingApplies,
     asks_pre_amendment_version_explicitly: asksPreAmendmentExplicitly,
     has_any_temporal_anchor: hasAnyTemporalAnchor,
@@ -1396,21 +1714,48 @@ export function evaluateStatutoryVersionApplicability(params: {
     };
   }
 
-  // 1b. Yearless partial date (`เมื่อวันที่ 15 กุมภาพันธ์`, `ในเดือนมิถุนายน`, `สิ้นสุดวันที่ 30 มิถุนายน` without year)
-  if (temporalCtx.has_yearless_partial_date && implicated && implicated.applicability_from_date) {
-    const targetForPartial = explicitMatched || implicated;
+  // 1b. Invalid calendar date (`2019-02-30`, `31/06/2018`, `30 กุมภาพันธ์ 2562`) OR yearless partial/month-only date (`ในเดือนมิถุนายน`, `มิ.ย.`, `in June`, `in Feb`, `15 Jun` without year)
+  if (temporalCtx.has_invalid_calendar_date) {
     return {
       action: "ASK_FOR_MISSING_RELEVANT_DATE",
       has_direct_clause_match: hasDirectClauseMatch,
-      matched_amendment: targetForPartial,
-      amending_work_id_to_cite: targetForPartial.amending_work_id,
+      matched_amendment: explicitMatched || implicated || null,
+      amending_work_id_to_cite: (explicitMatched || implicated)?.amending_work_id || null,
       explanation_banner_th:
-        `**ต้องทราบปี พ.ศ./ค.ศ. และช่วงเวลาที่ครบถ้วน (${targetForPartial.amending_instrument_title_th})**: คำถามระบุเฉพาะวันหรือเดือนโดยไม่ระบุปี ในขณะที่ ${secTitle}${targetForPartial.subprovision_label ? ` ${targetForPartial.subprovision_label}` : ""} มีการแก้ไขเพิ่มเติมซึ่ง **${targetForPartial.applicability_rule_th}** ระบบจึงไม่อาจคาดเดาปีของข้อเท็จจริงได้`,
+        `**วันที่ในคำถามไม่ถูกต้องตามปฏิทิน**: ระบบตรวจพบวันที่ที่ไม่มีอยู่จริงตามปฏิทิน จึงไม่อาจคาดเดาหรือเปลี่ยนเป็นวันที่อื่นโดยพลการเพื่อเลือกรุ่นของ ${secTitle}`,
       containment_message_th: null,
       clarification_question_th:
-        targetForPartial.applicability_basis === "ACCOUNTING_PERIOD_START"
-          ? `กรุณาระบุ **วันเดือนปี (พ.ศ. หรือ ค.ศ.) ของวันเริ่มต้นและวันสิ้นสุดรอบระยะเวลาบัญชีจริง** (เกณฑ์ใช้บังคับ: เริ่มในหรือหลังวันที่ ${targetForPartial.applicability_from_date})`
-          : `กรุณาระบุ **วันเดือนปี (พ.ศ. หรือ ค.ศ.) ที่เกิดธุรกรรมให้ครบถ้วน** (เกณฑ์ใช้บังคับ: ตั้งแต่วันที่ ${targetForPartial.applicability_from_date} เป็นต้นไป)`,
+        "กรุณาตรวจสอบและระบุวัน เดือน ปี (พ.ศ. หรือ ค.ศ.) ที่ถูกต้องตามปฏิทินในรูปแบบ YYYY-MM-DD (เช่น 2019-02-28)",
+    };
+  }
+
+  if (temporalCtx.has_yearless_partial_date) {
+    const targetForPartial = explicitMatched || implicated;
+    if (targetForPartial && targetForPartial.applicability_from_date) {
+      return {
+        action: "ASK_FOR_MISSING_RELEVANT_DATE",
+        has_direct_clause_match: hasDirectClauseMatch,
+        matched_amendment: targetForPartial,
+        amending_work_id_to_cite: targetForPartial.amending_work_id,
+        explanation_banner_th:
+          `**ต้องทราบปี พ.ศ./ค.ศ. และช่วงเวลาที่ครบถ้วน (${targetForPartial.amending_instrument_title_th})**: คำถามระบุเฉพาะวันหรือเดือนโดยไม่ระบุปี ในขณะที่ ${secTitle}${targetForPartial.subprovision_label ? ` ${targetForPartial.subprovision_label}` : ""} มีการแก้ไขเพิ่มเติมซึ่ง **${targetForPartial.applicability_rule_th}** ระบบจึงไม่อาจคาดเดาปีของข้อเท็จจริงได้`,
+        containment_message_th: null,
+        clarification_question_th:
+          targetForPartial.applicability_basis === "ACCOUNTING_PERIOD_START"
+            ? `กรุณาระบุ **วันเดือนปี (พ.ศ. หรือ ค.ศ.) ของวันเริ่มต้นและวันสิ้นสุดรอบระยะเวลาบัญชีจริง** (เกณฑ์ใช้บังคับ: เริ่มในหรือหลังวันที่ ${targetForPartial.applicability_from_date})`
+            : `กรุณาระบุ **วันเดือนปี (พ.ศ. หรือ ค.ศ.) ที่เกิดธุรกรรมให้ครบถ้วน** (เกณฑ์ใช้บังคับ: ตั้งแต่วันที่ ${targetForPartial.applicability_from_date} เป็นต้นไป)`,
+      };
+    }
+    return {
+      action: "ASK_FOR_MISSING_RELEVANT_DATE",
+      has_direct_clause_match: hasDirectClauseMatch,
+      matched_amendment: null,
+      amending_work_id_to_cite: null,
+      explanation_banner_th:
+        `**ต้องทราบปี พ.ศ./ค.ศ. ที่แน่นอนของข้อเท็จจริง**: คำถามระบุเฉพาะเดือนหรือวันและเดือนโดยไม่ระบุปี ระบบจึงไม่อาจคาดเดาปีที่เกิดรายการเพื่อยืนยันรุ่นบทบัญญัติ ${secTitle} ที่ใช้บังคับ`,
+      containment_message_th: null,
+      clarification_question_th:
+        "กรุณาระบุปี พ.ศ. หรือ ค.ศ. ของธุรกรรมหรือวันเริ่มต้น–วันสิ้นสุดรอบระยะเวลาบัญชีให้ครบถ้วน",
     };
   }
 
@@ -1454,21 +1799,27 @@ export function evaluateStatutoryVersionApplicability(params: {
   // 3. User supplied a temporal anchor (`accounting_period_start`, `accounting_period_end`, `point_in_time`, `tax_year`, or `transaction_date`/`year`)!
   if (!implicated || !implicated.applicability_from_date) {
     // Consolidated statute with no parsed amendment cutoff, yet user asks about a historical pre-2020 date
-    const earliestUserDate =
+    const exactHistoricalDate =
       temporalCtx.accounting_period_start_iso ||
       temporalCtx.transaction_date_iso ||
       temporalCtx.point_in_time_date_iso ||
-      temporalCtx.accounting_period_end_iso ||
-      (temporalCtx.transaction_year_ce ? `${temporalCtx.transaction_year_ce}-01-01` : null) ||
-      (temporalCtx.assessable_tax_year_ce ? `${temporalCtx.assessable_tax_year_ce}-01-01` : null);
-    if (earliestUserDate && earliestUserDate < "2020-01-01" && work.work_id.startsWith("prov.th.rc.")) {
+      temporalCtx.accounting_period_end_iso;
+    const yearOnlyHistoricalCe =
+      temporalCtx.transaction_year_ce ?? temporalCtx.assessable_tax_year_ce;
+    const isPre2020 =
+      (exactHistoricalDate && exactHistoricalDate < "2020-01-01") ||
+      (!exactHistoricalDate && yearOnlyHistoricalCe !== null && yearOnlyHistoricalCe < 2020);
+    if (isPre2020 && work.work_id.startsWith("prov.th.rc.")) {
+      const periodDisplay = exactHistoricalDate
+        ? exactHistoricalDate
+        : `ปี พ.ศ. ${yearOnlyHistoricalCe! + 543} (${yearOnlyHistoricalCe})`;
       return {
         action: "CONTAIN_UNVERIFIED_HISTORICAL_VERSION",
         has_direct_clause_match: hasDirectClauseMatch,
         matched_amendment: null,
         amending_work_id_to_cite: null,
         explanation_banner_th: null,
-        containment_message_th: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secTitle} รุ่นย้อนหลังสำหรับช่วงเวลาที่ระบุ (${earliestUserDate}) เนื่องจากคลังข้อมูลชุด ${releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (${originUri}) และไม่คาดเดาว่าตัวบทดังกล่าวมีการแก้ไขหลังช่วงเวลาที่ถามหรือไม่ กรุณาตรวจสอบจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) โดยตรง`,
+        containment_message_th: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secTitle} รุ่นย้อนหลังสำหรับช่วงเวลาที่ระบุ (${periodDisplay}) เนื่องจากคลังข้อมูลชุด ${releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (${originUri}) และไม่คาดเดาว่าตัวบทดังกล่าวมีการแก้ไขหลังช่วงเวลาที่ถามหรือไม่ กรุณาตรวจสอบจากราชกิจจานุเบกษา (https://ratchakitcha.soc.go.th) โดยตรง`,
         clarification_question_th: "กรุณาระบุวันเริ่มรอบระยะเวลาบัญชีหรือวันเกิดธุรกรรมเพิ่มเติมเพื่อตรวจสอบบทเฉพาะกาล",
       };
     }
@@ -1542,12 +1893,58 @@ export function evaluateStatutoryVersionApplicability(params: {
       const refEndOrPoint =
         temporalCtx.accounting_period_end_iso ||
         temporalCtx.point_in_time_date_iso ||
-        temporalCtx.transaction_date_iso ||
-        (temporalCtx.transaction_year_ce ? `${temporalCtx.transaction_year_ce}-12-31` : null) ||
-        (temporalCtx.assessable_tax_year_ce ? `${temporalCtx.assessable_tax_year_ce}-12-31` : null)!;
+        temporalCtx.transaction_date_iso;
 
-      const inferred12mStart = addMonthsMinusOneDay(refEndOrPoint, 12);
-      if (inferred12mStart && inferred12mStart >= cutoffIso && refEndOrPoint >= "2020-01-01") {
+      if (!refEndOrPoint) {
+        // Year-only input (`ในปี 2561`, `in 2018`, `FY2018`, `ในปี 2560`, `in 2017`) — NEVER fabricate `-12-31`!
+        const yrOnly = temporalCtx.transaction_year_ce ?? temporalCtx.assessable_tax_year_ce;
+        const cutoffYrCe = Number(cutoffIso.slice(0, 4));
+        if (yrOnly !== null) {
+          if (yrOnly < cutoffYrCe || temporalCtx.is_upper_bounded_before_period) {
+            return {
+              action: "CONTAIN_UNVERIFIED_HISTORICAL_VERSION",
+              has_direct_clause_match: hasDirectClauseMatch,
+              matched_amendment: targetItem,
+              amending_work_id_to_cite: null,
+              explanation_banner_th: null,
+              containment_message_th:
+                `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบทประมวลรัษฎากร ${secTitle.replace(/^ประมวลรัษฎากร\s*/, "").replace(/\s*\([^)]*\)\s*$/, "")} รุ่นย้อนหลังชั่วคราว สำหรับปี พ.ศ. ${yrOnly + 543} (${yrOnly}) เนื่องจากคลังข้อมูลชุด ${releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (${originUri}) และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองจากราชกิจจานุเบกษา (${targetItem.pre_amendment_source_uri || "https://ratchakitcha.soc.go.th"}) โดยตรง. ทั้งนี้ ตาม **${targetItem.amending_instrument_title_th}** บทบัญญัติที่แก้ไขใหม่ใน ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} ใช้บังคับเฉพาะ **รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 (\`${cutoffIso}\`) เป็นต้นไป** เท่านั้น จึง **ไม่อาจนำมาใช้บังคับกับช่วงเวลาก่อนหน้านั้นได้**${targetItem.amending_source_uri ? ` (อ้างอิงบทเฉพาะกาล: ${targetItem.amending_source_uri})` : ""}`,
+              clarification_question_th:
+                "กรุณาระบุวันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริงเพื่อยืนยันบทบัญญัติที่ใช้บังคับ",
+            };
+          }
+          if (yrOnly === cutoffYrCe) {
+            // Year `2018` (`พ.ศ. 2561`) straddles `ACCOUNTING_PERIOD_START >= 2018-01-01`:
+            // A calendar-year taxpayer (`1 Jan 2018 – 31 Dec 2018`) started on `2018-01-01` (eligible),
+            // whereas a non-calendar taxpayer (`1 Jul 2017 – 30 Jun 2018`) started in `2017` (ineligible)!
+            return {
+              action: "ASK_FOR_MISSING_RELEVANT_DATE",
+              has_direct_clause_match: hasDirectClauseMatch,
+              matched_amendment: targetItem,
+              amending_work_id_to_cite: targetItem.amending_work_id,
+              explanation_banner_th:
+                `**ต้องทราบวันเริ่มรอบระยะเวลาบัญชีจริงสำหรับปี พ.ศ. ${yrOnly + 543} (${yrOnly})**: คำถามระบุเฉพาะปีโดยไม่ระบุวันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชี ในขณะที่ **${targetItem.amending_instrument_title_th}** กำหนดให้ใช้บังคับเฉพาะ **รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ \`${cutoffIso}\` เป็นต้นไป** (หากรอบระยะเวลาบัญชีปี ${yrOnly + 543} เป็นรอบไม่ตรงปีปฏิทินที่เริ่มในปี พ.ศ. ${yrOnly + 542} เช่น เริ่ม 1 กรกฎาคม ${yrOnly + 542} จะยังไม่เข้าเกณฑ์ใช้ตัวบทที่แก้ไขใหม่)`,
+              containment_message_th: null,
+              clarification_question_th:
+                `กรุณาระบุวันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริงของบริษัทในปี พ.ศ. ${yrOnly + 543} (เริ่มในหรือหลังวันที่ ${cutoffIso} หรือเริ่มก่อนหน้านั้น?)`,
+            };
+          }
+          if (yrOnly >= cutoffYrCe + 1) {
+            return {
+              action: "ALLOW_CURRENT_CONSOLIDATED",
+              has_direct_clause_match: hasDirectClauseMatch,
+              matched_amendment: targetItem,
+              amending_work_id_to_cite: null,
+              explanation_banner_th: null,
+              containment_message_th: null,
+              clarification_question_th: null,
+            };
+          }
+        }
+      }
+
+      const inferred12mStart = refEndOrPoint ? addMonthsMinusOneDay(refEndOrPoint, 12) : null;
+      if (refEndOrPoint && inferred12mStart && inferred12mStart >= cutoffIso && refEndOrPoint >= "2020-01-01") {
         return {
           action: "ALLOW_CURRENT_CONSOLIDATED",
           has_direct_clause_match: hasDirectClauseMatch,
@@ -1560,7 +1957,7 @@ export function evaluateStatutoryVersionApplicability(params: {
       }
 
       const straddleExplanation =
-        refEndOrPoint >= cutoffIso && inferred12mStart && inferred12mStart < cutoffIso
+        refEndOrPoint && refEndOrPoint >= cutoffIso && inferred12mStart && inferred12mStart < cutoffIso
           ? `กฎหมายกำหนดเงื่อนไขการใช้บังคับตาม **"วันเริ่มรอบระยะเวลาบัญชีจริง" (รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 / \`${cutoffIso}\` เป็นต้นไป)** มิใช่พิจารณาจากวันสิ้นสุดรอบระยะเวลาบัญชี (\`${refEndOrPoint}\`) และมิใช่วันประกาศราชกิจจานุเบกษา (\`${targetItem.enactment_effective_date || "2019-04-17"}\`) ดังนั้น หากรอบระยะเวลาบัญชีปกติ 12 เดือนสิ้นสุดวันที่ \`${refEndOrPoint}\` วันเริ่มรอบระยะเวลาบัญชีจริงคือวันที่ \`${inferred12mStart}\` (1 กรกฎาคม 2560 สำหรับงวดสิ้นสุด 30 มิถุนายน 2561) ซึ่งเริ่มก่อนวันที่ 1 มกราคม พ.ศ. 2561 **จึงไม่อาจนำมาตรา 65 ตรี (3)(ก) ที่แก้ไขใหม่มาใช้บังคับได้** (เว้นแต่เป็นรอบระยะเวลาบัญชีสั้นที่เริ่มต้นจริงในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561)`
           : `ตาม **${targetItem.amending_instrument_title_th}** บทบัญญัติที่แก้ไขใหม่ใน ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} ใช้บังคับเฉพาะ **รอบระยะเวลาบัญชีที่เริ่มในหรือหลังวันที่ 1 มกราคม พ.ศ. 2561 (\`${cutoffIso}\`) เป็นต้นไป** เท่านั้น จึง **ไม่อาจนำมาตรา 65 ตรี (3)(ก) ที่แก้ไขใหม่มาใช้บังคับกับช่วงเวลาก่อนหน้านั้นได้**`;
 

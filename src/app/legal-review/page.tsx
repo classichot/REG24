@@ -15,22 +15,37 @@ import type {
 import type { ConversationTurnInput, GroundedAnswer } from "@/core/knowledge/contracts";
 
 const CATEGORY_FILTERS: Array<{ id: "all" | ChallengingScenarioCategory; labelTh: string }> = [
-  { id: "all", labelTh: "ทั้งหมด (12 กรณีทดสอบซับซ้อน)" },
+  { id: "all", labelTh: "ทั้งหมด (16 โจทย์ซับซ้อนและคำถามใหม่)" },
   { id: "multi_step", labelTh: "วิเคราะห์หลายขั้นตอน" },
   { id: "exceptions", labelTh: "ข้อยกเว้นกฎหมาย" },
   { id: "changing_facts", labelTh: "ข้อเท็จจริงเปลี่ยน" },
-  { id: "historical_law", labelTh: "กฎหมายย้อนหลัง/วันบังคับใช้" },
+  { id: "historical_law", labelTh: "กฎหมายย้อนหลัง/เฉพาะปี/เฉพาะเดือน" },
   { id: "missing_information", labelTh: "ข้อมูลชี้ขาดไม่ครบ" },
   { id: "follow_up_chain", labelTh: "คำถามต่อเนื่องหลายรอบ" },
   { id: "verified_attachment", labelTh: "แนบกฎหมายทางการ" },
   { id: "out_of_scope", labelTh: "นอกขอบเขต/เลขที่ไม่มีจริง" },
 ];
 
+interface SpotcheckCaseItem {
+  spotcheck_id: string;
+  stratum: string;
+  question: string;
+  mode: "standard" | "exact_lookup" | "comparison";
+  applicable_date: string | null;
+  legal_check_focus: string;
+  baseline_observed_status: string;
+}
+
 export default function LegalTeamReviewStudioPage() {
   const [inviteCode, setInviteCode] = useState<string>("");
   const [reviewerName, setReviewerName] = useState<string>("");
+  const [reviewModeTab, setReviewModeTab] = useState<"challenging" | "pack30" | "unseen">(
+    "pack30"
+  );
+  const [spotcheckCases, setSpotcheckCases] = useState<SpotcheckCaseItem[]>([]);
+  const [activeSpotcheckId, setActiveSpotcheckId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<"all" | ChallengingScenarioCategory>("all");
-  const [activeScenario, setActiveScenario] = useState<ChallengingTaxScenario>(
+  const [activeScenario, setActiveScenario] = useState<ChallengingTaxScenario | null>(
     CHALLENGING_THAI_TAX_SCENARIOS[0]
   );
 
@@ -99,12 +114,16 @@ export default function LegalTeamReviewStudioPage() {
 
   const loadFeedbackHistory = useCallback(async () => {
     try {
-      const [fbRes, envRes] = await Promise.all([
+      const [fbRes, envRes, packRes] = await Promise.all([
         fetch("/api/v1/knowledge/legal-feedback", {
           method: "GET",
           headers: buildHeaders(),
         }),
         fetch("/api/v1/knowledge/environment", {
+          method: "GET",
+          headers: buildHeaders(),
+        }),
+        fetch("/api/v1/knowledge/legal-spotcheck-cases", {
           method: "GET",
           headers: buildHeaders(),
         }),
@@ -128,6 +147,10 @@ export default function LegalTeamReviewStudioPage() {
           eligible_evidence_passages: envJson.data_version.eligible_evidence_passages,
         });
       }
+      const packJson = await packRes.json();
+      if (packRes.ok && packJson.ok && Array.isArray(packJson.cases)) {
+        setSpotcheckCases(packJson.cases);
+      }
     } catch {
       // Non-fatal on initial load
     }
@@ -138,6 +161,8 @@ export default function LegalTeamReviewStudioPage() {
   }, [loadFeedbackHistory]);
 
   const selectScenario = (sc: ChallengingTaxScenario) => {
+    setReviewModeTab("challenging");
+    setActiveSpotcheckId(null);
     setActiveScenario(sc);
     setQuestion(sc.question_th);
     setAsOfDate(sc.as_of_date || "");
@@ -164,6 +189,45 @@ export default function LegalTeamReviewStudioPage() {
     } else {
       setShowAttachmentForm(false);
     }
+  };
+
+  const selectSpotcheckCase = (sc: SpotcheckCaseItem) => {
+    setReviewModeTab("pack30");
+    setActiveSpotcheckId(sc.spotcheck_id);
+    setActiveScenario(null);
+    setQuestion(sc.question);
+    setAsOfDate(sc.applicable_date || "");
+    setQueryMode(sc.mode || "standard");
+    setConversationHistory([]);
+    setAttachedDocIds([]);
+    setAttachmentSummary(null);
+    setShowAttachmentForm(false);
+    setAnswerResult(null);
+    setTraceableEnvelope(null);
+    setCheckedOriginalSource(false);
+    setCommentsTh("");
+    setStatusBanner(null);
+  };
+
+  const startFreeFormUnseenQuestion = () => {
+    setReviewModeTab("unseen");
+    setActiveSpotcheckId("UNSEEN-CUSTOM");
+    setActiveScenario(null);
+    setQuestion("");
+    setAsOfDate("");
+    setQueryMode("standard");
+    setConversationHistory([]);
+    setAttachedDocIds([]);
+    setAttachmentSummary(null);
+    setShowAttachmentForm(false);
+    setAnswerResult(null);
+    setTraceableEnvelope(null);
+    setCheckedOriginalSource(false);
+    setCommentsTh("");
+    setStatusBanner({
+      kind: "info",
+      text: "โหมดตั้งคำถามใหม่นอกระบบ (Unseen Question): กรอกโจทย์ภาษีไทยหรืออังกฤษที่ซับซ้อนและไม่เคยอยู่ในระบบ เพื่อทดสอบการให้เหตุผล รุ่นกฎหมาย และการปฏิเสธเมื่อหลักฐานไม่พอ",
+    });
   };
 
   const handleVerifyAndAttachLaw = async () => {
@@ -303,7 +367,7 @@ export default function LegalTeamReviewStudioPage() {
         method: "POST",
         headers: buildHeaders(),
         body: JSON.stringify({
-          scenario_id: activeScenario?.scenario_id || null,
+          scenario_id: activeSpotcheckId || activeScenario?.scenario_id || "UNSEEN-CUSTOM",
           question_text: question,
           as_of_date: answerResult.applicable_date,
           answer_revision_id: traceableEnvelope?.answer_revision || null,
@@ -492,7 +556,7 @@ export default function LegalTeamReviewStudioPage() {
             alignItems: "start",
           }}
         >
-          {/* Left Column: 12 Challenging Thai Tax Scenarios */}
+          {/* Left Column: 30-Case Batch 1 Review Pack + 16 Challenging Scenarios + Unseen Free-Form Mode */}
           <aside
             style={{
               background: "#11151c",
@@ -504,67 +568,184 @@ export default function LegalTeamReviewStudioPage() {
             }}
           >
             <div style={{ fontSize: "14px", fontWeight: 800 }}>
-              ชุดโจทย์ภาษีไทยซับซ้อนสำหรับทดสอบ (เลือกเพื่อโหลดโจทย์)
+              เลือกโหมดตรวจรับทางกฎหมาย (30 เคสหลัก · โจทย์ซับซ้อน · โจทย์ใหม่)
             </div>
-            <select
-              value={categoryFilter}
-              onChange={(e) =>
-                setCategoryFilter(e.target.value as "all" | ChallengingScenarioCategory)
-              }
-              style={{
-                background: "#0b0d10",
-                color: "#e5e7eb",
-                border: "1px solid #374151",
-                padding: "7px 8px",
-                fontSize: "12px",
-              }}
-            >
-              {CATEGORY_FILTERS.map((cf) => (
-                <option key={cf.id} value={cf.id}>
-                  {cf.labelTh}
-                </option>
-              ))}
-            </select>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "6px" }}>
+              <button
+                type="button"
+                onClick={() => setReviewModeTab("pack30")}
+                style={{
+                  background: reviewModeTab === "pack30" ? "#1d4ed8" : "#0b0d10",
+                  color: "#f9fafb",
+                  border: "1px solid #374151",
+                  padding: "7px 6px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                30 เคส B01 ({spotcheckCases.length || 30})
+              </button>
+              <button
+                type="button"
+                onClick={() => setReviewModeTab("challenging")}
+                style={{
+                  background: reviewModeTab === "challenging" ? "#1d4ed8" : "#0b0d10",
+                  color: "#f9fafb",
+                  border: "1px solid #374151",
+                  padding: "7px 6px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                โจทย์ซับซ้อน ({CHALLENGING_THAI_TAX_SCENARIOS.length})
+              </button>
+              <button
+                type="button"
+                onClick={startFreeFormUnseenQuestion}
+                style={{
+                  background: reviewModeTab === "unseen" ? "#15803d" : "#0b0d10",
+                  color: "#f9fafb",
+                  border: "1px solid #374151",
+                  padding: "7px 6px",
+                  fontSize: "11px",
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                + ตั้งคำถามใหม่
+              </button>
+            </div>
 
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "8px",
-                maxHeight: "74vh",
-                overflowY: "auto",
-                paddingRight: "4px",
-              }}
-            >
-              {visibleScenarios.map((sc) => {
-                const isSelected = activeScenario?.scenario_id === sc.scenario_id;
-                return (
-                  <button
-                    key={sc.scenario_id}
-                    type="button"
-                    onClick={() => selectScenario(sc)}
-                    style={{
-                      textAlign: "left",
-                      background: isSelected ? "#172554" : "#0d1117",
-                      border: `1px solid ${isSelected ? "#60a5fa" : "#262d38"}`,
-                      color: "#f3f4f6",
-                      padding: "10px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ fontSize: "11px", color: "#93c5fd", fontWeight: 700 }}>
-                      {sc.scenario_id} · {sc.category_label_th}
-                    </div>
-                    <div style={{ fontSize: "13px", fontWeight: 700, marginTop: "3px" }}>
-                      {sc.title_th}
-                    </div>
-                    <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>
-                      <strong>จุดที่ตรวจ:</strong> {sc.expected_behavior_th}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            {reviewModeTab === "challenging" ? (
+              <>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) =>
+                    setCategoryFilter(e.target.value as "all" | ChallengingScenarioCategory)
+                  }
+                  style={{
+                    background: "#0b0d10",
+                    color: "#e5e7eb",
+                    border: "1px solid #374151",
+                    padding: "7px 8px",
+                    fontSize: "12px",
+                  }}
+                >
+                  {CATEGORY_FILTERS.map((cf) => (
+                    <option key={cf.id} value={cf.id}>
+                      {cf.labelTh}
+                    </option>
+                  ))}
+                </select>
+
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: "8px",
+                    maxHeight: "72vh",
+                    overflowY: "auto",
+                    paddingRight: "4px",
+                  }}
+                >
+                  {visibleScenarios.map((sc) => {
+                    const isSelected = activeScenario?.scenario_id === sc.scenario_id;
+                    return (
+                      <button
+                        key={sc.scenario_id}
+                        type="button"
+                        onClick={() => selectScenario(sc)}
+                        style={{
+                          textAlign: "left",
+                          background: isSelected ? "#172554" : "#0d1117",
+                          border: `1px solid ${isSelected ? "#60a5fa" : "#262d38"}`,
+                          color: "#f3f4f6",
+                          padding: "10px",
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ fontSize: "11px", color: "#93c5fd", fontWeight: 700 }}>
+                          {sc.scenario_id} · {sc.category_label_th}
+                        </div>
+                        <div style={{ fontSize: "13px", fontWeight: 700, marginTop: "3px" }}>
+                          {sc.title_th}
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>
+                          <strong>จุดที่ตรวจ:</strong> {sc.expected_behavior_th}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            ) : reviewModeTab === "pack30" ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px",
+                  maxHeight: "76vh",
+                  overflowY: "auto",
+                  paddingRight: "4px",
+                }}
+              >
+                {spotcheckCases.map((sc) => {
+                  const isSelected = activeSpotcheckId === sc.spotcheck_id;
+                  const alreadyReviewed = feedbackList.some(
+                    (fb) => fb.scenario_id === sc.spotcheck_id
+                  );
+                  return (
+                    <button
+                      key={sc.spotcheck_id}
+                      type="button"
+                      onClick={() => selectSpotcheckCase(sc)}
+                      style={{
+                        textAlign: "left",
+                        background: isSelected ? "#172554" : "#0d1117",
+                        border: `1px solid ${isSelected ? "#60a5fa" : alreadyReviewed ? "#22c55e" : "#262d38"}`,
+                        color: "#f3f4f6",
+                        padding: "10px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ fontSize: "11px", color: "#fde047", fontWeight: 700 }}>
+                        {sc.spotcheck_id} · {sc.stratum}
+                        {alreadyReviewed ? " · ✓ บันทึกผลแล้ว" : ""}
+                      </div>
+                      <div style={{ fontSize: "12px", fontWeight: 700, marginTop: "3px" }}>
+                        {sc.question}
+                      </div>
+                      <div style={{ fontSize: "11px", color: "#9ca3af", marginTop: "4px" }}>
+                        <strong>Focus:</strong> {sc.legal_check_focus}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: "#0d1117",
+                  border: "1px solid #15803d",
+                  padding: "12px",
+                  fontSize: "12px",
+                  lineHeight: 1.6,
+                  color: "#d1fae5",
+                }}
+              >
+                <div style={{ fontWeight: 800, marginBottom: "6px", color: "#86efac" }}>
+                  คำแนะนำการตั้งคำถามใหม่นอกระบบ (Previously Unseen Questions)
+                </div>
+                <ul style={{ margin: 0, paddingLeft: "18px" }}>
+                  <li>ทดสอบข้อเท็จจริงใหม่ที่ไม่ได้อยู่ใน 30 เคสหลัก (ทั้งภาษาไทยและภาษาอังกฤษ)</li>
+                  <li>ลองถามแบบระบุเฉพาะปี (เช่น &ldquo;ปี 2561&rdquo;) หรือเฉพาะเดือน (เช่น &ldquo;ในเดือนมิถุนายน&rdquo;)</li>
+                  <li>ลองถามหลายประเด็นในข้อเดียว (CIT + WHT + VAT) หรือเปลี่ยนข้อเท็จจริงในคำถามต่อเนื่อง</li>
+                  <li>ตรวจต้นฉบับจากลิงก์ทางการว่าหลักฐานรองรับข้อกล่าวอ้างจริง ไม่ใช่เพียงมีชื่อเอกสารแนบ</li>
+                </ul>
+              </div>
+            )}
           </aside>
 
           {/* Right Column: Query Runner, Attachment Verifier, Answer & Claim Traceability, Feedback Form */}

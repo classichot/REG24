@@ -1,5 +1,5 @@
 {
-  "verified_at": "2026-11-18T18:04:20.652Z",
+  "verified_at": "2026-11-18T19:48:35.137Z",
   "candidate_release_id": "rel.B01.rc5",
   "manifest_id": "mfst.b01.mwlizi6u",
   "manifest_hash": "5dc00a1da0d11fd7e9fcd550a935e2e549ff9a5a344d99fdd809bb267f8fe821",
@@ -28,7 +28,7 @@
     "disk_snapshot_vs_canonical_top_hits_exact_match": "28/28",
     "evidence_card_edges_vs_cypher_adjacency_exact_match": "28/28",
     "verified_or_clean_abstention_rate": "28/28",
-    "avg_three_pass_test_bundle_ms": 1735.99,
+    "avg_three_pass_test_bundle_ms": 1691.77,
     "known_non_equivalences_vs_live_neo4j": [
       "Bounded to <=2-hop traversal (TaxRuling <-> Provision/SubordinateRegulation <-> co-interpreting TaxRuling); arbitrary >2-hop path queries (e.g. MATCH p=(a)-[*3..6]->(b)) require Cypher or multi-hop graph engine.",
       "No ad-hoc server-side Cypher analytical aggregations or GDS centrality across batches B01-B10.",
@@ -36,15 +36,15 @@
     ]
   },
   "rebuild_and_replay_benchmark": {
-    "cold_projection_rebuild_wall_clock_ms": 13869.08,
+    "cold_projection_rebuild_wall_clock_ms": 14011.09,
     "rebuilt_edges_verified": 43116,
     "deterministic_triple_identity_verified": true,
     "cypher_unwind_500_batch_count": 87,
-    "local_cypher_batch_serialization_ms": 0.09,
+    "local_cypher_batch_serialization_ms": 0.1,
     "cloud_neo4j_network_ingestion_status": "UNTESTED_CLOUD_NETWORK_ESTIMATE — 67 parameterized UNWIND batches (33,366 edges) serialized locally; actual AuraDB Bolt network write time will be measured against an isolated target only after configuration approval (never against the preserved live REG24 graph)."
   },
   "disposable_rollback_verification": {
-    "rollback_wall_clock_ms": 3861.25,
+    "rollback_wall_clock_ms": 3734.89,
     "post_rollback_state": "ROLLED_BACK",
     "b02_shared_primary_works_before": 570,
     "b02_shared_primary_works_after": 570,

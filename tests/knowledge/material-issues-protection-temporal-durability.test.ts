@@ -1212,7 +1212,7 @@ describe("Batch 1 Material Readiness Gates: Protection, Historical Accuracy Acro
     const { dir, store } = cloneCanonicalStoreToTemp("reg24-complex-tax-");
     tempDirs.push(dir);
 
-    expect(CHALLENGING_THAI_TAX_SCENARIOS.length).toBe(12);
+    expect(CHALLENGING_THAI_TAX_SCENARIOS.length).toBeGreaterThanOrEqual(12);
 
     // 1. Exceptions (`LSC-COMPLEX-02`): 2545 2-year memo + Section 19 up-to-5-year evasion proviso
     const scException = CHALLENGING_THAI_TAX_SCENARIOS.find(
