@@ -74,6 +74,17 @@ export default function LegalTeamReviewStudioPage() {
   const [feedbackBusy, setFeedbackBusy] = useState<boolean>(false);
   const [feedbackList, setFeedbackList] = useState<LegalReviewFeedbackRecord[]>([]);
   const [feedbackBackend, setFeedbackBackend] = useState<string>("loading");
+  const [envInfo, setEnvInfo] = useState<{
+    environment_scope: string;
+    git_branch: string;
+    git_commit_sha: string;
+    shared_neon_postgres_connected: boolean;
+    release_id: string;
+    manifest_id: string | null;
+    manifest_hash: string | null;
+    eligible_official_documents: number;
+    eligible_evidence_passages: number;
+  } | null>(null);
 
   const buildHeaders = useCallback((): Record<string, string> => {
     const h: Record<string, string> = { "Content-Type": "application/json" };
@@ -88,14 +99,34 @@ export default function LegalTeamReviewStudioPage() {
 
   const loadFeedbackHistory = useCallback(async () => {
     try {
-      const res = await fetch("/api/v1/knowledge/legal-feedback", {
-        method: "GET",
-        headers: buildHeaders(),
-      });
-      const json = await res.json();
-      if (res.ok && json.ok) {
-        setFeedbackList(json.feedback || []);
-        setFeedbackBackend(json.storage_backend || "unknown");
+      const [fbRes, envRes] = await Promise.all([
+        fetch("/api/v1/knowledge/legal-feedback", {
+          method: "GET",
+          headers: buildHeaders(),
+        }),
+        fetch("/api/v1/knowledge/environment", {
+          method: "GET",
+          headers: buildHeaders(),
+        }),
+      ]);
+      const fbJson = await fbRes.json();
+      if (fbRes.ok && fbJson.ok) {
+        setFeedbackList(fbJson.feedback || []);
+        setFeedbackBackend(fbJson.storage_backend || "unknown");
+      }
+      const envJson = await envRes.json();
+      if (envRes.ok && envJson.ok) {
+        setEnvInfo({
+          environment_scope: envJson.environment.environment_scope,
+          git_branch: envJson.environment.git_branch,
+          git_commit_sha: envJson.environment.git_commit_sha,
+          shared_neon_postgres_connected: envJson.environment.shared_neon_postgres_connected,
+          release_id: envJson.data_version.release_id,
+          manifest_id: envJson.data_version.manifest_id,
+          manifest_hash: envJson.data_version.manifest_hash,
+          eligible_official_documents: envJson.data_version.eligible_official_documents,
+          eligible_evidence_passages: envJson.data_version.eligible_evidence_passages,
+        });
       }
     } catch {
       // Non-fatal on initial load
@@ -364,6 +395,24 @@ export default function LegalTeamReviewStudioPage() {
               <code>NEEDS_CLARIFICATION</code>) หรือแจ้งข้อจำกัด (<code>INSUFFICIENT_EVIDENCE</code>)
               แทนการคาดเดา
             </p>
+            {envInfo ? (
+              <div
+                style={{
+                  marginTop: "8px",
+                  fontSize: "12px",
+                  color: "#cbd5e1",
+                  fontFamily: "ui-monospace, monospace",
+                }}
+              >
+                Env: <strong>{envInfo.environment_scope}</strong> · Release:{" "}
+                <strong>{envInfo.release_id}</strong> ({envInfo.manifest_id || "man.B01.rc5"} ·{" "}
+                {envInfo.manifest_hash ? `${envInfo.manifest_hash.slice(0, 12)}…` : "-"}) · Eligible
+                Sources: <strong>{envInfo.eligible_official_documents.toLocaleString()}</strong> docs
+                / <strong>{envInfo.eligible_evidence_passages.toLocaleString()}</strong> passages ·
+                Commit: <strong>{envInfo.git_commit_sha.slice(0, 10)}</strong> · Neon DB:{" "}
+                <strong>{envInfo.shared_neon_postgres_connected ? "connected" : "local"}</strong>
+              </div>
+            ) : null}
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <input

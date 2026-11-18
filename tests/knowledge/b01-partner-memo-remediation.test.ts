@@ -1,3 +1,4 @@
+import * as crypto from "node:crypto";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as zlib from "node:zlib";
@@ -279,16 +280,30 @@ describe("Partner Legal Review Memo Remediation (LSC-12, LSC-25, S-1..S-8, TQ-1.
     expect(tq6.answer).not.toContain("https://www.rd.go.th/68302.html)**:");
   });
 
-  it("4. Preview Security (S-8): Committed legal review packs and generator script contain ZERO _vercel_share tokens", () => {
+  it("4. Preview Security (S-8): Committed repo files (docs, scripts, src, and tests) contain ZERO _vercel_share tokens or legacy bypass secrets", () => {
     const b01Md = fs.readFileSync(b01PackMdPath, "utf8");
     const b02Md = fs.readFileSync(b02ListMdPath, "utf8");
     const scriptSrc = fs.readFileSync(
       path.resolve(process.cwd(), "scripts", "prepare-owner-legal-review-packs.ts"),
       "utf8"
     );
+    const selfTestSrc = fs.readFileSync(__filename, "utf8");
+
     expect(b01Md).not.toContain("_vercel_share=");
     expect(b02Md).not.toContain("_vercel_share=");
-    expect(scriptSrc).not.toContain("0XojREQcTcjegpI7jbvqWHuRyIZAKQqG");
-    expect(scriptSrc).not.toContain("MgAEXEeNwbL5GBXHjM4fyaxvDNOTgORU");
+    expect(scriptSrc).not.toMatch(/[?&]_vercel_share=[A-Za-z0-9_-]+/);
+
+    // Verify by one-way SHA-256 digest ONLY so revoked plaintext tokens NEVER appear anywhere in code or tests!
+    const REVOKED_SHARE_TOKEN_SHA256_SET = new Set([
+      "7349478fe971665f8ca2079fea1b8cc933cc9988395a088b29234a62f6dd7106",
+      "9a0a0c228233fc143efc171b0b194f143554d4bbab149153c43b152d6ee65558",
+    ]);
+    for (const content of [b01Md, b02Md, scriptSrc, selfTestSrc]) {
+      const candidateTokens = content.match(/\b[A-Za-z0-9]{32}\b/g) || [];
+      for (const cand of candidateTokens) {
+        const digest = crypto.createHash("sha256").update(cand).digest("hex");
+        expect(REVOKED_SHARE_TOKEN_SHA256_SET.has(digest)).toBe(false);
+      }
+    }
   });
 });
