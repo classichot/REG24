@@ -181,6 +181,26 @@ const EXPLORATORY_B01_REPRESENTATIVE_QUESTIONS: Array<{
     isSyntheticNegativeTest: true,
     expectedResultLabelTh: "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ",
   },
+  {
+    id: "Q13",
+    label:
+      "13. Partial Date Straddle (ไตรมาส 1 ปี 2562 · มาตรา 80/1 (5) มีผล 28 ก.พ. 2562 -> ขอวันที่ชัดเจน)",
+    question:
+      "ในไตรมาส 1 ปี 2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือไม่",
+    mode: "standard",
+    date: null,
+    expectedResultLabelTh: "ขอข้อมูลข้อเท็จจริงเพิ่มเติม (NEEDS_CLARIFICATION)",
+  },
+  {
+    id: "Q14",
+    label:
+      "14. Ruling Applicability Safeguard (ถามว่า กค 0811/13980 ปี 2542 ยังใช้บังคับปัจจุบันได้หรือไม่ -> งดเดา/ระงับรับรองข้ามปี)",
+    question:
+      "หนังสือตอบข้อหารือ กค 0811/13980 ยังนำมาใช้บังคับกับกรณีของบริษัทเราในปัจจุบันได้หรือไม่",
+    mode: "standard",
+    date: null,
+    expectedResultLabelTh: "ไม่พบข้อมูลหลักฐานที่เพียงพอ (INSUFFICIENT_EVIDENCE)",
+  },
 ];
 
 export default function KnowledgeBatchesUatPage() {

@@ -47,13 +47,15 @@ interface E2ECaseSpec {
     | "3_missing_relevant_date_clarification"
     | "4_historical_document_lookup_vs_period_law"
     | "5_dodo_alternative_date_formats"
-    | "6_dodo_questions_including_ruling_number";
+    | "6_dodo_questions_including_ruling_number"
+    | "7_partial_unclear_dates_and_ruling_applicability";
   language: "th" | "en";
   question: string;
   applicable_date?: string | null;
   mode?: "standard" | "exact_lookup" | "comparison";
   expected_status_in: string[];
   expected_citations_include?: string[];
+  must_require_clarification?: boolean;
   must_contain_substrings: string[];
 }
 
@@ -296,6 +298,86 @@ const E2E_CASES: E2ECaseSpec[] = [
     expected_status_in: ["ANSWERED"],
     must_contain_substrings: ["23 มกราคม 2555", "https://www.rd.go.th/46391.html"],
   },
+  // Category 7: Partial/Unclear Dates, Boundary-Relative ("Before") Dates & Ruling-Applicability Safeguards
+  {
+    case_id: "LV-23",
+    category: "7_partial_unclear_dates_and_ruling_applicability",
+    language: "th",
+    question:
+      "ก่อนวันที่ 28/02/2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือไม่",
+    expected_status_in: ["INSUFFICIENT_EVIDENCE"],
+    must_contain_substrings: ["ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง", "2019-02-27", "p49.pdf"],
+  },
+  {
+    case_id: "LV-24",
+    category: "7_partial_unclear_dates_and_ruling_applicability",
+    language: "en",
+    question:
+      "Prior to 2019, did selling goods to a foreign economic and trade office qualify for 0% VAT under Section 80/1?",
+    expected_status_in: ["INSUFFICIENT_EVIDENCE"],
+    must_contain_substrings: ["ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง", "2019-02-28"],
+  },
+  {
+    case_id: "LV-25",
+    category: "7_partial_unclear_dates_and_ruling_applicability",
+    language: "th",
+    question:
+      "ในไตรมาส 1 ปี 2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือไม่",
+    expected_status_in: ["NEEDS_CLARIFICATION"],
+    must_require_clarification: true,
+    must_contain_substrings: ["2019-02-28"],
+  },
+  {
+    case_id: "LV-26",
+    category: "7_partial_unclear_dates_and_ruling_applicability",
+    language: "en",
+    question:
+      "On 02/03/2019, our Thai company sold goods to a foreign economic and trade office; does 0% VAT apply under Section 80/1 (5)?",
+    expected_status_in: ["NEEDS_CLARIFICATION"],
+    must_require_clarification: true,
+    must_contain_substrings: ["2019-03-02", "2019-02-03", "2019-02-28"],
+  },
+  {
+    case_id: "LV-27",
+    category: "7_partial_unclear_dates_and_ruling_applicability",
+    language: "th",
+    question:
+      "สำหรับรอบระยะเวลาบัญชีสิ้นสุดวันที่ 30 มิถุนายน บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+    expected_status_in: ["NEEDS_CLARIFICATION"],
+    must_require_clarification: true,
+    must_contain_substrings: ["2018-01-01"],
+  },
+  {
+    case_id: "LV-28",
+    category: "7_partial_unclear_dates_and_ruling_applicability",
+    language: "th",
+    question:
+      "หนังสือตอบข้อหารือ กค 0811/13980 ยังนำมาใช้บังคับกับกรณีของบริษัทเราในปัจจุบันได้หรือไม่",
+    expected_status_in: ["INSUFFICIENT_EVIDENCE"],
+    must_contain_substrings: ["กค 0811/13980", "https://www.rd.go.th/22874.html"],
+  },
+  {
+    case_id: "LV-29",
+    category: "7_partial_unclear_dates_and_ruling_applicability",
+    language: "en",
+    question:
+      "Can our company rely on ruling GorKor 0702/1903 for our animal feed supplement import?",
+    expected_status_in: ["NEEDS_CLARIFICATION"],
+    must_require_clarification: true,
+    must_contain_substrings: ["กค 0702/1903", "https://www.rd.go.th/68482.html"],
+  },
+  {
+    case_id: "LV-30",
+    category: "7_partial_unclear_dates_and_ruling_applicability",
+    language: "th",
+    question:
+      "ตามหนังสือตอบข้อหารือ กค 0702/4825 ห้างฯ ที่เคยมีทุนจดทะเบียน 30 ล้านบาทและลดทุนเหลือ 5 ล้านบาทในปี 2543 จะได้รับสิทธิยกเว้นภาษีเงินได้นิติบุคคลตามพระราชกฤษฎีกา (ฉบับที่ 595) หรือไม่",
+    expected_status_in: ["ANSWERED"],
+    must_contain_substrings: [
+      "พระราชกฤษฎีกาฯ (ฉบับที่ 595) พ.ศ. 2558",
+      "https://www.rd.go.th/65296.html",
+    ],
+  },
 ];
 
 async function verifyHttpAccessAndAuditGate(previewDir: string) {
@@ -463,7 +545,24 @@ async function main() {
     const citationsOk = (spec.expected_citations_include || []).every((w) =>
       citationsWorkIds.includes(w)
     );
-    const substringsOk = spec.must_contain_substrings.every((s) => res.answer.includes(s));
+    const combinedUserVisibleOutput = `${res.answer}\n${res.clarification_questions.join("\n")}`;
+    const substringsOk = spec.must_contain_substrings.every((s) =>
+      combinedUserVisibleOutput.includes(s)
+    );
+    const clarificationOk = spec.must_require_clarification
+      ? res.clarification_questions.length > 0
+      : true;
+    const storeState = store.getState();
+    const sourceVerbatimFidelityOk = res.evidence.every((ec) => {
+      const psg = storeState.passages[ec.passage_id];
+      if (!psg || psg.extraction_id.startsWith("ext.dep.")) return false;
+      const uri = ec.locator.origin_uri || "";
+      return (
+        /^https:\/\/(?:www\.)?rd\.go\.th\//.test(uri) &&
+        psg.exact_text.length >= 20 &&
+        ec.exact_excerpt === psg.exact_text
+      );
+    });
     const s1CitationGateOk = res.evidence.every((ec) => {
       const bare = ec.official_identifier.replace(/^กค\s+/, "").trim();
       return (
@@ -473,7 +572,13 @@ async function main() {
       );
     });
 
-    const passed = statusOk && citationsOk && substringsOk && s1CitationGateOk;
+    const passed =
+      statusOk &&
+      citationsOk &&
+      substringsOk &&
+      clarificationOk &&
+      sourceVerbatimFidelityOk &&
+      s1CitationGateOk;
     if (!passed) allPassed = false;
 
     results.push({
@@ -576,6 +681,8 @@ async function main() {
               org_id: parsedReceipt.org_id,
               project_id: parsedReceipt.project_id,
               project_name: parsedReceipt.project_name,
+              configured_retention_window: parsedReceipt.configured_retention_window ?? null,
+              actually_tested_recovery_period: parsedReceipt.actually_tested_recovery_period ?? null,
               pitr_anchor_lsn: parsedReceipt.pitr_anchor_lsn,
               logical_backup_sha256: parsedReceipt.logical_backup_sha256,
               quotas_verified_exact: parsedReceipt.quotas_verified_exact,

@@ -686,9 +686,146 @@ export interface TemporalFactContext {
   transaction_date_iso: string | null;
   transaction_date_end_iso: string | null;
   transaction_year_ce: number | null;
+  ambiguous_numeric_date_alt_iso: string | null;
+  has_multiple_distinct_point_dates: boolean;
+  is_upper_bounded_before_period: boolean;
+  has_vague_historical_reference: boolean;
+  has_yearless_partial_date: boolean;
+  asks_whether_ruling_applies: boolean;
   asks_pre_amendment_version_explicitly: boolean;
   has_any_temporal_anchor: boolean;
   is_concrete_taxpayer_fact_query: boolean;
+}
+
+function shiftIsoDateByDays(iso: string, deltaDays: number): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]) + deltaDays));
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString().slice(0, 10);
+}
+
+function detectAmbiguousNumericDateAlternativeIso(raw: string): string | null {
+  const s = thaiDigitsToArabic(raw).trim();
+  const m = s.match(
+    /\b([0-9]{1,2})[\/.\-]([0-9]{1,2})[\/.\-]((?:19|20|24|25)[0-9]{2}|[0-7][0-9])\b/
+  );
+  if (!m) return null;
+  const a = Number(m[1]);
+  const b = Number(m[2]);
+  const yr = resolveFlexibleYearTokenToCe(m[3]);
+  if (yr === null || a < 1 || a > 12 || b < 1 || b > 12 || a === b) return null;
+  if (!isValidIsoComponents(yr, a, b)) return null;
+  // Primary parser treats ambiguous a<=12, b<=12 as DD/MM/YYYY (`yr-b-a`); return MM/DD/YYYY (`yr-a-b`) alternative
+  return `${yr}-${String(a).padStart(2, "0")}-${String(b).padStart(2, "0")}`;
+}
+
+function parseSubYearPartialPeriodToRange(scrubbed: string): {
+  startIso: string;
+  endIso: string;
+  yearCe: number;
+} | null {
+  const s = thaiDigitsToArabic(scrubbed);
+
+  const quarterBounds = (yr: number | null, q: number) => {
+    if (yr === null || yr < 1900 || yr > 2100 || q < 1 || q > 4) return null;
+    const sm = (q - 1) * 3 + 1;
+    const em = q * 3;
+    const ed = daysInMonthUtc(yr, em);
+    return {
+      startIso: `${yr}-${String(sm).padStart(2, "0")}-01`,
+      endIso: `${yr}-${String(em).padStart(2, "0")}-${String(ed).padStart(2, "0")}`,
+      yearCe: yr,
+    };
+  };
+
+  // 1. Thai Quarter (`ไตรมาส 1 ปี 2562`, `ไตรมาสที่ 2/2561`, `ไตรมาส 1/62`)
+  const thQ = s.match(
+    /ไตรมาส(?:ที่)?\s*([1-4])\s*(?:ของปี|ปี|พ\.ศ\.|ค\.ศ\.|\/|-|\s)\s*(?:(พ\.ศ\.|ค\.ศ\.)\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9])\b/
+  );
+  if (thQ) {
+    const eraHint = thQ[2] === "พ.ศ." ? "BE" : thQ[2] === "ค.ศ." ? "CE" : null;
+    return quarterBounds(resolveFlexibleYearTokenToCe(thQ[3], eraHint), Number(thQ[1]));
+  }
+
+  // 2. English Quarter (`Q1 2019`, `Q1/2019`, `1Q2019`, `1Q19`, `first quarter of 2019`)
+  const enQ = s.match(
+    /\b(?:Q([1-4])\s*[\/\-]?\s*(?:(B\.?E\.?)\s*)?((?:19|20|24|25)[0-9]{2}|[124-7][0-9])|([1-4])Q\s*[\/\-]?\s*((?:19|20|24|25)[0-9]{2}|[124-7][0-9])|(1st|first|2nd|second|3rd|third|4th|fourth)\s+quarter\s+(?:of\s+)?((?:19|20|24|25)[0-9]{2}))\b/i
+  );
+  if (enQ) {
+    if (enQ[1] && enQ[3]) {
+      return quarterBounds(
+        resolveFlexibleYearTokenToCe(enQ[3], enQ[2] ? "BE" : null),
+        Number(enQ[1])
+      );
+    }
+    if (enQ[4] && enQ[5]) {
+      return quarterBounds(resolveFlexibleYearTokenToCe(enQ[5]), Number(enQ[4]));
+    }
+    if (enQ[6] && enQ[7]) {
+      const ord = enQ[6].toLowerCase();
+      const q = ord.startsWith("1") || ord === "first" ? 1 : ord.startsWith("2") || ord === "second" ? 2 : ord.startsWith("3") || ord === "third" ? 3 : 4;
+      return quarterBounds(resolveFlexibleYearTokenToCe(enQ[7]), q);
+    }
+  }
+
+  // 3. Half-Year (`ครึ่งปีแรก 2562`, `ครึ่งปีหลัง 2561`, `H1 2019`, `first half of 2019`)
+  const thHalf = s.match(
+    /(ครึ่งปีแรก|ครึ่งแรกของปี|ครึ่งปีหลัง|ครึ่งหลังของปี)\s*(?:พ\.ศ\.\s*|ค\.ศ\.\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9])\b/
+  );
+  if (thHalf) {
+    const yr = resolveFlexibleYearTokenToCe(thHalf[2]);
+    if (yr !== null) {
+      const isH1 = thHalf[1].includes("แรก");
+      return {
+        startIso: isH1 ? `${yr}-01-01` : `${yr}-07-01`,
+        endIso: isH1 ? `${yr}-06-30` : `${yr}-12-31`,
+        yearCe: yr,
+      };
+    }
+  }
+  const enHalf = s.match(
+    /\b(?:(H1|1H|first\s+half(?:\s+of)?)|(H2|2H|second\s+half(?:\s+of)?))\s*[\/\-]?\s*((?:19|20|24|25)[0-9]{2})\b/i
+  );
+  if (enHalf) {
+    const yr = resolveFlexibleYearTokenToCe(enHalf[3]);
+    if (yr !== null) {
+      const isH1 = Boolean(enHalf[1]);
+      return {
+        startIso: isH1 ? `${yr}-01-01` : `${yr}-07-01`,
+        endIso: isH1 ? `${yr}-06-30` : `${yr}-12-31`,
+        yearCe: yr,
+      };
+    }
+  }
+
+  // 4. Early / Mid / Late Year (`ต้นปี 2562`, `กลางปี 2561`, `ปลายปี 2560`, `early 2019`, `mid-2018`, `late 2017`)
+  const thPartYr = s.match(
+    /(?:ช่วง)?(ต้นปี|กลางปี|ปลายปี|ท้ายปี)\s*(?:พ\.ศ\.\s*|ค\.ศ\.\s*)?((?:19|20|24|25)[0-9]{2}|[4-7][0-9])\b/
+  );
+  if (thPartYr) {
+    const yr = resolveFlexibleYearTokenToCe(thPartYr[2]);
+    if (yr !== null) {
+      const p = thPartYr[1];
+      if (p === "ต้นปี") return { startIso: `${yr}-01-01`, endIso: `${yr}-04-30`, yearCe: yr };
+      if (p === "กลางปี") return { startIso: `${yr}-05-01`, endIso: `${yr}-08-31`, yearCe: yr };
+      return { startIso: `${yr}-09-01`, endIso: `${yr}-12-31`, yearCe: yr };
+    }
+  }
+  const enPartYr = s.match(
+    /\b(early|mid|late)[\s\-]+(?:(B\.?E\.?)\s*)?((?:19|20|24|25)[0-9]{2})\b/i
+  );
+  if (enPartYr) {
+    const yr = resolveFlexibleYearTokenToCe(enPartYr[3], enPartYr[2] ? "BE" : null);
+    if (yr !== null) {
+      const p = enPartYr[1].toLowerCase();
+      if (p === "early") return { startIso: `${yr}-01-01`, endIso: `${yr}-04-30`, yearCe: yr };
+      if (p === "mid") return { startIso: `${yr}-05-01`, endIso: `${yr}-08-31`, yearCe: yr };
+      return { startIso: `${yr}-09-01`, endIso: `${yr}-12-31`, yearCe: yr };
+    }
+  }
+
+  return null;
 }
 
 const FLEX_DATE_TOKEN_PATTERN =
@@ -860,63 +997,143 @@ export function parseQueryTemporalAndIntentContext(params: {
     assessableTaxYearCe = resolveFlexibleYearTokenToCe(taxYrEn[1] || taxYrEn[2]);
   }
 
-  // 3. Transaction / event dates (including slash/dot/dash dates, multiple comparison dates, and Month+Year without day!)
-  if (!accountingStart && !accountingEnd && !accountingStartMax) {
-    const allTxRe = new RegExp(FLEX_DATE_TOKEN_PATTERN, "gi");
-    const parsedTxDates: string[] = [];
-    for (const m of scrubbed.matchAll(allTxRe)) {
-      const iso = parseFlexibleThaiOrEnglishDateToIso(m[0]);
-      if (iso) parsedTxDates.push(iso);
+  // 3. Transaction / event dates (including boundary-relative `ก่อน...`/`before ...`, quarters/half-years/early-mid-late, slash/dot/dash dates, and Month+Year without day!)
+  let ambiguousNumericDateAltIso: string | null = null;
+  let hasMultipleDistinctPointDates = false;
+  let isUpperBoundedBeforePeriod = false;
+
+  // 3a-0. Boundary-relative "before / prior to / earlier than" exact date or month-year (`ก่อนวันที่ 28/02/2562`, `before Feb 28, 2019`, `prior to 01/01/2018`, `ก่อนเดือนมีนาคม 2562`)
+  const beforeDateRe = new RegExp(
+    `(?:ก่อนวันที่|ก่อนเมื่อวันที่|ไม่เกินวันที่|\\bbefore\\b|\\bprior\\s+to\\b|\\bearlier\\s+than\\b)\\s*(${FLEX_DATE_TOKEN_PATTERN})`,
+    "i"
+  );
+  const beforeDateMatch = scrubbed.match(beforeDateRe);
+  if (beforeDateMatch && !accountingStart && !accountingEnd && !accountingStartMax) {
+    const boundIso = parseFlexibleThaiOrEnglishDateToIso(beforeDateMatch[1]);
+    const prevDayIso = boundIso ? shiftIsoDateByDays(boundIso, -1) : null;
+    if (prevDayIso) {
+      transactionDateIso = prevDayIso;
+      transactionDateEndIso = prevDayIso;
+      transactionYearCe = Number(prevDayIso.slice(0, 4));
+      isUpperBoundedBeforePeriod = true;
+      if (/รอบระยะเวลาบัญชี|รอบบัญชี|งวดบัญชี|accounting\s+period|fiscal\s+year|\bFY\b/i.test(scrubbed)) {
+        accountingStartMax = prevDayIso;
+      }
     }
-    if (parsedTxDates.length > 0) {
-      parsedTxDates.sort();
-      // Keep earliest date in `transactionDateIso` so multi-date comparisons (`2018-06-30` vs `2025-01-15`) evaluate historical applicability on the earlier date!
-      transactionDateIso = parsedTxDates[0];
-      transactionDateEndIso = parsedTxDates[parsedTxDates.length - 1];
-      transactionYearCe = Number(transactionDateIso.slice(0, 4));
+  }
+
+  if (!transactionDateIso && !accountingStart && !accountingEnd && !accountingStartMax) {
+    const beforeMyMatch = scrubbed.match(
+      /(?:ก่อนเดือน|ก่อนช่วงเดือน|\bbefore\b|\bprior\s+to\b)\s*((?:เดือน)?\s*[ก-๙a-zA-Z.]+[\s\-]+(?:พ\.ศ\.\s*|ค\.ศ\.\s*|B\.?E\.?\s*)?(?:(?:19|20|24|25)[0-9]{2}|[4-7][0-9])|(?:0?[1-9]|1[0-2])\/(?:19|20|24|25)[0-9]{2})\b/i
+    );
+    if (beforeMyMatch) {
+      const my = parseFlexibleMonthYearToRange(beforeMyMatch[1]);
+      const prevDayIso = my ? shiftIsoDateByDays(my.startIso, -1) : null;
+      if (prevDayIso) {
+        transactionDateIso = prevDayIso;
+        transactionDateEndIso = prevDayIso;
+        transactionYearCe = Number(prevDayIso.slice(0, 4));
+        isUpperBoundedBeforePeriod = true;
+      }
+    }
+  }
+
+  if (!transactionDateIso && !accountingStart && !accountingEnd && !accountingStartMax) {
+    const subYr = parseSubYearPartialPeriodToRange(scrubbed);
+    if (subYr) {
+      transactionDateIso = subYr.startIso;
+      transactionDateEndIso = subYr.endIso;
+      transactionYearCe = subYr.yearCe;
     } else {
-      // Month + Year without day (`ในเดือนพฤษภาคม 2560`, `เมื่อ ม.ค. 2562`, `in May 2017`, `in Feb 2019`, `06/2018`)
-      const txMyMatch = scrubbed.match(
-        /(?:ในเดือน|เมื่อเดือน|เดือน|เมื่อ|ช่วง|\bin\b|\bduring\b|\bon\b|\bfor\b)\s*((?:เดือน)?\s*[ก-๙a-zA-Z.]+[\s\-]+(?:พ\.ศ\.\s*|ค\.ศ\.\s*|B\.?E\.?\s*)?(?:(?:19|20|24|25)[0-9]{2}|[4-7][0-9])|(?:0?[1-9]|1[0-2])\/(?:19|20|24|25)[0-9]{2})\b/i
-      );
-      if (txMyMatch) {
-        const my = parseFlexibleMonthYearToRange(txMyMatch[1]);
-        if (my) {
-          transactionDateIso = my.startIso;
-          transactionDateEndIso = my.endIso;
-          transactionYearCe = my.yearCe;
+      const allTxRe = new RegExp(FLEX_DATE_TOKEN_PATTERN, "gi");
+      const parsedTxDates: string[] = [];
+      const rawMatchedTokens: string[] = [];
+      for (const m of scrubbed.matchAll(allTxRe)) {
+        const iso = parseFlexibleThaiOrEnglishDateToIso(m[0]);
+        if (iso) {
+          parsedTxDates.push(iso);
+          rawMatchedTokens.push(m[0]);
+        }
+      }
+      if (parsedTxDates.length > 0) {
+        const uniqueDates = Array.from(new Set(parsedTxDates)).sort();
+        hasMultipleDistinctPointDates = uniqueDates.length >= 2;
+        if (uniqueDates.length === 1 && rawMatchedTokens.length === 1) {
+          ambiguousNumericDateAltIso = detectAmbiguousNumericDateAlternativeIso(rawMatchedTokens[0]);
+        }
+        // Keep earliest date in `transactionDateIso` so multi-date comparisons (`2018-06-30` vs `2025-01-15`) evaluate historical applicability on the earlier date!
+        transactionDateIso = uniqueDates[0];
+        transactionDateEndIso = uniqueDates[uniqueDates.length - 1];
+        transactionYearCe = Number(transactionDateIso.slice(0, 4));
+      } else {
+        // Month + Year without day (`ในเดือนพฤษภาคม 2560`, `เมื่อ ม.ค. 2562`, `in May 2017`, `in Feb 2019`, `06/2018`)
+        const txMyMatch = scrubbed.match(
+          /(?:ในเดือน|เมื่อเดือน|เดือน|เมื่อ|ช่วง|\bin\b|\bduring\b|\bon\b|\bfor\b)\s*((?:เดือน)?\s*[ก-๙a-zA-Z.]+[\s\-]+(?:พ\.ศ\.\s*|ค\.ศ\.\s*|B\.?E\.?\s*)?(?:(?:19|20|24|25)[0-9]{2}|[4-7][0-9])|(?:0?[1-9]|1[0-2])\/(?:19|20|24|25)[0-9]{2})\b/i
+        );
+        if (txMyMatch) {
+          const my = parseFlexibleMonthYearToRange(txMyMatch[1]);
+          if (my) {
+            transactionDateIso = my.startIso;
+            transactionDateEndIso = my.endIso;
+            transactionYearCe = my.yearCe;
+          }
         }
       }
     }
   }
 
-  // 3b. Prose & compact year formats (`ในปี 2560`, `ในปี 60`, `พ.ศ.2560`, `ค.ศ.2017`, `B.E.2560`, `FY2017`, `FY17`, `FY2560`, `in 2017`)
+  // 3b. Boundary-relative "before year" (`ก่อนปี 2561`, `ก่อน พ.ศ. 2562`, `before 2019`, `prior to 2018`, `pre-2019`)
+  //     AND prose & compact year formats (`ในปี 2560`, `ในปี 60`, `พ.ศ.2560`, `ค.ศ.2017`, `B.E.2560`, `FY2017`, `FY17`, `FY2560`, `in 2017`)
   if (!transactionYearCe && !assessableTaxYearCe && !accountingStart && !accountingEnd && !accountingStartMax) {
-    const yrBeProse = scrubbed.match(
-      /(?:(?:ในปี|เมื่อปี|สำหรับปี|ช่วงปี|ระหว่างปี|ปีบัญชี|รอบปี|งวดปี|สำหรับรอบปี)\s*(?:พ\.ศ\.\s*)?(25[0-7][0-9]|24[89][0-9]|[4-6][0-9])|(?:ปี\s*พ\.ศ\.|พ\.ศ\.)\s*(25[0-7][0-9]|24[89][0-9])|(?<!ระยะเวลา\s*)(?<!กำหนด\s*)(?<!เกิน\s*)(?<!ภายใน\s*)(?<!เวลา\s*)\bปี\s*(25[0-7][0-9]|24[89][0-9]))\b/
+    const beforeYrTh = scrubbed.match(
+      /(?:ก่อนปีภาษี|ก่อนปี|ก่อน\s*พ\.ศ\.|ก่อน\s*ค\.ศ\.)\s*(?:(พ\.ศ\.|ค\.ศ\.)\s*)?(25[0-7][0-9]|24[89][0-9]|(?:199|20[0-3])[0-9]|[4-7][0-9])\b/
     );
-    const yrCeExplicit = scrubbed.match(/(?:ค\.ศ\.|C\.?E\.?|A\.?D\.?)\s*((?:199|20[0-3])[0-9])\b/i);
-    const yrBeEn = scrubbed.match(/\bB\.?E\.?\s*(25[0-7][0-9]|24[89][0-9])\b/i);
-    const yrFyCompact = scrubbed.match(/\bFY\s*((?:199|20[0-3])[0-9]|25[0-7][0-9]|[124-6][0-9])\b/i);
-    const yrEnProse = scrubbed.match(
-      /\b(?:in|during|for|in\s+year|for\s+year|between)\s*((?:199|20[0-3])[0-9]|25[0-7][0-9])\b/i
+    const beforeYrEn = scrubbed.match(
+      /\b(?:before\s+|prior\s+to\s+|pre[\s\-]*)(?:year\s+|(B\.?E\.?|C\.?E\.?)\s*)?(25[0-7][0-9]|(?:199|20[0-3])[0-9])\b/i
     );
-
-    if (yrBeProse) {
-      const raw = yrBeProse[1] || yrBeProse[2] || yrBeProse[3];
-      transactionYearCe = resolveFlexibleYearTokenToCe(raw, "BE");
-    } else if (yrCeExplicit) {
-      transactionYearCe = Number(yrCeExplicit[1]);
-    } else if (yrBeEn) {
-      transactionYearCe = Number(yrBeEn[1]) - 543;
-    } else if (yrFyCompact) {
-      const fyYr = resolveFlexibleYearTokenToCe(yrFyCompact[1]);
-      if (fyYr !== null) {
-        transactionYearCe = fyYr;
-        accountingEnd = `${fyYr}-12-31`;
+    if (beforeYrTh) {
+      const eraHint = beforeYrTh[1] === "ค.ศ." ? "CE" : Number(beforeYrTh[2]) >= 1900 && Number(beforeYrTh[2]) < 2400 ? "CE" : "BE";
+      const yrCe = resolveFlexibleYearTokenToCe(beforeYrTh[2], eraHint);
+      if (yrCe !== null) {
+        transactionYearCe = yrCe - 1;
+        accountingStartMax = `${yrCe - 1}-12-31`;
+        isUpperBoundedBeforePeriod = true;
       }
-    } else if (yrEnProse) {
-      transactionYearCe = resolveFlexibleYearTokenToCe(yrEnProse[1]);
+    } else if (beforeYrEn) {
+      const eraHint = beforeYrEn[1] && /b/i.test(beforeYrEn[1]) ? "BE" : null;
+      const yrCe = resolveFlexibleYearTokenToCe(beforeYrEn[2], eraHint);
+      if (yrCe !== null) {
+        transactionYearCe = yrCe - 1;
+        accountingStartMax = `${yrCe - 1}-12-31`;
+        isUpperBoundedBeforePeriod = true;
+      }
+    } else {
+      const yrBeProse = scrubbed.match(
+        /(?:(?:ในปี|เมื่อปี|สำหรับปี|ช่วงปี|ระหว่างปี|ปีบัญชี|รอบปี|งวดปี|สำหรับรอบปี)\s*(?:พ\.ศ\.\s*)?(25[0-7][0-9]|24[89][0-9]|[4-6][0-9])|(?:ปี\s*พ\.ศ\.|พ\.ศ\.)\s*(25[0-7][0-9]|24[89][0-9])|(?<!ระยะเวลา\s*)(?<!กำหนด\s*)(?<!เกิน\s*)(?<!ภายใน\s*)(?<!เวลา\s*)\bปี\s*(25[0-7][0-9]|24[89][0-9]))\b/
+      );
+      const yrCeExplicit = scrubbed.match(/(?:ค\.ศ\.|C\.?E\.?|A\.?D\.?)\s*((?:199|20[0-3])[0-9])\b/i);
+      const yrBeEn = scrubbed.match(/\bB\.?E\.?\s*(25[0-7][0-9]|24[89][0-9])\b/i);
+      const yrFyCompact = scrubbed.match(/\bFY\s*((?:199|20[0-3])[0-9]|25[0-7][0-9]|[124-6][0-9])\b/i);
+      const yrEnProse = scrubbed.match(
+        /\b(?:in|during|for|in\s+year|for\s+year|between)\s*((?:199|20[0-3])[0-9]|25[0-7][0-9])\b/i
+      );
+
+      if (yrBeProse) {
+        const raw = yrBeProse[1] || yrBeProse[2] || yrBeProse[3];
+        transactionYearCe = resolveFlexibleYearTokenToCe(raw, "BE");
+      } else if (yrCeExplicit) {
+        transactionYearCe = Number(yrCeExplicit[1]);
+      } else if (yrBeEn) {
+        transactionYearCe = Number(yrBeEn[1]) - 543;
+      } else if (yrFyCompact) {
+        const fyYr = resolveFlexibleYearTokenToCe(yrFyCompact[1]);
+        if (fyYr !== null) {
+          transactionYearCe = fyYr;
+          accountingEnd = `${fyYr}-12-31`;
+        }
+      } else if (yrEnProse) {
+        transactionYearCe = resolveFlexibleYearTokenToCe(yrEnProse[1]);
+      }
     }
   }
 
@@ -928,6 +1145,9 @@ export function parseQueryTemporalAndIntentContext(params: {
       parseFlexibleThaiOrEnglishDateToIso(rawApp) ||
       parseFlexibleMonthYearToRange(rawApp)?.endIso ||
       null;
+    if (!ambiguousNumericDateAltIso) {
+      ambiguousNumericDateAltIso = detectAmbiguousNumericDateAlternativeIso(rawApp);
+    }
     if (
       pointInTimeIso &&
       /รอบระยะเวลาบัญชี|รอบบัญชี|งวดบัญชี|accounting\s+period|fiscal\s+year|\bFY\b/i.test(scrubbed) &&
@@ -938,27 +1158,61 @@ export function parseQueryTemporalAndIntentContext(params: {
     }
   }
 
-  const asksPreAmendmentExplicitly =
-    /(?:ก่อนแก้ไข|ฉบับเดิม|รุ่นเดิม|ตัวบทเดิม|ย้อนหลัง|ก่อนปี\s*2562|ก่อนวันที่\s*20\s*มีนาคม\s*2562|prior\s+to\s+(?:the\s+)?(?:\d{4}\s+)?amendment|pre[- ]amendment|previous\s+version|historical\s+version)/i.test(
+  // 5. Partial / unclear date signals (yearless day/month or vague relative past)
+  const hasVagueHistoricalReference =
+    /(?:เมื่อหลายปีก่อน|เมื่อไม่กี่ปีก่อน|หลายปีที่แล้ว|ไม่กี่ปีที่แล้ว|เมื่อปีก่อนๆ|ปีก่อนๆ|สมัยก่อน|ในอดีต|เมื่อนานมาแล้ว|\b(?:several|many|a\s+few)\s+years\s+ago\b|\bin\s+the\s+past\b|\bin\s+previous\s+years\b|\bsome\s+time\s+ago\b)/i.test(
       scrubbed
     );
 
-  const hasAnyTemporalAnchor = Boolean(
+  const hasConcreteYearOrIsoAnchor = Boolean(
     accountingStart ||
       accountingStartMax ||
       accountingEnd ||
       pointInTimeIso ||
       assessableTaxYearCe !== null ||
       transactionDateIso ||
-      transactionYearCe !== null ||
-      asksPreAmendmentExplicitly
+      transactionYearCe !== null
   );
+
+  const scrubbedExpandedMonths = expandThaiMonthTokens(scrubbed);
+  const hasYearlessPartialDate =
+    !hasConcreteYearOrIsoAnchor &&
+    (/(?:(?:เมื่อวันที่|ตั้งแต่วันที่|ณ\s*วันที่|วันที่|สิ้นสุด(?:วันที่)?)\s*[0-9]{1,2}\s*(?:เดือน)?\s*|(?:ในเดือน|เมื่อเดือน|ช่วงเดือน|สิ้นสุดเดือน)\s*)(?:มกราคม|กุมภาพันธ์|กุมพาภัณฑ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|กรกฏาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)/.test(
+      scrubbedExpandedMonths
+    ) ||
+      /\b(?:on|in|during|ended|ending)\s+(?:[0-9]{1,2}(?:st|nd|rd|th)?\s+)?(?:january|february|march|april|may|june|july|august|september|october|november|december)\b/i.test(
+        scrubbedExpandedMonths
+      ));
+
+  const asksPreAmendmentExplicitly =
+    /(?:ก่อนแก้ไข|ฉบับเดิม|รุ่นเดิม|ตัวบทเดิม|ย้อนหลัง|ก่อนวันที่\s*20\s*มีนาคม\s*2562|prior\s+to\s+(?:the\s+)?(?:\d{4}\s+)?amendment|pre[- ]amendment|previous\s+version|historical\s+version)/i.test(
+      scrubbed
+    );
+
+  const hasAnyTemporalAnchor = Boolean(
+    hasConcreteYearOrIsoAnchor ||
+      asksPreAmendmentExplicitly ||
+      hasVagueHistoricalReference ||
+      hasYearlessPartialDate
+  );
+
+  // Detect explicit ruling-applicability / transfer questions (`นำ กค ... มาใช้กับ...ได้หรือไม่`, `ยังใช้บังคับ...หรือไม่`, `กฎหมาย...ใช้บังคับอย่างไร`, `หากบริษัท...`, `Does ruling ... apply`)
+  const asksWhetherRulingApplies =
+    params.explicitRulingIds.length > 0 &&
+    (/(?:นำ(?:แนววินิจฉัย|หนังสือตอบข้อหารือ|ข้อหารือ|หลักเกณฑ์)?[^\n?]{0,60}?มา(?:ใช้|ปรับใช้|อ้างอิง|เทียบเคียง)|ยัง(?:คง)?(?:นำมา)?ใช้(?:บังคับ|อ้างอิง|ได้)?[^\n?]{0,50}?(?:ได้หรือไม่|ได้ไหม|อยู่หรือไม่|หรือไม่|ไหม)|ใช้บังคับกับ[^\n?]{0,60}?(?:ได้หรือไม่|ได้ไหม|หรือไม่|ไหม)|ปรับใช้กับ[^\n?]{0,60}?(?:ได้หรือไม่|ได้ไหม|หรือไม่|ไหม)|ใช้(?:ได้)?กับ(?:กรณี|ธุรกรรม|บริษัท|ห้าง|กิจการ|รอบ|ปี|เมื่อ)[^\n?]{0,60}?(?:ได้หรือไม่|ได้ไหม|หรือไม่|ไหม)|กฎหมาย[^\n?]{0,45}?ใช้บังคับอย่างไร|มีผลผูกพัน[^\n?]{0,45}?(?:หรือไม่|ไหม)|หาก(?:บริษัท|ห้าง|กิจการ|ผู้ประกอบการ|ผู้เสียภาษี|เรา|เปลี่ยนเป็น|ข้อเท็จจริง)|สมมติว่า|สำหรับกรณีของบริษัทเรา|ในกรณีของบริษัทเรา)/.test(
+      qNorm
+    ) ||
+      /\b(?:does\s+(?:ruling\s+|this\s+ruling\s+|the\s+ruling\s+)?[^\n?]{0,55}?(?:still\s+)?apply|can\s+(?:we|a\s+company|our\s+company|a\s+taxpayer|taxpayers)\s+(?:rely\s+on|apply|use)\b|is\s+(?:ruling\s+|this\s+ruling\s+|the\s+ruling\s+)?[^\n?]{0,55}?(?:still\s+)?(?:applicable|binding|valid)\b|if\s+(?:a|our)\s+(?:thai\s+)?(?:company|partnership|taxpayer|business)\b|apply\s+(?:ruling\s+|this\s+ruling\s+)?[^\n?]{0,45}?\bto\s+(?:our|a)\b)/i.test(
+        qNorm
+      ));
 
   // Distinguish historical document lookup vs applicable law for a period (even when a ruling number IS included in the prompt!):
   const asksOnlyWhatRulingDecided =
     params.explicitRulingIds.length > 0 &&
+    !asksWhetherRulingApplies &&
     !pointInTimeIso &&
     !asksPreAmendmentExplicitly &&
+    !hasVagueHistoricalReference &&
     /(?:ค้นหาหนังสือ|สรุปหนังสือ|ในหนังสือตอบข้อหารือ|แสดงแนววินิจฉัย|วินิจฉัย(?:เรื่อง[^\n?]{0,60})?(?:ไว้)?อย่างไร|\bfind\b|\bsummarize\b|\bwhat\s+did\b)/i.test(
       qNorm
     ) &&
@@ -976,15 +1230,17 @@ export function parseQueryTemporalAndIntentContext(params: {
 
   const isHistoricalDocLookup = isPureRulingSurveyOrDraftStatusLookup
     ? true
-    : hasAnyTemporalAnchor
-      ? asksOnlyWhatRulingDecided
-      : params.mode === "exact_lookup" ||
-        params.mode === "comparison" ||
-        (params.explicitRulingIds.length > 0 &&
-          (!matchesConcreteTaxpayerPattern ||
-            /(?:ตามหนังสือตอบข้อหารือ|ตามข้อหารือ|ในหนังสือตอบข้อหารือ|ตาม\s*กค|\bunder\s+ruling\b|\bin\s+ruling\b)/i.test(
-              qNorm
-            )));
+    : asksWhetherRulingApplies
+      ? false
+      : hasAnyTemporalAnchor
+        ? asksOnlyWhatRulingDecided
+        : params.mode === "exact_lookup" ||
+          params.mode === "comparison" ||
+          (params.explicitRulingIds.length > 0 &&
+            (!matchesConcreteTaxpayerPattern ||
+              /(?:ตามหนังสือตอบข้อหารือ|ตามข้อหารือ|ในหนังสือตอบข้อหารือ|ตาม\s*กค|\bunder\s+ruling\b|\bin\s+ruling\b)/i.test(
+                qNorm
+              )));
 
   const isConcreteTaxpayerFactQuery =
     !isHistoricalDocLookup && !hasAnyTemporalAnchor && matchesConcreteTaxpayerPattern;
@@ -1000,6 +1256,12 @@ export function parseQueryTemporalAndIntentContext(params: {
     transaction_date_iso: transactionDateIso,
     transaction_date_end_iso: transactionDateEndIso,
     transaction_year_ce: transactionYearCe,
+    ambiguous_numeric_date_alt_iso: ambiguousNumericDateAltIso,
+    has_multiple_distinct_point_dates: hasMultipleDistinctPointDates,
+    is_upper_bounded_before_period: isUpperBoundedBeforePeriod,
+    has_vague_historical_reference: hasVagueHistoricalReference,
+    has_yearless_partial_date: hasYearlessPartialDate,
+    asks_whether_ruling_applies: asksWhetherRulingApplies,
     asks_pre_amendment_version_explicitly: asksPreAmendmentExplicitly,
     has_any_temporal_anchor: hasAnyTemporalAnchor,
     is_concrete_taxpayer_fact_query: isConcreteTaxpayerFactQuery,
@@ -1113,8 +1375,11 @@ export function evaluateStatutoryVersionApplicability(params: {
   // For temporal evaluation when a date IS supplied, inspect the directly matched clause first, and on consolidated full-section texts also ensure no later amendment in the section is anachronistically rendered!
   const implicated = explicitMatched || latestInSection;
 
-  // 1. Explicit request for an unverified pre-amendment historical version without dates
-  if (temporalCtx.asks_pre_amendment_version_explicitly && !temporalCtx.accounting_period_start_iso) {
+  // 1. Explicit request for an unverified pre-amendment historical version OR vague relative past reference (`เมื่อหลายปีก่อน`, `ในอดีต`, `several years ago`)
+  if (
+    (temporalCtx.asks_pre_amendment_version_explicitly && !temporalCtx.accounting_period_start_iso) ||
+    temporalCtx.has_vague_historical_reference
+  ) {
     const srcHint = implicated?.pre_amendment_source_uri || "https://ratchakitcha.soc.go.th";
     const amendInfo = implicated
       ? ` (เช่น อนุมาตรา ${implicated.subprovision_label || ""} แก้ไขเพิ่มเติมโดย ${implicated.amending_instrument_title_th}: ${implicated.applicability_rule_th})`
@@ -1125,9 +1390,27 @@ export function evaluateStatutoryVersionApplicability(params: {
       matched_amendment: implicated,
       amending_work_id_to_cite: null,
       explanation_banner_th: null,
-      containment_message_th: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secTitle} รุ่นก่อนการแก้ไขเพิ่มเติมชั่วคราว เนื่องจากคลังข้อมูลชุด ${releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (${originUri})${amendInfo} และไม่ประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองต้นฉบับจากราชกิจจานุเบกษา (${srcHint})`,
+      containment_message_th: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secTitle} รุ่นก่อนการแก้ไขเพิ่มเติมหรือสำหรับช่วงเวลาในอดีตที่ยังไม่ชัดเจนชั่วคราว เนื่องจากคลังข้อมูลชุด ${releaseId} เก็บเฉพาะตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบัน (${originUri})${amendInfo} และไม่คาดเดาหรือประกอบสร้างตัวบทย้อนหลังขึ้นเองจากตัวบทปัจจุบันจนกว่าจะตรวจรับรองต้นฉบับจากราชกิจจานุเบกษา (${srcHint})`,
       clarification_question_th:
-        "กรุณาระบุวันเริ่มรอบระยะเวลาบัญชีจริงหรือวันเกิดธุรกรรม เพื่อตรวจสอบเงื่อนไขการใช้บังคับตามพระราชบัญญัติแก้ไขเพิ่มเติมที่เกี่ยวข้อง",
+        "กรุณาระบุวันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริง หรือวันเดือนปีที่เกิดธุรกรรมให้ชัดเจน เพื่อตรวจสอบเงื่อนไขการใช้บังคับตามพระราชบัญญัติแก้ไขเพิ่มเติมที่เกี่ยวข้อง",
+    };
+  }
+
+  // 1b. Yearless partial date (`เมื่อวันที่ 15 กุมภาพันธ์`, `ในเดือนมิถุนายน`, `สิ้นสุดวันที่ 30 มิถุนายน` without year)
+  if (temporalCtx.has_yearless_partial_date && implicated && implicated.applicability_from_date) {
+    const targetForPartial = explicitMatched || implicated;
+    return {
+      action: "ASK_FOR_MISSING_RELEVANT_DATE",
+      has_direct_clause_match: hasDirectClauseMatch,
+      matched_amendment: targetForPartial,
+      amending_work_id_to_cite: targetForPartial.amending_work_id,
+      explanation_banner_th:
+        `**ต้องทราบปี พ.ศ./ค.ศ. และช่วงเวลาที่ครบถ้วน (${targetForPartial.amending_instrument_title_th})**: คำถามระบุเฉพาะวันหรือเดือนโดยไม่ระบุปี ในขณะที่ ${secTitle}${targetForPartial.subprovision_label ? ` ${targetForPartial.subprovision_label}` : ""} มีการแก้ไขเพิ่มเติมซึ่ง **${targetForPartial.applicability_rule_th}** ระบบจึงไม่อาจคาดเดาปีของข้อเท็จจริงได้`,
+      containment_message_th: null,
+      clarification_question_th:
+        targetForPartial.applicability_basis === "ACCOUNTING_PERIOD_START"
+          ? `กรุณาระบุ **วันเดือนปี (พ.ศ. หรือ ค.ศ.) ของวันเริ่มต้นและวันสิ้นสุดรอบระยะเวลาบัญชีจริง** (เกณฑ์ใช้บังคับ: เริ่มในหรือหลังวันที่ ${targetForPartial.applicability_from_date})`
+          : `กรุณาระบุ **วันเดือนปี (พ.ศ. หรือ ค.ศ.) ที่เกิดธุรกรรมให้ครบถ้วน** (เกณฑ์ใช้บังคับ: ตั้งแต่วันที่ ${targetForPartial.applicability_from_date} เป็นต้นไป)`,
     };
   }
 
@@ -1338,8 +1621,24 @@ export function evaluateStatutoryVersionApplicability(params: {
     const cutoffYearCe = Number(cutoffIso.slice(0, 4));
 
     if (exactEventIso) {
-      // Mid-month straddle (e.g. `ในเดือนกุมภาพันธ์ 2562` / `in February 2019` where `2019-02-01 < 2019-02-28 <= 2019-02-28`)
-      // Note: do NOT trigger this on explicit two-date comparisons (`ระหว่างวันที่ 2018-06-30 กับ 2025-01-15`), which span >31 days and require containment of the pre-amendment date!
+      // Ambiguous DD/MM/YYYY vs MM/DD/YYYY numeric date straddling the amendment cutoff (e.g. `02/03/2019` = 2 Mar 2019 vs 3 Feb 2019 relative to `2019-02-28`)
+      if (
+        temporalCtx.ambiguous_numeric_date_alt_iso &&
+        (exactEventIso < cutoffIso) !== (temporalCtx.ambiguous_numeric_date_alt_iso < cutoffIso)
+      ) {
+        return {
+          action: "ASK_FOR_MISSING_RELEVANT_DATE",
+          has_direct_clause_match: hasDirectClauseMatch,
+          matched_amendment: targetItem,
+          amending_work_id_to_cite: targetItem.amending_work_id,
+          explanation_banner_th: `**รูปแบบวันที่ตัวเลขมีความกำกวมต่อวันเริ่มใช้บังคับของกฎหมาย**: วันที่ที่ระบุสามารถตีความได้ทั้งแบบ \`วัน/เดือน/ปี\` (\`${exactEventIso}\`) และ \`เดือน/วัน/ปี\` (\`${temporalCtx.ambiguous_numeric_date_alt_iso}\`) ซึ่งอยู่คนละฝั่งกับวันเริ่มใช้บังคับ (\`${cutoffIso}\`) ของ **${targetItem.amending_instrument_title_th}**`,
+          containment_message_th: null,
+          clarification_question_th: `กรุณายืนยันวันและเดือนให้ชัดเจนเป็นชื่อเดือนหรือรูปแบบ YYYY-MM-DD (เช่น ${exactEventIso} หรือ ${temporalCtx.ambiguous_numeric_date_alt_iso}) เพื่อตรวจสอบว่าเกิดก่อนหรือตั้งแต่วันที่ ${cutoffIso}`,
+        };
+      }
+
+      // Partial sub-year period straddle (Month+Year `กุมภาพันธ์ 2562`, Quarter `ไตรมาส 1 ปี 2562` / `Q1 2019`, Half-Year `ครึ่งปีแรก 2562`, or `ต้นปี 2562` / `early 2019`)
+      // Note: do NOT trigger this on explicit multi-point comparisons (`ระหว่างวันที่ 2018-06-30 กับ 2025-01-15`), where `has_multiple_distinct_point_dates` is true!
       const spanDays =
         exactEventEndIso && exactEventEndIso !== exactEventIso
           ? Math.round(
@@ -1348,7 +1647,8 @@ export function evaluateStatutoryVersionApplicability(params: {
           : 0;
       if (
         spanDays > 0 &&
-        spanDays <= 31 &&
+        spanDays <= 185 &&
+        !temporalCtx.has_multiple_distinct_point_dates &&
         exactEventIso < cutoffIso &&
         exactEventEndIso! >= cutoffIso
       ) {
@@ -1357,20 +1657,20 @@ export function evaluateStatutoryVersionApplicability(params: {
           has_direct_clause_match: hasDirectClauseMatch,
           matched_amendment: targetItem,
           amending_work_id_to_cite: targetItem.amending_work_id,
-          explanation_banner_th: `**ต้องทราบวันที่เกิดธุรกรรมที่แน่นอนในเดือนดังกล่าว**: บทบัญญัติ ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} แก้ไขเพิ่มเติมโดย **${targetItem.amending_instrument_title_th}** มีผลใช้บังคับตั้งแต่วันที่ \`${cutoffIso}\` เป็นต้นไป`,
+          explanation_banner_th: `**ต้องทราบวันที่เกิดธุรกรรมที่แน่นอนในช่วงเวลาดังกล่าว (\`${exactEventIso}\` ถึง \`${exactEventEndIso}\`)**: บทบัญญัติ ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} แก้ไขเพิ่มเติมโดย **${targetItem.amending_instrument_title_th}** มีผลใช้บังคับตั้งแต่วันที่ \`${cutoffIso}\` เป็นต้นไป`,
           containment_message_th: null,
           clarification_question_th: `กรุณาระบุวันที่เกิดธุรกรรมที่ชัดเจนว่าเกิดขึ้นก่อนหรือตั้งแต่วันที่ ${cutoffIso} เป็นต้นไป`,
         };
       }
-      if (exactEventIso < cutoffIso) {
+      if (exactEventIso < cutoffIso || temporalCtx.is_upper_bounded_before_period) {
         return {
           action: "CONTAIN_UNVERIFIED_HISTORICAL_VERSION",
           has_direct_clause_match: hasDirectClauseMatch,
           matched_amendment: targetItem,
           amending_work_id_to_cite: null,
           explanation_banner_th: null,
-          containment_message_th: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} สำหรับธุรกรรมวันที่ \`${exactEventIso}\` เนื่องจากบทบัญญัติฉบับปัจจุบันแก้ไขเพิ่มเติมโดย **${targetItem.amending_instrument_title_th}** (${targetItem.royal_gazette_ref || "ราชกิจจานุเบกษา"}${targetItem.amending_source_uri ? ` · ${targetItem.amending_source_uri}` : ""}) ซึ่งมีผลใช้บังคับตั้งแต่วันที่ \`${cutoffIso}\` เป็นต้นไป จึง **ไม่อาจนำบทบัญญัติที่แก้ไขใหม่มาใช้บังคับย้อนหลังกับวันที่ \`${exactEventIso}\` ได้** และตัวบทก่อนแก้ไขยังอยู่ระหว่างรอตรวจรับรองจากราชกิจจานุเบกษา (${targetItem.pre_amendment_source_uri || "https://ratchakitcha.soc.go.th"})`,
-          clarification_question_th: "กรุณาตรวจสอบตัวบทก่อนการแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาสำหรับธุรกรรมก่อนวันมีผลใช้บังคับดังกล่าว",
+          containment_message_th: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} สำหรับช่วงเวลาไม่เกินวันที่ \`${exactEventIso}\` เนื่องจากบทบัญญัติฉบับปัจจุบันแก้ไขเพิ่มเติมโดย **${targetItem.amending_instrument_title_th}** (${targetItem.royal_gazette_ref || "ราชกิจจานุเบกษา"}${targetItem.amending_source_uri ? ` · ${targetItem.amending_source_uri}` : ""}) ซึ่งมีผลใช้บังคับตั้งแต่วันที่ \`${cutoffIso}\` เป็นต้นไป จึง **ไม่อาจนำบทบัญญัติที่แก้ไขใหม่มาใช้บังคับย้อนหลังกับช่วงเวลาก่อนวันที่ \`${cutoffIso}\` ได้** และตัวบทก่อนแก้ไขยังอยู่ระหว่างรอตรวจรับรองจากราชกิจจานุเบกษา (${targetItem.pre_amendment_source_uri || "https://ratchakitcha.soc.go.th"})`,
+          clarification_question_th: "กรุณาระบุวันเดือนปีที่เกิดธุรกรรมจริง หรือตรวจสอบตัวบทก่อนการแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาโดยตรง",
         };
       }
       if (exactEventIso >= cutoffIso && exactEventIso < "2020-06-01" && targetItem.amending_work_id) {
@@ -1379,21 +1679,21 @@ export function evaluateStatutoryVersionApplicability(params: {
           has_direct_clause_match: hasDirectClauseMatch,
           matched_amendment: targetItem,
           amending_work_id_to_cite: targetItem.amending_work_id,
-          explanation_banner_th: `**ผลการตรวจสอบวันมีผลใช้บังคับของบทบัญญัติ**: ธุรกรรมวันที่ \`${exactEventIso}\` เกิดขึ้นในหรือหลังวันที่ \`${cutoffIso}\` ซึ่งเป็นวันเริ่มใช้บังคับของ **${targetItem.amending_instrument_title_th}** (${targetItem.royal_gazette_ref || ""}${targetItem.amending_source_uri ? ` · ${targetItem.amending_source_uri}` : ""}) บทบัญญัติ ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} ฉบับปัจจุบันจึงใช้บังคับได้`,
+          explanation_banner_th: `**ผลการตรวจสอบวันมีผลใช้บังคับของบทบัญญัติ**: ธุรกรรมตั้งแต่วันที่ \`${exactEventIso}\` เกิดขึ้นในหรือหลังวันที่ \`${cutoffIso}\` ซึ่งเป็นวันเริ่มใช้บังคับของ **${targetItem.amending_instrument_title_th}** (${targetItem.royal_gazette_ref || ""}${targetItem.amending_source_uri ? ` · ${targetItem.amending_source_uri}` : ""}) บทบัญญัติ ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} ฉบับปัจจุบันจึงใช้บังคับได้`,
           containment_message_th: null,
           clarification_question_th: null,
         };
       }
     } else if (yearOnlyCe !== null) {
-      if (yearOnlyCe < cutoffYearCe) {
+      if (yearOnlyCe < cutoffYearCe || temporalCtx.is_upper_bounded_before_period) {
         return {
           action: "CONTAIN_UNVERIFIED_HISTORICAL_VERSION",
           has_direct_clause_match: hasDirectClauseMatch,
           matched_amendment: targetItem,
           amending_work_id_to_cite: null,
           explanation_banner_th: null,
-          containment_message_th: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} สำหรับปี พ.ศ. ${yearOnlyCe + 543} (${yearOnlyCe}) เนื่องจากบทบัญญัติปัจจุบันแก้ไขเพิ่มเติมโดย **${targetItem.amending_instrument_title_th}** ซึ่งมีผลใช้บังคับตั้งแต่วันที่ \`${cutoffIso}\` เป็นต้นไป จึงไม่อาจนำมาใช้บังคับกับปี พ.ศ. ${yearOnlyCe + 543} ได้ และตัวบทก่อนแก้ไขยังอยู่ระหว่างรอตรวจรับรองจากราชกิจจานุเบกษา (${targetItem.pre_amendment_source_uri || "https://ratchakitcha.soc.go.th"})`,
-          clarification_question_th: `กรุณาตรวจสอบตัวบทก่อนแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาสำหรับปี พ.ศ. ${yearOnlyCe + 543}`,
+          containment_message_th: `ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ${secTitle}${targetItem.subprovision_label ? ` ${targetItem.subprovision_label}` : ""} สำหรับช่วงปี พ.ศ. ${yearOnlyCe + 543} (${yearOnlyCe}) หรือก่อนหน้านั้น เนื่องจากบทบัญญัติปัจจุบันแก้ไขเพิ่มเติมโดย **${targetItem.amending_instrument_title_th}** ซึ่งมีผลใช้บังคับตั้งแต่วันที่ \`${cutoffIso}\` เป็นต้นไป จึงไม่อาจนำมาใช้บังคับย้อนหลังก่อนวันมีผลใช้บังคับได้ และตัวบทก่อนแก้ไขยังอยู่ระหว่างรอตรวจรับรองจากราชกิจจานุเบกษา (${targetItem.pre_amendment_source_uri || "https://ratchakitcha.soc.go.th"})`,
+          clarification_question_th: `กรุณาระบุวันเดือนปีที่เกิดธุรกรรมจริง หรือตรวจสอบตัวบทก่อนแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาสำหรับปี พ.ศ. ${yearOnlyCe + 543}`,
         };
       }
       if (yearOnlyCe === cutoffYearCe && cutoffIso.slice(5) !== "01-01") {
@@ -1446,33 +1746,50 @@ export function evaluateStatutoryVersionApplicability(params: {
 }
 
 /**
- * Prevents anachronistic application of a later TaxRuling (that relies on later-enacted statutes/decrees)
- * when the user asked for the law applicable to an earlier historical period (`APPLICABLE_LAW_AT_TIME`),
- * while ALWAYS permitting `HISTORICAL_DOCUMENT_LOOKUP` when the user requested a specific ruling.
+ * Evaluates whether a TaxRuling can be used to answer an `APPLICABLE_LAW_AT_TIME` or
+ * explicit ruling-applicability (`asks_whether_ruling_applies`) question, while ALWAYS
+ * permitting `HISTORICAL_DOCUMENT_LOOKUP` and questions recounting a ruling's own requester facts.
  */
 export function evaluateRulingTemporalApplicability(params: {
   rulingWork: LegalWork | undefined;
   rulingVersion: LegalVersion | undefined;
   conclusionText: string;
+  requesterFactsText?: string;
+  originUri?: string;
+  hasQuarantinedExternalDependencies?: boolean;
+  quarantinedCitationLabels?: string[];
   temporalCtx: TemporalFactContext;
   releaseId: string;
 }): {
   shouldContainAnachronism: boolean;
+  shouldAskClarificationForApplicability?: boolean;
+  explanationBannerTh?: string | null;
   messageTh: string | null;
+  clarificationQuestionTh?: string | null;
 } {
   const { rulingWork, rulingVersion, conclusionText, temporalCtx, releaseId } = params;
   if (!rulingWork || rulingWork.type !== "TaxRuling") {
     return { shouldContainAnachronism: false, messageTh: null };
   }
-  if (temporalCtx.query_intent === "HISTORICAL_DOCUMENT_LOOKUP" || !temporalCtx.has_any_temporal_anchor) {
+  if (temporalCtx.query_intent === "HISTORICAL_DOCUMENT_LOOKUP") {
+    return { shouldContainAnachronism: false, messageTh: null };
+  }
+  if (!temporalCtx.has_any_temporal_anchor && !temporalCtx.asks_whether_ruling_applies) {
     return { shouldContainAnachronism: false, messageTh: null };
   }
 
   const rId = rulingWork.official_identifiers[0]?.normalized || rulingWork.work_id;
-  if (temporalCtx.asks_pre_amendment_version_explicitly) {
+  const srcRef = params.originUri ? ` (ต้นฉบับ: ${params.originUri})` : "";
+  const rulingDecisionIso = rulingVersion?.decision_date || null;
+  const rulingDecisionYearCe = rulingDecisionIso ? Number(rulingDecisionIso.slice(0, 4)) : null;
+
+  // 0. Vague historical reference (`เมื่อหลายปีก่อน`, `ในอดีต`, `several years ago`) or explicit pre-amendment request
+  if (temporalCtx.asks_pre_amendment_version_explicitly || temporalCtx.has_vague_historical_reference) {
     return {
       shouldContainAnachronism: true,
-      messageTh: `ไม่พบข้อมูลตัวบทกฎหมายย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — หนังสือตอบข้อหารือ \`${rId}\` (${rulingVersion?.raw_date_text || ""}) เป็นความเห็นเฉพาะรายตามข้อเท็จจริงในขณะวินิจฉัย มิใช่ตัวบทกฎหมายรุ่นก่อนแก้ไข ระบบจึงไม่อาจยืนยันกฎหมายย้อนหลังจากข้อหารือฉบับนี้เพียงลำพังได้`,
+      messageTh: `ไม่พบข้อมูลหลักฐานที่ใช้ยืนยันการบังคับใช้ย้อนหลัง / หลักฐานไม่เพียงพอ — หนังสือตอบข้อหารือ \`${rId}\` (${rulingVersion?.raw_date_text || rulingDecisionIso || "ไม่ระบุวันที่"}${srcRef}) เป็นความเห็นทางปกครองเฉพาะรายตามข้อเท็จจริงและกฎหมายในขณะวินิจฉัย ระบบจึงไม่คาดเดาหรือนำแนววินิจฉัยนี้ไปรับรองใช้กับช่วงเวลาในอดีตที่ยังไม่ระบุวันเดือนปีชัดเจนโดยไม่มีตัวบทกฎหมายที่ผ่านการรับรองสำหรับช่วงเวลานั้น`,
+      clarificationQuestionTh:
+        "กรุณาระบุวันเดือนปีที่เกิดธุรกรรมหรือวันเริ่มต้นและวันสิ้นสุดของรอบระยะเวลาบัญชีจริง เพื่อตรวจสอบบทบัญญัติที่ใช้บังคับ",
     };
   }
 
@@ -1488,8 +1805,53 @@ export function evaluateRulingTemporalApplicability(params: {
     temporalCtx.transaction_year_ce ??
     temporalCtx.assessable_tax_year_ce;
 
+  // 0b. Self-Fact Protection: When user is NOT asking to transfer/apply the ruling to an external case (`!asks_whether_ruling_applies`),
+  //     and the year mentioned in the question literally appears inside the ruling's own recorded requester facts (e.g. `ลดทุนเหลือ 5 ล้านบาทในปี 2543` in `กค 0702/4825`),
+  //     treat it as reading the ruling's own decision rather than projecting the ruling onto an external historical tax return!
+  if (
+    !temporalCtx.asks_whether_ruling_applies &&
+    !temporalCtx.point_in_time_date_iso &&
+    !temporalCtx.is_upper_bounded_before_period &&
+    userYearCe !== null &&
+    params.requesterFactsText
+  ) {
+    const normReqFacts = thaiDigitsToArabic(params.requesterFactsText);
+    const yrBeRe = new RegExp(`(?<![0-9/,])${userYearCe + 543}(?![0-9/,])`);
+    const yrCeRe = new RegExp(`(?<![0-9/,])${userYearCe}(?![0-9/,])`);
+    if (yrBeRe.test(normReqFacts) || yrCeRe.test(normReqFacts)) {
+      return { shouldContainAnachronism: false, messageTh: null };
+    }
+  }
+
+  // 0c. Questions that BOTH mention a ruling AND ask whether it applies, WITHOUT a complete year/date (`has_yearless_partial_date` or `userYearCe === null`)
   if (userYearCe === null) {
-    return { shouldContainAnachronism: false, messageTh: null };
+    if (!temporalCtx.asks_whether_ruling_applies && !temporalCtx.has_yearless_partial_date) {
+      return { shouldContainAnachronism: false, messageTh: null };
+    }
+    const quarList = (params.quarantinedCitationLabels || []).join(", ");
+    if (
+      params.hasQuarantinedExternalDependencies ||
+      (rulingDecisionYearCe !== null && rulingDecisionYearCe < 2021)
+    ) {
+      const reasonDetail = params.hasQuarantinedExternalDependencies
+        ? ` อีกทั้งข้อหารือฉบับนี้มีการอ้างอิงกฎหมายลำดับรองภายนอกที่ยังอยู่ในทะเบียนกักกันรอตรวจรับรองต้นฉบับ (${quarList || "usable_as_legal_evidence: false"})`
+        : ` ซึ่งเป็นความเห็นเฉพาะรายที่ออกเมื่อปี พ.ศ. ${rulingDecisionYearCe! + 543}`;
+      return {
+        shouldContainAnachronism: true,
+        messageTh: `ไม่พบข้อมูลหลักฐานที่เพียงพอในการยืนยันว่าหนังสือตอบข้อหารือ \`${rId}\` (${rulingVersion?.raw_date_text || rulingDecisionIso || ""}${srcRef}) ใช้บังคับกับกรณีที่ถามได้โดยอัตโนมัติ — หนังสือตอบข้อหารือกรมสรรพากรเป็นแนววินิจฉัยเฉพาะรายตามข้อเท็จจริงของผู้ขอหารือ${reasonDetail} และคำถามยังไม่ได้ระบุวันเดือนปีที่เกิดธุรกรรมหรือวันเริ่มรอบระยะเวลาบัญชีที่ครบถ้วน ระบบจึงระงับการฟันธงและไม่คาดเดาว่ากฎหมายที่เกี่ยวข้องยังคงใช้บังคับไม่เปลี่ยนแปลง (หากต้องการเปิดอ่านเนื้อหาต้นฉบับของ \`${rId}\` โดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือ)`,
+        clarificationQuestionTh:
+          "กรุณาระบุวันเดือนปี (พ.ศ./ค.ศ.) ที่เกิดธุรกรรมหรือวันเริ่ม–สิ้นสุดรอบระยะเวลาบัญชีจริง พร้อมข้อเท็จจริงสำคัญของกิจการ เพื่อตรวจสอบกับบทบัญญัติที่ใช้บังคับ",
+      };
+    }
+
+    return {
+      shouldContainAnachronism: false,
+      shouldAskClarificationForApplicability: true,
+      explanationBannerTh:
+        `**ข้อจำกัดการใช้หนังสือตอบข้อหารือเฉพาะราย (\`${rId}\` ลงวันที่ ${rulingVersion?.raw_date_text || rulingDecisionIso || "-"})**: เอกสารฉบับนี้เป็นความเห็นทางปกครองเฉพาะรายตามข้อเท็จจริงของผู้ขอหารือ${srcRef} การพิจารณาว่าจะนำแนววินิจฉัยนี้มาเทียบเคียงใช้ได้หรือไม่ ต้องยืนยันทั้ง **(1) วันเดือนปีที่เกิดธุรกรรม/รอบระยะเวลาบัญชีจริง** ว่าอยู่ในบังคับบทบัญญัติรุ่นเดียวกัน และ **(2) เงื่อนไขข้อเท็จจริงทุกประการ** ตามแนววินิจฉัยด้านล่าง`,
+      messageTh: null,
+      clarificationQuestionTh: `กรุณาระบุวันเดือนปีที่เกิดธุรกรรมหรือรอบระยะเวลาบัญชีจริง และยืนยันว่าข้อเท็จจริงของท่านตรงตามเงื่อนไขใน ${rId} ทุกประการหรือไม่`,
+    };
   }
 
   const normConc = thaiDigitsToArabic(conclusionText);
@@ -1503,12 +1865,10 @@ export function evaluateRulingTemporalApplicability(params: {
   if (postPeriodStatuteYearBe) {
     return {
       shouldContainAnachronism: true,
-      messageTh: `ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. ${userYearCe + 543} ที่ผ่านการรับรองอย่างเพียงพอ — แนววินิจฉัยที่อ้างอิงหรือใกล้เคียงที่สุดในคลังข้อมูลชุด ${releaseId} คือหนังสือตอบข้อหารือ \`${rId}\` (${rulingVersion?.raw_date_text || ""}) ซึ่งวินิจฉัยโดยอ้างอิงกฎหมายปี พ.ศ. ${postPeriodStatuteYearBe} ที่ตราขึ้นภายหลังช่วงเวลาที่ถาม ระบบจึงระงับการนำแนววินิจฉัยภายหลังมาสรุปใช้ย้อนหลังโดยไม่ตรวจสอบตัวบทกฎหมายที่ใช้บังคับในปี พ.ศ. ${userYearCe + 543}`,
+      messageTh: `ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. ${userYearCe + 543} ที่ผ่านการรับรองอย่างเพียงพอ — แนววินิจฉัยที่อ้างอิงหรือใกล้เคียงที่สุดในคลังข้อมูลชุด ${releaseId} คือหนังสือตอบข้อหารือ \`${rId}\` (${rulingVersion?.raw_date_text || ""}${srcRef}) ซึ่งวินิจฉัยโดยอ้างอิงกฎหมายปี พ.ศ. ${postPeriodStatuteYearBe} ที่ตราขึ้นภายหลังช่วงเวลาที่ถาม ระบบจึงระงับการนำแนววินิจฉัยภายหลังมาสรุปใช้ย้อนหลังโดยไม่ตรวจสอบตัวบทกฎหมายที่ใช้บังคับในปี พ.ศ. ${userYearCe + 543}`,
+      clarificationQuestionTh: `กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในปี พ.ศ. ${userYearCe + 543} จากราชกิจจานุเบกษาโดยตรง`,
     };
   }
-
-  const rulingDecisionIso = rulingVersion?.decision_date || null;
-  const rulingDecisionYearCe = rulingDecisionIso ? Number(rulingDecisionIso.slice(0, 4)) : null;
 
   // 1. Ruling was issued AFTER the user's queried transaction/period date (for ANY year, including explicit ruling + historical date queries!)
   if (
@@ -1518,20 +1878,49 @@ export function evaluateRulingTemporalApplicability(params: {
     const rulingYrBe = rulingDecisionYearCe ? rulingDecisionYearCe + 543 : "";
     return {
       shouldContainAnachronism: true,
-      messageTh: `ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. ${userYearCe + 543}${userEarliestIso ? ` (\`${userEarliestIso}\`)` : ""} ที่ผ่านการรับรองอย่างเพียงพอ — หนังสือตอบข้อหารือ \`${rId}\` ออกเมื่อวันที่ ${rulingVersion?.raw_date_text || rulingDecisionIso || `พ.ศ. ${rulingYrBe}`} ซึ่งออก **ภายหลัง** ช่วงเวลาของข้อเท็จจริงที่ถาม ระบบจึงระงับการนำแนววินิจฉัยเฉพาะรายในภายหลังมาสรุปยืนยันเป็นกฎหมายที่ใช้บังคับย้อนหลังโดยไม่มีตัวบทที่ผ่านการรับรองสำหรับช่วงเวลาดังกล่าว (หากต้องการอ่านเนื้อหาข้อหารือ \`${rId}\` ตามข้อเท็จจริงเดิมโดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น)`,
+      messageTh: `ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. ${userYearCe + 543}${userEarliestIso ? ` (\`${userEarliestIso}\`)` : ""} ที่ผ่านการรับรองอย่างเพียงพอ — หนังสือตอบข้อหารือ \`${rId}\` ออกเมื่อวันที่ ${rulingVersion?.raw_date_text || rulingDecisionIso || `พ.ศ. ${rulingYrBe}`}${srcRef} ซึ่งออก **ภายหลัง** ช่วงเวลาของข้อเท็จจริงที่ถาม ระบบจึงระงับการนำแนววินิจฉัยเฉพาะรายในภายหลังมาสรุปยืนยันเป็นกฎหมายที่ใช้บังคับย้อนหลังโดยไม่มีตัวบทที่ผ่านการรับรองสำหรับช่วงเวลาดังกล่าว (หากต้องการอ่านเนื้อหาข้อหารือ \`${rId}\` ตามข้อเท็จจริงเดิมโดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น)`,
+      clarificationQuestionTh:
+        "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงเวลาที่ถามจากราชกิจจานุเบกษา หรือค้นหาเฉพาะเลขที่หนังสือตอบข้อหารือ",
     };
   }
 
-  // 2. User asks for applicable historical law in a pre-2020 year different from an older ruling's own year (`rulingDecisionYearCe < userYearCe < 2020`):
-  //    An older case-specific ruling cannot prove no intervening statutory amendment occurred before `userYearCe`!
+  // 2. Older case-specific ruling vs a LATER queried year (`rulingDecisionYearCe < userYearCe`):
+  //    Contain when `userYearCe < 2020`, OR when `asks_whether_ruling_applies` and either quarantined external decrees are involved or >= 2 years elapsed without verified statutory continuity!
   if (
-    userYearCe < 2020 &&
     rulingDecisionYearCe !== null &&
-    rulingDecisionYearCe < userYearCe
+    rulingDecisionYearCe < userYearCe &&
+    (userYearCe < 2020 ||
+      (temporalCtx.asks_whether_ruling_applies &&
+        (params.hasQuarantinedExternalDependencies || userYearCe - rulingDecisionYearCe >= 2)))
   ) {
+    const quarSuffix = params.hasQuarantinedExternalDependencies
+      ? ` อีกทั้งกฎหมายลำดับรองที่อ้างถึงในข้อหารือยังอยู่ในทะเบียนกักกันรอตรวจรับรองต้นฉบับ (${(params.quarantinedCitationLabels || []).join(", ")})`
+      : "";
     return {
       shouldContainAnachronism: true,
-      messageTh: `ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. ${userYearCe + 543} ที่ผ่านการรับรองอย่างเพียงพอ — แม้คลังข้อมูลชุด ${releaseId} มีหนังสือตอบข้อหารือ \`${rId}\` ลงวันที่ ${rulingVersion?.raw_date_text || rulingDecisionIso} (พ.ศ. ${rulingDecisionYearCe + 543}) แต่เอกสารดังกล่าวเป็นความเห็นเฉพาะรายในปี พ.ศ. ${rulingDecisionYearCe + 543} และระบบยังไม่มีตัวบทกฎหมายตามราชกิจจานุเบกษาที่ตรวจรับรองครบทุกการแก้ไขเพิ่มเติมจนถึงปี พ.ศ. ${userYearCe + 543} จึงไม่อาจยืนยันว่าหลักเกณฑ์ดังกล่าวยังคงใช้บังคับไม่เปลี่ยนแปลงในปี พ.ศ. ${userYearCe + 543} ได้ (หากต้องการเปิดอ่านข้อหารือ \`${rId}\` โดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือ)`,
+      messageTh: `ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. ${userYearCe + 543} ที่ผ่านการรับรองอย่างเพียงพอ — แม้คลังข้อมูลชุด ${releaseId} มีหนังสือตอบข้อหารือ \`${rId}\` ลงวันที่ ${rulingVersion?.raw_date_text || rulingDecisionIso} (พ.ศ. ${rulingDecisionYearCe + 543}${srcRef}) แต่เอกสารดังกล่าวเป็นความเห็นเฉพาะรายในปี พ.ศ. ${rulingDecisionYearCe + 543}${quarSuffix} และระบบยังไม่มีหลักฐานยืนยันครบทุกการแก้ไขเพิ่มเติมของกฎหมายลำดับรองจนถึงปี พ.ศ. ${userYearCe + 543} จึงระงับการรับรองว่าแนววินิจฉัยดังกล่าวยังคงใช้บังคับได้โดยไม่เปลี่ยนแปลงในปี พ.ศ. ${userYearCe + 543} (หากต้องการเปิดอ่านข้อหารือ \`${rId}\` โดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือ)`,
+      clarificationQuestionTh:
+        "กรุณาตรวจสอบตัวบทกฎหมายและกฎหมายลำดับรองที่ใช้บังคับในปีที่เกิดธุรกรรม หรือค้นหาเฉพาะเลขที่หนังสือตอบข้อหารือเพื่ออ่านข้อเท็จจริงเดิม",
+    };
+  }
+
+  // 3. Explicit ruling-applicability query in a contemporaneous verified period: require factual-condition confirmation rather than unconditional "yes"!
+  if (temporalCtx.asks_whether_ruling_applies) {
+    if (params.hasQuarantinedExternalDependencies) {
+      return {
+        shouldContainAnachronism: true,
+        messageTh: `ไม่พบข้อมูลตัวบทกฎหมายลำดับรองที่ผ่านการรับรองครบถ้วน — หนังสือตอบข้อหารือ \`${rId}\` (${rulingVersion?.raw_date_text || rulingDecisionIso || ""}${srcRef}) มีการอ้างอิงกฎหมายลำดับรองที่ยังอยู่ในทะเบียนกักกันรอตรวจรับรองต้นฉบับ (${(params.quarantinedCitationLabels || []).join(", ")}) ระบบจึงไม่รับรองการนำข้อหารือนี้ไปปรับใช้กับกรณีอื่นโดยยังไม่ได้ตรวจรับรองตัวบทกฎหมายลำดับรองต้นฉบับ`,
+        clarificationQuestionTh:
+          "กรุณาตรวจสอบตัวบทกฎหมายลำดับรองต้นฉบับจากราชกิจจานุเบกษา หรือค้นหาเฉพาะเลขที่หนังสือตอบข้อหารือเพื่อดูแนววินิจฉัยตามข้อเท็จจริงเดิม",
+      };
+    }
+    return {
+      shouldContainAnachronism: false,
+      shouldAskClarificationForApplicability: true,
+      explanationBannerTh:
+        `**ข้อจำกัดการใช้หนังสือตอบข้อหารือเฉพาะราย (\`${rId}\` ลงวันที่ ${rulingVersion?.raw_date_text || rulingDecisionIso || "-"})**: หนังสือตอบข้อหารือกรมสรรพากรมีผลเฉพาะรายตามข้อเท็จจริงของผู้ขอหารือ${srcRef} การนำมาเทียบเคียงกับธุรกรรมวันที่/ปีที่ระบุ ต้องตรวจสอบให้มั่นใจว่าข้อเท็จจริงและเงื่อนไขทางกฎหมายตรงกันทุกประการ`,
+      messageTh: null,
+      clarificationQuestionTh: `กรุณายืนยันว่าข้อเท็จจริงและเอกสารหลักฐานของกิจการตรงตามเงื่อนไขสำคัญใน ${rId} ทุกประการหรือไม่`,
     };
   }
 

@@ -1,24 +1,45 @@
 {
-  "verified_at": "2026-11-18T10:28:49.619Z",
-  "deployment_id": "dpl_U95Mh476NVcXHj5iqbEGap7V2j4M",
-  "deployment_url": "https://reg24-isk365cbm-7-l-advisory.vercel.app",
-  "neon_org_id": "org-solitary-sky-99652740",
-  "neon_project_id": "shiny-pond-32049060",
+  "verified_at": "2026-11-18T11:28:17.976Z",
+  "credentials_redacted": true,
+  "shared_neon_org_id": "org-solitary-sky-99652740",
+  "shared_neon_project_id": "shiny-pond-32049060",
+  "cross_deployment_topology": {
+    "deployment_a_id": "dpl_U95Mh476NVcXHj5iqbEGap7V2j4M",
+    "deployment_a_url": "https://reg24-isk365cbm-7-l-advisory.vercel.app",
+    "deployment_b_id": "dpl_5kMBHCPvvs9NUNsZ3GCLLBTWdZGM",
+    "deployment_b_url": "https://reg24-j90458n2u-7-l-advisory.vercel.app",
+    "staging_review_deployment_id": "dpl_Bo7bvNuj3An7ab3ePZjhr5YzeDtz",
+    "staging_review_url": "https://reg24-j2t6jzqf0-7-l-advisory.vercel.app"
+  },
   "checks": {
     "empty_invites_fail_closed_http_403": true,
     "missing_invite_rejected_http_401": true,
     "invalid_invite_rejected_http_401": true,
-    "valid_query_1_http_200_and_hosted_postgres_audit_row": true,
-    "valid_citation_open_http_200_and_hosted_postgres_audit_row": true,
-    "valid_query_2_historical_containment_http_200": true,
-    "exceeded_limit_query_3_distributed_postgres_http_429": true
+    "deployment_a_query_1_http_200_persisted_in_shared_db": true,
+    "deployment_b_citation_open_http_200_persisted_in_shared_db": true,
+    "deployment_b_query_2_quarter_straddle_needs_clarification_persisted_in_shared_db": true,
+    "cross_deployment_rate_limit_enforced_http_429_on_query_3": true,
+    "staging_review_env_ruling_applicability_abstain_and_shared_db_audit": true
   },
-  "retry_after_header_seconds": 72,
-  "sample_persisted_audit_row": {
-    "audit_id": "aud.q.trc.9a3c0e6d95169a",
-    "release_id": "rel.B01.rc5",
-    "answer_status": "ANSWERED"
-  },
-  "distributed_rate_limit_bucket_observed_count": 3,
+  "retry_after_header_seconds": 111,
+  "shared_db_persisted_audit_rows_count": 3,
+  "shared_db_persisted_audit_rows_redacted": [
+    {
+      "audit_id": "aud.q.trc.b26b7590c3613d",
+      "event_type": "TRIAL_QUERY",
+      "answer_status": "ANSWERED"
+    },
+    {
+      "audit_id": "aud.ev.fa743619875180",
+      "event_type": "TRIAL_CITATION_OPEN",
+      "answer_status": null
+    },
+    {
+      "audit_id": "aud.q.trc.0d02afaeba772c",
+      "event_type": "TRIAL_QUERY",
+      "answer_status": "NEEDS_CLARIFICATION"
+    }
+  ],
+  "shared_db_rate_limit_bucket_observed_count": 3,
   "post_test_trial_invites_cleaned_to_zero_fail_closed": true
 }

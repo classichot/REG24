@@ -714,10 +714,27 @@ export async function queryKnowledge(
           }
         } else if (cw?.type === "TaxRuling" && cp.statement_role === "official_conclusion") {
           const rUnits = reassembleOrderedSectionUnits(cp, allReleasePassages, freshState, actor);
+          const reqUnitsForCmp = findOrderedRequesterUnitsForWork(
+            cp,
+            allReleasePassages,
+            freshState,
+            actor
+          );
+          const cmpQuarantined = Array.from(
+            new Set(
+              Object.values(freshState.unresolved_references)
+                .filter((u) => u.source_work_id === cp.work_id && !u.usable_as_legal_evidence)
+                .map((u) => u.raw_citation_text)
+            )
+          ).slice(0, 4);
           const rEval = evaluateRulingTemporalApplicability({
             rulingWork: cw,
             rulingVersion: cv,
             conclusionText: rUnits.map((u) => u.exact_text).join("\n"),
+            requesterFactsText: reqUnitsForCmp.map((u) => u.exact_text).join("\n"),
+            originUri: rUnits[0]?.real_locator?.origin_uri || cp.real_locator?.origin_uri || "",
+            hasQuarantinedExternalDependencies: cmpQuarantined.length > 0,
+            quarantinedCitationLabels: cmpQuarantined,
             temporalCtx,
             releaseId,
           });
@@ -744,7 +761,8 @@ export async function queryKnowledge(
               evidence: [],
               assumptions: [],
               clarification_questions: [
-                "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงเวลาที่ถาม หรือค้นหาเปรียบเทียบข้อหารือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น",
+                rEval.clarificationQuestionTh ||
+                  "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงเวลาที่ถาม หรือค้นหาเปรียบเทียบข้อหารือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น",
               ],
               coverage_warnings: [...coverageWarnings, rEval.messageTh],
               applicable_date: req.applicable_date ?? null,
@@ -1082,7 +1100,29 @@ export async function queryKnowledge(
     const officialUnitIds = officialUnits.map((u) => u.passage_id);
     const fullOfficialText = officialUnits.map((u) => u.exact_text).join("\n");
 
-    // Guard against projecting a post-period TaxRuling (citing later-enacted statutes) backward onto an earlier period query
+    const requesterUnitsFromStore =
+      primaryWork?.type === "TaxRuling"
+        ? findOrderedRequesterUnitsForWork(primaryOfficial, allReleasePassages, freshState, actor)
+        : [];
+    const fallbackRequester = requesterPassages.find((rp) => rp.work_id === primaryOfficial.work_id);
+    const requesterUnits =
+      requesterUnitsFromStore.length > 0
+        ? requesterUnitsFromStore
+        : fallbackRequester
+          ? [fallbackRequester]
+          : [];
+
+    const primaryQuarantinedLabels = Array.from(
+      new Set(
+        Object.values(freshState.unresolved_references)
+          .filter((u) => u.source_work_id === primaryOfficial.work_id && !u.usable_as_legal_evidence)
+          .map((u) => u.raw_citation_text)
+      )
+    ).slice(0, 4);
+
+    let rulingApplicabilityBannerTh: string | null = null;
+
+    // Guard against projecting a TaxRuling onto an unverified historical/future period or certifying case-specific ruling applicability without date & factual verification
     if (
       primaryWork?.type === "TaxRuling" &&
       temporalCtx.query_intent === "APPLICABLE_LAW_AT_TIME"
@@ -1091,6 +1131,11 @@ export async function queryKnowledge(
         rulingWork: primaryWork,
         rulingVersion: primaryVer,
         conclusionText: fullOfficialText,
+        requesterFactsText: requesterUnits.map((u) => u.exact_text).join("\n"),
+        originUri:
+          officialUnits[0]?.real_locator?.origin_uri || primaryOfficial.real_locator?.origin_uri || "",
+        hasQuarantinedExternalDependencies: primaryQuarantinedLabels.length > 0,
+        quarantinedCitationLabels: primaryQuarantinedLabels,
         temporalCtx,
         releaseId,
       });
@@ -1117,7 +1162,8 @@ export async function queryKnowledge(
           evidence: [],
           assumptions: [],
           clarification_questions: [
-            "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงปีที่ถามจากราชกิจจานุเบกษา หรือระบุเลขที่หนังสือตอบข้อหารือที่ต้องการค้นหาโดยตรง",
+            rulingTempEval.clarificationQuestionTh ||
+              "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงปีที่ถามจากราชกิจจานุเบกษา หรือระบุเลขที่หนังสือตอบข้อหารือที่ต้องการค้นหาโดยตรง",
           ],
           coverage_warnings: [...coverageWarnings, rulingTempEval.messageTh],
           applicable_date: req.applicable_date ?? null,
@@ -1126,19 +1172,13 @@ export async function queryKnowledge(
           latency_ms: Math.max(1, Date.now() - startedAt),
         };
       }
+      if (rulingTempEval.shouldAskClarificationForApplicability) {
+        rulingApplicabilityBannerTh = rulingTempEval.explanationBannerTh || null;
+        if (rulingTempEval.clarificationQuestionTh) {
+          explicitMissingFactQuestions.push(rulingTempEval.clarificationQuestionTh);
+        }
+      }
     }
-
-    const requesterUnitsFromStore =
-      primaryWork?.type === "TaxRuling"
-        ? findOrderedRequesterUnitsForWork(primaryOfficial, allReleasePassages, freshState, actor)
-        : [];
-    const fallbackRequester = requesterPassages.find((rp) => rp.work_id === primaryOfficial.work_id);
-    const requesterUnits =
-      requesterUnitsFromStore.length > 0
-        ? requesterUnitsFromStore
-        : fallbackRequester
-          ? [fallbackRequester]
-          : [];
 
     for (const u of [...officialUnits, ...requesterUnits]) {
       verificationPassageMap.set(u.passage_id, u);
@@ -1238,6 +1278,9 @@ export async function queryKnowledge(
     }
     if (activeStatutoryEval?.explanation_banner_th) {
       answerSections.push(activeStatutoryEval.explanation_banner_th);
+    }
+    if (rulingApplicabilityBannerTh) {
+      answerSections.push(rulingApplicabilityBannerTh);
     }
 
     if (isInternalLegalMemo) {

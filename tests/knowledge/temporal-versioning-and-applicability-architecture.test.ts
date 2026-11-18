@@ -759,4 +759,100 @@ describe("REG24 Durable Statutory Versioning, Temporal Applicability & Multi-Bat
       else process.env.REG24_TRIAL_ALLOWED_INVITE_SHA256 = prevAllowedHashes;
     }
   });
+
+  it("9. Partial, Unclear, Boundary-Relative (`ก่อน...`/`before`), Sub-Year Quarters, Thai Numerals & Ambiguous Slash Dates", async () => {
+    const store = new DurableKnowledgeStore(PREVIEW_STORE_DIR);
+
+    // 9A. Boundary-relative "before / prior to" exact cutoff & year (Thai + English) -> Must abstain (`INSUFFICIENT_EVIDENCE`, 0 citations)
+    const beforeCases = [
+      "ก่อนปี 2561 บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+      "ก่อนวันที่ 28/02/2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือไม่",
+      "Prior to 2019, did selling goods to a foreign economic and trade office qualify for 0% VAT under Section 80/1?",
+      "Before 2018, could a Thai company deduct a 50,000 baht donation to a political party?",
+      "เมื่อหลายปีก่อน บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายต้องห้ามตามมาตรา 65 ตรี หรือไม่",
+      "รอบระยะเวลาบัญชีสิ้นสุดวันที่ ๓๐ มิถุนายน ๒๕๖๑ บริษัทบริจาคเงินให้พรรคการเมือง ๕๐,๐๐๐ บาท หักรายจ่ายได้หรือไม่",
+    ];
+    for (const q of beforeCases) {
+      const res = await queryKnowledge({ question: q, release_id: TARGET_RELEASE_ID }, LEGAL_REVIEW_ACTOR, { store });
+      expect(res.status, q).toBe("INSUFFICIENT_EVIDENCE");
+      expect(res.evidence, q).toEqual([]);
+      expect(res.clarification_questions.length, q).toBeGreaterThan(0);
+    }
+
+    // 9B. Sub-year partial periods (`ไตรมาส 1 ปี 2562`, `In early 2019`), yearless partial dates (`สิ้นสุดวันที่ 30 มิถุนายน`), and ambiguous slash dates (`02/03/2019` = 2 Mar vs 3 Feb across `2019-02-28`) -> Must ask for clarification (`NEEDS_CLARIFICATION`), never guess unconditionally!
+    const clarifyCases = [
+      "ในไตรมาส 1 ปี 2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือไม่",
+      "In early 2019, our Thai company sold goods to a foreign economic and trade office; does 0% VAT apply?",
+      "On 02/03/2019, our Thai company sold goods to a foreign economic and trade office; does 0% VAT apply under Section 80/1 (5)?",
+      "สำหรับรอบระยะเวลาบัญชีสิ้นสุดวันที่ 30 มิถุนายน บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+    ];
+    for (const q of clarifyCases) {
+      const res = await queryKnowledge({ question: q, release_id: TARGET_RELEASE_ID }, LEGAL_REVIEW_ACTOR, { store });
+      expect(res.status, q).toBe("NEEDS_CLARIFICATION");
+      expect(res.clarification_questions.length, q).toBeGreaterThan(0);
+      assertS1CitationGate(res, q);
+    }
+  });
+
+  it("10. Questions That Both Mention a Ruling and Ask Whether It Applies vs Ruling's Own Recorded Facts (Verified Against Original Sources)", async () => {
+    const store = new DurableKnowledgeStore(PREVIEW_STORE_DIR);
+    const st = store.getState();
+
+    // 10A. Old historical ruling citing quarantined Royal Decree (`กค 0811/13980`, B.E. 2542, RD 244) asked whether it applies to our company today -> Abstains (`INSUFFICIENT_EVIDENCE`)
+    const oldRulingApplyToday = await queryKnowledge(
+      {
+        question:
+          "หนังสือตอบข้อหารือ กค 0811/13980 ยังนำมาใช้บังคับกับกรณีของบริษัทเราในปัจจุบันได้หรือไม่",
+        release_id: TARGET_RELEASE_ID,
+      },
+      LEGAL_REVIEW_ACTOR,
+      { store }
+    );
+    expect(oldRulingApplyToday.status).toBe("INSUFFICIENT_EVIDENCE");
+    expect(oldRulingApplyToday.evidence).toEqual([]);
+    expect(oldRulingApplyToday.answer).toContain("กค 0811/13980");
+    expect(oldRulingApplyToday.answer).toContain("พระราชกฤษฎีกา");
+
+    // 10B. Recent verified ruling (`กค 0702/1903` / `GK 0702/1494`) asked whether it applies with vague past (`เมื่อหลายปีก่อน` / `several years ago`) -> Abstains (`INSUFFICIENT_EVIDENCE`)
+    for (const q of [
+      "แนววินิจฉัยตาม กค 0702/1903 นำมาใช้กับธุรกรรมเมื่อหลายปีก่อนได้หรือไม่",
+      "Does ruling GK 0702/1494 apply to dividends received several years ago?",
+    ]) {
+      const r = await queryKnowledge({ question: q, release_id: TARGET_RELEASE_ID }, LEGAL_REVIEW_ACTOR, { store });
+      expect(r.status, q).toBe("INSUFFICIENT_EVIDENCE");
+      expect(r.evidence, q).toEqual([]);
+    }
+
+    // 10C. Recent verified ruling (`กค 0702/1903`) asked whether it applies to our company WITHOUT specifying transaction date/facts (Thai & English) -> `NEEDS_CLARIFICATION`
+    for (const q of [
+      "แนววินิจฉัยตาม กค 0702/1903 นำมาใช้กับกรณีของบริษัทเราได้หรือไม่",
+      "Can our company rely on ruling GorKor 0702/1903 for our animal feed supplement import?",
+    ]) {
+      const r = await queryKnowledge({ question: q, release_id: TARGET_RELEASE_ID }, LEGAL_REVIEW_ACTOR, { store });
+      expect(r.status, q).toBe("NEEDS_CLARIFICATION");
+      expect(r.clarification_questions.length, q).toBeGreaterThan(0);
+      assertS1CitationGate(r, q);
+    }
+
+    // 10D. Question recounting a ruling's OWN recorded requester facts (`กค 0702/4825` capital reduction `ในปี 2543`) -> Preserved as `ANSWERED` and verified verbatim against stored source artifact!
+    const ownFactsQ9 = await queryKnowledge(
+      {
+        question:
+          "ตามหนังสือตอบข้อหารือ กค 0702/4825 ห้างฯ ที่เคยมีทุนจดทะเบียน 30 ล้านบาทและลดทุนเหลือ 5 ล้านบาทในปี 2543 จะได้รับสิทธิยกเว้นภาษีเงินได้นิติบุคคลตามพระราชกฤษฎีกา (ฉบับที่ 595) หรือไม่",
+        release_id: TARGET_RELEASE_ID,
+      },
+      LEGAL_REVIEW_ACTOR,
+      { store }
+    );
+    expect(ownFactsQ9.status).toBe("ANSWERED");
+    const cited4825 = ownFactsQ9.evidence.find(
+      (e) => e.official_identifier.includes("0702/4825") && e.statement_role === "official_conclusion"
+    );
+    expect(cited4825).toBeDefined();
+    expect(cited4825!.locator.origin_uri).toBe("https://www.rd.go.th/65296.html");
+    const canonPsg = st.passages[cited4825!.passage_id];
+    expect(canonPsg).toBeDefined();
+    expect(ownFactsQ9.answer).toContain(canonPsg.exact_text.slice(0, 80));
+    assertS1CitationGate(ownFactsQ9, "Q9 own facts 2543 in 0702/4825");
+  });
 });

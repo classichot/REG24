@@ -1,8 +1,10 @@
 {
-  "verified_at": "2026-11-18T10:15:01.879Z",
+  "verified_at": "2026-11-18T11:02:23.076Z",
   "hosted_restore_test_status": "COMPLETED_VERIFIED_HOSTED_BACKUP_AND_PITR",
+  "credentials_redacted": true,
   "project_id": "shiny-pond-32049060",
   "project_name": "reg24-trial-isolated",
+  "project_created_at_utc": "2026-11-18T10:12:54Z",
   "org_id": "org-solitary-sky-99652740",
   "shared_vercel_installation_untouched": true,
   "verified_active_quotas": {
@@ -13,11 +15,28 @@
   },
   "quotas_verified_exact": true,
   "verified_history_retention_seconds": 604800,
+  "configured_retention_window": {
+    "seconds": 604800,
+    "days": 7,
+    "verified_via_neon_api": true
+  },
+  "actually_tested_recovery_period": {
+    "earliest_anchor_lsn": "0/19A1DB0",
+    "earliest_anchor_timestamp_utc": "2026-11-18 10:14:58.081732+00",
+    "latest_canary_lsn": "0/1B58368",
+    "latest_canary_timestamp_utc": "2026-11-18 11:02:16.831389+00",
+    "restore_verified_at_utc": "2026-11-18T11:02:23.076Z",
+    "actual_elapsed_lookback_seconds": 2845,
+    "actual_elapsed_lookback_minutes": 47.42,
+    "aged_historical_canary_recovered_verified": true,
+    "immediate_post_delete_canary_recovered_verified": true,
+    "honest_disclosure": "Neon Launch history_retention_seconds = 604800 (7 days) is active and verified via Neon API. Because isolated project reg24-trial-isolated was provisioned on 2026-11-18, the empirically tested PITR recovery window to date covers both immediate post-DELETE WAL LSN recovery (~seconds) and aged historical WAL lookback (~47.42 minutes across intervening serverless write/delete cycles), not yet a multi-day aged snapshot."
+  },
   "sql_statements_applied_count": 13,
   "postgresql_2gib_triggers_verified_active": true,
-  "logical_backup_sha256": "967ac4a8df40fde94a339f12ff20333a945b84fd9c09fbc3991c2ad49464264e",
-  "pitr_anchor_lsn": "0/19A1DB0",
-  "pitr_anchor_timestamp": "2026-11-18 10:14:58.081732+00",
+  "logical_backup_sha256": "1491493db91a2f8da7b4e81910eddd41ee3e35b1ccb00fe1d8eb7a925fc98d47",
+  "pitr_anchor_lsn": "0/1B58368",
+  "pitr_anchor_timestamp": "2026-11-18 11:02:16.831389+00",
   "isolated_schema_restore_verified": true,
   "pitr_deleted_rows_recovered_at_lsn_verified": true,
   "pitr_child_branch_deleted_single_branch_preserved": true

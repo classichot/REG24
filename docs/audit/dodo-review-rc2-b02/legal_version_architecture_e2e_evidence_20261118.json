@@ -1,6 +1,6 @@
 {
   "schema_version": "reg24.legal_version_architecture_e2e_evidence.v2",
-  "generated_at": "2026-11-18T10:17:46.311Z",
+  "generated_at": "2026-11-18T11:09:20.328Z",
   "release_id": "rel.B01.rc5",
   "protected_rc1_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
   "protected_rc1_untouched": true,
@@ -45,12 +45,29 @@
     },
     "hosted_neon_backup_and_pitr_test": {
       "status": "COMPLETED_VERIFIED_HOSTED_BACKUP_AND_PITR",
-      "verified_at": "2026-11-18T10:15:01.879Z",
+      "verified_at": "2026-11-18T11:02:23.076Z",
       "org_id": "org-solitary-sky-99652740",
       "project_id": "shiny-pond-32049060",
       "project_name": "reg24-trial-isolated",
-      "pitr_anchor_lsn": "0/19A1DB0",
-      "logical_backup_sha256": "967ac4a8df40fde94a339f12ff20333a945b84fd9c09fbc3991c2ad49464264e",
+      "configured_retention_window": {
+        "seconds": 604800,
+        "days": 7,
+        "verified_via_neon_api": true
+      },
+      "actually_tested_recovery_period": {
+        "earliest_anchor_lsn": "0/19A1DB0",
+        "earliest_anchor_timestamp_utc": "2026-11-18 10:14:58.081732+00",
+        "latest_canary_lsn": "0/1B58368",
+        "latest_canary_timestamp_utc": "2026-11-18 11:02:16.831389+00",
+        "restore_verified_at_utc": "2026-11-18T11:02:23.076Z",
+        "actual_elapsed_lookback_seconds": 2845,
+        "actual_elapsed_lookback_minutes": 47.42,
+        "aged_historical_canary_recovered_verified": true,
+        "immediate_post_delete_canary_recovered_verified": true,
+        "honest_disclosure": "Neon Launch history_retention_seconds = 604800 (7 days) is active and verified via Neon API. Because isolated project reg24-trial-isolated was provisioned on 2026-11-18, the empirically tested PITR recovery window to date covers both immediate post-DELETE WAL LSN recovery (~seconds) and aged historical WAL lookback (~47.42 minutes across intervening serverless write/delete cycles), not yet a multi-day aged snapshot."
+      },
+      "pitr_anchor_lsn": "0/1B58368",
+      "logical_backup_sha256": "1491493db91a2f8da7b4e81910eddd41ee3e35b1ccb00fe1d8eb7a925fc98d47",
       "quotas_verified_exact": true,
       "postgresql_2gib_triggers_verified_active": true,
       "monthly_budget_cap_usd": 15,
@@ -68,8 +85,8 @@
     }
   },
   "e2e_summary": {
-    "total_cases": 22,
-    "passed_cases": 22,
+    "total_cases": 30,
+    "passed_cases": 30,
     "all_passed": true
   },
   "cases": [
@@ -98,6 +115,12 @@
           "transaction_date_iso": "2018-06-30",
           "transaction_date_end_iso": "2018-06-30",
           "transaction_year_ce": 2018,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -147,6 +170,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": 2017,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -196,6 +225,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -243,6 +278,12 @@
           "transaction_date_iso": "2019-01-15",
           "transaction_date_end_iso": "2019-01-15",
           "transaction_year_ce": 2019,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -257,7 +298,7 @@
       },
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "clarification_questions": [
-        "กรุณาตรวจสอบตัวบทก่อนการแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาสำหรับธุรกรรมก่อนวันมีผลใช้บังคับดังกล่าว"
+        "กรุณาระบุวันเดือนปีที่เกิดธุรกรรมจริง หรือตรวจสอบตัวบทก่อนการแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาโดยตรง"
       ],
       "cited_works": [],
       "checks": {
@@ -267,7 +308,7 @@
         "s1_citation_gate_ok": true,
         "passed": true
       },
-      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ประมวลรัษฎากร มาตรา 80/1 (5) สำหรับธุรกรรมวันที่ `2019-01-15` เนื่องจากบทบัญญัติฉบับปัจจุบันแก้ไขเพิ่มเติมโดย **พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562** (ราชกิจจานุเบกษา เล่ม 136 ตอนที่ 23 ก หน้า 1–3 วันที่ 27 กุมภาพันธ์ 2562 · https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p49.pdf) ซึ่งมีผลใช้บังคับตั้งแต่วันที่ `2019-02-28` เป็นต้นไป จึง **ไม่อาจนำบทบัญญัติที่แก้ไขใหม่มาใช้บังคับย้อนหลังกับวันที"
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ประมวลรัษฎากร มาตรา 80/1 (5) สำหรับช่วงเวลาไม่เกินวันที่ `2019-01-15` เนื่องจากบทบัญญัติฉบับปัจจุบันแก้ไขเพิ่มเติมโดย **พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562** (ราชกิจจานุเบกษา เล่ม 136 ตอนที่ 23 ก หน้า 1–3 วันที่ 27 กุมภาพันธ์ 2562 · https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p49.pdf) ซึ่งมีผลใช้บังคับตั้งแต่วันที่ `2019-02-28` เป็นต้นไป จึง **ไม่อาจนำบทบัญญัติที่แก้ไขใหม่มาใช้บังคับย้อนหลัง"
     },
     {
       "case_id": "LV-05",
@@ -292,6 +333,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -341,6 +388,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -455,6 +508,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -569,6 +628,12 @@
           "transaction_date_iso": "2019-02-28",
           "transaction_date_end_iso": "2019-02-28",
           "transaction_year_ce": 2019,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -641,6 +706,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": false,
           "is_concrete_taxpayer_fact_query": true
@@ -757,6 +828,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": false,
           "is_concrete_taxpayer_fact_query": true
@@ -873,6 +950,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": false,
           "is_concrete_taxpayer_fact_query": false
@@ -944,6 +1027,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": 1997,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -957,7 +1046,7 @@
       },
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "clarification_questions": [
-        "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงปีที่ถามจากราชกิจจานุเบกษา หรือระบุเลขที่หนังสือตอบข้อหารือที่ต้องการค้นหาโดยตรง"
+        "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงเวลาที่ถามจากราชกิจจานุเบกษา หรือค้นหาเฉพาะเลขที่หนังสือตอบข้อหารือ"
       ],
       "cited_works": [],
       "checks": {
@@ -967,7 +1056,7 @@
         "s1_citation_gate_ok": true,
         "passed": true
       },
-      "answer_excerpt": "ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. 2540 ที่ผ่านการรับรองอย่างเพียงพอ — หนังสือตอบข้อหารือ `กค 0706/9957` ออกเมื่อวันที่ 1 ธันวาคม 2549 ซึ่งออก **ภายหลัง** ช่วงเวลาของข้อเท็จจริงที่ถาม ระบบจึงระงับการนำแนววินิจฉัยเฉพาะรายในภายหลังมาสรุปยืนยันเป็นกฎหมายที่ใช้บังคับย้อนหลังโดยไม่มีตัวบทที่ผ่านการรับรองสำหรับช่วงเวลาดังกล่าว (หากต้องการอ่านเนื้อหาข้อหารือ `กค 0706/9957` ตามข้อเท็จจริงเดิมโดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น)"
+      "answer_excerpt": "ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. 2540 ที่ผ่านการรับรองอย่างเพียงพอ — หนังสือตอบข้อหารือ `กค 0706/9957` ออกเมื่อวันที่ 1 ธันวาคม 2549 (ต้นฉบับ: https://www.rd.go.th/33467.html) ซึ่งออก **ภายหลัง** ช่วงเวลาของข้อเท็จจริงที่ถาม ระบบจึงระงับการนำแนววินิจฉัยเฉพาะรายในภายหลังมาสรุปยืนยันเป็นกฎหมายที่ใช้บังคับย้อนหลังโดยไม่มีตัวบทที่ผ่านการรับรองสำหรับช่วงเวลาดังกล่าว (หากต้องการอ่านเนื้อหาข้อหารือ `กค 0706/9957` ตามข้อเท็จจริงเดิมโดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น)"
     },
     {
       "case_id": "LV-13",
@@ -992,6 +1081,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1041,6 +1136,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1090,6 +1191,12 @@
           "transaction_date_iso": "2017-05-20",
           "transaction_date_end_iso": "2017-05-20",
           "transaction_year_ce": 2017,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1137,6 +1244,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1184,6 +1297,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1297,6 +1416,12 @@
           "transaction_date_iso": "2019-02-01",
           "transaction_date_end_iso": "2019-02-28",
           "transaction_year_ce": 2019,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1373,6 +1498,12 @@
           "transaction_date_iso": "1997-03-15",
           "transaction_date_end_iso": "1997-03-15",
           "transaction_year_ce": 1997,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": true,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1387,7 +1518,7 @@
       },
       "observed_status": "INSUFFICIENT_EVIDENCE",
       "clarification_questions": [
-        "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงปีที่ถามจากราชกิจจานุเบกษา หรือระบุเลขที่หนังสือตอบข้อหารือที่ต้องการค้นหาโดยตรง"
+        "กรุณาตรวจสอบตัวบทกฎหมายที่ใช้บังคับจริงในช่วงเวลาที่ถามจากราชกิจจานุเบกษา หรือค้นหาเฉพาะเลขที่หนังสือตอบข้อหารือ"
       ],
       "cited_works": [],
       "checks": {
@@ -1397,7 +1528,7 @@
         "s1_citation_gate_ok": true,
         "passed": true
       },
-      "answer_excerpt": "ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. 2540 (`1997-03-15`) ที่ผ่านการรับรองอย่างเพียงพอ — หนังสือตอบข้อหารือ `กค 0702/1903` ออกเมื่อวันที่ 8 เมษายน 2569 ซึ่งออก **ภายหลัง** ช่วงเวลาของข้อเท็จจริงที่ถาม ระบบจึงระงับการนำแนววินิจฉัยเฉพาะรายในภายหลังมาสรุปยืนยันเป็นกฎหมายที่ใช้บังคับย้อนหลังโดยไม่มีตัวบทที่ผ่านการรับรองสำหรับช่วงเวลาดังกล่าว (หากต้องการอ่านเนื้อหาข้อหารือ `กค 0702/1903` ตามข้อเท็จจริงเดิมโดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น)"
+      "answer_excerpt": "ไม่พบข้อมูลหลักฐานกฎหมายที่ใช้บังคับในปี พ.ศ. 2540 (`1997-03-15`) ที่ผ่านการรับรองอย่างเพียงพอ — หนังสือตอบข้อหารือ `กค 0702/1903` ออกเมื่อวันที่ 8 เมษายน 2569 (ต้นฉบับ: https://www.rd.go.th/68482.html) ซึ่งออก **ภายหลัง** ช่วงเวลาของข้อเท็จจริงที่ถาม ระบบจึงระงับการนำแนววินิจฉัยเฉพาะรายในภายหลังมาสรุปยืนยันเป็นกฎหมายที่ใช้บังคับย้อนหลังโดยไม่มีตัวบทที่ผ่านการรับรองสำหรับช่วงเวลาดังกล่าว (หากต้องการอ่านเนื้อหาข้อหารือ `กค 0702/1903` ตามข้อเท็จจริงเดิมโดยตรง กรุณาค้นหาเฉพาะเลขที่หนังสือโดยไม่ระบุช่วงเวลาย้อนหลังอื่น"
     },
     {
       "case_id": "LV-20",
@@ -1426,6 +1557,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1477,6 +1614,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": true,
           "is_concrete_taxpayer_fact_query": false
@@ -1526,6 +1669,12 @@
           "transaction_date_iso": null,
           "transaction_date_end_iso": null,
           "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
           "asks_pre_amendment_version_explicitly": false,
           "has_any_temporal_anchor": false,
           "is_concrete_taxpayer_fact_query": false
@@ -1562,6 +1711,607 @@
         "passed": true
       },
       "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\n1. นาง ฉ. ได้จดทะเบียนให้ (โดยไม่มีค่าตอบแทน) ในที่โฉนดที่ดินกรุงเทพมหานคร ให้กับนาง ธ. ซึ่งมีฐานะเป็น ลูกสะใภ้ของนาง ฉ. โดยให้นาง ธ. เข้าถือกรรมสิทธิ์รวมในที่ดินครั้งละหนึ่งส่วน รวมทั้งสิ้น 30 ครั้ง เป็นจำนวน 30 ส่วน (โดยมีการยื่นคำขอจดทะเบียนโอนทุกวัน เว้นเฉพาะวันหยุดเสาร์-อาทิตย์) ซึ่งในการจดทะเบียนโอน 30 ครั้งดังกล่าวพนักงานเจ้าหน้าที่เรียกเก็บภาษีเงินได้หัก ณ ที่จ่าย เป็นจำนวนรวมทั้งสิ้น 2,145,600 บาท ซึ่งหากจดทะเบียนโอนที่ดิ"
+    },
+    {
+      "case_id": "LV-23",
+      "category": "7_partial_unclear_dates_and_ruling_applicability",
+      "language": "th",
+      "question": "ก่อนวันที่ 28/02/2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือไม่",
+      "applicable_date": null,
+      "mode": "standard",
+      "answer_flow_trace": {
+        "step_1_normalized_identifiers": {
+          "explicit_ruling_ids": [],
+          "explicit_section_refs": []
+        },
+        "step_2_temporal_and_intent_context": {
+          "query_intent": "APPLICABLE_LAW_AT_TIME",
+          "normalized_applicable_date_iso": null,
+          "accounting_period_start_iso": null,
+          "accounting_period_start_max_iso": null,
+          "accounting_period_end_iso": null,
+          "point_in_time_date_iso": null,
+          "assessable_tax_year_ce": null,
+          "transaction_date_iso": "2019-02-27",
+          "transaction_date_end_iso": "2019-02-27",
+          "transaction_year_ce": 2019,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": true,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
+          "asks_pre_amendment_version_explicitly": false,
+          "has_any_temporal_anchor": true,
+          "is_concrete_taxpayer_fact_query": false
+        },
+        "step_3_retrieval_top_works": [
+          "prov.th.rc.80/1",
+          "statute.th.rc_amendment_49_2562",
+          "subreg.th.rc.royal_decree.10",
+          "subreg.th.rc.royal_decree.108"
+        ],
+        "step_4_final_status": "INSUFFICIENT_EVIDENCE"
+      },
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "กรุณาระบุวันเดือนปีที่เกิดธุรกรรมจริง หรือตรวจสอบตัวบทก่อนการแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาโดยตรง"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ประมวลรัษฎากร มาตรา 80/1 (5) สำหรับช่วงเวลาไม่เกินวันที่ `2019-02-27` เนื่องจากบทบัญญัติฉบับปัจจุบันแก้ไขเพิ่มเติมโดย **พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562** (ราชกิจจานุเบกษา เล่ม 136 ตอนที่ 23 ก หน้า 1–3 วันที่ 27 กุมภาพันธ์ 2562 · https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p49.pdf) ซึ่งมีผลใช้บังคับตั้งแต่วันที่ `2019-02-28` เป็นต้นไป จึง **ไม่อาจนำบทบัญญัติที่แก้ไขใหม่มาใช้บังคับย้อนหลัง"
+    },
+    {
+      "case_id": "LV-24",
+      "category": "7_partial_unclear_dates_and_ruling_applicability",
+      "language": "en",
+      "question": "Prior to 2019, did selling goods to a foreign economic and trade office qualify for 0% VAT under Section 80/1?",
+      "applicable_date": null,
+      "mode": "standard",
+      "answer_flow_trace": {
+        "step_1_normalized_identifiers": {
+          "explicit_ruling_ids": [],
+          "explicit_section_refs": [
+            "มาตรา 80/1"
+          ]
+        },
+        "step_2_temporal_and_intent_context": {
+          "query_intent": "APPLICABLE_LAW_AT_TIME",
+          "normalized_applicable_date_iso": null,
+          "accounting_period_start_iso": null,
+          "accounting_period_start_max_iso": "2018-12-31",
+          "accounting_period_end_iso": null,
+          "point_in_time_date_iso": null,
+          "assessable_tax_year_ce": null,
+          "transaction_date_iso": null,
+          "transaction_date_end_iso": null,
+          "transaction_year_ce": 2018,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": true,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
+          "asks_pre_amendment_version_explicitly": false,
+          "has_any_temporal_anchor": true,
+          "is_concrete_taxpayer_fact_query": false
+        },
+        "step_3_retrieval_top_works": [
+          "prov.th.rc.80/1",
+          "statute.th.rc_amendment_49_2562",
+          "work.th.rd.gk_0702_3854_2024_0ee061a6",
+          "work.th.rd.gk_0811_พ_6757_2000_1aee0503"
+        ],
+        "step_4_final_status": "INSUFFICIENT_EVIDENCE"
+      },
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "กรุณาระบุวันเดือนปีที่เกิดธุรกรรมจริง หรือตรวจสอบตัวบทก่อนแก้ไขเพิ่มเติมจากราชกิจจานุเบกษาสำหรับปี พ.ศ. 2561"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลตัวบทย้อนหลังที่ผ่านการรับรอง / หลักฐานไม่เพียงพอ — ระบบระงับการแสดงตัวบท ประมวลรัษฎากร มาตรา 80/1 (5) สำหรับช่วงปี พ.ศ. 2561 (2018) หรือก่อนหน้านั้น เนื่องจากบทบัญญัติปัจจุบันแก้ไขเพิ่มเติมโดย **พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562** ซึ่งมีผลใช้บังคับตั้งแต่วันที่ `2019-02-28` เป็นต้นไป จึงไม่อาจนำมาใช้บังคับย้อนหลังก่อนวันมีผลใช้บังคับได้ และตัวบทก่อนแก้ไขยังอยู่ระหว่างรอตรวจรับรองจากราชกิจจานุเบกษา (https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p30.pdf)"
+    },
+    {
+      "case_id": "LV-25",
+      "category": "7_partial_unclear_dates_and_ruling_applicability",
+      "language": "th",
+      "question": "ในไตรมาส 1 ปี 2562 บริษัทขายสินค้าให้สำนักงานเศรษฐกิจและการค้าของต่างประเทศ ได้สิทธิเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือไม่",
+      "applicable_date": null,
+      "mode": "standard",
+      "answer_flow_trace": {
+        "step_1_normalized_identifiers": {
+          "explicit_ruling_ids": [],
+          "explicit_section_refs": []
+        },
+        "step_2_temporal_and_intent_context": {
+          "query_intent": "APPLICABLE_LAW_AT_TIME",
+          "normalized_applicable_date_iso": null,
+          "accounting_period_start_iso": null,
+          "accounting_period_start_max_iso": null,
+          "accounting_period_end_iso": null,
+          "point_in_time_date_iso": null,
+          "assessable_tax_year_ce": null,
+          "transaction_date_iso": "2019-01-01",
+          "transaction_date_end_iso": "2019-03-31",
+          "transaction_year_ce": 2019,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
+          "asks_pre_amendment_version_explicitly": false,
+          "has_any_temporal_anchor": true,
+          "is_concrete_taxpayer_fact_query": false
+        },
+        "step_3_retrieval_top_works": [
+          "prov.th.rc.80/1",
+          "statute.th.rc_amendment_49_2562",
+          "subreg.th.rc.royal_decree.10",
+          "subreg.th.rc.royal_decree.108"
+        ],
+        "step_4_final_status": "NEEDS_CLARIFICATION"
+      },
+      "observed_status": "NEEDS_CLARIFICATION",
+      "clarification_questions": [
+        "กรุณาระบุวันที่เกิดธุรกรรมที่ชัดเจนว่าเกิดขึ้นก่อนหรือตั้งแต่วันที่ 2019-02-28 เป็นต้นไป"
+      ],
+      "cited_works": [
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_49_2562",
+          "version_id": "ver.th.rc_amendment_49_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p49.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        },
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ผู้ประกอบการจดทะเบียนได้รับสิทธิใช้อัตราภาษีมูลค่าเพิ่มร้อยละ 0 ตามมาตรา 80/1 เฉพาะกิจการที่เข้าเงื่อนไขตาม (1)–(6) ได้แก่ (1) การส่งออกสินค้าที่มิใช่สินค้าได้รับยกเว้นตามมาตรา 81 (3), (2) การให้บริการที่กระทำในราชอาณาจักรและได้มีการใช้บริการนั้นในต่างประเทศตามหลักเกณฑ์ วิธีการ และเงื่อนไขที"
+    },
+    {
+      "case_id": "LV-26",
+      "category": "7_partial_unclear_dates_and_ruling_applicability",
+      "language": "en",
+      "question": "On 02/03/2019, our Thai company sold goods to a foreign economic and trade office; does 0% VAT apply under Section 80/1 (5)?",
+      "applicable_date": null,
+      "mode": "standard",
+      "answer_flow_trace": {
+        "step_1_normalized_identifiers": {
+          "explicit_ruling_ids": [],
+          "explicit_section_refs": [
+            "มาตรา 80/1 (5)"
+          ]
+        },
+        "step_2_temporal_and_intent_context": {
+          "query_intent": "APPLICABLE_LAW_AT_TIME",
+          "normalized_applicable_date_iso": null,
+          "accounting_period_start_iso": null,
+          "accounting_period_start_max_iso": null,
+          "accounting_period_end_iso": null,
+          "point_in_time_date_iso": null,
+          "assessable_tax_year_ce": null,
+          "transaction_date_iso": "2019-03-02",
+          "transaction_date_end_iso": "2019-03-02",
+          "transaction_year_ce": 2019,
+          "ambiguous_numeric_date_alt_iso": "2019-02-03",
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
+          "asks_pre_amendment_version_explicitly": false,
+          "has_any_temporal_anchor": true,
+          "is_concrete_taxpayer_fact_query": false
+        },
+        "step_3_retrieval_top_works": [
+          "prov.th.rc.80/1",
+          "statute.th.rc_amendment_49_2562",
+          "work.th.rd.gk_0702_3854_2024_0ee061a6",
+          "subreg.th.rc.royal_decree.10"
+        ],
+        "step_4_final_status": "NEEDS_CLARIFICATION"
+      },
+      "observed_status": "NEEDS_CLARIFICATION",
+      "clarification_questions": [
+        "กรุณายืนยันวันและเดือนให้ชัดเจนเป็นชื่อเดือนหรือรูปแบบ YYYY-MM-DD (เช่น 2019-03-02 หรือ 2019-02-03) เพื่อตรวจสอบว่าเกิดก่อนหรือตั้งแต่วันที่ 2019-02-28"
+      ],
+      "cited_works": [
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        },
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_49_2562",
+          "version_id": "ver.th.rc_amendment_49_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 49) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p49.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.80/1",
+          "version_id": "ver.th.rc.80/1.v1",
+          "official_identifier": "มาตรา 80/1",
+          "origin_uri": "https://www.rd.go.th/5206.html#mata80_1"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ผู้ประกอบการจดทะเบียนได้รับสิทธิใช้อัตราภาษีมูลค่าเพิ่มร้อยละ 0 ตามมาตรา 80/1 เฉพาะกิจการที่เข้าเงื่อนไขตาม (1)–(6) ได้แก่ (1) การส่งออกสินค้าที่มิใช่สินค้าได้รับยกเว้นตามมาตรา 81 (3), (2) การให้บริการที่กระทำในราชอาณาจักรและได้มีการใช้บริการนั้นในต่างประเทศตามหลักเกณฑ์ วิธีการ และเงื่อนไขที"
+    },
+    {
+      "case_id": "LV-27",
+      "category": "7_partial_unclear_dates_and_ruling_applicability",
+      "language": "th",
+      "question": "สำหรับรอบระยะเวลาบัญชีสิ้นสุดวันที่ 30 มิถุนายน บริษัทบริจาคเงินให้พรรคการเมือง 50,000 บาท หักเป็นรายจ่ายได้หรือไม่",
+      "applicable_date": null,
+      "mode": "standard",
+      "answer_flow_trace": {
+        "step_1_normalized_identifiers": {
+          "explicit_ruling_ids": [],
+          "explicit_section_refs": []
+        },
+        "step_2_temporal_and_intent_context": {
+          "query_intent": "APPLICABLE_LAW_AT_TIME",
+          "normalized_applicable_date_iso": null,
+          "accounting_period_start_iso": null,
+          "accounting_period_start_max_iso": null,
+          "accounting_period_end_iso": null,
+          "point_in_time_date_iso": null,
+          "assessable_tax_year_ce": null,
+          "transaction_date_iso": null,
+          "transaction_date_end_iso": null,
+          "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": true,
+          "asks_whether_ruling_applies": false,
+          "asks_pre_amendment_version_explicitly": false,
+          "has_any_temporal_anchor": true,
+          "is_concrete_taxpayer_fact_query": false
+        },
+        "step_3_retrieval_top_works": [
+          "prov.th.rc.65_ตรี",
+          "work.th.rd.gk_0811_2930_2001_d6372b92",
+          "work.th.rd.gk_0811_16531_1998_861d6be1",
+          "statute.th.rc_amendment_51_2562"
+        ],
+        "step_4_final_status": "NEEDS_CLARIFICATION"
+      },
+      "observed_status": "NEEDS_CLARIFICATION",
+      "clarification_questions": [
+        "กรุณาระบุ **วันเดือนปี (พ.ศ. หรือ ค.ศ.) ของวันเริ่มต้นและวันสิ้นสุดรอบระยะเวลาบัญชีจริง** (เกณฑ์ใช้บังคับ: เริ่มในหรือหลังวันที่ 2018-01-01)"
+      ],
+      "cited_works": [
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "statute.th.rc_amendment_51_2562",
+          "version_id": "ver.th.rc_amendment_51_2562.v1",
+          "official_identifier": "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 51) พ.ศ. 2562",
+          "origin_uri": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/p51.pdf"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        },
+        {
+          "work_id": "prov.th.rc.65_ตรี",
+          "version_id": "ver.th.rc.65_ตรี.v2_current",
+          "official_identifier": "มาตรา 65 ตรี",
+          "origin_uri": "https://www.rd.go.th/5939.html#mata65_3"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการรายจ่ายต้องห้าม (1)–(20) ที่ไม่ให้นำมาหักในการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคล (เช่น เงินสำรองนอกเกณฑ์ที่กำหนด รายจ่ายส่วนตัว/การกุศลเกินเพดานที่กฎหมายอนุญาต ค่ารับรองเกินเกณฑ์กฎกระทรวง รายจ่ายอันมีลักษณะเป็นการลงทุน เบี้ยปรับ/เงินเพิ่ม/ภ"
+    },
+    {
+      "case_id": "LV-28",
+      "category": "7_partial_unclear_dates_and_ruling_applicability",
+      "language": "th",
+      "question": "หนังสือตอบข้อหารือ กค 0811/13980 ยังนำมาใช้บังคับกับกรณีของบริษัทเราในปัจจุบันได้หรือไม่",
+      "applicable_date": null,
+      "mode": "standard",
+      "answer_flow_trace": {
+        "step_1_normalized_identifiers": {
+          "explicit_ruling_ids": [
+            "กค 0811/13980"
+          ],
+          "explicit_section_refs": []
+        },
+        "step_2_temporal_and_intent_context": {
+          "query_intent": "APPLICABLE_LAW_AT_TIME",
+          "normalized_applicable_date_iso": null,
+          "accounting_period_start_iso": null,
+          "accounting_period_start_max_iso": null,
+          "accounting_period_end_iso": null,
+          "point_in_time_date_iso": null,
+          "assessable_tax_year_ce": null,
+          "transaction_date_iso": null,
+          "transaction_date_end_iso": null,
+          "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": true,
+          "asks_pre_amendment_version_explicitly": false,
+          "has_any_temporal_anchor": false,
+          "is_concrete_taxpayer_fact_query": true
+        },
+        "step_3_retrieval_top_works": [
+          "work.th.rd.gk_0811_13980_1997_74b835fc",
+          "work.th.rd.gk_0706_4227_2004_5cb4cc10",
+          "work.th.rd.gk_0706_พ_8513_2005_0f491cde",
+          "subreg.th.rd.order_tp.71_2540"
+        ],
+        "step_4_final_status": "INSUFFICIENT_EVIDENCE"
+      },
+      "observed_status": "INSUFFICIENT_EVIDENCE",
+      "clarification_questions": [
+        "กรุณาระบุวันเดือนปี (พ.ศ./ค.ศ.) ที่เกิดธุรกรรมหรือวันเริ่ม–สิ้นสุดรอบระยะเวลาบัญชีจริง พร้อมข้อเท็จจริงสำคัญของกิจการ เพื่อตรวจสอบกับบทบัญญัติที่ใช้บังคับ"
+      ],
+      "cited_works": [],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "ไม่พบข้อมูลหลักฐานที่เพียงพอในการยืนยันว่าหนังสือตอบข้อหารือ `กค 0811/13980` (13 ตุลาคม 2540 (ต้นฉบับ: https://www.rd.go.th/22874.html)) ใช้บังคับกับกรณีที่ถามได้โดยอัตโนมัติ — หนังสือตอบข้อหารือกรมสรรพากรเป็นแนววินิจฉัยเฉพาะรายตามข้อเท็จจริงของผู้ขอหารือ อีกทั้งข้อหารือฉบับนี้มีการอ้างอิงกฎหมายลำดับรองภายนอกที่ยังอยู่ในทะเบียนกักกันรอตรวจรับรองต้นฉบับ (มาตรา 3(5) แห่งพระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร (ฉบับที่ 244), มาตรา 491 แห่งประมวลกฎหมายแพ่งและพาณิชย์) และคำถามยังไม่ได้ระบุวันเดือนปีที่เกิดธุรกรรมหรือวัน"
+    },
+    {
+      "case_id": "LV-29",
+      "category": "7_partial_unclear_dates_and_ruling_applicability",
+      "language": "en",
+      "question": "Can our company rely on ruling GorKor 0702/1903 for our animal feed supplement import?",
+      "applicable_date": null,
+      "mode": "standard",
+      "answer_flow_trace": {
+        "step_1_normalized_identifiers": {
+          "explicit_ruling_ids": [
+            "กค 0702/1903"
+          ],
+          "explicit_section_refs": []
+        },
+        "step_2_temporal_and_intent_context": {
+          "query_intent": "APPLICABLE_LAW_AT_TIME",
+          "normalized_applicable_date_iso": null,
+          "accounting_period_start_iso": null,
+          "accounting_period_start_max_iso": null,
+          "accounting_period_end_iso": null,
+          "point_in_time_date_iso": null,
+          "assessable_tax_year_ce": null,
+          "transaction_date_iso": null,
+          "transaction_date_end_iso": null,
+          "transaction_year_ce": null,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": true,
+          "asks_pre_amendment_version_explicitly": false,
+          "has_any_temporal_anchor": false,
+          "is_concrete_taxpayer_fact_query": false
+        },
+        "step_3_retrieval_top_works": [
+          "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "work.th.rd.gk_0702_6817_2023_c0271d84",
+          "work.th.rd.gk_0702_7024_2023_8d6fe04e",
+          "work.th.rd.gk_0702_300_2024_4ad170ef"
+        ],
+        "step_4_final_status": "NEEDS_CLARIFICATION"
+      },
+      "observed_status": "NEEDS_CLARIFICATION",
+      "clarification_questions": [
+        "กรุณาระบุวันเดือนปีที่เกิดธุรกรรมหรือรอบระยะเวลาบัญชีจริง และยืนยันว่าข้อเท็จจริงของท่านตรงตามเงื่อนไขใน กค 0702/1903 ทุกประการหรือไม่"
+      ],
+      "cited_works": [
+        {
+          "work_id": "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "version_id": "ver.th.rd.gk_0702_1903_2026_b1d563eb.v1",
+          "official_identifier": "กค 0702/1903",
+          "origin_uri": "https://www.rd.go.th/68482.html"
+        },
+        {
+          "work_id": "work.th.rd.gk_0702_1903_2026_b1d563eb",
+          "version_id": "ver.th.rd.gk_0702_1903_2026_b1d563eb.v1",
+          "official_identifier": "กค 0702/1903",
+          "origin_uri": "https://www.rd.go.th/68482.html"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**ข้อจำกัดการใช้หนังสือตอบข้อหารือเฉพาะราย (`กค 0702/1903` ลงวันที่ 8 เมษายน 2569)**: เอกสารฉบับนี้เป็นความเห็นทางปกครองเฉพาะรายตามข้อเท็จจริงของผู้ขอหารือ (ต้นฉบับ: https://www.rd.go.th/68482.html) การพิจารณาว่าจะนำแนววินิจฉัยนี้มาเทียบเคียงใช้ได้หรือไม่ ต้องยืนยันทั้ง **(1) วันเดือนปีที่เกิดธุรกรรม/รอบระยะเวลาบัญชีจริง** ว่าอยู"
+    },
+    {
+      "case_id": "LV-30",
+      "category": "7_partial_unclear_dates_and_ruling_applicability",
+      "language": "th",
+      "question": "ตามหนังสือตอบข้อหารือ กค 0702/4825 ห้างฯ ที่เคยมีทุนจดทะเบียน 30 ล้านบาทและลดทุนเหลือ 5 ล้านบาทในปี 2543 จะได้รับสิทธิยกเว้นภาษีเงินได้นิติบุคคลตามพระราชกฤษฎีกา (ฉบับที่ 595) หรือไม่",
+      "applicable_date": null,
+      "mode": "standard",
+      "answer_flow_trace": {
+        "step_1_normalized_identifiers": {
+          "explicit_ruling_ids": [
+            "กค 0702/4825"
+          ],
+          "explicit_section_refs": []
+        },
+        "step_2_temporal_and_intent_context": {
+          "query_intent": "APPLICABLE_LAW_AT_TIME",
+          "normalized_applicable_date_iso": null,
+          "accounting_period_start_iso": null,
+          "accounting_period_start_max_iso": null,
+          "accounting_period_end_iso": null,
+          "point_in_time_date_iso": null,
+          "assessable_tax_year_ce": null,
+          "transaction_date_iso": null,
+          "transaction_date_end_iso": null,
+          "transaction_year_ce": 2000,
+          "ambiguous_numeric_date_alt_iso": null,
+          "has_multiple_distinct_point_dates": false,
+          "is_upper_bounded_before_period": false,
+          "has_vague_historical_reference": false,
+          "has_yearless_partial_date": false,
+          "asks_whether_ruling_applies": false,
+          "asks_pre_amendment_version_explicitly": false,
+          "has_any_temporal_anchor": true,
+          "is_concrete_taxpayer_fact_query": false
+        },
+        "step_3_retrieval_top_works": [
+          "work.th.rd.gk_0702_4825_2023_3b273a8a",
+          "work.th.rd.gk_0702_40199_2016_cacc1ec0"
+        ],
+        "step_4_final_status": "ANSWERED"
+      },
+      "observed_status": "ANSWERED",
+      "clarification_questions": [],
+      "cited_works": [
+        {
+          "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
+          "version_id": "ver.th.rd.gk_0702_4825_2023_3b273a8a.v1",
+          "official_identifier": "กค 0702/4825",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        },
+        {
+          "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
+          "version_id": "ver.th.rd.gk_0702_4825_2023_3b273a8a.v1",
+          "official_identifier": "กค 0702/4825",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        },
+        {
+          "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
+          "version_id": "ver.th.rd.gk_0702_4825_2023_3b273a8a.v1",
+          "official_identifier": "กค 0702/4825",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        },
+        {
+          "work_id": "work.th.rd.gk_0702_4825_2023_3b273a8a",
+          "version_id": "ver.th.rd.gk_0702_4825_2023_3b273a8a.v1",
+          "official_identifier": "กค 0702/4825",
+          "origin_uri": "https://www.rd.go.th/65296.html"
+        }
+      ],
+      "checks": {
+        "status_ok": true,
+        "expected_citations_ok": true,
+        "required_substrings_ok": true,
+        "s1_citation_gate_ok": true,
+        "passed": true
+      },
+      "answer_excerpt": "**ข้อเท็จจริงและประเด็นของผู้ขอหารือ** (*มิใช่คำวินิจฉัยที่มีผลผูกพันเป็นการทั่วไป*):\nห้างฯ จดทะเบียนเป็นนิติบุคคล เมื่อวันที่ 21 กุมภาพันธ์ 2521 ทุนจดทะเบียน 30,000,000 บาท ลดทุนครั้งที่ 1 เมื่อวันที่ 14 กันยายน 2543 เหลือทุนจดทะเบียน 13,000,000 บาท และลดทุนครั้งที่ 2 ในวันเดียวกัน คงเหลือทุนจดทะเบียน 5,000,000 บาท และไม่มีรายได้จากการประกอบกิจการในปีใดปีหนึ่งเกิน 30,000,000 บาท ห้างฯ ได้จดแจ้งตามพระราชกำหนดยกเว้นและสนับสนุนการปฏิบัติการเกี่ยวกับภาษีอากรตามประมวลรัษฎากร พ.ศ. 2558 เมื่อวันที่ 10 มีนาคม 2559 มีทุนจด"
     }
   ]
 }
