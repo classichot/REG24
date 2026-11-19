@@ -492,36 +492,247 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
     | "LINEAL_DESCENDANT"
     | "NON_LINEAL_RELATIVE_OR_THIRD_PARTY";
   isCeremonyOrCustomOrMoralDuty: boolean;
-  transferValueBaht: number;
+  transferValueBaht: number | null;
+  officialAppraisedValueBaht?: number | null;
+  acquisitionMethod?: "INHERITANCE_OR_GIFT" | "OTHER_PURCHASE" | null;
+  holdingYears?: number | null;
 }): VerifiedCalculationResult {
-  const val = Math.max(0, params.transferValueBaht);
+  const hasVal = params.transferValueBaht !== null && Number.isFinite(params.transferValueBaht);
+  const val = hasVal ? Math.max(0, params.transferValueBaht as number) : 0;
 
-  if (params.recipientRole === "LEGITIMATE_CHILD") {
-    const exempt = Math.min(val, 20_000_000);
-    const excess = Math.max(0, val - 20_000_000);
-    const tax5Pct = Math.round(excess * 5) / 100;
+  // =========================================================================
+  // STEP 1: CLASSIFY ASSET FIRST — IMMOVABLE PROPERTY (`อสังหาริมทรัพย์/ที่ดิน`)
+  // =========================================================================
+  if (params.isImmovableProperty) {
+    // 1A. Legitimate child (excluding adopted child): `§41 ทวิ`, `§42(26)`, `§48(4/1)`, `§49 ทวิ`, `§50(6)`
+    if (params.recipientRole === "LEGITIMATE_CHILD") {
+      if (!hasVal) {
+        return {
+          calculation_id: "calc.pit.gift.land.legitimate_child.missing_valuation",
+          verifier_version: "reg24-tax-calc-verifier-v1.0",
+          regime: "PIT_GIFT_EXEMPTION_S42",
+          formula_th:
+            "โอนอสังหาริมทรัพย์ให้บุตรชอบด้วยกฎหมายโดยไม่มีค่าตอบแทน: ผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ ยกเว้นไม่เกิน 20,000,000 บาทตามมาตรา 42 (26) ส่วนที่เกินหัก ณ ที่จ่ายร้อยละ 5 ตามมาตรา 50 (6) โดยใช้ราคาประเมินทุนทรัพย์ตามมาตรา 49 ทวิ",
+          inputs: {
+            asset_kind: "IMMOVABLE_PROPERTY",
+            recipient_role: params.recipientRole,
+            official_appraised_value_baht: params.officialAppraisedValueBaht ?? null,
+          },
+          steps_th: [
+            `**ฝั่งผู้โอน (Donor)**: ตามมาตรา 41 ทวิ ผู้โอนเป็นผู้มีเงินได้พึงประเมิน และได้รับยกเว้นตามมาตรา 42 (26) เฉพาะส่วนที่ไม่เกิน 20,000,000 บาทต่อบุตรหนึ่งคนตลอดปีภาษี ส่วนที่เกินผู้โอนหักภาษี ณ ที่จ่ายร้อยละ 5 ตามมาตรา 50 (6) (หรือเลือกเสียร้อยละ 5 ตามมาตรา 48 (4/1)) โดยต้องคำนวณจาก **ราคาประเมินทุนทรัพย์ของทางราชการตามมาตรา 49 ทวิ** — ขณะนี้ยังขาดราคาประเมินทุนทรัพย์จึงยังไม่อาจคำนวณยอดภาษีเป็นตัวเลขได้`,
+            `**ฝั่งผู้รับโอน (Recipient — บุตรชอบด้วยกฎหมาย)**: ตามมาตรา 41 ทวิ กฎหมายกำหนดให้ผู้โอนเป็นผู้มีเงินได้จากการโอนกรรมสิทธิ์อสังหาริมทรัพย์โดยไม่มีค่าตอบแทน จึงไม่นำเกณฑ์การรับให้สังหาริมทรัพย์มาคำนวณภาษีซ้ำในฝั่งผู้รับโอน`,
+          ],
+          outputs: {
+            asset_kind: "IMMOVABLE_PROPERTY",
+            donor_qualifies_s42_26: true,
+            withholding_computable: false,
+          },
+          verified_numeric_tokens: collectNumericTokens([20_000_000, 5]),
+          required_authority_work_ids: [
+            "prov.th.rc.41_ทวิ",
+            "prov.th.rc.42",
+            "prov.th.rc.48",
+            "prov.th.rc.49_ทวิ",
+            "prov.th.rc.50",
+            "statute.th.rc_amendment_40_2558",
+          ],
+          summary_statement_th: `กรณีโอนกรรมสิทธิ์ที่ดินให้แก่ **บุตรชอบด้วยกฎหมาย** (ไม่รวมบุตรบุญธรรม) โดยไม่มีค่าตอบแทน: (1) **ฝั่งผู้โอน (Donor)**: ตาม **มาตรา 41 ทวิ** และ **มาตรา 42 (26)** ผู้โอนเป็นผู้มีเงินได้และได้รับยกเว้นเฉพาะส่วนที่ไม่เกิน **20,000,000 บาท** ส่วนที่เกินหักภาษี ณ ที่จ่ายร้อยละ 5 ตาม **มาตรา 50 (6)** โดยใช้ **ราคาประเมินทุนทรัพย์ตามมาตรา 49 ทวิ** ทั้งนี้ ยังไม่สามารถคำนวณยอดภาษีเป็นตัวเลขได้เนื่องจากยังขาดข้อมูลราคาประเมินทุนทรัพย์; (2) **ฝั่งผู้รับโอน (Recipient)**: ไม่เกิดภาระภาษีเงินได้ตามมาตรา 41 ทวิ เนื่องจากกฎหมายกำหนดให้ผู้โอนเป็นผู้มีเงินได้`,
+          arithmetic_verified: true,
+        };
+      }
+
+      const basisVal = params.officialAppraisedValueBaht ?? val;
+      const exempt = Math.min(basisVal, 20_000_000);
+      const excess = Math.max(0, basisVal - 20_000_000);
+      const tax5Pct = Math.round(excess * 5) / 100;
+      return {
+        calculation_id: "calc.pit.gift.legitimate_child",
+        verifier_version: "reg24-tax-calc-verifier-v1.0",
+        regime: "PIT_GIFT_EXEMPTION_S42",
+        formula_th:
+          "โอนอสังหาริมทรัพย์ให้บุตรชอบด้วยกฎหมาย: ผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ ยกเว้นไม่เกิน 20,000,000 บาทตามมาตรา 42 (26) ส่วนที่เกินหัก ณ ที่จ่ายร้อยละ 5 ตามมาตรา 50 (6) (เลือกเสียร้อยละ 5 ตามมาตรา 48 (4/1)) โดยใช้ราคาประเมินทุนทรัพย์ตามมาตรา 49 ทวิ",
+        inputs: {
+          asset_kind: "IMMOVABLE_PROPERTY",
+          is_immovable_property: true,
+          recipient_role: params.recipientRole,
+          transfer_value_baht: val,
+          official_appraised_value_baht: params.officialAppraisedValueBaht ?? null,
+        },
+        steps_th: [
+          `โครงสร้างผู้เสียภาษีตามประมวลรัษฎากร: กรณีบิดาโอนกรรมสิทธิ์ที่ดินโดยไม่มีค่าตอบแทนให้บุตรชอบด้วยกฎหมาย (ไม่รวมบุตรบุญธรรม) กฎหมายกำหนดให้ **ผู้โอน (บิดา)** เป็นผู้มีเงินได้ตาม **มาตรา 41 ทวิ** และได้รับยกเว้นในส่วนที่ไม่เกิน **20,000,000 บาท** ต่อบุตรหนึ่งคนตลอดปีภาษีตาม **มาตรา 42 (26)** โดยการคำนวณราคาโอนต้องใช้ **ราคาประเมินทุนทรัพย์เพื่อเรียกเก็บค่าธรรมเนียมจดทะเบียนสิทธิและนิติกรรมตามมาตรา 49 ทวิ**`,
+          `หากมูลค่า ${formatBahtTh(basisVal)} บาท ตรงกับราคาประเมินทุนทรัพย์ตามมาตรา 49 ทวิ -> ส่วนที่ได้รับยกเว้นภาษีฝั่งผู้โอน = ${formatBahtTh(exempt)} บาท`,
+          `ส่วนที่เกินเกณฑ์ยกเว้น 20,000,000 บาท ของฝั่งผู้โอน = ${formatBahtTh(basisVal)} - ${formatBahtTh(exempt)} = ${formatBahtTh(excess)} บาท โดยตาม **มาตรา 50 (6)** ผู้โอนหักภาษี ณ ที่จ่ายร้อยละ 5 ของส่วนที่เกิน คิดเป็นภาษี **${formatBahtTh(tax5Pct)} บาท** (และเลือกเสียภาษีแยกต่างหากในอัตราร้อยละ 5 ตาม **มาตรา 48 (4/1)** หรือนำไปรวมคำนวณอัตราก้าวหน้าก็ได้)`,
+        ],
+        outputs: {
+          asset_kind: "IMMOVABLE_PROPERTY",
+          donor_qualifies_s42_26: true,
+          exempt_amount_baht: exempt,
+          taxable_excess_baht: excess,
+          optional_flat_5pct_tax_baht: tax5Pct,
+        },
+        verified_numeric_tokens: collectNumericTokens([
+          basisVal,
+          20_000_000,
+          exempt,
+          excess,
+          5,
+          tax5Pct,
+        ]),
+        required_authority_work_ids: [
+          "prov.th.rc.41_ทวิ",
+          "prov.th.rc.42",
+          "prov.th.rc.48",
+          "prov.th.rc.49_ทวิ",
+          "prov.th.rc.50",
+          "statute.th.rc_amendment_40_2558",
+        ],
+        summary_statement_th: `ตามประมวลรัษฎากร **มาตรา 41 ทวิ มาตรา 42 (26) มาตรา 48 (4/1) มาตรา 49 ทวิ และมาตรา 50 (6)** (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) กรณีบิดาโอนกรรมสิทธิ์ที่ดินโดยไม่มีค่าตอบแทนให้แก่บุตรชอบด้วยกฎหมาย (ไม่รวมบุตรบุญธรรม) **ผู้โอน (บิดา) เป็นผู้มีเงินได้และมีหน้าที่เสียภาษีเงินได้บุคคลธรรมดา — มิใช่บุตรผู้รับโอน** โดยได้รับยกเว้นเฉพาะส่วนที่ไม่เกิน **${formatBahtTh(exempt)} บาท** ต่อบุตรหนึ่งคนตลอดปีภาษี และส่วนที่เกินอีกจำนวน **${formatBahtTh(excess)} บาท** (หากมูลค่าดังกล่าวตรงกับราคาประเมินทุนทรัพย์ตามมาตรา 49 ทวิ) เป็นเงินได้พึงประเมินของ **ผู้โอน (บิดา)** ที่ต้องหักภาษี ณ ที่จ่ายร้อยละ 5 ตามมาตรา 50 (6) คิดเป็นภาษี **${formatBahtTh(tax5Pct)} บาท** (เลือกเสียแยกต่างหากตามมาตรา 48 (4/1) หรือนำไปรวมคำนวณอัตราก้าวหน้าก็ได้)`,
+        arithmetic_verified: true,
+      };
+    }
+
+    // 1B. Non-legitimate-child IMMOVABLE transfer (niece, granddaughter, ambiguous หลานสาว, adopted child, other):
+    //     Asset is LAND -> `§41 ทวิ` deems DONOR to have assessable income; `§42(26)` does NOT apply;
+    //     `§50(6)` routes to `§50(5)` progressive withholding at registration using `§49 ทวิ` official appraised value.
+    //     NEVER carry over movable-gift `§42(27)-(28)` / `§48(6)-(7)` cash thresholds or 5% tax numbers to land,
+    //     and NEVER invent withholding figures when official appraised value / acquisition method / holding years are missing!
+    const roleLabelTh =
+      params.recipientRole === "EXPLICIT_COLLATERAL_NIECE"
+        ? "หลานสาวที่เป็นบุตรของพี่หรือน้อง (ญาติสายข้าง — มิใช่บุตรชอบด้วยกฎหมาย)"
+        : params.recipientRole === "EXPLICIT_LINEAL_GRANDCHILD"
+          ? "หลานสาวที่เป็นบุตรของบุตร (หลานปู่/หลานตา — ผู้สืบสันดานสายตรง แต่มิใช่บุตรชอบด้วยกฎหมาย)"
+          : params.recipientRole === "ADOPTED_CHILD"
+            ? "บุตรบุญธรรม (มิใช่บุตรชอบด้วยกฎหมายตามข้อยกเว้นมาตรา 42 (26))"
+            : params.recipientRole === "AMBIGUOUS_LAN_OR_NIECE"
+              ? `ผู้รับโอนที่เป็น "หลานสาว" (ไม่ว่าจะเป็นบุตรของบุตรหรือบุตรของพี่หรือน้อง ก็มิใช่บุตรชอบด้วยกฎหมาย)`
+              : "บุคคลอื่นที่มิใช่บุตรชอบด้วยกฎหมาย";
+
+    const missingDonorFacts: string[] = [];
+    if (params.officialAppraisedValueBaht === null || params.officialAppraisedValueBaht === undefined) {
+      missingDonorFacts.push(
+        "ราคาประเมินทุนทรัพย์ของทางราชการตามมาตรา 49 ทวิ (ไม่อาจสมมติให้มูลค่าที่ระบุในข้อเท็จจริงเป็นราคาประเมินราชการโดยอัตโนมัติ)"
+      );
+    }
+    if (!params.acquisitionMethod) {
+      missingDonorFacts.push(
+        "วิธีการได้มาซึ่งที่ดินของผู้โอน (ได้มาโดยทางมรดกหรือจากการให้โดยเสน่หาตามมาตรา 50 (5) (ก) หรือได้มาโดยทางอื่น เช่น ซื้อมา ตามมาตรา 50 (5) (ข))"
+      );
+    }
+    if (params.holdingYears === null || params.holdingYears === undefined) {
+      missingDonorFacts.push("จำนวนปีที่ผู้โอนถือครองที่ดินเพื่อคำนวณหักค่าใช้จ่ายและเฉลี่ยภาษีตามมาตรา 50 (5)");
+    }
+
+    const donorRuleTh =
+      `**ฝั่งผู้โอน (Donor)**: ตาม **มาตรา 41 ทวิ** การโอนกรรมสิทธิ์อสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ถือว่า **ผู้โอนเป็นผู้มีเงินได้** เมื่อผู้รับโอนคือ ${roleLabelTh} จึง **ไม่ได้รับสิทธิยกเว้นตามมาตรา 42 (26)** และไม่ได้ใช้อัตราหัก ณ ที่จ่ายร้อยละ 5 สำหรับบุตรชอบด้วยกฎหมายตามข้อยกเว้นท้าย **มาตรา 50 (6)** แต่ต้องกลับมาใช้หลักเกณฑ์ทั่วไปตาม **มาตรา 50 (6)** ซึ่งกำหนดให้ผู้โอนหักภาษีเงินได้ ณ ที่จ่ายในวันจดทะเบียนโอน **ตามเกณฑ์ในมาตรา 50 (5)** (คำนวณหักค่าใช้จ่ายตามวิธีได้มาและจำนวนปีที่ถือครองแล้วคิดตามบัญชีอัตราก้าวหน้า) โดยใช้ **ราคาประเมินทุนทรัพย์ของทางราชการตามมาตรา 49 ทวิ** เป็นฐานคำนวณ`;
+
+    const donorMissingTh =
+      missingDonorFacts.length > 0
+        ? `**ไม่สามารถคำนวณยอดภาษีหัก ณ ที่จ่ายฝั่งผู้โอนเป็นตัวเลขจากข้อเท็จจริงที่มีอยู่ได้** เนื่องจากยังขาดข้อเท็จจริงที่จำเป็นตามมาตรา 49 ทวิ และมาตรา 50 (5) ได้แก่: ${missingDonorFacts.join("; ")}`
+        : `มีข้อมูลราคาประเมินทุนทรัพย์ วิธีได้มา และจำนวนปีถือครองครบถ้วนสำหรับคำนวณตามมาตรา 50 (5)`;
+
+    const recipientLandScopeTh =
+      `**ฝั่งผู้รับโอน (Recipient)**: เนื่องจากทรัพย์สินที่โอนคือ **อสังหาริมทรัพย์ (ที่ดิน)** ไม่ใช่เงินสดหรือสังหาริมทรัพย์ บทบัญญัติ **มาตรา 41 ทวิ** กำหนดให้ **ผู้โอน** (มิใช่ผู้รับโอน) เป็นผู้มีเงินได้จากการโอนกรรมสิทธิ์โดยไม่มีค่าตอบแทน ขณะที่แนวทางของกรมสรรพากรว่าด้วยภาษีการรับให้อธิบายการใช้ **มาตรา 42 (27)** (20,000,000 บาท) และ **มาตรา 42 (28)** (10,000,000 บาทในพิธีตามขนบธรรมเนียมประเพณี) ไว้ภายใต้กรณี **การให้สังหาริมทรัพย์/เงินสด** — ดังนั้น **ระบบจึงไม่นำเกณฑ์ยกเว้น 20,000,000 บาท / 10,000,000 บาท หรือตัวเลขภาษีร้อยละ 5 ของการให้สังหาริมทรัพย์มาคำนวณเป็นยอดภาษีฝั่งผู้รับโอนสำหรับการโอนที่ดินรายนี้** จนกว่าจะมีการยืนยันฐานกฎหมายฝั่งผู้รับโอนสำหรับอสังหาริมทรัพย์ที่สอดคล้องกับมาตรา 41 ทวิ และแนวทางกรมสรรพากรอย่างชัดเจน`;
+
+    const kinshipNoteTh =
+      params.recipientRole === "AMBIGUOUS_LAN_OR_NIECE"
+        ? `**ขอบเขตผลของความกำกวมคำว่า "หลานสาว"**: สำหรับการโอน **ที่ดิน** รายนี้ ข้อสรุปฝั่งผู้โอน (ไม่ได้รับยกเว้นตามมาตรา 42 (26), ต้องหักภาษี ณ ที่จ่ายตามมาตรา 50 (6) ประกอบมาตรา 50 (5) และมาตรา 49 ทวิ, และยังคำนวณตัวเลขไม่ได้เพราะขาดราคาประเมินทุนทรัพย์/วิธีได้มา/จำนวนปีถือครอง) รวมถึงการไม่นำตัวเลขภาษีการรับให้สังหาริมทรัพย์มาคำนวณฝั่งผู้รับโอน **มีผลเหมือนกันทั้งกรณีหลานปู่หลานตา (บุตรของบุตร) และหลานลุงหลานอา (บุตรของพี่หรือน้อง)** โดยความแตกต่างระหว่างบุตรของบุตรกับบุตรของพี่หรือน้องจะมีผลชี้ขาดเฉพาะกรณีทรัพย์สินที่ให้เป็น **เงินสดหรือสังหาริมทรัพย์** (มาตรา 42 (27) เทียบกับมาตรา 42 (28)) เท่านั้น`
+        : null;
+
     return {
-      calculation_id: "calc.pit.gift.legitimate_child",
+      calculation_id:
+        params.recipientRole === "EXPLICIT_COLLATERAL_NIECE"
+          ? "calc.pit.gift.land.explicit_niece"
+          : params.recipientRole === "EXPLICIT_LINEAL_GRANDCHILD"
+            ? "calc.pit.gift.land.explicit_grandchild"
+            : params.recipientRole === "AMBIGUOUS_LAN_OR_NIECE"
+              ? "calc.pit.gift.land.ambiguous_lan"
+              : "calc.pit.gift.land.non_legitimate_child",
       verifier_version: "reg24-tax-calc-verifier-v1.0",
       regime: "PIT_GIFT_EXEMPTION_S42",
       formula_th:
-        "ยกเว้นไม่เกิน 20,000,000 บาทต่อปีภาษี; ส่วนที่เกิน 20,000,000 บาท เสียภาษีอัตราร้อยละ 5 หรือนำไปรวมคำนวณเงินได้พึงประเมิน",
+        "โอนอสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ผู้รับที่มิใช่บุตรชอบด้วยกฎหมาย: ผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ ไม่เข้าข้อยกเว้นมาตรา 42 (26) และต้องหักภาษี ณ ที่จ่ายตามมาตรา 50 (6) ประกอบมาตรา 50 (5) โดยใช้ราคาประเมินทุนทรัพย์ตามมาตรา 49 ทวิ (ไม่นำเกณฑ์รับให้สังหาริมทรัพย์มาตรา 42 (27)-(28) มาคำนวณตัวเลขฝั่งผู้รับโอนสำหรับที่ดิน)",
       inputs: {
-        is_immovable_property: params.isImmovableProperty,
+        asset_kind: "IMMOVABLE_PROPERTY",
+        is_immovable_property: true,
+        recipient_role: params.recipientRole,
+        is_ceremony_or_custom: params.isCeremonyOrCustomOrMoralDuty,
+        stated_value_baht: hasVal ? val : null,
+        official_appraised_value_baht: params.officialAppraisedValueBaht ?? null,
+        acquisition_method: params.acquisitionMethod ?? null,
+        holding_years: params.holdingYears ?? null,
+      },
+      steps_th: [
+        donorRuleTh,
+        donorMissingTh,
+        recipientLandScopeTh,
+        ...(kinshipNoteTh ? [kinshipNoteTh] : []),
+      ],
+      outputs: {
+        asset_kind: "IMMOVABLE_PROPERTY",
+        donor_qualifies_s42_26: false,
+        donor_withholding_rule: "SECTION_50_6_TO_50_5_PROGRESSIVE_WITH_49_BIS_APPRAISAL",
+        donor_withholding_computable: missingDonorFacts.length === 0,
+        recipient_movable_gift_numbers_published: false,
+      },
+      verified_numeric_tokens: collectNumericTokens([
+        ...(hasVal ? [val] : []),
+        ...(params.officialAppraisedValueBaht ? [params.officialAppraisedValueBaht] : []),
+        ...(params.holdingYears ? [params.holdingYears] : []),
+        20_000_000,
+        10_000_000,
+        5,
+      ]),
+      required_authority_work_ids: [
+        "prov.th.rc.41_ทวิ",
+        "prov.th.rc.42",
+        "prov.th.rc.49_ทวิ",
+        "prov.th.rc.50",
+        "statute.th.rc_amendment_40_2558",
+      ],
+      summary_statement_th: `ผลทางภาษีสำหรับการโอนกรรมสิทธิ์ **ที่ดิน (อสังหาริมทรัพย์)** โดยไม่มีค่าตอบแทนให้แก่ ${roleLabelTh} แยกเป็นฝั่งผู้โอนและฝั่งผู้รับโอนตามประมวลรัษฎากรดังนี้: (1) ${donorRuleTh} ทั้งนี้ ${donorMissingTh}; (2) ${recipientLandScopeTh}${kinshipNoteTh ? `; (3) ${kinshipNoteTh}` : ""}`,
+      arithmetic_verified: true,
+    };
+  }
+
+  // =========================================================================
+  // STEP 2: CASH OR MOVABLE PROPERTY (`เงินสด / สังหาริมทรัพย์`)
+  // =========================================================================
+  const donorMovableTh = `**ฝั่งผู้โอน (Donor)**: การให้เงินสดหรือสังหาริมทรัพย์โดยเสน่หาไม่ก่อให้เกิดเงินได้พึงประเมินหรือหน้าที่หักภาษี ณ ที่จ่ายแก่ผู้ให้ (ต่างจากการโอนอสังหาริมทรัพย์)`;
+
+  if (
+    params.recipientRole === "LEGITIMATE_CHILD" ||
+    params.recipientRole === "EXPLICIT_LINEAL_GRANDCHILD" ||
+    params.recipientRole === "LINEAL_DESCENDANT"
+  ) {
+    const exempt = Math.min(val, 20_000_000);
+    const excess = Math.max(0, val - 20_000_000);
+    const tax5Pct = Math.round(excess * 5) / 100;
+    const label =
+      params.recipientRole === "EXPLICIT_LINEAL_GRANDCHILD"
+        ? "หลานสาวที่เป็นบุตรของบุตร (ผู้สืบสันดานโดยตรง)"
+        : "บุตรชอบด้วยกฎหมาย/ผู้สืบสันดานโดยตรง";
+    return {
+      calculation_id: "calc.pit.gift.movable.lineal_descendant",
+      verifier_version: "reg24-tax-calc-verifier-v1.0",
+      regime: "PIT_GIFT_EXEMPTION_S42",
+      formula_th:
+        "การให้เงินสด/สังหาริมทรัพย์แก่ผู้สืบสันดานโดยตรง: ผู้รับได้รับยกเว้นไม่เกิน 20,000,000 บาทต่อปีภาษีตามมาตรา 42 (27) ส่วนที่เกินเสียภาษีตามมาตรา 40 (8) หรือเลือกเสียร้อยละ 5 ตามมาตรา 48 (6)",
+      inputs: {
+        asset_kind: "CASH_OR_MOVABLE",
+        is_immovable_property: false,
         recipient_role: params.recipientRole,
         transfer_value_baht: val,
       },
       steps_th: [
-        params.isImmovableProperty
-          ? `โครงสร้างผู้เสียภาษีตามประมวลรัษฎากร: กรณีบิดาโอนกรรมสิทธิ์ที่ดินโดยไม่มีค่าตอบแทนให้บุตรชอบด้วยกฎหมาย (ไม่รวมบุตรบุญธรรม) กฎหมายกำหนดให้ผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ และได้รับยกเว้นในส่วนที่ไม่เกิน 20,000,000 บาทต่อบุตรหนึ่งคนตลอดปีภาษีตามมาตรา 42 (26) (แก้ไขเพิ่มเติมโดย พ.ร.บ. (ฉบับที่ 43) พ.ศ. 2559) ส่วนผู้รับโอนซึ่งเป็นผู้สืบสันดานได้รับยกเว้นเงินได้จากการอุปการะหรือให้โดยเสน่หาจากบุพการีในส่วนที่ไม่เกิน 20,000,000 บาทตลอดปีภาษีตามมาตรา 42 (27)`
-          : `กรณีบุพการีให้สังหาริมทรัพย์/เงินสดแก่บุตรชอบด้วยกฎหมาย ผู้รับได้รับยกเว้นในส่วนที่ไม่เกิน 20,000,000 บาทตลอดปีภาษีตามมาตรา 42 (27)`,
-        `มูลค่าที่โอน = ${formatBahtTh(val)} บาท -> ส่วนที่ได้รับยกเว้นภาษี = ${formatBahtTh(exempt)} บาท`,
-        `ส่วนที่เกินเกณฑ์ยกเว้น 20,000,000 บาท ที่ต้องนำมาคำนวณเสียภาษี = ${formatBahtTh(val)} - ${formatBahtTh(exempt)} = ${formatBahtTh(excess)} บาท (เลือกเสียภาษีแยกต่างหากในอัตราร้อยละ 5 ตามมาตรา 48 (4/1) หรือ (6) คิดเป็นภาษี ${formatBahtTh(tax5Pct)} บาท หรือนำส่วนที่เกิน ${formatBahtTh(excess)} บาท ไปรวมคำนวณภาษีเงินได้บุคคลธรรมดาตามอัตราก้าวหน้าก็ได้)`,
+        donorMovableTh,
+        `**ฝั่งผู้รับโอน (Recipient — ${label})**: เนื่องจากเป็นการให้ **เงินสด/สังหาริมทรัพย์** แก่ผู้สืบสันดานโดยตรง อยู่ภายใต้ **มาตรา 42 (27)** (พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) ได้รับยกเว้นเฉพาะส่วนที่ไม่เกิน **${formatBahtTh(exempt)} บาท** ตลอดปีภาษี ส่วนที่เกินอีก **${formatBahtTh(excess)} บาท** เป็นเงินได้ตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตาม **มาตรา 48 (6)** = **${formatBahtTh(tax5Pct)} บาท** หรือนำไปรวมคำนวณอัตราก้าวหน้า)`,
       ],
       outputs: {
-        exempt_amount_baht: exempt,
-        taxable_excess_baht: excess,
-        optional_flat_5pct_tax_baht: tax5Pct,
+        asset_kind: "CASH_OR_MOVABLE",
+        donor_has_s41_bis_tax: false,
+        recipient_exempt_baht: exempt,
+        recipient_taxable_excess_baht: excess,
+        recipient_optional_5pct_tax_baht: tax5Pct,
       },
       verified_numeric_tokens: collectNumericTokens([val, 20_000_000, exempt, excess, 5, tax5Pct]),
       required_authority_work_ids: [
@@ -530,157 +741,56 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
         "prov.th.rc.40",
         "statute.th.rc_amendment_40_2558",
       ],
-      summary_statement_th: params.isImmovableProperty
-        ? `ตามประมวลรัษฎากร **มาตรา 42 (26) และมาตรา 48 (4/1)** (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) กรณีบิดาโอนกรรมสิทธิ์ที่ดินโดยไม่มีค่าตอบแทนให้แก่บุตรชอบด้วยกฎหมาย (ไม่รวมบุตรบุญธรรม) **ผู้โอน (บิดา) เป็นผู้มีเงินได้และมีหน้าที่เสียภาษีเงินได้บุคคลธรรมดา — มิใช่บุตรผู้รับโอน** โดยได้รับยกเว้นเฉพาะส่วนที่ไม่เกิน **${formatBahtTh(exempt)} บาท** ต่อบุตรหนึ่งคนตลอดปีภาษี และส่วนที่เกินอีกจำนวน **${formatBahtTh(excess)} บาท** เป็นเงินได้พึงประเมินของ **ผู้โอน (บิดา)** ที่ต้องเสียภาษี (เลือกเสียภาษีแยกต่างหากในอัตราร้อยละ 5 ของส่วนที่เกิน คิดเป็นภาษี **${formatBahtTh(tax5Pct)} บาท** ตามมาตรา 48 (4/1) หรือนำไปรวมคำนวณภาษีเงินได้บุคคลธรรมดาตามอัตราก้าวหน้าก็ได้)`
-        : `ตามประมวลรัษฎากร มาตรา 42 (27) ประกอบมาตรา 40 (8) และมาตรา 48 (6) (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) จากมูลค่าทรัพย์สิน ${formatBahtTh(val)} บาท ได้รับยกเว้นภาษีเงินได้เฉพาะส่วนที่ไม่เกิน **${formatBahtTh(exempt)} บาท** ตลอดปีภาษี ส่วนที่เกินอีกจำนวน **${formatBahtTh(excess)} บาท** ไม่ได้รับยกเว้นและต้องนำมาคำนวณภาษีเงินได้บุคคลธรรมดา (โดยเลือกเสียภาษีแยกต่างหากในอัตราร้อยละ 5 ของส่วนที่เกิน คิดเป็นภาษี **${formatBahtTh(tax5Pct)} บาท** หรือนำไปรวมคำนวณกับเงินได้อื่นตามบัญชีอัตราก้าวหน้าก็ได้)`,
+      summary_statement_th: `ผลทางภาษีสำหรับการให้ **เงินสด/สังหาริมทรัพย์** มูลค่า ${formatBahtTh(val)} บาท แก่ **${label}**: (1) ${donorMovableTh}; (2) **ฝั่งผู้รับโอน (Recipient)**: เข้าเกณฑ์ผู้สืบสันดานตาม **มาตรา 42 (27)** ได้รับยกเว้นไม่เกิน **${formatBahtTh(exempt)} บาท** ตลอดปีภาษี ส่วนที่เกิน **${formatBahtTh(excess)} บาท** เป็นเงินได้ตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตาม **มาตรา 48 (6)** = **${formatBahtTh(tax5Pct)} บาท** หรือนำไปรวมคำนวณอัตราก้าวหน้า)`,
       arithmetic_verified: true,
     };
   }
 
   if (
-    params.recipientRole === "EXPLICIT_LINEAL_GRANDCHILD" ||
     params.recipientRole === "EXPLICIT_COLLATERAL_NIECE" ||
-    params.recipientRole === "AMBIGUOUS_LAN_OR_NIECE"
+    params.recipientRole === "ADOPTED_CHILD" ||
+    params.recipientRole === "NON_LINEAL_RELATIVE_OR_THIRD_PARTY"
   ) {
-    const exemptCeremony10M = Math.min(val, 10_000_000);
-    const excessCeremony15M = Math.max(0, val - 10_000_000);
-    const taxCeremony5Pct = Math.round(excessCeremony15M * 5) / 100;
-    const exemptLineal20M = Math.min(val, 20_000_000);
-    const excessLineal5M = Math.max(0, val - 20_000_000);
-    const taxLineal5Pct = Math.round(excessLineal5M * 5) / 100;
-
-    const donorPositionTh = params.isImmovableProperty
-      ? `**ฝั่งผู้โอน (Donor)**: เมื่อผู้รับโอนไม่ใช่บุตรชอบด้วยกฎหมาย ย่อม **ไม่ได้รับสิทธิยกเว้นการโอนกรรมสิทธิ์ที่ดินให้บุตรชอบด้วยกฎหมายไม่เกิน 20,000,000 บาท ตามมาตรา 42 (26)** อีกต่อไป (การโอนกรรมสิทธิ์อสังหาริมทรัพย์โดยไม่มีค่าตอบแทนถือว่าผู้โอนเป็นผู้มีเงินได้และต้องตรวจสอบภาระภาษีฝั่งผู้โอนแยกต่างหากจากฝั่งผู้รับโอน)`
-      : `**ฝั่งผู้โอน (Donor)**: การให้สังหาริมทรัพย์หรือเงินสดโดยเสน่หาไม่มีภาระภาษีเงินได้บุคคลธรรมดาฝั่งผู้ให้`;
-
-    if (params.recipientRole === "EXPLICIT_LINEAL_GRANDCHILD") {
-      return {
-        calculation_id: "calc.pit.gift.explicit_grandchild",
-        verifier_version: "reg24-tax-calc-verifier-v1.0",
-        regime: "PIT_GIFT_EXEMPTION_S42",
-        formula_th:
-          "แยกฝั่งผู้โอน (ไม่ได้รับยกเว้นตามมาตรา 42 (26) เมื่อโอนที่ดินให้ผู้รับที่มิใช่บุตรชอบด้วยกฎหมาย) กับฝั่งผู้รับโอนที่เป็นผู้สืบสันดานโดยตรง (หลานปู่/หลานตา: เกณฑ์มาตรา 42 (27) ไม่เกิน 20,000,000 บาท ส่วนเกินเสียภาษีตามมาตรา 40 (8) หรือร้อยละ 5 ตามมาตรา 48 (6))",
-        inputs: {
-          is_immovable_property: params.isImmovableProperty,
-          recipient_role: params.recipientRole,
-          is_ceremony_or_custom: params.isCeremonyOrCustomOrMoralDuty,
-          transfer_value_baht: val,
-        },
-        steps_th: [
-          donorPositionTh,
-          `**ฝั่งผู้รับโอน (Recipient — หลานปู่/หลานตา ซึ่งเป็นผู้สืบสันดานโดยตรง)**: ${params.isImmovableProperty ? "ภายใต้เงื่อนไขการยืนยันโครงสร้างภาษีฝั่งผู้รับสำหรับอสังหาริมทรัพย์ร่วมกับฝั่งผู้โอน — " : ""}ในฐานะผู้สืบสันดานโดยตรงที่ได้รับจากบุพการี อยู่ภายใต้ **มาตรา 42 (27)** (พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) ได้รับยกเว้นเฉพาะส่วนที่ไม่เกิน **${formatBahtTh(exemptLineal20M)} บาท** ตลอดปีภาษี ส่วนที่เกินอีก **${formatBahtTh(excessLineal5M)} บาท** เป็นเงินได้ตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตามมาตรา 48 (6) = **${formatBahtTh(taxLineal5Pct)} บาท** หรือนำไปรวมคำนวณอัตราก้าวหน้า)`,
-        ],
-        outputs: {
-          donor_qualifies_s42_26: false,
-          recipient_exempt_baht: exemptLineal20M,
-          recipient_taxable_excess_baht: excessLineal5M,
-          recipient_optional_5pct_tax_baht: taxLineal5Pct,
-        },
-        verified_numeric_tokens: collectNumericTokens([
-          val,
-          20_000_000,
-          exemptLineal20M,
-          excessLineal5M,
-          taxLineal5Pct,
-          5,
-        ]),
-        required_authority_work_ids: [
-          "prov.th.rc.42",
-          "prov.th.rc.48",
-          "prov.th.rc.40",
-          "statute.th.rc_amendment_40_2558",
-        ],
-        summary_statement_th: `ผลทางภาษีเมื่อผู้รับโอนคือ **หลานสาวที่เป็นบุตรของบุตร (ผู้สืบสันดานโดยตรง)** แยกเป็นสองฝั่งชัดเจนดังนี้: (1) ${donorPositionTh}; (2) **ฝั่งผู้รับโอน (หลานปู่/หลานตา)**: เข้าเกณฑ์ผู้สืบสันดานตาม **มาตรา 42 (27)** (พ.ร.บ. ฉบับที่ 40 พ.ศ. 2558) ได้รับยกเว้นไม่เกิน **${formatBahtTh(exemptLineal20M)} บาท** และส่วนที่เกิน **${formatBahtTh(excessLineal5M)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตามมาตรา 48 (6) = **${formatBahtTh(taxLineal5Pct)} บาท**)${params.isImmovableProperty ? " ทั้งนี้ เนื่องจากทรัพย์สินที่โอนคือที่ดิน ฝ่ายกฎหมายควรยืนยันความสัมพันธ์ระหว่างภาระภาษีฝั่งผู้โอนกับฝั่งผู้รับโอนสำหรับอสังหาริมทรัพย์ประกอบกัน" : ""}`,
-        arithmetic_verified: true,
-      };
-    }
-
-    if (params.recipientRole === "EXPLICIT_COLLATERAL_NIECE") {
-      const qualifiesCeremony = params.isCeremonyOrCustomOrMoralDuty;
-      const recExempt = qualifiesCeremony ? exemptCeremony10M : 0;
-      const recExcess = qualifiesCeremony ? excessCeremony15M : val;
-      const recTax5 = qualifiesCeremony ? taxCeremony5Pct : 0;
-      return {
-        calculation_id: "calc.pit.gift.explicit_niece",
-        verifier_version: "reg24-tax-calc-verifier-v1.0",
-        regime: "PIT_GIFT_EXEMPTION_S42",
-        formula_th:
-          "แยกฝั่งผู้โอน (ไม่ได้รับยกเว้นตามมาตรา 42 (26) เมื่อโอนที่ดินให้ผู้รับที่มิใช่บุตรชอบด้วยกฎหมาย) กับฝั่งผู้รับโอนที่เป็นบุตรของพี่หรือน้อง (มิใช่ผู้สืบสันดานโดยตรง: หากเข้าเกณฑ์พิธีตามขนบธรรมเนียมประเพณีตามมาตรา 42 (28) ยกเว้นไม่เกิน 10,000,000 บาท ส่วนเกินเสียภาษีตามมาตรา 40 (8) หรือร้อยละ 5 ตามมาตรา 48 (7))",
-        inputs: {
-          is_immovable_property: params.isImmovableProperty,
-          recipient_role: params.recipientRole,
-          is_ceremony_or_custom: qualifiesCeremony,
-          transfer_value_baht: val,
-        },
-        steps_th: [
-          donorPositionTh,
-          qualifiesCeremony
-            ? `**ฝั่งผู้รับโอน (Recipient — หลานสาวที่เป็นบุตรของพี่หรือน้อง มิใช่ผู้สืบสันดานโดยตรง)**: เมื่อเป็นการให้เนื่องในพิธีสมรสตามขนบธรรมเนียมประเพณี อยู่ภายใต้เกณฑ์ **มาตรา 42 (28)** (พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) ได้รับยกเว้นเฉพาะส่วนที่ไม่เกิน **${formatBahtTh(recExempt)} บาท** ตลอดปีภาษี ส่วนที่เกินอีก **${formatBahtTh(recExcess)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตามมาตรา 48 (7) = **${formatBahtTh(recTax5)} บาท** หรือนำไปรวมคำนวณอัตราก้าวหน้า)${params.isImmovableProperty ? " ทั้งนี้ เนื่องจากทรัพย์สินคือที่ดิน ต้องให้ฝ่ายกฎหมายยืนยันขอบเขตการใช้มาตรา 42 (28) สำหรับการโอนอสังหาริมทรัพย์ควบคู่กับภาระภาษีฝั่งผู้โอน" : ""}`
-            : `**ฝั่งผู้รับโอน (Recipient — บุตรของพี่หรือน้อง ไม่เข้าข้อยกเว้นพิธีตามขนบธรรมเนียมประเพณี)**: ไม่ได้รับยกเว้นตามมาตรา 42 (27) หรือ (28) ต้องนำมูลค่า **${formatBahtTh(recExcess)} บาท** มารวมคำนวณเป็นเงินได้พึงประเมินตามมาตรา 40 (8)`,
-        ],
-        outputs: {
-          donor_qualifies_s42_26: false,
-          recipient_exempt_baht: recExempt,
-          recipient_taxable_excess_baht: recExcess,
-          recipient_optional_5pct_tax_baht: recTax5,
-        },
-        verified_numeric_tokens: collectNumericTokens([
-          val,
-          10_000_000,
-          20_000_000,
-          recExempt,
-          recExcess,
-          recTax5,
-          5,
-        ]),
-        required_authority_work_ids: [
-          "prov.th.rc.42",
-          "prov.th.rc.48",
-          "prov.th.rc.40",
-          "statute.th.rc_amendment_40_2558",
-        ],
-        summary_statement_th: `ผลทางภาษีเมื่อผู้รับโอนคือ **หลานสาวที่เป็นบุตรของพี่หรือน้อง (มิใช่ผู้สืบสันดานโดยตรง)**${qualifiesCeremony ? " เนื่องในงานสมรสตามประเพณี" : ""} แยกเป็นสองฝั่งชัดเจนดังนี้: (1) ${donorPositionTh}; (2) **ฝั่งผู้รับโอน (หลานลุง/หลานอา/หลานน้า)**: ${qualifiesCeremony ? `อยู่ภายใต้เกณฑ์ **มาตรา 42 (28)** (พ.ร.บ. ฉบับที่ 40 พ.ศ. 2558) ยกเว้นไม่เกิน **${formatBahtTh(recExempt)} บาท** และส่วนที่เกิน **${formatBahtTh(recExcess)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตามมาตรา 48 (7) = **${formatBahtTh(recTax5)} บาท**)` : `ไม่ได้รับยกเว้นตามมาตรา 42 (27)–(28) และต้องนำมูลค่า **${formatBahtTh(recExcess)} บาท** มารวมคำนวณตามมาตรา 40 (8)`}${params.isImmovableProperty ? " ทั้งนี้ เนื่องจากทรัพย์สินที่โอนคือที่ดิน ฝ่ายกฎหมายควรยืนยันขอบเขตการใช้มาตรา 42 (28) กับการโอนอสังหาริมทรัพย์ควบคู่กับภาระภาษีฝั่งผู้โอน" : ""}`,
-        arithmetic_verified: true,
-      };
-    }
-
+    const qualifiesCeremony = params.isCeremonyOrCustomOrMoralDuty;
+    const recExempt = qualifiesCeremony ? Math.min(val, 10_000_000) : 0;
+    const recExcess = qualifiesCeremony ? Math.max(0, val - 10_000_000) : val;
+    const recTax5 = qualifiesCeremony ? Math.round(recExcess * 5) / 100 : 0;
+    const label =
+      params.recipientRole === "EXPLICIT_COLLATERAL_NIECE"
+        ? "หลานสาวที่เป็นบุตรของพี่หรือน้อง (ญาติสายข้าง — มิใช่ผู้สืบสันดานโดยตรง)"
+        : "บุคคลอื่นที่มิใช่ผู้สืบสันดานโดยตรง";
     return {
-      calculation_id: "calc.pit.gift.niece_or_grandchild",
+      calculation_id: "calc.pit.gift.movable.collateral_niece",
       verifier_version: "reg24-tax-calc-verifier-v1.0",
       regime: "PIT_GIFT_EXEMPTION_S42",
       formula_th:
-        "แยกฝั่งผู้โอน (ไม่ได้รับยกเว้นตามมาตรา 42 (26) เมื่อผู้รับมิใช่บุตรชอบด้วยกฎหมาย) และแยกฝั่งผู้รับโอนตามข้อเท็จจริงชี้ขาดของคำว่า 'หลานสาว' (บุตรของบุตร = มาตรา 42 (27) ยกเว้น 20,000,000 บาท vs บุตรของพี่หรือน้องในพิธีสมรส = มาตรา 42 (28) ยกเว้น 10,000,000 บาท)",
+        "การให้เงินสด/สังหาริมทรัพย์แก่ผู้รับที่มิใช่ผู้สืบสันดานโดยตรง: หากเป็นการให้ในพิธีหรือตามโอกาสแห่งขนบธรรมเนียมประเพณี ยกเว้นไม่เกิน 10,000,000 บาทตามมาตรา 42 (28) ส่วนที่เกินเสียภาษีตามมาตรา 40 (8) หรือร้อยละ 5 ตามมาตรา 48 (7)",
       inputs: {
-        is_immovable_property: params.isImmovableProperty,
+        asset_kind: "CASH_OR_MOVABLE",
+        is_immovable_property: false,
         recipient_role: params.recipientRole,
-        is_ceremony_or_custom: params.isCeremonyOrCustomOrMoralDuty,
+        is_ceremony_or_custom: qualifiesCeremony,
         transfer_value_baht: val,
       },
       steps_th: [
-        donorPositionTh,
-        `**ข้อเท็จจริงชี้ขาดที่ต้องยืนยันสำหรับฝั่งผู้รับโอน**: คำว่า "หลานสาว" ต้องยืนยันว่าเป็น (ก) บุตรของบุตร (หลานปู่/หลานตา = ผู้สืบสันดานโดยตรง) หรือ (ข) บุตรของพี่หรือน้อง (หลานลุง/หลานอา/หลานน้า = มิใช่ผู้สืบสันดานโดยตรง)`,
-        `**ฝั่งผู้รับโอน — ทางเลือก ก. กรณีเป็นบุตรของบุตร (ผู้สืบสันดานโดยตรง)**: เข้าเกณฑ์ **มาตรา 42 (27)** ได้รับยกเว้นไม่เกิน **${formatBahtTh(exemptLineal20M)} บาท** ส่วนที่เกิน **${formatBahtTh(excessLineal5M)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตามมาตรา 48 (6) = **${formatBahtTh(taxLineal5Pct)} บาท**)`,
-        `**ฝั่งผู้รับโอน — ทางเลือก ข. กรณีเป็นบุตรของพี่หรือน้อง (มิใช่ผู้สืบสันดานโดยตรง)**: การให้เนื่องในพิธีสมรสตามขนบธรรมเนียมประเพณีอยู่ภายใต้ **มาตรา 42 (28)** ได้รับยกเว้นไม่เกิน **${formatBahtTh(exemptCeremony10M)} บาท** ส่วนที่เกิน **${formatBahtTh(excessCeremony15M)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตามมาตรา 48 (7) = **${formatBahtTh(taxCeremony5Pct)} บาท**)${params.isImmovableProperty ? " — ทั้งนี้ เนื่องจากเป็นการโอนที่ดิน ฝ่ายกฎหมายควรยืนยันขอบเขตการใช้มาตรา 42 (28) กับอสังหาริมทรัพย์ควบคู่กับภาระภาษีฝั่งผู้โอน" : ""}`,
+        donorMovableTh,
+        qualifiesCeremony
+          ? `**ฝั่งผู้รับโอน (Recipient — ${label})**: เมื่อเป็นการให้ **เงินสด/สังหาริมทรัพย์** เนื่องในพิธีหรือตามโอกาสแห่งขนบธรรมเนียมประเพณี อยู่ภายใต้ **มาตรา 42 (28)** (พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) ได้รับยกเว้นเฉพาะส่วนที่ไม่เกิน **${formatBahtTh(recExempt)} บาท** ตลอดปีภาษี ส่วนที่เกินอีก **${formatBahtTh(recExcess)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตาม **มาตรา 48 (7)** = **${formatBahtTh(recTax5)} บาท** หรือนำไปรวมคำนวณอัตราก้าวหน้า)`
+          : `**ฝั่งผู้รับโอน (Recipient — ${label})**: มิใช่ผู้สืบสันดานและไม่เข้าข้อยกเว้นพิธีตามขนบธรรมเนียมประเพณี จึงไม่ได้รับยกเว้นตามมาตรา 42 (27) หรือ (28) และต้องนำมูลค่า **${formatBahtTh(recExcess)} บาท** มารวมคำนวณเป็นเงินได้พึงประเมินตามมาตรา 40 (8)`,
       ],
       outputs: {
-        donor_qualifies_s42_26: false,
-        collateral_niece_exempt_baht: exemptCeremony10M,
-        collateral_niece_taxable_excess_baht: excessCeremony15M,
-        collateral_niece_5pct_tax_baht: taxCeremony5Pct,
-        lineal_grandchild_exempt_baht: exemptLineal20M,
-        lineal_grandchild_taxable_excess_baht: excessLineal5M,
-        lineal_grandchild_5pct_tax_baht: taxLineal5Pct,
+        asset_kind: "CASH_OR_MOVABLE",
+        donor_has_s41_bis_tax: false,
+        recipient_exempt_baht: recExempt,
+        recipient_taxable_excess_baht: recExcess,
+        recipient_optional_5pct_tax_baht: recTax5,
       },
       verified_numeric_tokens: collectNumericTokens([
         val,
         10_000_000,
-        20_000_000,
-        exemptCeremony10M,
-        excessCeremony15M,
-        taxCeremony5Pct,
-        exemptLineal20M,
-        excessLineal5M,
-        taxLineal5Pct,
+        recExempt,
+        recExcess,
+        recTax5,
         5,
       ]),
       required_authority_work_ids: [
@@ -689,22 +799,68 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
         "prov.th.rc.40",
         "statute.th.rc_amendment_40_2558",
       ],
-      summary_statement_th: `ผลทางภาษีเมื่อเปลี่ยนผู้รับโอนที่ดินเป็น **"หลานสาว"** เนื่องในงานสมรสตามประเพณี แยกเป็นฝั่งผู้โอนและฝั่งผู้รับโอนตามเงื่อนไขความสัมพันธ์ (พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) ดังนี้: (1) ${donorPositionTh}; (2) **ฝั่งผู้รับโอน (ขึ้นอยู่กับข้อเท็จจริงชี้ขาดว่า "หลานสาว" เป็นบุตรของบุตรหรือบุตรของพี่หรือน้อง)**: (ก) หากเป็น **ผู้สืบสันดานโดยตรง** (บุตรของบุตร) อยู่ภายใต้ **มาตรา 42 (27)** ยกเว้น **${formatBahtTh(exemptLineal20M)} บาท** ส่วนเกิน **${formatBahtTh(excessLineal5M)} บาท** เสียภาษีตามมาตรา 40 (8) หรือร้อยละ 5 ตามมาตรา 48 (6) = **${formatBahtTh(taxLineal5Pct)} บาท**; (ข) หากเป็น **บุตรของพี่หรือน้อง** (มิใช่ผู้สืบสันดานโดยตรง) การให้ในพิธีสมรสตามประเพณีอยู่ภายใต้ **มาตรา 42 (28)** ยกเว้น **${formatBahtTh(exemptCeremony10M)} บาท** ส่วนเกิน **${formatBahtTh(excessCeremony15M)} บาท** เสียภาษีตามมาตรา 40 (8) หรือร้อยละ 5 ตามมาตรา 48 (7) = **${formatBahtTh(taxCeremony5Pct)} บาท**${params.isImmovableProperty ? " (โดยเนื่องจากทรัพย์สินคือที่ดิน ฝ่ายกฎหมายควรยืนยันการใช้มาตรา 42 (28) กับอสังหาริมทรัพย์ควบคู่กับภาระภาษีฝั่งผู้โอน)" : ""}`,
+      summary_statement_th: `ผลทางภาษีสำหรับการให้ **เงินสด/สังหาริมทรัพย์** มูลค่า ${formatBahtTh(val)} บาท แก่ **${label}**${qualifiesCeremony ? " เนื่องในงานสมรสตามประเพณี" : ""}: (1) ${donorMovableTh}; (2) **ฝั่งผู้รับโอน (Recipient)**: ${qualifiesCeremony ? `เข้าเกณฑ์ **มาตรา 42 (28)** ได้รับยกเว้นไม่เกิน **${formatBahtTh(recExempt)} บาท** ตลอดปีภาษี ส่วนที่เกิน **${formatBahtTh(recExcess)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียอัตราร้อยละ 5 ตาม **มาตรา 48 (7)** = **${formatBahtTh(recTax5)} บาท** หรือนำไปรวมคำนวณอัตราก้าวหน้า)` : `ไม่ได้รับยกเว้นตามมาตรา 42 (27)–(28) และต้องนำมูลค่า **${formatBahtTh(recExcess)} บาท** มารวมคำนวณตามมาตรา 40 (8)`}`,
       arithmetic_verified: true,
     };
   }
 
-  return verifyGiftTaxExemptionCalculation({
-    isImmovableProperty: params.isImmovableProperty,
-    recipientRelation:
-      params.recipientRole === "LINEAL_DESCENDANT"
-        ? "ASCENDANT_DESCENDANT_SPOUSE"
-        : params.isCeremonyOrCustomOrMoralDuty
-          ? "OTHER_PERSON_CEREMONY_OR_MORAL_DUTY"
-          : "OTHER_PERSON_GENERAL",
-    isCeremonyOrCustomOrMoralDuty: params.isCeremonyOrCustomOrMoralDuty,
-    transferValueBaht: val,
-  });
+  // Ambiguous "หลานสาว" on CASH / MOVABLE gift -> both movable branches (`§42(27)` 20M vs `§42(28)` 10M) are directly applicable!
+  const exemptLineal20M = Math.min(val, 20_000_000);
+  const excessLineal5M = Math.max(0, val - 20_000_000);
+  const taxLineal5Pct = Math.round(excessLineal5M * 5) / 100;
+  const exemptCeremony10M = Math.min(val, 10_000_000);
+  const excessCeremony15M = Math.max(0, val - 10_000_000);
+  const taxCeremony5Pct = Math.round(excessCeremony15M * 5) / 100;
+  return {
+    calculation_id: "calc.pit.gift.movable.ambiguous_lan",
+    verifier_version: "reg24-tax-calc-verifier-v1.0",
+    regime: "PIT_GIFT_EXEMPTION_S42",
+    formula_th:
+      "การให้เงินสด/สังหาริมทรัพย์แก่ 'หลานสาว': แยกตามสถานะความสัมพันธ์ (บุตรของบุตร = มาตรา 42 (27) ยกเว้น 20,000,000 บาท vs บุตรของพี่หรือน้องในพิธีสมรส = มาตรา 42 (28) ยกเว้น 10,000,000 บาท)",
+    inputs: {
+      asset_kind: "CASH_OR_MOVABLE",
+      is_immovable_property: false,
+      recipient_role: params.recipientRole,
+      is_ceremony_or_custom: params.isCeremonyOrCustomOrMoralDuty,
+      transfer_value_baht: val,
+    },
+    steps_th: [
+      donorMovableTh,
+      `**ข้อเท็จจริงชี้ขาดที่ต้องยืนยันสำหรับฝั่งผู้รับโอน**: คำว่า "หลานสาว" เป็น (ก) บุตรของบุตร (หลานปู่/หลานตา = ผู้สืบสันดานโดยตรง) หรือ (ข) บุตรของพี่หรือน้อง (หลานลุง/หลานอา/หลานน้า = มิใช่ผู้สืบสันดานโดยตรง)`,
+      `**ฝั่งผู้รับโอน — ทางเลือก ก. กรณีเป็นบุตรของบุตร (ผู้สืบสันดานโดยตรง)**: เข้าเกณฑ์ **มาตรา 42 (27)** ได้รับยกเว้นไม่เกิน **${formatBahtTh(exemptLineal20M)} บาท** ส่วนที่เกิน **${formatBahtTh(excessLineal5M)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียร้อยละ 5 ตาม **มาตรา 48 (6)** = **${formatBahtTh(taxLineal5Pct)} บาท**)`,
+      `**ฝั่งผู้รับโอน — ทางเลือก ข. กรณีเป็นบุตรของพี่หรือน้อง (มิใช่ผู้สืบสันดานโดยตรง)**: การให้เนื่องในพิธีสมรสตามขนบธรรมเนียมประเพณีเข้าเกณฑ์ **มาตรา 42 (28)** ได้รับยกเว้นไม่เกิน **${formatBahtTh(exemptCeremony10M)} บาท** ส่วนที่เกิน **${formatBahtTh(excessCeremony15M)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียร้อยละ 5 ตาม **มาตรา 48 (7)** = **${formatBahtTh(taxCeremony5Pct)} บาท**)`,
+    ],
+    outputs: {
+      asset_kind: "CASH_OR_MOVABLE",
+      donor_has_s41_bis_tax: false,
+      lineal_grandchild_exempt_baht: exemptLineal20M,
+      lineal_grandchild_taxable_excess_baht: excessLineal5M,
+      lineal_grandchild_5pct_tax_baht: taxLineal5Pct,
+      collateral_niece_exempt_baht: exemptCeremony10M,
+      collateral_niece_taxable_excess_baht: excessCeremony15M,
+      collateral_niece_5pct_tax_baht: taxCeremony5Pct,
+    },
+    verified_numeric_tokens: collectNumericTokens([
+      val,
+      20_000_000,
+      10_000_000,
+      exemptLineal20M,
+      excessLineal5M,
+      taxLineal5Pct,
+      exemptCeremony10M,
+      excessCeremony15M,
+      taxCeremony5Pct,
+      5,
+    ]),
+    required_authority_work_ids: [
+      "prov.th.rc.42",
+      "prov.th.rc.48",
+      "prov.th.rc.40",
+      "statute.th.rc_amendment_40_2558",
+    ],
+    summary_statement_th: `ผลทางภาษีสำหรับการให้ **เงินสด/สังหาริมทรัพย์** มูลค่า ${formatBahtTh(val)} บาท แก่ **"หลานสาว"** เนื่องในงานสมรสตามประเพณี: (1) ${donorMovableTh}; (2) **ฝั่งผู้รับโอน (ขึ้นอยู่กับข้อเท็จจริงชี้ขาดว่า "หลานสาว" เป็นบุตรของบุตรหรือบุตรของพี่หรือน้อง)**: (ก) หากเป็น **บุตรของบุตร** อยู่ภายใต้ **มาตรา 42 (27)** ยกเว้น **${formatBahtTh(exemptLineal20M)} บาท** ส่วนเกิน **${formatBahtTh(excessLineal5M)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียร้อยละ 5 ตามมาตรา 48 (6) = **${formatBahtTh(taxLineal5Pct)} บาท**); (ข) หากเป็น **บุตรของพี่หรือน้อง** อยู่ภายใต้ **มาตรา 42 (28)** ยกเว้น **${formatBahtTh(exemptCeremony10M)} บาท** ส่วนเกิน **${formatBahtTh(excessCeremony15M)} บาท** เสียภาษีตามมาตรา 40 (8) (เลือกเสียร้อยละ 5 ตามมาตรา 48 (7) = **${formatBahtTh(taxCeremony5Pct)} บาท**)`,
+    arithmetic_verified: true,
+  };
 }
 
 /**

@@ -528,11 +528,15 @@ export function evaluateSubstantiveClaimSupport(params: {
         if (fam.pattern.test(citedSlice)) continue;
         // Claim asserts this exception concept on `(${citedLetter})`, yet `(${citedLetter})` does NOT contain it
         // while a DIFFERENT sibling subparagraph `(ก)`–`(ช)` in the same cited text DOES!
+        // Skip only if the claim itself explicitly cites that matching sibling too (e.g. contrasting `มาตรา 50 (5) (ก) ... หรือ ... (ข)`).
         let matchingSibling: string | null = null;
         for (const [sibLetter, sibText] of siblingSlices.entries()) {
           if (sibLetter !== citedLetter && fam.pattern.test(sibText)) {
-            matchingSibling = sibLetter;
-            break;
+            const siblingAlsoCitedNearby = new RegExp(`\\(${sibLetter}\\)`).test(localClaimWindow);
+            if (!siblingAlsoCitedNearby) {
+              matchingSibling = sibLetter;
+              break;
+            }
           }
         }
         if (matchingSibling) {
@@ -544,6 +548,62 @@ export function evaluateSubstantiveClaimSupport(params: {
           };
         }
       }
+    }
+  }
+
+  // 1c. Party & Asset-Type Grounding Check (e.g. Gift & Gratuitous Immovable Transfer):
+  // Rejects any claim that applies a rule to the WRONG taxpayer party or WRONG asset type,
+  // even when the section number and arithmetic are otherwise correct!
+  const mentionsLandOrImmovable = /(?:ที่ดิน|อสังหาริมทรัพย์)/.test(normClaim);
+  const mentionsMovableGiftSection =
+    /มาตรา\s*42\s*\((?:27|28)\)|มาตรา\s*48\s*\((?:6|7)\)/.test(normClaim);
+  const explicitlyDistinguishesMovableFromLand =
+    /ไม่นำเกณฑ์|เฉพาะ(?:กรณี)?(?:การให้)?สังหาริมทรัพย์|ไม่ใช่เงินสดหรือสังหาริมทรัพย์|ไม่ใช้บังคับกับการโอนที่ดิน/.test(
+      normClaim
+    );
+  const assertsRecipientTaxFigureForMovableRule =
+    /(?:ได้รับยกเว้น(?:ภาษี)?(?:เฉพาะส่วนที่ไม่เกิน|ไม่เกิน)?\s*(?:10,?000,?000|20,?000,?000|10\s*ล้าน|20\s*ล้าน)|เสียภาษี(?:อัตราร้อยละ|ร้อยละ)\s*5\s*(?:=|คิดเป็น)?\s*(?:250,?000|750,?000))/.test(
+      normClaim
+    );
+  if (
+    mentionsLandOrImmovable &&
+    mentionsMovableGiftSection &&
+    assertsRecipientTaxFigureForMovableRule &&
+    !explicitlyDistinguishesMovableFromLand
+  ) {
+    return {
+      supported: false,
+      reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
+      detail_th:
+        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากนำเกณฑ์หรือตัวเลขภาษีการรับให้สังหาริมทรัพย์ (มาตรา 42 (27)-(28) / มาตรา 48 (6)-(7)) ไปปรับใช้โดยตรงกับการโอนอสังหาริมทรัพย์ (ที่ดิน) ซึ่งอยู่ภายใต้มาตรา 41 ทวิ และมาตรา 50 (5)-(6)",
+      overlap_ratio: 0,
+    };
+  }
+
+  // Reject applying §42(26) legitimate-child immovable exemption to a non-legitimate-child (niece/granddaughter/adopted child)
+  // or attributing §42(26) exemption to the recipient instead of the donor!
+  const citesS42_26 = /มาตรา\s*42\s*\(26\)/.test(normClaim);
+  if (citesS42_26) {
+    const negatesS42_26 =
+      /ไม่ได้รับ(?:สิทธิ)?ยกเว้น|ไม่เข้าข้อยกเว้น|ไม่เข้าเกณฑ์|มิใช่บุตรชอบด้วยกฎหมาย|ไม่รวม(?:ถึง)?บุตรบุญธรรม|ไม่ใช่บุตรชอบด้วยกฎหมาย/.test(
+        normClaim
+      );
+    const appliesToNonLegitChild =
+      /(?:หลานสาว|หลานชาย|บุตรของพี่|บุตรของน้อง|บุตรของบุตร|บุตรบุญธรรม)[^\n]{0,60}(?:ได้รับยกเว้น|เข้าเกณฑ์)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
+        normClaim
+      );
+    const attributesS42_26ToRecipient =
+      /(?:ผู้รับโอน|บุตรผู้รับโอน|หลานสาวผู้รับโอน)[^\n]{0,40}(?:ได้รับยกเว้น(?:ภาษี)?)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
+        normClaim
+      ) && !/ผู้โอน[^\n]{0,30}เป็นผู้มีเงินได้/.test(normClaim);
+    if ((appliesToNonLegitChild && !negatesS42_26) || attributesS42_26ToRecipient) {
+      return {
+        supported: false,
+        reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
+        detail_th:
+          "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากปรับใช้มาตรา 42 (26) ผิดตัวผู้เสียภาษีหรือผิดความสัมพันธ์ (มาตรา 42 (26) เป็นข้อยกเว้นฝั่งผู้โอนเฉพาะกรณีโอนให้บุตรชอบด้วยกฎหมายไม่รวมบุตรบุญธรรมเท่านั้น)",
+        overlap_ratio: 0,
+      };
     }
   }
 

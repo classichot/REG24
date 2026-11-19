@@ -501,12 +501,12 @@ export function analyzeLegalIssuesAndFacts(params: {
     );
   }
 
-  // --- Regime F: Gift Tax / Gratuitous Property Transfer (`มาตรา 42 (26)-(28)`, `มาตรา 48`, `พ.ร.บ. 40`) ---
+  // --- Regime F: Gift Tax / Gratuitous Property Transfer (`มาตรา 41 ทวิ`, `42 (26)-(28)`, `48`, `49 ทวิ`, `50 (5)-(6)`, `พ.ร.บ. 40`) ---
   const asksGiftTransfer =
-    /(?:โอนที่ดิน|ให้อสังหาริมทรัพย์|ให้ที่ดิน|ให้โดยเสน่หา|โอนกรรมสิทธิ์[^\n]{0,40}โดยไม่มีค่าตอบแทน)/.test(
+    /(?:โอนที่ดิน|ให้อสังหาริมทรัพย์|ให้ที่ดิน|ให้โดยเสน่หา|มอบเงินสด|ให้เงินสด|โอนเงินให้|ของขวัญงานสมรส|โอนกรรมสิทธิ์[^\n]{0,40}โดยไม่มีค่าตอบแทน)/.test(
       mergedContext
     ) &&
-    /(?:บุตร|หลาน|ผู้สืบสันดาน|ญาติ|งานสมรส|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา)/.test(
+    /(?:บุตร|หลาน|ผู้สืบสันดาน|ญาติ|งานสมรส|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา|ภาษีการรับให้)/.test(
       mergedContext
     );
   if (asksGiftTransfer) {
@@ -515,12 +515,41 @@ export function analyzeLegalIssuesAndFacts(params: {
     controlling.add("prov.th.rc.48");
     controlling.add("prov.th.rc.40");
     controlling.add("statute.th.rc_amendment_40_2558");
-    const isImmovable = /ที่ดิน|บ้าน|คอนโด|อสังหาริมทรัพย์/.test(mergedContext);
+
+    // Step 1: Classify asset FIRST — active follow-up overrides prior asset if it explicitly switches to cash/movable!
+    const activeExplicitMovable =
+      /(?:เงินสด|โอนเงิน|ทองคำ|หุ้น|สังหาริมทรัพย์)/.test(activeClean) &&
+      !/(?:ที่ดิน|บ้าน|คอนโด|อสังหาริมทรัพย์)/.test(activeClean);
+    const activeExplicitImmovable = /(?:ที่ดิน|บ้าน|คอนโด|อสังหาริมทรัพย์)/.test(activeClean);
+    const isImmovable = activeExplicitMovable
+      ? false
+      : activeExplicitImmovable || /(?:ที่ดิน|บ้าน|คอนโด|อสังหาริมทรัพย์)/.test(mergedContext);
+
+    if (isImmovable) {
+      controlling.add("prov.th.rc.41_ทวิ");
+      controlling.add("prov.th.rc.49_ทวิ");
+      controlling.add("prov.th.rc.50");
+    }
+
+    const mergedAmounts = parseThaiMoneyAmountsWithContext(mergedContext);
     const valAmt =
-      amounts.find((a) => /มูลค่า|ที่ดิน|ราคา/.test(a.leftContext))?.amount ??
-      parseThaiMoneyAmountsWithContext(mergedContext).find((a) => /มูลค่า|ที่ดิน|ราคา/.test(a.leftContext))
+      amounts.find((a) => /มูลค่า|ที่ดิน|ราคา|เงินสด|จำนวน/.test(a.leftContext))?.amount ??
+      mergedAmounts.find((a) => /มูลค่า|ที่ดิน|ราคา|เงินสด|จำนวน/.test(a.leftContext))?.amount ??
+      null;
+    const officialAppraisalAmt =
+      amounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))?.amount ??
+      mergedAmounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))
         ?.amount ??
       null;
+    const acquisitionMethod: "INHERITANCE_OR_GIFT" | "OTHER_PURCHASE" | null =
+      /ได้มาโดยทางมรดก|รับมรดก|ได้มาจากการให้โดยเสน่หา/.test(mergedContext)
+        ? "INHERITANCE_OR_GIFT"
+        : /ซื้อที่ดินมา|ได้มาโดยการซื้อ|ซื้อมาจาก/.test(mergedContext)
+          ? "OTHER_PURCHASE"
+          : null;
+    const holdingYearsMatch = mergedContext.match(/ถือครอง(?:มา|ไว้|นาน|เกิน)?\s*([0-9]+)\s*ปี/);
+    const holdingYears = holdingYearsMatch ? Number(holdingYearsMatch[1]) : null;
+
     const isExplicitGrandchild =
       /บุตรของบุตร|หลานปู่|หลานตา|หลานย่า|หลานยาย|ผู้สืบสันดานสายตรง|ผู้สืบสันดานโดยตรง/.test(
         activeClean
@@ -539,10 +568,10 @@ export function analyzeLegalIssuesAndFacts(params: {
       !isAmbiguousLan &&
       !isAdopted &&
       /บุตรชอบด้วยกฎหมาย/.test(activeClean);
-    const isCeremony = /งานสมรส|พิธี|ขนบธรรมเนียมประเพณี|หน้าที่ธรรมจรรยา/.test(activeClean);
+    const isCeremony = /งานสมรส|พิธี|ขนบธรรมเนียมประเพณี|หน้าที่ธรรมจรรยา/.test(mergedContext);
 
     if (
-      valAmt !== null &&
+      (isImmovable || valAmt !== null) &&
       (isExplicitGrandchild || isExplicitNiece || isAmbiguousLan || isLegitChild || isAdopted)
     ) {
       calcs.push(
@@ -559,6 +588,9 @@ export function analyzeLegalIssuesAndFacts(params: {
                   : "LEGITIMATE_CHILD",
           isCeremonyOrCustomOrMoralDuty: isCeremony,
           transferValueBaht: valAmt,
+          officialAppraisedValueBaht: officialAppraisalAmt,
+          acquisitionMethod,
+          holdingYears,
         })
       );
     }

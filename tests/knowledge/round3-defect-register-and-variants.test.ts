@@ -117,7 +117,10 @@ describe("REG24 Round 3 — Defect Refinements, Regression Variants & 5 Prior Pa
     expect(b109f.status).toBe("ANSWERED");
     expect(b109f.answer).toContain("ฝั่งผู้โอน");
     expect(b109f.answer).toContain("ฝั่งผู้รับโอน");
-    expect(b109f.answer).toContain("แยกเป็นฝั่งผู้โอนและฝั่งผู้รับโอนตามเงื่อนไขความสัมพันธ์");
+    expect(b109f.answer).toContain("มาตรา 41 ทวิ");
+    expect(b109f.answer).toContain("มาตรา 50 (5)");
+    expect(b109f.answer).toContain("มาตรา 49 ทวิ");
+    expect(b109f.answer).not.toContain("750,000");
     expect(b109f.answer).not.toContain("ไม่อาจสรุปตายตัว");
   });
 

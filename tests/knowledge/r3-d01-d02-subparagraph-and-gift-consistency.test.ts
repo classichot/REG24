@@ -199,17 +199,18 @@ describe("Round 3 Defect Gate — R3-D01 (RD 342 Subparagraphs) & R3-D02 (Gift T
   });
 
   // =========================================================================
-  // R3-D02: Gift Tax Donor vs Recipient Separation & Kinship Branch Consistency
+  // R3-D02: Gift & Immovable Property Transfer — Asset-First Classification,
+  // Donor Replacement Rule (§41 bis, §49 bis, §50(5)-(6)), Cash Comparison,
+  // Missing-Facts Guard, and Verifier Party/Asset-Type Rejection
   // =========================================================================
-  describe("R3-D02: Gift Tax Donor/Recipient Separation & Standalone vs Follow-Up Consistency", () => {
+  describe("R3-D02: Asset-First Gift/Land Decision Logic, Cash Comparison & Verifier Guards", () => {
     const B1_09_TURN_1 =
       "นายสมชายโอนที่ดินให้บุตรชอบด้วยกฎหมายคนหนึ่งโดยไม่มีค่าตอบแทน เมื่อวันที่ 10 กุมภาพันธ์ 2568 มูลค่า 25,000,000 บาท บุตรไม่ใช่บุตรบุญธรรม ปีนั้นยังไม่มีการให้ที่ดินแก่บุตรคนนี้รายการอื่น เงินได้ของบุตรได้รับยกเว้นภาษีเท่าใด และส่วนใดต้องนำมารวมคำนวณ";
 
-    it("handles explicit collateral niece (บุตรของพี่หรือน้อง) standalone with strict Donor vs Recipient separation", async () => {
+    it("preserves original B1-09 (land to legitimate child) as a regression check", async () => {
       const res = await queryKnowledge(
         {
-          question:
-            "นายสมชายโอนที่ดินมูลค่า 25,000,000 บาท โดยไม่มีค่าตอบแทนให้แก่หลานสาวซึ่งเป็นบุตรของพี่ชาย เนื่องในงานสมรสตามประเพณีเมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของผู้โอนและผู้รับโอนเป็นอย่างไร",
+          question: B1_09_TURN_1,
           applicable_date: "2025-02-10",
           enable_tax_foundation_pilot: false,
         },
@@ -219,37 +220,16 @@ describe("Round 3 Defect Gate — R3-D01 (RD 342 Subparagraphs) & R3-D02 (Gift T
 
       expect(res.status).toBe("ANSWERED");
       const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
-      expect(rendered).toContain("ฝั่งผู้โอน");
-      expect(rendered).toContain("ฝั่งผู้รับโอน");
-      expect(rendered).toContain("มาตรา 42 (28)");
-      expect(rendered).toContain("10,000,000");
-      expect(rendered).toContain("15,000,000");
-      expect(rendered).not.toContain("ไม่อาจสรุปตายตัว");
-    });
-
-    it("handles explicit lineal granddaughter (บุตรของบุตร / หลานปู่หลานตา) standalone with strict Donor vs Recipient separation", async () => {
-      const res = await queryKnowledge(
-        {
-          question:
-            "นายสมชายโอนที่ดินมูลค่า 25,000,000 บาท โดยไม่มีค่าตอบแทนให้แก่หลานสาวซึ่งเป็นบุตรของบุตร (หลานปู่) เมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของผู้โอนและผู้รับโอนเป็นอย่างไร",
-          applicable_date: "2025-02-10",
-          enable_tax_foundation_pilot: false,
-        },
-        TEST_ACTOR,
-        { store, persistAnswerAtomically: false }
-      );
-
-      expect(res.status).toBe("ANSWERED");
-      const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
-      expect(rendered).toContain("ฝั่งผู้โอน");
-      expect(rendered).toContain("ฝั่งผู้รับโอน");
-      expect(rendered).toContain("มาตรา 42 (27)");
+      expect(rendered).toContain("มาตรา 41 ทวิ");
+      expect(rendered).toContain("มาตรา 42 (26)");
+      expect(rendered).toContain("มาตรา 49 ทวิ");
+      expect(rendered).toContain("มาตรา 50 (6)");
       expect(rendered).toContain("20,000,000");
       expect(rendered).toContain("5,000,000");
-      expect(rendered).not.toContain("ไม่อาจสรุปตายตัว");
+      expect(rendered).toContain("250,000");
     });
 
-    it("handles explicit niece as a follow-up from B1-09, replacing legitimate-child rule while carrying forward 25,000,000 baht", async () => {
+    it("handles LAND follow-up to explicit collateral niece (บุตรของน้องสาว): applies Donor §41 bis / §50(6)->§50(5) / §49 bis and does NOT publish cash-gift recipient numbers", async () => {
       const res = await queryKnowledge(
         {
           question:
@@ -266,17 +246,20 @@ describe("Round 3 Defect Gate — R3-D01 (RD 342 Subparagraphs) & R3-D02 (Gift T
       const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
       expect(rendered).toContain("ฝั่งผู้โอน");
       expect(rendered).toContain("ฝั่งผู้รับโอน");
-      expect(rendered).toContain("มาตรา 42 (28)");
-      expect(rendered).toContain("10,000,000");
-      expect(rendered).toContain("15,000,000");
-      // 10,000,000 exempt + 15,000,000 taxable excess proves 25,000,000 baht carried forward from B1-09
-      expect(rendered).toContain("750,000");
-      // Must NOT silently carry forward the legitimate-child exemption conclusion
-      expect(rendered).toContain("ไม่ได้รับสิทธิยกเว้น");
-      expect(rendered).toContain("มาตรา 42 (26)");
+      expect(rendered).toContain("มาตรา 41 ทวิ");
+      expect(rendered).toContain("ไม่ได้รับสิทธิยกเว้นตามมาตรา 42 (26)");
+      expect(rendered).toContain("มาตรา 50 (6)");
+      expect(rendered).toContain("มาตรา 50 (5)");
+      expect(rendered).toContain("มาตรา 49 ทวิ");
+      expect(rendered).toContain("ราคาประเมินทุนทรัพย์");
+      expect(rendered).toContain("จำนวนปีที่ผู้โอนถือครองที่ดิน");
+      // Must NOT publish movable-gift recipient tax numbers (`750,000` / `15,000,000`) for LAND
+      expect(rendered).not.toContain("750,000");
+      expect(rendered).not.toContain("15,000,000");
+      expect(rendered).not.toContain("ฝ่ายกฎหมายควรยืนยัน");
     });
 
-    it("handles explicit granddaughter as a follow-up from B1-09, replacing legitimate-child rule while carrying forward 25,000,000 baht", async () => {
+    it("handles LAND follow-up to explicit lineal granddaughter (บุตรของบุตร / หลานตา): applies Donor §41 bis / §50(6)->§50(5) / §49 bis and does NOT publish 250,000 recipient tax", async () => {
       const res = await queryKnowledge(
         {
           question:
@@ -293,26 +276,18 @@ describe("Round 3 Defect Gate — R3-D01 (RD 342 Subparagraphs) & R3-D02 (Gift T
       const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
       expect(rendered).toContain("ฝั่งผู้โอน");
       expect(rendered).toContain("ฝั่งผู้รับโอน");
-      expect(rendered).toContain("มาตรา 42 (27)");
-      expect(rendered).toContain("20,000,000");
-      expect(rendered).toContain("5,000,000");
-      expect(rendered).toContain("ไม่ได้รับสิทธิยกเว้น");
-      expect(rendered).toContain("มาตรา 42 (26)");
+      expect(rendered).toContain("มาตรา 41 ทวิ");
+      expect(rendered).toContain("ไม่ได้รับสิทธิยกเว้นตามมาตรา 42 (26)");
+      expect(rendered).toContain("มาตรา 50 (6)");
+      expect(rendered).toContain("มาตรา 50 (5)");
+      expect(rendered).toContain("มาตรา 49 ทวิ");
+      expect(rendered).not.toContain("250,000");
+      expect(rendered).not.toContain("5,000,000");
+      expect(rendered).not.toContain("ฝ่ายกฎหมายควรยืนยัน");
     });
 
-    it("handles ambiguous 'หลานสาว' both standalone and as B1-09F follow-up with consistent conditional headline, Donor/Recipient separation, and one resolving kinship question", async () => {
-      const standaloneRes = await queryKnowledge(
-        {
-          question:
-            "นายสมชายโอนที่ดินมูลค่า 25,000,000 บาท โดยไม่มีค่าตอบแทนให้แก่หลานสาว เนื่องในงานสมรสตามประเพณีเมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของผู้โอนและหลานสาวเป็นอย่างไร",
-          applicable_date: "2025-02-10",
-          enable_tax_foundation_pilot: false,
-        },
-        TEST_ACTOR,
-        { store, persistAnswerAtomically: false }
-      );
-
-      const followUpRes = await queryKnowledge(
+    it("handles LAND follow-up to ambiguous 'หลานสาว' (original B1-09F): gives kinship-independent Donor & Recipient rules without inventing withholding or cash-gift tax figures", async () => {
+      const res = await queryKnowledge(
         {
           question:
             "ข้อมูลเพิ่มเติมจากข้อ B1-09: ผู้รับโอนไม่ใช่บุตรชอบด้วยกฎหมาย แต่เป็นหลานสาวของนายสมชาย และการให้ที่ดินมูลค่า 25,000,000 บาท เป็นการให้เนื่องในงานสมรสตามประเพณีเมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของหลานสาวเปลี่ยนอย่างไร",
@@ -324,26 +299,136 @@ describe("Round 3 Defect Gate — R3-D01 (RD 342 Subparagraphs) & R3-D02 (Gift T
         { store, persistAnswerAtomically: false }
       );
 
-      for (const res of [standaloneRes, followUpRes]) {
-        expect(res.status).toBe("ANSWERED");
-        const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
-        // Consistent conditional headline — no "cannot conclude" contradiction
-        expect(rendered).not.toContain("ไม่อาจสรุปตายตัว");
-        expect(rendered).toContain("แยกเป็นฝั่งผู้โอนและฝั่งผู้รับโอนตามเงื่อนไขความสัมพันธ์");
-        // Strict Donor vs Recipient separation
-        expect(rendered).toContain("ฝั่งผู้โอน");
-        expect(rendered).toContain("ฝั่งผู้รับโอน");
-        expect(rendered).toContain("ไม่ได้รับสิทธิยกเว้น");
-        // Both conditional branches clearly stated with consistent math
-        expect(rendered).toContain("มาตรา 42 (27)");
-        expect(rendered).toContain("20,000,000");
-        expect(rendered).toContain("5,000,000");
-        expect(rendered).toContain("มาตรา 42 (28)");
-        expect(rendered).toContain("10,000,000");
-        expect(rendered).toContain("15,000,000");
-        // Explicitly identifies the single decisive fact needed to resolve the branch
-        expect(rendered).toContain("ข้อเท็จจริงชี้ขาด");
-      }
+      expect(res.status).toBe("ANSWERED");
+      const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
+      expect(rendered).toContain("ฝั่งผู้โอน");
+      expect(rendered).toContain("ฝั่งผู้รับโอน");
+      expect(rendered).toContain("มาตรา 41 ทวิ");
+      expect(rendered).toContain("มาตรา 50 (6)");
+      expect(rendered).toContain("มาตรา 50 (5)");
+      expect(rendered).toContain("มาตรา 49 ทวิ");
+      expect(rendered).toContain("มีผลเหมือนกันทั้งกรณีหลานปู่หลานตา");
+      expect(rendered).not.toContain("750,000");
+      expect(rendered).not.toContain("250,000");
+      expect(rendered).not.toContain("ไม่อาจสรุปตายตัว");
+      expect(rendered).not.toContain("ฝ่ายกฎหมายควรยืนยัน");
+    });
+
+    it("switches rules cleanly for a matching CASH wedding-gift comparison (25,000,000 baht cash) for niece, granddaughter, and ambiguous 'หลานสาว'", async () => {
+      const nieceCash = await queryKnowledge(
+        {
+          question:
+            "นายสมชายมอบเงินสดมูลค่า 25,000,000 บาท ให้โดยเสน่หาแก่หลานสาวซึ่งเป็นบุตรของน้องสาว เนื่องในงานสมรสตามประเพณีเมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของผู้ให้และหลานสาวเป็นอย่างไร",
+          applicable_date: "2025-02-10",
+          enable_tax_foundation_pilot: false,
+        },
+        TEST_ACTOR,
+        { store, persistAnswerAtomically: false }
+      );
+      const nieceText = nieceCash.traceable_answer?.rendered_answer_th || nieceCash.answer;
+      expect(nieceCash.status).toBe("ANSWERED");
+      expect(nieceText).toContain("มาตรา 42 (28)");
+      expect(nieceText).toContain("10,000,000");
+      expect(nieceText).toContain("15,000,000");
+      expect(nieceText).toContain("750,000");
+
+      const grandCash = await queryKnowledge(
+        {
+          question:
+            "นายสมชายมอบเงินสดมูลค่า 25,000,000 บาท ให้โดยเสน่หาแก่หลานสาวซึ่งเป็นบุตรของบุตร (หลานปู่) เนื่องในงานสมรสตามประเพณีเมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของผู้ให้และหลานสาวเป็นอย่างไร",
+          applicable_date: "2025-02-10",
+          enable_tax_foundation_pilot: false,
+        },
+        TEST_ACTOR,
+        { store, persistAnswerAtomically: false }
+      );
+      const grandText = grandCash.traceable_answer?.rendered_answer_th || grandCash.answer;
+      expect(grandCash.status).toBe("ANSWERED");
+      expect(grandText).toContain("มาตรา 42 (27)");
+      expect(grandText).toContain("20,000,000");
+      expect(grandText).toContain("5,000,000");
+      expect(grandText).toContain("250,000");
+
+      const ambigCash = await queryKnowledge(
+        {
+          question:
+            "นายสมชายมอบเงินสดมูลค่า 25,000,000 บาท ให้โดยเสน่หาแก่หลานสาว เนื่องในงานสมรสตามประเพณีเมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของผู้ให้และหลานสาวเป็นอย่างไร",
+          applicable_date: "2025-02-10",
+          enable_tax_foundation_pilot: false,
+        },
+        TEST_ACTOR,
+        { store, persistAnswerAtomically: false }
+      );
+      const ambigText = ambigCash.traceable_answer?.rendered_answer_th || ambigCash.answer;
+      expect(ambigCash.status).toBe("ANSWERED");
+      expect(ambigText).toContain("มาตรา 42 (27)");
+      expect(ambigText).toContain("มาตรา 42 (28)");
+      expect(ambigText).toContain("250,000");
+      expect(ambigText).toContain("750,000");
+    });
+
+    it("refuses to invent a withholding tax number for a LAND transfer with missing valuation and acquisition facts", async () => {
+      const res = await queryKnowledge(
+        {
+          question:
+            "นายสมชายโอนที่ดินให้แก่หลานสาวซึ่งเป็นบุตรของพี่ชายโดยไม่มีค่าตอบแทนในเดือนกุมภาพันธ์ 2568 โดยยังไม่ทราบราคาประเมินทุนทรัพย์และไม่ทราบปีที่ถือครอง ต้องเสียภาษีเงินได้อย่างไร",
+          applicable_date: "2025-02-10",
+          enable_tax_foundation_pilot: false,
+        },
+        TEST_ACTOR,
+        { store, persistAnswerAtomically: false }
+      );
+
+      expect(res.status).toBe("ANSWERED");
+      const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
+      expect(rendered).toContain("ไม่สามารถคำนวณยอดภาษีหัก ณ ที่จ่ายฝั่งผู้โอนเป็นตัวเลข");
+      expect(rendered).toContain("มาตรา 49 ทวิ");
+      expect(rendered).toContain("มาตรา 50 (5)");
+      expect(rendered).not.toContain("750,000");
+      expect(rendered).not.toContain("250,000");
+    });
+
+    it("REJECTS claims applying movable-gift rules to land OR applying §42(26) to the wrong party in evaluateSubstantiveClaimSupport", () => {
+      const state = store.getState();
+      const act40Work = state.works["statute.th.rc_amendment_40_2558"];
+      const act40Passages = Object.values(state.passages)
+        .filter(
+          (p) =>
+            p.work_id === "statute.th.rc_amendment_40_2558" &&
+            (p.exact_text.includes("(26)") ||
+              p.exact_text.includes("(27)") ||
+              p.exact_text.includes("(28)") ||
+              p.exact_text.includes("มาตรา 48"))
+        )
+        .map((p) => ({
+          passage_id: p.passage_id,
+          verbatim_text: p.exact_text,
+          doc_title_th:
+            act40Work?.title_th ||
+            "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558",
+          human_pinpoint_th: "พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558",
+        }));
+      expect(act40Passages.length).toBeGreaterThan(0);
+
+      // Wrong asset type: applying movable-gift §42(28) 10M / 750,000 to LAND
+      const wrongAssetClaim = evaluateSubstantiveClaimSupport({
+        claim_text:
+          "การโอนที่ดินให้แก่หลานสาวในงานสมรสตามประเพณีได้รับยกเว้นไม่เกิน 10,000,000 บาท ตามมาตรา 42 (28) และส่วนเกินเสียภาษีร้อยละ 5 = 750,000 บาท ตามมาตรา 48 (7)",
+        passages: act40Passages,
+        verified_calculation_numeric_tokens: ["10000000", "750000", "5"],
+      });
+      expect(wrongAssetClaim.supported).toBe(false);
+      expect(wrongAssetClaim.reason_code).toBe("UNGROUNDED_LEGAL_IDENTIFIER");
+
+      // Wrong party/relationship: applying §42(26) legitimate-child exemption to a niece
+      const wrongPartyClaim = evaluateSubstantiveClaimSupport({
+        claim_text:
+          "หลานสาวซึ่งเป็นบุตรของพี่ชายได้รับยกเว้นภาษีไม่เกิน 20,000,000 บาท ตามมาตรา 42 (26)",
+        passages: act40Passages,
+        verified_calculation_numeric_tokens: ["20000000"],
+      });
+      expect(wrongPartyClaim.supported).toBe(false);
+      expect(wrongPartyClaim.reason_code).toBe("UNGROUNDED_LEGAL_IDENTIFIER");
     });
   });
 });
