@@ -1,0 +1,634 @@
+{
+  "schema_version": "1.0",
+  "verified_at": "2026-11-19T03:33:50.097Z",
+  "git_branch": "review/b01-rc2-b02-rc1-staging",
+  "git_commit_sha": "7946df0a336cfac818753c257c9085b8e2cd31a7",
+  "protected_tester_url": "https://reg24-git-review-b01-rc2-b02-rc1-staging-7-l-advisory.vercel.app/legal-review",
+  "preview_protection_probe": {
+    "unauthenticated_http_status": 302,
+    "redirects_to_vercel_sso": true
+  },
+  "data_version": {
+    "release_id": "rel.B01.rc6",
+    "manifest_id": "mfst.b01.rc6_core_auth",
+    "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+    "protected_live_baseline_sha256": "08b61fd3626eca0aca8c004dabce1587514f3861f915e4cb90ad1b32a21545e9",
+    "protected_live_baseline_untouched": true,
+    "vat_foundation_pilot_enabled": false,
+    "external_trial_invites_count": 0
+  },
+  "neon_database_constraint_preserved": {
+    "neon_project_id": "shiny-pond-32049060",
+    "neon_region": "aws-ap-southeast-1",
+    "table": "citation_published_answer",
+    "constraint_name": "citation_published_answer_supersedes_revision_id_fkey",
+    "constraint_definition": "FOREIGN KEY (supersedes_revision_id) REFERENCES citation_published_answer(answer_revision_id)"
+  },
+  "live_check_1_fresh_session_cross_border": {
+    "scenario_id": "LSC-COMPLEX-01",
+    "conversation_id": "conv.live.rc6.mwmzw52p",
+    "question_th": "บริษัทไทยว่าจ้างบริษัทที่ปรึกษาในต่างประเทศให้วิเคราะห์ข้อมูลและส่งรายงานทางอิเล็กทรอนิกส์มาใช้ในกิจการที่ประเทศไทยในปี 2568 บริษัทไทยมีหน้าที่หักภาษีเงินได้ ณ ที่จ่าย และนำส่งภาษีมูลค่าเพิ่ม (ภ.พ.36) ตามประมวลรัษฎากร มาตรา 83/6 และแนววินิจฉัยข้อหารือกรมสรรพากรอย่างไร?",
+    "as_of_date": "2025-06-15",
+    "http_status": 200,
+    "grounded_status": "ANSWERED",
+    "traceable_status": "complete",
+    "answer_id": "ans.trc.69cfe1266f7e0e",
+    "answer_revision": "ans.trc.69cfe1266f7e0e.r1",
+    "revision_number": 1,
+    "supersedes_answer_revision": null,
+    "published_claims_count": 6,
+    "answer_excerpt_th": "**ขอบเขตวันที่พิจารณา**: `2025-06-15` — แสดงตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (`rd.go.th`) โดยวันเริ่มใช้บังคับของแต่ละวรรคหรืออนุมาตราให้ตรวจสอบจากหมายเหตุแก้ไขเพิ่มเติมท้ายวรรคนั้น\n\n**สถานะตัวบทประมวลรัษฎากรและวันใช้บังคับ**: ตัวบทด้านล่างเป็น **ตัวบทรวมแก้ไขเพิ่มเติมฉบับปัจจุบันตามข้อมูลทางการกรมสรรพากร (`rd.go.th`)** ซึ่งรวมการแก้ไขเพิ่มเติมหลายคราวไว้ในมาตราเดียว วันเริ่มใช้บังคับและเงื",
+    "neon_persisted_row": {
+      "answer_revision_id": "ans.trc.69cfe1266f7e0e.r1",
+      "answer_id": "ans.trc.69cfe1266f7e0e",
+      "revision_number": 1,
+      "supersedes_revision_id": null,
+      "status": "complete",
+      "owner_actor_id": "dodo.livecheck@7ladvisory.review",
+      "revision_reason": "Persisted initial verified answer from query endpoint [conv:conv.live.rc6.mwmzw52p]"
+    },
+    "official_citations_persisted_in_neon": [
+      {
+        "link_id": "cel.1276d7cf42bd9586",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 83/6 · มาตรา 83/6",
+        "human_pinpoint_th": "มาตรา 83/6",
+        "official_url": "https://www.rd.go.th/5207.html#mata83_6"
+      },
+      {
+        "link_id": "cel.1d6edbb1055ee9b1",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 40 · มาตรา 40",
+        "human_pinpoint_th": "มาตรา 40",
+        "official_url": "https://www.rd.go.th/5937.html#mata40"
+      },
+      {
+        "link_id": "cel.1e01d75aa02439a9",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 40 · มาตรา 40",
+        "human_pinpoint_th": "มาตรา 40",
+        "official_url": "https://www.rd.go.th/5937.html#mata40"
+      },
+      {
+        "link_id": "cel.200bf9185f9eaefd",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 70 · มาตรา 70",
+        "human_pinpoint_th": "มาตรา 70",
+        "official_url": "https://www.rd.go.th/5939.html#mata70"
+      },
+      {
+        "link_id": "cel.225f62d6f9e21ef4",
+        "support_role": "primary_authority",
+        "citation_label_th": "บัญชีอัตราภาษีเงินได้ · บัญชีอัตราภาษีเงินได้",
+        "human_pinpoint_th": "บัญชีอัตราภาษีเงินได้",
+        "official_url": "https://www.rd.go.th/5938.html"
+      },
+      {
+        "link_id": "cel.22a158d22e87fabe",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 40 · มาตรา 40",
+        "human_pinpoint_th": "มาตรา 40",
+        "official_url": "https://www.rd.go.th/5937.html#mata40"
+      },
+      {
+        "link_id": "cel.308c9e1175981920",
+        "support_role": "primary_authority",
+        "citation_label_th": "กค 0706/392 · PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+        "human_pinpoint_th": "PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+        "official_url": "https://www.rd.go.th/28754.html"
+      },
+      {
+        "link_id": "cel.44d78e5576c76ddf",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 40 · มาตรา 40",
+        "human_pinpoint_th": "มาตรา 40",
+        "official_url": "https://www.rd.go.th/5937.html#mata40"
+      },
+      {
+        "link_id": "cel.450ccf7b36589fa7",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 70 · มาตรา 70",
+        "human_pinpoint_th": "มาตรา 70",
+        "official_url": "https://www.rd.go.th/5939.html#mata70"
+      },
+      {
+        "link_id": "cel.4c2ccf8c605a3410",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 83/6 · มาตรา 83/6",
+        "human_pinpoint_th": "มาตรา 83/6",
+        "official_url": "https://www.rd.go.th/5207.html#mata83_6"
+      },
+      {
+        "link_id": "cel.50313ff47901107d",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 40 · มาตรา 40",
+        "human_pinpoint_th": "มาตรา 40",
+        "official_url": "https://www.rd.go.th/5937.html#mata40"
+      },
+      {
+        "link_id": "cel.60dc9aec25b04138",
+        "support_role": "primary_authority",
+        "citation_label_th": "บัญชีอัตราภาษีเงินได้ · บัญชีอัตราภาษีเงินได้",
+        "human_pinpoint_th": "บัญชีอัตราภาษีเงินได้",
+        "official_url": "https://www.rd.go.th/5938.html"
+      },
+      {
+        "link_id": "cel.ac3dccf8ff6b84f2",
+        "support_role": "primary_authority",
+        "citation_label_th": "กค 0706/392 · PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+        "human_pinpoint_th": "PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+        "official_url": "https://www.rd.go.th/28754.html"
+      },
+      {
+        "link_id": "cel.acffc91b3e03e9fa",
+        "support_role": "primary_authority",
+        "citation_label_th": "บัญชีอัตราภาษีเงินได้ · บัญชีอัตราภาษีเงินได้",
+        "human_pinpoint_th": "บัญชีอัตราภาษีเงินได้",
+        "official_url": "https://www.rd.go.th/5938.html"
+      },
+      {
+        "link_id": "cel.b4c0499fe3fc5799",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 83/6 · มาตรา 83/6",
+        "human_pinpoint_th": "มาตรา 83/6",
+        "official_url": "https://www.rd.go.th/5207.html#mata83_6"
+      },
+      {
+        "link_id": "cel.b6b7f8afceadf73e",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 83/6 · มาตรา 83/6",
+        "human_pinpoint_th": "มาตรา 83/6",
+        "official_url": "https://www.rd.go.th/5207.html#mata83_6"
+      },
+      {
+        "link_id": "cel.c6982f9dcc76ab35",
+        "support_role": "primary_authority",
+        "citation_label_th": "กค 0706/392 · PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+        "human_pinpoint_th": "PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+        "official_url": "https://www.rd.go.th/28754.html"
+      },
+      {
+        "link_id": "cel.cbfcec0faf67b184",
+        "support_role": "primary_authority",
+        "citation_label_th": "บัญชีอัตราภาษีเงินได้ · บัญชีอัตราภาษีเงินได้",
+        "human_pinpoint_th": "บัญชีอัตราภาษีเงินได้",
+        "official_url": "https://www.rd.go.th/5938.html"
+      },
+      {
+        "link_id": "cel.d2dd9cc18a4ab1d0",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 40 · มาตรา 40",
+        "human_pinpoint_th": "มาตรา 40",
+        "official_url": "https://www.rd.go.th/5937.html#mata40"
+      },
+      {
+        "link_id": "cel.d8acf1ea1940ffa9",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 40 · มาตรา 40",
+        "human_pinpoint_th": "มาตรา 40",
+        "official_url": "https://www.rd.go.th/5937.html#mata40"
+      },
+      {
+        "link_id": "cel.f9272949e02987e1",
+        "support_role": "primary_authority",
+        "citation_label_th": "กค 0706/392 · PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+        "human_pinpoint_th": "PDF หน้า 1 · หน้าพิมพ์ 1 · ส่วนสรุปแนววินิจฉัย",
+        "official_url": "https://www.rd.go.th/28754.html"
+      }
+    ]
+  },
+  "live_check_2_changed_fact_followup_same_conversation": {
+    "scenario_id": "LSC-COMPLEX-01-FOLLOWUP-1",
+    "conversation_id": "conv.live.rc6.mwmzw52p",
+    "prior_saved_answer_revision_sent": "ans.trc.69cfe1266f7e0e.r1",
+    "question_th": "แล้วค่าบริการที่จ่ายไปดังกล่าว หากไม่มีหลักฐานผู้รับเงินชัดเจน บริษัทไทยจะนำมาหักเป็นรายจ่ายในการคำนวณกำไรสุทธิได้หรือไม่ ตามมาตรา 65 ตรี?",
+    "http_status": 200,
+    "grounded_status": "ANSWERED",
+    "traceable_status": "complete",
+    "answer_id": "ans.trc.69cfe1266f7e0e",
+    "answer_revision": "ans.trc.69cfe1266f7e0e.r2",
+    "revision_number": 2,
+    "supersedes_answer_revision": "ans.trc.69cfe1266f7e0e.r1",
+    "published_claims_count": 7,
+    "answer_excerpt_th": "**สรุปหลักเกณฑ์สำคัญตามแหล่งอ้างอิง**: ประมวลรัษฎากร มาตรา 65 ตรี กำหนดรายการรายจ่ายต้องห้าม (1)–(20) ที่ไม่ให้นำมาหักในการคำนวณกำไรสุทธิของบริษัทหรือห้างหุ้นส่วนนิติบุคคล (เช่น เงินสำรองนอกเกณฑ์ที่กำหนด รายจ่ายส่วนตัว/การกุศลเกินเพดานที่กฎหมายอนุญาต ค่ารับรองเกินเกณฑ์กฎกระทรวง รายจ่ายอันมีลักษณะเป็นการลงทุน เบี้ยปรับ/เงินเพิ่ม/ภาษีเงินได้นิติบุคคล รายจ่ายที่มิใช่เพื่อหากำไรหรือเพื่อกิจการโดยเฉพาะ และรายจ่ายที่พิสูจน",
+    "neon_revision_chain_rows": [
+      {
+        "answer_revision_id": "ans.trc.69cfe1266f7e0e.r1",
+        "answer_id": "ans.trc.69cfe1266f7e0e",
+        "revision_number": 1,
+        "supersedes_revision_id": null,
+        "status": "complete",
+        "as_of_date_raw": "2025-06-15",
+        "revision_reason": "Persisted initial verified answer from query endpoint [conv:conv.live.rc6.mwmzw52p]"
+      },
+      {
+        "answer_revision_id": "ans.trc.69cfe1266f7e0e.r2",
+        "answer_id": "ans.trc.69cfe1266f7e0e",
+        "revision_number": 2,
+        "supersedes_revision_id": "ans.trc.69cfe1266f7e0e.r1",
+        "status": "complete",
+        "as_of_date_raw": "2025-06-15",
+        "revision_reason": "Persisted follow-up verified answer from query endpoint [conv:conv.live.rc6.mwmzw52p]"
+      }
+    ],
+    "official_citations_persisted_in_neon": [
+      {
+        "link_id": "cel.03cdbfee517a9f36",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.0a505bec88ad8136",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.0e0e5e2007c4eae6",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.111fe4804a7e10ae",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.17c4f48d74b37480",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.23aa395ff492a0c0",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.2527eb84c22fc44b",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.35088ce44561100a",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.457c2eba7b1abbaf",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.46663ef2b5b8171e",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.48e5565e7fae9511",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.48e6452d8dd6c2dc",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.49dc54b6724979be",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.4cf0d511c18292ef",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.537136105f835068",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.5ca95c7f85c6990c",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.607066e0d1b435bb",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.627a83e32df645c3",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.662d09306877d19e",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.6c10f78af325d81b",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.7114078efd8f5acd",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.72a3f8643e9721c7",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.7e496bf91c4870de",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.7e57b1c062dcb157",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.81c727a6932e6ff1",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.8645c3d830feef74",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.8673f14ef629d172",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.8e0c9ca71dbe7351",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.92ad7c4ff35876f1",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.92e783648e79cdb9",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.94ebf6dfe3faf39d",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.98ad7d175a87040e",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.999f2797cfb6bf9f",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.a2fb764a7bbde761",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.aba650a90799f462",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.b79a090b91c90e6b",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.b7ec46285f3d07f5",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.b99b8d46509d40ee",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.baba3016a25c8575",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.bbe76fa171ff25ce",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.c927013f2747032c",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.cb439675b48a41a1",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.ced317f200cf7dd3",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.d305fa116726b4ba",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.d5f78016fe3a65ae",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.db6bcd79ccb2d070",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.dde771290226d61c",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.def18d5545697804",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.e49bcdc62446139a",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.e909a4d1e942fa09",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.ed9937cb33a5ae5e",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.f2f55fd934d66ce5",
+        "support_role": "primary_authority",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.f903f64767f1313c",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.fa915d45a8e4afa8",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.fdd8a05000e5adf5",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      },
+      {
+        "link_id": "cel.fe362dd3f8d4b06a",
+        "support_role": "exception_or_proviso",
+        "citation_label_th": "มาตรา 65 ตรี · มาตรา 65 ตรี",
+        "human_pinpoint_th": "มาตรา 65 ตรี",
+        "official_url": "https://www.rd.go.th/5939.html#mata65_3"
+      }
+    ],
+    "cold_start_reopen_verified": {
+      "found": true,
+      "head_revision": "ans.trc.69cfe1266f7e0e.r2",
+      "revision_history_length": 2
+    }
+  }
+}
