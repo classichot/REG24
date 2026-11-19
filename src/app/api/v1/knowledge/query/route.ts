@@ -27,6 +27,8 @@ export async function POST(req: Request) {
       mode?: "standard" | "exact_lookup" | "comparison";
       comparison_work_ids?: string[];
       conversation_history?: ConversationTurnInput[];
+      conversation_id?: string | null;
+      prior_saved_answer_revision?: string | null;
       attachment_doc_ids?: string[];
       channel?: TraceablePublicationChannel;
       persist_answer?: boolean;
@@ -40,6 +42,9 @@ export async function POST(req: Request) {
     const store = getDefaultKnowledgeStore();
     const qClean = body.question.trim();
     const effectiveAsOf = body.applicable_date ?? body.as_of_date ?? null;
+    // IMPORTANT: Keep `persistAnswerAtomically: false` during `queryKnowledge` so unpersisted in-memory
+    // envelope generation NEVER pre-populates `r1` ahead of `saveOrReviseAnswerServerVerified`, and
+    // keep `enable_tax_foundation_pilot: false` so the VAT book pilot remains strictly OFF on staging!
     const answer = await queryKnowledge(
       {
         question: qClean,
@@ -48,27 +53,66 @@ export async function POST(req: Request) {
         mode: body.mode,
         comparison_work_ids: body.comparison_work_ids,
         conversation_history: body.conversation_history,
+        conversation_id: body.conversation_id ?? null,
+        prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
         attachment_doc_ids: body.attachment_doc_ids,
+        enable_tax_foundation_pilot: false,
       },
       actor,
       {
         store,
         channel: body.channel || "api",
-        persistAnswerAtomically: Boolean(body.persist_answer),
+        persistAnswerAtomically: false,
       }
     );
 
     if (
       body.persist_answer &&
+      answer.status !== "NEEDS_CLARIFICATION" &&
+      answer.status !== "INSUFFICIENT_EVIDENCE" &&
       answer.traceable_answer &&
       (answer.traceable_answer.status === "complete" ||
         answer.traceable_answer.status === "partial")
     ) {
+      const trustedCalcByClaimText: Record<string, string[]> = {};
+      const allCalcTokens = new Set<string>();
+      for (const gc of answer.claims || []) {
+        if (Array.isArray(gc.verified_calculation_numeric_tokens)) {
+          for (const tok of gc.verified_calculation_numeric_tokens) {
+            allCalcTokens.add(tok);
+          }
+          if (gc.statement) {
+            trustedCalcByClaimText[gc.statement] = gc.verified_calculation_numeric_tokens;
+          }
+        }
+      }
+      if (allCalcTokens.size > 0) {
+        const mergedCalcList = Array.from(allCalcTokens);
+        for (const tc of answer.traceable_answer.claims || []) {
+          if (!trustedCalcByClaimText[tc.text]) {
+            trustedCalcByClaimText[tc.text] = mergedCalcList;
+          }
+        }
+      }
+
+      const isFollowUpSave =
+        Array.isArray(body.conversation_history) &&
+        body.conversation_history.some((t) => t.role === "user" && Boolean(t.content?.trim()));
+
       const pgSaved = await saveOrReviseAnswerServerVerified(store, {
         submitted_envelope: answer.traceable_answer,
         question_text: qClean,
-        revision_reason: "Persisted verified answer from query endpoint",
+        revision_reason: isFollowUpSave
+          ? "Persisted follow-up verified answer from query endpoint"
+          : "Persisted initial verified answer from query endpoint",
         actor,
+        query_persistence_context: {
+          conversation_id: body.conversation_id ?? null,
+          prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
+          conversation_history: body.conversation_history,
+          trusted_calculation_tokens_by_claim_text:
+            Object.keys(trustedCalcByClaimText).length > 0 ? trustedCalcByClaimText : undefined,
+        },
       });
       answer.traceable_answer = pgSaved;
     }

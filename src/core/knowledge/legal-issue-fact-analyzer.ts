@@ -383,6 +383,20 @@ export function analyzeLegalIssuesAndFacts(params: {
     }
   }
 
+  // --- Regime B2: General Corporate Disallowed Expenses (`มาตรา 65 ตรี` — e.g. `(18)` unprovable recipient, `(6)` tax paid on behalf, `(13)` non-business expense) ---
+  const asksGeneral65TerExpense =
+    !asksPoliticalPartyDonation &&
+    !asksPublicCharityDonation &&
+    (/มาตรา\s*65\s*ตรี|\bsection\s*65\s*ter\b/i.test(activeClean) ||
+      (/(?:รายจ่ายต้องห้าม|หักเป็นรายจ่ายในการคำนวณกำไรสุทธิ)/.test(activeClean) &&
+        /(?:ไม่มีหลักฐานผู้รับ|พิสูจน์ไม่ได้ว่าใครเป็นผู้รับ|ออกภาษี[^\n]{0,25}แทน|มิใช่รายจ่ายเพื่อหากำไร)/.test(
+          activeClean
+        )));
+  if (asksGeneral65TerExpense) {
+    regimes.add("CIT_DISALLOWED_EXPENSE_S65_TER");
+    controlling.add("prov.th.rc.65_ตรี");
+  }
+
   // --- Regime C: Corporate Income Tax Rate & Net Profit Tax (`มาตรา 65`, `บัญชีอัตราภาษีเงินได้ (2)`, `พ.ร.บ. 42`, `พ.ร.ฎ. 530/577`) ---
   const asksCitRate =
     /(?:เสียภาษีเงินได้นิติบุคคล[^\n?]{0,40}(?:อัตรา|เท่าใด|กี่บาท)|อัตราภาษีเงินได้นิติบุคคล|corporate\s+income\s+tax)/i.test(
@@ -595,13 +609,22 @@ export function analyzeLegalIssuesAndFacts(params: {
   }
 
   // --- Regime I: Withholding Tax (Domestic `มาตรา 3 เตรส` / `ท.ป. 4/2528` / `3 ปัณรส` e-WHT vs Cross-Border `มาตรา 70` vs Missing Recipient Fact!) ---
-  const asksWht =
-    /(?:หักภาษี\s*ณ\s*ที่จ่าย|อัตราหัก\s*ณ\s*ที่จ่าย|e-Withholding\s*Tax|withholding\s+tax)/i.test(
-      mergedContext
+  const asksWhtInActiveTurn =
+    /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|อัตราหัก\s*ณ\s*ที่จ่าย|e-Withholding\s*Tax|withholding\s+tax)/i.test(
+      activeClean
     );
+  const asksWht =
+    asksWhtInActiveTurn ||
+    (!asksGeneral65TerExpense &&
+      /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|อัตราหัก\s*ณ\s*ที่จ่าย|e-Withholding\s*Tax|withholding\s+tax)/i.test(
+        mergedContext
+      ));
   if (asksWht) {
     const isForeignNoPe =
       /(?:บริษัทต่างประเทศ|ตั้งขึ้นตามกฎหมายต่างประเทศ|\bforeign\s+company\b)[\s\S]{0,110}(?:ไม่มีสถานประกอบการในไทย|มิได้ประกอบกิจการในประเทศไทย|not\s+carrying\s+on\s+business\s+in\s+Thailand|no\s+permanent\s+establishment\s+in\s+Thailand)/i.test(
+        activeClean
+      ) ||
+      /(?:บริษัท[^\n]{0,25}ในต่างประเทศ|ผู้ประกอบการในต่างประเทศ|ผู้ให้บริการในต่างประเทศ)[\s\S]{0,160}(?:ส่ง[^\n]{0,40}ทางอิเล็กทรอนิกส์|ภ\.พ\.\s*36|มาตรา\s*83\/6)/i.test(
         activeClean
       ) ||
       (/(?:บริษัทต่างประเทศ|ตั้งขึ้นตามกฎหมายต่างประเทศ|\bforeign\s+company\b)/i.test(mergedContext) &&
@@ -609,6 +632,10 @@ export function analyzeLegalIssuesAndFacts(params: {
           mergedContext
         ) &&
         !/นิติบุคคลไทย/.test(activeClean));
+
+    if (/มาตรา\s*83\/6|ภ\.พ\.\s*36/.test(activeClean)) {
+      controlling.add("prov.th.rc.83/6");
+    }
 
     const isDomesticThaiCompanyRecipient =
       !isForeignNoPe &&

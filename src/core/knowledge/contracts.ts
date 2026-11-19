@@ -884,6 +884,9 @@ export interface ConversationTurnInput {
   content: string;
   applicable_date?: string | null;
   cited_work_ids?: string[];
+  saved_answer_id?: string | null;
+  saved_answer_revision?: string | null;
+  conversation_id?: string | null;
 }
 
 export interface QueryRequest {
@@ -893,6 +896,8 @@ export interface QueryRequest {
   mode?: "standard" | "exact_lookup" | "comparison";
   comparison_work_ids?: string[];
   conversation_history?: ConversationTurnInput[];
+  conversation_id?: string | null;
+  prior_saved_answer_revision?: string | null;
   attachment_doc_ids?: string[];
   /** Opt-in isolated staging flag for Separate Mission: Thai Tax Foundation A/B pilot (defaults to false). */
   enable_tax_foundation_pilot?: boolean;

@@ -90,6 +90,10 @@ export function resolveActiveCitationDbTransport(): CitationDbTransport | null {
   };
 }
 
+export function hasActiveCitationPostgresStore(): boolean {
+  return resolveActiveCitationDbTransport() !== null;
+}
+
 function getEnvScope(): "staging" | "trial" {
   return process.env.REG24_TRIAL_ENV_SCOPE === "trial" ? "trial" : "staging";
 }
@@ -374,8 +378,9 @@ export async function appendAuditEventToPostgres(
 }
 
 /**
- * Checks existing ownership & highest revision number for `answer_id` in PostgreSQL so cross-instance
- * saves enforce strict ownership (`403` on another user's answer_id) and monotonic revisions (`r1` -> `r2`).
+ * Checks existing ownership, full revision history & conversation question lineage for `answer_id` in PostgreSQL
+ * so cross-instance saves enforce strict ownership (`403` on another user's answer_id), authoritative
+ * monotonic revisions (`r1` -> `r2`) with guaranteed FK integrity, and same-conversation follow-up binding.
  */
 export async function inspectExistingAnswerOwnershipInPostgres(
   answerId: string
@@ -385,6 +390,10 @@ export async function inspectExistingAnswerOwnershipInPostgres(
   owner_tenant_id: string | null;
   latest_revision_number: number;
   latest_answer_revision: string | null;
+  first_question_text: string | null;
+  latest_question_text: string | null;
+  question_texts: string[];
+  revisions: AnswerRevisionHistoryEntryDto[];
 }> {
   const db = resolveActiveCitationDbTransport();
   if (!db) {
@@ -394,19 +403,32 @@ export async function inspectExistingAnswerOwnershipInPostgres(
       owner_tenant_id: null,
       latest_revision_number: 0,
       latest_answer_revision: null,
+      first_question_text: null,
+      latest_question_text: null,
+      question_texts: [],
+      revisions: [],
     };
   }
   const res = await db<{
     answer_revision_id: string;
     revision_number: number;
+    supersedes_revision_id: string | null;
+    question_text: string;
+    generated_at: string;
+    as_of_date_raw: string | null;
+    status: TraceableAnswerEnvelope["status"];
+    actor_id: string;
     owner_actor_id: string;
     owner_tenant_id: string;
+    revision_reason: string;
+    ordered_claim_ids: string[];
   }>(
-    `SELECT answer_revision_id, revision_number, owner_actor_id, owner_tenant_id
+    `SELECT answer_revision_id, revision_number, supersedes_revision_id,
+            question_text, generated_at::text AS generated_at, as_of_date_raw, status,
+            actor_id, owner_actor_id, owner_tenant_id, revision_reason, ordered_claim_ids
      FROM citation_published_answer
      WHERE answer_id = $1
-     ORDER BY revision_number DESC
-     LIMIT 1`,
+     ORDER BY revision_number DESC`,
     [answerId]
   );
   if (res.rows.length === 0) {
@@ -416,15 +438,112 @@ export async function inspectExistingAnswerOwnershipInPostgres(
       owner_tenant_id: null,
       latest_revision_number: 0,
       latest_answer_revision: null,
+      first_question_text: null,
+      latest_question_text: null,
+      question_texts: [],
+      revisions: [],
     };
   }
-  const top = res.rows[0];
+  const sortedDesc = [...res.rows].sort(
+    (a, b) => Number(b.revision_number) - Number(a.revision_number)
+  );
+  const sortedAsc = [...sortedDesc].reverse();
+  const top = sortedDesc[0];
+  const first = sortedAsc[0];
   return {
     exists: true,
-    owner_actor_id: top.owner_actor_id,
-    owner_tenant_id: top.owner_tenant_id,
+    owner_actor_id: first.owner_actor_id || top.owner_actor_id,
+    owner_tenant_id: first.owner_tenant_id || top.owner_tenant_id,
     latest_revision_number: Number(top.revision_number),
     latest_answer_revision: top.answer_revision_id,
+    first_question_text: first.question_text || null,
+    latest_question_text: top.question_text || null,
+    question_texts: sortedAsc.map((r) => r.question_text).filter(Boolean),
+    revisions: sortedAsc.map((h) => ({
+      answer_revision: h.answer_revision_id,
+      revision_number: Number(h.revision_number),
+      supersedes_answer_revision: h.supersedes_revision_id ?? null,
+      generated_at: h.generated_at,
+      as_of_date: h.as_of_date_raw ?? null,
+      status: h.status,
+      actor_id: h.actor_id,
+      owner_actor_id: h.owner_actor_id,
+      revision_reason: h.revision_reason || "Initial verified publication",
+      published_claims_count: Array.isArray(h.ordered_claim_ids)
+        ? h.ordered_claim_ids.length
+        : 0,
+    })),
+  };
+}
+
+/**
+ * Verifies that an exact `answer_revision_id` actually exists in PostgreSQL `citation_published_answer`
+ * before any follow-up answer is permitted to link to or supersede that conversation's revision chain.
+ */
+export async function lookupSavedRevisionRecordInPostgres(
+  answerRevisionId: string
+): Promise<{
+  exists: boolean;
+  answer_revision_id: string | null;
+  answer_id: string | null;
+  revision_number: number;
+  owner_actor_id: string | null;
+  owner_tenant_id: string | null;
+  question_text: string | null;
+  revision_reason: string | null;
+}> {
+  const db = resolveActiveCitationDbTransport();
+  if (!db) {
+    return {
+      exists: false,
+      answer_revision_id: null,
+      answer_id: null,
+      revision_number: 0,
+      owner_actor_id: null,
+      owner_tenant_id: null,
+      question_text: null,
+      revision_reason: null,
+    };
+  }
+  const res = await db<{
+    answer_revision_id: string;
+    answer_id: string;
+    revision_number: number;
+    owner_actor_id: string;
+    owner_tenant_id: string;
+    question_text: string;
+    revision_reason: string;
+  }>(
+    `SELECT answer_revision_id, answer_id, revision_number,
+            owner_actor_id, owner_tenant_id, question_text, revision_reason
+     FROM citation_published_answer
+     WHERE answer_revision_id = $1 OR answer_id = $1
+     ORDER BY revision_number DESC
+     LIMIT 1`,
+    [answerRevisionId]
+  );
+  const match = res.rows.find((r) => r.answer_revision_id === answerRevisionId);
+  if (!match) {
+    return {
+      exists: false,
+      answer_revision_id: null,
+      answer_id: null,
+      revision_number: 0,
+      owner_actor_id: null,
+      owner_tenant_id: null,
+      question_text: null,
+      revision_reason: null,
+    };
+  }
+  return {
+    exists: true,
+    answer_revision_id: match.answer_revision_id,
+    answer_id: match.answer_id,
+    revision_number: Number(match.revision_number),
+    owner_actor_id: match.owner_actor_id,
+    owner_tenant_id: match.owner_tenant_id,
+    question_text: match.question_text || null,
+    revision_reason: match.revision_reason || null,
   };
 }
 

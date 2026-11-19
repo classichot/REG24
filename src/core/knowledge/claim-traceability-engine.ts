@@ -27,22 +27,26 @@ import {
 } from "./temporal-versioning";
 import {
   appendAuditEventToPostgres,
+  hasActiveCitationPostgresStore,
   inspectExistingAnswerOwnershipInPostgres,
   loadAllOnboardedSourcesFromPostgres,
   loadPinnedPassageFromPostgres,
   loadSavedAnswerFromPostgres,
+  lookupSavedRevisionRecordInPostgres,
   persistAnswerRevisionToPostgres,
 } from "./citation-postgres-store";
 import type {
   Actor,
   Assertion,
   BatchId,
+  ConversationTurnInput,
   GroundedAnswer,
   Passage,
 } from "./contracts";
 import type { CanonicalPersistedState, DurableKnowledgeStore } from "./store";
 import type {
   AccessPermissionKind,
+  AnswerRevisionHistoryEntryDto,
   AtomicClaimType,
   BatchIngestionStageCounts,
   CitationAcceptanceMeasurementReport,
@@ -1455,6 +1459,12 @@ export function commitTraceableAnswerAtomically(
     revision_reason?: string;
     is_authorized_reviewer_revision?: boolean;
     simulate_interrupt_after_validation_for_test?: boolean;
+    authoritative_prior_revisions?: AnswerRevisionHistoryEntryDto[];
+    authoritative_owner?: {
+      owner_actor_id: string;
+      owner_tenant_id: string;
+    } | null;
+    trusted_calculation_tokens_by_claim_text?: Record<string, string[]>;
   }
 ): TraceableAnswerEnvelope {
   const unified = getUnifiedCitationLedgerView(store, envelope.verifier_metadata.release_id);
@@ -1514,6 +1524,8 @@ export function commitTraceableAnswerAtomically(
     const scLinks = links.filter((l) => l.claim_id === sc.claim_id);
     const substantive = evaluateSubstantiveClaimSupport({
       claim_text: sc.text,
+      verified_calculation_numeric_tokens:
+        meta.trusted_calculation_tokens_by_claim_text?.[sc.text],
       passages: scLinks.map((l) => {
         const psg = unified.passages[l.evidence_id]!;
         const doc = unified.documents[l.doc_id];
@@ -1543,7 +1555,7 @@ export function commitTraceableAnswerAtomically(
     "COMMIT_TRACEABLE_ANSWER_ATOMICALLY",
     meta.actor.actor_id,
     (ledger) => {
-      // Material Issue 1 Ownership & Anti-Overwrite Enforcement:
+      // Material Issue 1 & Durable Revision Integrity Enforcement:
       const existingRevisionsForId = Object.values(ledger.published_answers)
         .filter((a) => a.answer_id === envelope.answer_id)
         .sort((a, b) => a.revision_number - b.revision_number);
@@ -1553,8 +1565,60 @@ export function commitTraceableAnswerAtomically(
       let effectiveSupersedes = envelope.supersedes_answer_revision;
       let ownerActorId = envelope.owner_actor_id || meta.actor.actor_id;
       let ownerTenantId = envelope.owner_tenant_id || meta.actor.tenant_id;
+      let priorHistoryEntries: NonNullable<TraceableAnswerEnvelope["revision_history"]> = [];
 
-      if (existingRevisionsForId.length > 0) {
+      if (meta.authoritative_prior_revisions !== undefined) {
+        // Durable PostgreSQL is the sole authoritative source of truth for prior revisions:
+        // unpersisted or stale in-memory ledger entries can NEVER invent a dangling `supersedes_answer_revision`!
+        if (meta.authoritative_prior_revisions.length === 0) {
+          for (const stale of existingRevisionsForId) {
+            delete ledger.published_answers[stale.answer_revision];
+          }
+          effectiveRevNo = 1;
+          effectiveAnswerRevision = `${envelope.answer_id}.r1`;
+          effectiveSupersedes = null;
+          priorHistoryEntries = [];
+        } else {
+          const firstAuth = meta.authoritative_prior_revisions[0];
+          const latestAuth =
+            meta.authoritative_prior_revisions[meta.authoritative_prior_revisions.length - 1];
+          ownerActorId =
+            meta.authoritative_owner?.owner_actor_id ||
+            firstAuth.owner_actor_id ||
+            firstAuth.actor_id;
+          ownerTenantId = meta.authoritative_owner?.owner_tenant_id || meta.actor.tenant_id;
+
+          const isOwner =
+            ownerActorId === meta.actor.actor_id && ownerTenantId === meta.actor.tenant_id;
+          const isReviewerAllowed =
+            Boolean(meta.is_authorized_reviewer_revision) &&
+            (meta.actor.role === "legal_reviewer" || meta.actor.role === "product_owner") &&
+            ownerTenantId === meta.actor.tenant_id;
+
+          if (!isOwner && !isReviewerAllowed) {
+            appendCitationAuditEvent(ledger, {
+              actor_or_service: meta.actor.actor_id,
+              event_type: "SECURITY_UNAUTHORIZED_ANSWER_MUTATION_BLOCKED",
+              affected_ids: [envelope.answer_id, latestAuth.answer_revision],
+              before_status: {
+                owner_actor_id: ownerActorId,
+                revision: latestAuth.answer_revision,
+              },
+              after_status: { blocked: true },
+              reason: `Blocked unauthorized modification/overwrite of answer '${envelope.answer_id}' owned by '${ownerActorId}'.`,
+              correlation_id: latestAuth.answer_revision,
+            });
+            throw new Error(
+              `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${meta.actor.actor_id}' is not authorized to modify or overwrite answer '${envelope.answer_id}' owned by '${ownerActorId}'.`
+            );
+          }
+
+          effectiveRevNo = latestAuth.revision_number + 1;
+          effectiveAnswerRevision = `${envelope.answer_id}.r${effectiveRevNo}`;
+          effectiveSupersedes = latestAuth.answer_revision;
+          priorHistoryEntries = [...meta.authoritative_prior_revisions];
+        }
+      } else if (existingRevisionsForId.length > 0) {
         const firstRev = existingRevisionsForId[0];
         const latestRev = existingRevisionsForId[existingRevisionsForId.length - 1];
         ownerActorId = firstRev.owner_actor_id || firstRev.actor_id;
@@ -1612,6 +1676,40 @@ export function commitTraceableAnswerAtomically(
         effectiveRevNo = latestRev.revision_number + 1;
         effectiveAnswerRevision = `${envelope.answer_id}.r${effectiveRevNo}`;
         effectiveSupersedes = latestRev.answer_revision;
+        priorHistoryEntries = existingRevisionsForId.map((r) => ({
+          answer_revision: r.answer_revision,
+          revision_number: r.revision_number,
+          supersedes_answer_revision: r.supersedes_answer_revision,
+          generated_at: r.generated_at,
+          as_of_date: r.as_of_date,
+          status: r.status,
+          actor_id: r.actor_id,
+          owner_actor_id: r.owner_actor_id || r.actor_id,
+          revision_reason: r.revision_reason || "Initial verified publication",
+          published_claims_count: r.claims.length,
+        }));
+      } else {
+        // First saved revision in local ledger: MUST NEVER reference a non-existent prior revision!
+        if (envelope.supersedes_answer_revision != null) {
+          throw new Error(
+            `DANGLING_PRIOR_REVISION_400: First answer revision for '${envelope.answer_id}' cannot reference non-existent prior revision '${envelope.supersedes_answer_revision}'.`
+          );
+        }
+        effectiveRevNo = 1;
+        effectiveAnswerRevision = `${envelope.answer_id}.r1`;
+        effectiveSupersedes = null;
+        priorHistoryEntries = [];
+      }
+
+      if (effectiveRevNo === 1 && effectiveSupersedes !== null) {
+        throw new Error(
+          `DANGLING_PRIOR_REVISION_400: First answer '${effectiveAnswerRevision}' must save with supersedes_answer_revision = null.`
+        );
+      }
+      if (effectiveRevNo > 1 && !effectiveSupersedes) {
+        throw new Error(
+          `DANGLING_PRIOR_REVISION_400: Follow-up/updated revision '${effectiveAnswerRevision}' must reference an existing prior revision.`
+        );
       }
 
       const revisionReason =
@@ -1681,18 +1779,7 @@ export function commitTraceableAnswerAtomically(
       }
 
       const historyAfterCommit: NonNullable<TraceableAnswerEnvelope["revision_history"]> = [
-        ...existingRevisionsForId.map((r) => ({
-          answer_revision: r.answer_revision,
-          revision_number: r.revision_number,
-          supersedes_answer_revision: r.supersedes_answer_revision,
-          generated_at: r.generated_at,
-          as_of_date: r.as_of_date,
-          status: r.status,
-          actor_id: r.actor_id,
-          owner_actor_id: r.owner_actor_id || r.actor_id,
-          revision_reason: r.revision_reason || "Initial verified publication",
-          published_claims_count: r.claims.length,
-        })),
+        ...priorHistoryEntries,
         {
           answer_revision: effectiveAnswerRevision,
           revision_number: effectiveRevNo,
@@ -1794,13 +1881,23 @@ export async function hydratePostgresSourcesIntoStore(
   });
 }
 
+function extractConversationTagFromReason(reason?: string | null): string | null {
+  if (!reason) return null;
+  const m = reason.match(/\[conv:([^\]]+)\]/);
+  return m ? m[1].trim() : null;
+}
+
 /**
- * Server-reverified save/revision entry point for `POST /api/v1/knowledge/answers` (Material Issue 1 & 3):
+ * Server-reverified save/revision entry point for `POST /api/v1/knowledge/answers` and
+ * `POST /api/v1/knowledge/query` (`persist_answer: true`) (Material Issue 1 & 3 + Round 2 Revision Integrity):
  * 1. NEVER trusts client-supplied `status`, `verification_decision`, `citation_label_th`, or `official_url`.
  * 2. Re-runs `validateAndBuildTraceableAnswer` on the server against canonical/DB passages!
  * 3. Rejects (`422 UNSUPPORTED_ANSWER_REJECTED_422`) any attempt to save a claim/answer as supported without valid evidence.
- * 4. Enforces ownership across BOTH local ledger AND hosted Neon PostgreSQL (`403 ANSWER_OWNERSHIP_FORBIDDEN_403` on another user's `answer_id`),
- *    auto-increments `revision_number` (`r1` -> `r2`) without overwriting, and persists durably to PostgreSQL!
+ * 4. Enforces root-cause revision integrity:
+ *    - Durable PostgreSQL (`citation_published_answer`) is authoritative whenever connected — unpersisted local state
+ *      can NEVER bump `r1 -> r2` or invent a dangling `supersedes_answer_revision`.
+ *    - A first answer ALWAYS saves as `r1` (`revision_number = 1`, `supersedes_answer_revision = null`).
+ *    - A follow-up answer links ONLY to a verified saved revision from the SAME conversation owned by the SAME actor.
  */
 export async function saveOrReviseAnswerServerVerified(
   store: DurableKnowledgeStore,
@@ -1809,23 +1906,202 @@ export async function saveOrReviseAnswerServerVerified(
     question_text: string;
     revision_reason?: string;
     actor: Actor;
+    query_persistence_context?: {
+      conversation_id?: string | null;
+      prior_saved_answer_revision?: string | null;
+      conversation_history?: ConversationTurnInput[];
+      trusted_calculation_tokens_by_claim_text?: Record<string, string[]>;
+    };
   }
 ): Promise<TraceableAnswerEnvelope> {
   const sub = params.submitted_envelope;
   const releaseId =
     sub.verifier_metadata?.release_id ||
     store.getState().active_release_id ||
-    "rel.B01.rc5";
+    "rel.B01.rc6";
 
   // Hydrate any PostgreSQL-stored onboarded attachments/sources so cold-start containers validate them accurately!
   await hydratePostgresSourcesIntoStore(store, params.actor);
 
+  const pgActive = hasActiveCitationPostgresStore();
   const unified = getUnifiedCitationLedgerView(store, releaseId);
-  const requestedAnswerId =
+  let requestedAnswerId =
     sub.answer_id ||
     `ans.${sha256Bytes(`${releaseId}|${params.actor.actor_id}|${params.question_text}|${Date.now()}`).slice(0, 14)}`;
+  let effectiveRevisionReason = params.revision_reason;
 
-  // Check ownership in hosted PostgreSQL first (across deployments/restarts!)
+  if (params.query_persistence_context) {
+    const qCtx = params.query_persistence_context;
+    const convId = qCtx.conversation_id?.trim() || null;
+    const history = Array.isArray(qCtx.conversation_history) ? qCtx.conversation_history : [];
+    const priorUserTurns = history.filter(
+      (t) => t.role === "user" && typeof t.content === "string" && t.content.trim().length > 0
+    );
+    const hasPriorConversationTurns = priorUserTurns.length > 0;
+    const explicitPriorRev = qCtx.prior_saved_answer_revision?.trim() || null;
+    const lastSavedAssistantTurn = [...history]
+      .reverse()
+      .find(
+        (t) =>
+          t.role === "assistant" &&
+          typeof t.saved_answer_revision === "string" &&
+          t.saved_answer_revision.trim().length > 0
+      );
+    const historyPriorRev = lastSavedAssistantTurn?.saved_answer_revision?.trim() || null;
+
+    if (!hasPriorConversationTurns) {
+      // Root Rule 1: A first answer in a fresh conversation MUST save without a prior revision!
+      if (explicitPriorRev) {
+        throw new Error(
+          `INVALID_PRIOR_CONVERSATION_REVISION_400: First answer in a fresh conversation cannot reference prior revision '${explicitPriorRev}'.`
+        );
+      }
+      // Guarantee collision-free `answer_id` so two independent fresh sessions asking the exact same built-in question NEVER collide!
+      const alreadyExistsInDurable = pgActive
+        ? (await inspectExistingAnswerOwnershipInPostgres(requestedAnswerId)).exists
+        : Object.values(unified.published_answers).some((a) => a.answer_id === requestedAnswerId);
+      if (alreadyExistsInDurable) {
+        requestedAnswerId = `ans.trc.${sha256Bytes(`${requestedAnswerId}|${params.actor.actor_id}|${Date.now()}|${Math.random()}`).slice(0, 14)}`;
+      }
+      const baseReason = effectiveRevisionReason || "Initial verified answer from query endpoint";
+      effectiveRevisionReason = convId && !baseReason.includes("[conv:")
+        ? `${baseReason} [conv:${convId}]`
+        : baseReason;
+    } else {
+      // Ongoing conversation follow-up turn
+      const candidatePriorRev = explicitPriorRev || historyPriorRev;
+      if (!candidatePriorRev) {
+        // Prior turn(s) in this conversation were NOT saved (e.g. NEEDS_CLARIFICATION / INSUFFICIENT_EVIDENCE abstention):
+        // save this answer cleanly as the conversation's first saved revision (`r1`, supersedes = null)!
+        const alreadyExistsInDurable = pgActive
+          ? (await inspectExistingAnswerOwnershipInPostgres(requestedAnswerId)).exists
+          : Object.values(unified.published_answers).some((a) => a.answer_id === requestedAnswerId);
+        if (alreadyExistsInDurable) {
+          requestedAnswerId = `ans.trc.${sha256Bytes(`${requestedAnswerId}|${params.actor.actor_id}|${Date.now()}|${Math.random()}`).slice(0, 14)}`;
+        }
+        const baseReason =
+          effectiveRevisionReason || "Initial verified answer after conversation clarification";
+        effectiveRevisionReason = convId && !baseReason.includes("[conv:")
+          ? `${baseReason} [conv:${convId}]`
+          : baseReason;
+      } else {
+        // Root Rule 2: A follow-up MUST link ONLY to a verified saved revision from the SAME conversation!
+        const priorUserQuestionSet = new Set(priorUserTurns.map((t) => t.content.trim()));
+
+        if (pgActive) {
+          const revRec = await lookupSavedRevisionRecordInPostgres(candidatePriorRev);
+          if (!revRec.exists || !revRec.answer_id) {
+            throw new Error(
+              `INVALID_PRIOR_CONVERSATION_REVISION_400: Referenced prior answer revision '${candidatePriorRev}' does not exist in durable PostgreSQL storage.`
+            );
+          }
+          const priorChain = await inspectExistingAnswerOwnershipInPostgres(revRec.answer_id);
+          const isSameOwner =
+            priorChain.owner_actor_id === params.actor.actor_id &&
+            (priorChain.owner_tenant_id || "PUBLIC") === params.actor.tenant_id;
+          if (!isSameOwner) {
+            await appendAuditEventToPostgres({
+              audit_id: `caud.sec.${sha256Bytes(`${revRec.answer_id}:${params.actor.actor_id}:${Date.now()}`).slice(0, 14)}`,
+              actor_or_service: params.actor.actor_id,
+              recorded_at: new Date().toISOString(),
+              event_type: "SECURITY_UNAUTHORIZED_ANSWER_MUTATION_BLOCKED",
+              affected_ids: [revRec.answer_id, candidatePriorRev],
+              before_status: { owner_actor_id: priorChain.owner_actor_id },
+              after_status: { blocked: true },
+              reason: `Blocked cross-user follow-up revision link attempt on '${candidatePriorRev}' by '${params.actor.actor_id}'.`,
+              correlation_id: candidatePriorRev,
+            });
+            throw new Error(
+              `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${params.actor.actor_id}' cannot link a follow-up to answer '${revRec.answer_id}' owned by '${priorChain.owner_actor_id}'.`
+            );
+          }
+
+          const matchesConversationQuestions = priorChain.question_texts.some((qt) =>
+            priorUserQuestionSet.has(qt.trim())
+          );
+          const recordedConvTags = priorChain.revisions
+            .map((r) => extractConversationTagFromReason(r.revision_reason))
+            .filter((tag): tag is string => Boolean(tag));
+          const hasConvIdMismatch =
+            Boolean(convId) &&
+            recordedConvTags.length > 0 &&
+            !recordedConvTags.includes(convId!);
+          const hasTurnConvIdMismatch =
+            Boolean(convId) &&
+            Boolean(lastSavedAssistantTurn?.conversation_id?.trim()) &&
+            lastSavedAssistantTurn!.conversation_id!.trim() !== convId;
+
+          if (!matchesConversationQuestions || hasConvIdMismatch || hasTurnConvIdMismatch) {
+            throw new Error(
+              `CROSS_CONVERSATION_REVISION_FORBIDDEN_400: Follow-up answer can only link to a saved revision from the same conversation ('${candidatePriorRev}' belongs to a different conversation).`
+            );
+          }
+
+          if (priorChain.latest_answer_revision !== candidatePriorRev) {
+            throw new Error(
+              `STALE_PRIOR_CONVERSATION_REVISION_409: Follow-up referenced '${candidatePriorRev}', but the latest saved revision in this conversation is '${priorChain.latest_answer_revision}'.`
+            );
+          }
+
+          requestedAnswerId = revRec.answer_id;
+        } else {
+          // Local durable ledger mode (offline / unit tests without PG transport)
+          const localRev = unified.published_answers[candidatePriorRev];
+          if (!localRev) {
+            throw new Error(
+              `INVALID_PRIOR_CONVERSATION_REVISION_400: Referenced prior answer revision '${candidatePriorRev}' does not exist in durable storage.`
+            );
+          }
+          const localChain = Object.values(unified.published_answers)
+            .filter((a) => a.answer_id === localRev.answer_id)
+            .sort((a, b) => a.revision_number - b.revision_number);
+          const firstLocal = localChain[0] || localRev;
+          const latestLocal = localChain[localChain.length - 1] || localRev;
+          const localOwner = firstLocal.owner_actor_id || firstLocal.actor_id;
+          const localTenant = firstLocal.owner_tenant_id || firstLocal.tenant_id;
+
+          if (localOwner !== params.actor.actor_id || localTenant !== params.actor.tenant_id) {
+            throw new Error(
+              `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${params.actor.actor_id}' cannot link a follow-up to answer '${localRev.answer_id}' owned by '${localOwner}'.`
+            );
+          }
+
+          const matchesConversationQuestions = localChain.some((r) =>
+            priorUserQuestionSet.has((r.question_text || "").trim())
+          );
+          const recordedConvTags = localChain
+            .map((r) => extractConversationTagFromReason(r.revision_reason))
+            .filter((tag): tag is string => Boolean(tag));
+          const hasConvIdMismatch =
+            Boolean(convId) &&
+            recordedConvTags.length > 0 &&
+            !recordedConvTags.includes(convId!);
+
+          if (!matchesConversationQuestions || hasConvIdMismatch) {
+            throw new Error(
+              `CROSS_CONVERSATION_REVISION_FORBIDDEN_400: Follow-up answer can only link to a saved revision from the same conversation ('${candidatePriorRev}' belongs to a different conversation).`
+            );
+          }
+
+          if (latestLocal.answer_revision !== candidatePriorRev) {
+            throw new Error(
+              `STALE_PRIOR_CONVERSATION_REVISION_409: Follow-up referenced '${candidatePriorRev}', but the latest saved revision in this conversation is '${latestLocal.answer_revision}'.`
+            );
+          }
+
+          requestedAnswerId = localRev.answer_id;
+        }
+
+        const baseFollowUpReason =
+          effectiveRevisionReason || "Follow-up answer revision in same conversation";
+        effectiveRevisionReason = convId && !baseFollowUpReason.includes("[conv:")
+          ? `${baseFollowUpReason} [conv:${convId}]`
+          : baseFollowUpReason;
+      }
+    }
+  }
+
+  // Check ownership & authoritative revision head in hosted PostgreSQL (across deployments/restarts!)
   const pgOwn = await inspectExistingAnswerOwnershipInPostgres(requestedAnswerId);
   if (pgOwn.exists) {
     const isOwner =
@@ -1849,6 +2125,26 @@ export async function saveOrReviseAnswerServerVerified(
     }
   }
 
+  const localExistingChain = !pgActive
+    ? Object.values(unified.published_answers)
+        .filter((a) => a.answer_id === requestedAnswerId)
+        .sort((a, b) => a.revision_number - b.revision_number)
+    : [];
+  const nextRevHint = pgActive
+    ? pgOwn.exists
+      ? pgOwn.latest_revision_number + 1
+      : 1
+    : localExistingChain.length > 0
+      ? localExistingChain[localExistingChain.length - 1].revision_number + 1
+      : 1;
+  const authoritativeSupersedes = pgActive
+    ? pgOwn.exists
+      ? pgOwn.latest_answer_revision
+      : null
+    : localExistingChain.length > 0
+      ? localExistingChain[localExistingChain.length - 1].answer_revision
+      : null;
+
   const callerClaimedSupported =
     sub.status === "complete" ||
     sub.status === "partial" ||
@@ -1857,7 +2153,12 @@ export async function saveOrReviseAnswerServerVerified(
 
   const candidateIds = new Set<string>();
   const proposedClaims: ProposedStructuredClaimInput[] = [];
+  const trustedCalcTokensMap =
+    params.query_persistence_context?.trusted_calculation_tokens_by_claim_text;
+  const shouldRemapClaimIds = requestedAnswerId !== sub.answer_id || nextRevHint > 1;
+  const subClaimIdRemap = new Map<string, string>();
 
+  let claimSeq = 0;
   for (const rawClm of sub.claims || []) {
     if (
       rawClm.claim_type === "user_fact_or_assumption" ||
@@ -1865,39 +2166,61 @@ export async function saveOrReviseAnswerServerVerified(
     ) {
       continue;
     }
-    const evIds = (rawClm.evidence_references || [])
-      .map((r) => r.evidence_id)
-      .filter((eid) => Boolean(unified.passages[eid]));
-    for (const eid of evIds) candidateIds.add(eid);
+    claimSeq++;
+    const nextClaimId = shouldRemapClaimIds
+      ? `clm.${requestedAnswerId}.r${nextRevHint}.${claimSeq}`
+      : rawClm.claim_id;
+    if (rawClm.claim_id) {
+      subClaimIdRemap.set(rawClm.claim_id, nextClaimId);
+    }
+
+    const validRefs = (rawClm.evidence_references || []).filter((r) =>
+      Boolean(unified.passages[r.evidence_id])
+    );
+    for (const r of validRefs) candidateIds.add(r.evidence_id);
+
+    // Preserve multi-authority support groups per `(required_group, support_role)` so statutory + ruling pairs remain intact!
+    const groupedMap = new Map<
+      string,
+      { group_id: string; role: ClaimSupportRole; evidence_ids: string[] }
+    >();
+    for (const r of validRefs) {
+      const grpId = r.required_group || "grp.server_reverified";
+      const role: ClaimSupportRole = r.support_role || "primary_authority";
+      const key = `${grpId}::${role}`;
+      const existing = groupedMap.get(key);
+      if (existing) {
+        if (!existing.evidence_ids.includes(r.evidence_id)) {
+          existing.evidence_ids.push(r.evidence_id);
+        }
+      } else {
+        groupedMap.set(key, {
+          group_id: grpId,
+          role,
+          evidence_ids: [r.evidence_id],
+        });
+      }
+    }
 
     proposedClaims.push({
-      claim_id: rawClm.claim_id,
+      claim_id: nextClaimId,
       text: rawClm.text,
       claim_type:
         rawClm.claim_type === "interpretation" ? "interpretation" : "legal_proposition",
-      premise_ids: rawClm.premise_ids || [],
-      support_groups:
-        evIds.length > 0
-          ? [
-              {
-                group_id: "grp.server_reverified",
-                role: rawClm.evidence_references?.[0]?.support_role || "primary_authority",
-                evidence_ids: evIds,
-              },
-            ]
-          : [],
+      premise_ids: (rawClm.premise_ids || []).map((pid) => subClaimIdRemap.get(pid) || pid),
+      support_groups: Array.from(groupedMap.values()),
+      verified_calculation_numeric_tokens: trustedCalcTokensMap?.[rawClm.text],
     });
   }
 
-  const nextRevHint = pgOwn.exists ? pgOwn.latest_revision_number + 1 : 1;
   const serverValidated = validateAndBuildTraceableAnswer(store, {
     answer_id: requestedAnswerId,
     revision_number: nextRevHint,
-    supersedes_answer_revision: pgOwn.latest_answer_revision,
+    supersedes_answer_revision: authoritativeSupersedes,
     owner_actor_id: pgOwn.owner_actor_id || params.actor.actor_id,
     owner_tenant_id: pgOwn.owner_tenant_id || params.actor.tenant_id,
-    revision_reason: params.revision_reason,
-    channel: "saved_answer",
+    revision_reason: effectiveRevisionReason,
+    channel: params.query_persistence_context ? sub.channel || "chat" : "saved_answer",
     question: params.question_text,
     as_of_date: sub.as_of_date ?? null,
     release_id: releaseId,
@@ -1930,7 +2253,16 @@ export async function saveOrReviseAnswerServerVerified(
   const committed = commitTraceableAnswerAtomically(store, serverValidated, allLinks, {
     actor: params.actor,
     question_text: params.question_text,
-    revision_reason: params.revision_reason,
+    revision_reason: effectiveRevisionReason,
+    authoritative_prior_revisions: pgActive ? pgOwn.revisions : undefined,
+    authoritative_owner:
+      pgActive && pgOwn.exists
+        ? {
+            owner_actor_id: pgOwn.owner_actor_id || params.actor.actor_id,
+            owner_tenant_id: pgOwn.owner_tenant_id || params.actor.tenant_id,
+          }
+        : null,
+    trusted_calculation_tokens_by_claim_text: trustedCalcTokensMap,
   });
 
   // Gather referenced source bundles and persist to hosted PostgreSQL (`citation-postgres-store.ts`)
@@ -3503,10 +3835,24 @@ export function tryAnswerFromOnboardedCitationSources(
     (params.attachment_doc_ids || []).map((id) => id.trim()).filter(Boolean)
   );
   const qNorm = normalizeThaiSearchTextOnly(params.question);
-  // Only intercept when an explicitly onboarded document or explicitly attached official law matches the question
+  const hasNonCanonicalOnboardedVersion = (docId: string): boolean =>
+    Object.values(rawLedger.versions).some(
+      (v) => v.doc_id === docId && !state.versions[v.version_id]
+    );
+
+  // Only intercept when an explicitly onboarded document, verified amendment, or explicitly attached official law
+  // matches the question — NEVER hijack standard canonical corpus documents that were merely materialized into
+  // `citation_ledger` / PostgreSQL when persisting an earlier answer!
   const directDocs = Object.values(rawLedger.documents).filter((doc) => {
     if (explicitAttachmentSet.has(doc.doc_id)) {
       return true;
+    }
+    if (
+      doc.canonical_work_id &&
+      state.works[doc.canonical_work_id] &&
+      !hasNonCanonicalOnboardedVersion(doc.doc_id)
+    ) {
+      return false;
     }
     const nativeNorm = normalizeThaiSearchTextOnly(doc.source_native_id || "");
     const titleNorm = normalizeThaiSearchTextOnly(doc.original_title_th);

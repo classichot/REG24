@@ -57,6 +57,12 @@ export default function LegalTeamReviewStudioPage() {
   const [queryMode, setQueryMode] = useState<"standard" | "exact_lookup" | "comparison">(
     CHALLENGING_THAI_TAX_SCENARIOS[0].mode || "standard"
   );
+  const createFreshConversationId = () =>
+    `conv.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
+
+  const [conversationId, setConversationId] = useState<string>(() =>
+    `conv.init.${Math.random().toString(36).slice(2, 8)}`
+  );
   const [conversationHistory, setConversationHistory] = useState<ConversationTurnInput[]>([]);
   const [attachedDocIds, setAttachedDocIds] = useState<string[]>([]);
   const [attachmentSummary, setAttachmentSummary] = useState<string | null>(null);
@@ -167,6 +173,7 @@ export default function LegalTeamReviewStudioPage() {
     setQuestion(sc.question_th);
     setAsOfDate(sc.as_of_date || "");
     setQueryMode(sc.mode || "standard");
+    setConversationId(createFreshConversationId());
     setConversationHistory([]);
     setAttachedDocIds([]);
     setAttachmentSummary(null);
@@ -198,6 +205,7 @@ export default function LegalTeamReviewStudioPage() {
     setQuestion(sc.question);
     setAsOfDate(sc.applicable_date || "");
     setQueryMode(sc.mode || "standard");
+    setConversationId(createFreshConversationId());
     setConversationHistory([]);
     setAttachedDocIds([]);
     setAttachmentSummary(null);
@@ -216,6 +224,7 @@ export default function LegalTeamReviewStudioPage() {
     setQuestion("");
     setAsOfDate("");
     setQueryMode("standard");
+    setConversationId(createFreshConversationId());
     setConversationHistory([]);
     setAttachedDocIds([]);
     setAttachmentSummary(null);
@@ -295,7 +304,17 @@ export default function LegalTeamReviewStudioPage() {
       /^(?:ข้อมูลเพิ่มเติม|ข้อเท็จจริงเปลี่ยน|คำถามต่อเนื่อง|ต่อจากข้อ|หากเปลี่ยน|ถ้าเปลี่ยน|สมมติเปลี่ยน|\bfollow[- ]?up\b|\badditional\s+facts?\b|\bchanged\s+facts?\b)/i.test(
         qToRun
       );
-    const historyForCall = appendFollowUp || looksLikeExplicitFollowUp ? conversationHistory : [];
+    const isFollowUpCall = Boolean(appendFollowUp || looksLikeExplicitFollowUp);
+    const historyForCall = isFollowUpCall ? conversationHistory : [];
+    const activeConvId = isFollowUpCall ? conversationId : createFreshConversationId();
+    if (!isFollowUpCall) {
+      setConversationId(activeConvId);
+    }
+    const priorSavedTurn = isFollowUpCall
+      ? [...historyForCall]
+          .reverse()
+          .find((t) => t.role === "assistant" && Boolean(t.saved_answer_revision))
+      : undefined;
 
     try {
       const res = await fetch("/api/v1/knowledge/query", {
@@ -307,6 +326,8 @@ export default function LegalTeamReviewStudioPage() {
           mode: queryMode,
           channel: "chat",
           persist_answer: true,
+          conversation_id: activeConvId,
+          prior_saved_answer_revision: priorSavedTurn?.saved_answer_revision ?? null,
           conversation_history: historyForCall,
           attachment_doc_ids: attachedDocIds,
         }),
@@ -327,10 +348,30 @@ export default function LegalTeamReviewStudioPage() {
       setQuestion(qToRun);
       setAsOfDate(dateToRun || "");
 
+      const savedRev =
+        ans.status !== "NEEDS_CLARIFICATION" &&
+        ans.status !== "INSUFFICIENT_EVIDENCE" &&
+        env &&
+        (env.status === "complete" || env.status === "partial")
+          ? env.answer_revision
+          : null;
+      const savedAnsId = savedRev && env ? env.answer_id : null;
+
       setConversationHistory([
         ...historyForCall,
-        { role: "user", content: qToRun, applicable_date: dateToRun },
-        { role: "assistant", content: ans.answer },
+        {
+          role: "user",
+          content: qToRun,
+          applicable_date: dateToRun,
+          conversation_id: activeConvId,
+        },
+        {
+          role: "assistant",
+          content: ans.answer,
+          saved_answer_id: savedAnsId,
+          saved_answer_revision: savedRev,
+          conversation_id: activeConvId,
+        },
       ]);
     } catch (err) {
       setStatusBanner({
@@ -1127,6 +1168,19 @@ export default function LegalTeamReviewStudioPage() {
                         <code>{answerResult.execution_provenance.git_commit_sha.slice(0, 7)}</code> ·
                         CalcVerifier:{" "}
                         <code>{answerResult.execution_provenance.calculation_verifier_version}</code>
+                      </>
+                    ) : null}
+                    {traceableEnvelope &&
+                    (traceableEnvelope.status === "complete" ||
+                      traceableEnvelope.status === "partial") ? (
+                      <>
+                        {" "}
+                        · SavedRev: <code>{traceableEnvelope.answer_revision}</code> (r
+                        {traceableEnvelope.revision_number}
+                        {traceableEnvelope.supersedes_answer_revision
+                          ? ` ← supersedes ${traceableEnvelope.supersedes_answer_revision}`
+                          : " · initial"}
+                        )
                       </>
                     ) : null}
                   </span>

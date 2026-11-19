@@ -225,6 +225,12 @@ function createInMemoryPostgresSimulator() {
       if (tables.answers.has(revId)) {
         throw new Error(`IMMUTABLE_CITATION_RECORD: citation_published_answer ${revId} already exists`);
       }
+      const supersedesRev = params[3] != null ? String(params[3]) : null;
+      if (supersedesRev !== null && !tables.answers.has(supersedesRev)) {
+        throw new Error(
+          `NEON_CITATION_SQL_HTTP_400: insert or update on table "citation_published_answer" violates foreign key constraint "citation_published_answer_supersedes_revision_id_fkey" (Key (supersedes_revision_id)=(${supersedesRev}) is not present in table "citation_published_answer")`
+        );
+      }
       tables.answers.set(revId, {
         answer_revision_id: revId,
         answer_id: params[1],
