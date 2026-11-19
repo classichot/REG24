@@ -15,6 +15,7 @@ import type { ConversationTurnInput } from "../../../../../core/knowledge/contra
 import { saveOrReviseAnswerServerVerified } from "../../../../../core/knowledge/claim-traceability-engine";
 
 export async function POST(req: Request) {
+  const reqStartedAt = performance.now();
   try {
     // Server-supplied tenant & scope ONLY — client JSON fields (`tenant_id`, `authorized_scopes`) are ignored (SH-16 / AT08)
     const actor = resolveServerActor(req);
@@ -45,6 +46,7 @@ export async function POST(req: Request) {
     // IMPORTANT: Keep `persistAnswerAtomically: false` during `queryKnowledge` so unpersisted in-memory
     // envelope generation NEVER pre-populates `r1` ahead of `saveOrReviseAnswerServerVerified`, and
     // keep `enable_tax_foundation_pilot: false` so the VAT book pilot remains strictly OFF on staging!
+    const queryStartedAt = performance.now();
     const answer = await queryKnowledge(
       {
         question: qClean,
@@ -65,7 +67,9 @@ export async function POST(req: Request) {
         persistAnswerAtomically: false,
       }
     );
+    const queryMs = Math.round((performance.now() - queryStartedAt) * 100) / 100;
 
+    let persistMs = 0;
     if (
       body.persist_answer &&
       answer.status !== "NEEDS_CLARIFICATION" &&
@@ -74,6 +78,7 @@ export async function POST(req: Request) {
       (answer.traceable_answer.status === "complete" ||
         answer.traceable_answer.status === "partial")
     ) {
+      const persistStartedAt = performance.now();
       const trustedCalcByClaimText: Record<string, string[]> = {};
       const allCalcTokens = new Set<string>();
       for (const gc of answer.claims || []) {
@@ -115,8 +120,10 @@ export async function POST(req: Request) {
         },
       });
       answer.traceable_answer = pgSaved;
+      persistMs = Math.round((performance.now() - persistStartedAt) * 100) / 100;
     }
 
+    const auditStartedAt = performance.now();
     const relRec = store.getState().releases[answer.release_id];
     const auditStatus = await appendTrialAuditEvent(store, {
       audit_id: `aud.q.${answer.trace_id}`,
@@ -138,11 +145,14 @@ export async function POST(req: Request) {
       coverage_warnings_count: answer.coverage_warnings.length,
       latency_ms: answer.latency_ms,
     });
+    const auditMs = Math.round((performance.now() - auditStartedAt) * 100) / 100;
+    const totalMs = Math.round((performance.now() - reqStartedAt) * 100) / 100;
 
     const headers: Record<string, string> = {
       "x-reg24-ratelimit-backend": gate.rateLimitBackend,
       "x-reg24-ratelimit-remaining": String(gate.remainingInWindow),
       "x-reg24-audit-status": auditStatus.backend,
+      "x-reg24-stage-timing-ms": `query=${queryMs};persist=${persistMs};audit=${auditMs};total=${totalMs}`,
     };
     if (auditStatus.error) {
       headers["x-reg24-audit-error"] = auditStatus.error.slice(0, 200);

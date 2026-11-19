@@ -1,6 +1,6 @@
 {
-  "generated_at_iso": "2026-11-19T15:35:21.919Z",
-  "git_base_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+  "generated_at_iso": "2026-11-19T17:29:32.934Z",
+  "git_base_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
   "staging_store_sha256": "f48b290d030857ffd0515f2cf6606970e4476642e5f317a80111b04e0f8d4c8f",
   "release_id": "rel.B01.rc6",
   "manifest_id": "mfst.b01.rc6_core_auth",
@@ -22,7 +22,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -65,7 +65,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -110,7 +110,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -155,7 +155,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -200,7 +200,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -249,7 +249,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -298,7 +298,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -341,7 +341,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -380,7 +380,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**แปลงที่หนึ่ง**: เป็นการขายอสังหาริมทรัพย์ที่ได้มาทางมรดก (เข้าข้อยกเว้นไม่ถือเป็นการขายเป็นทางค้าหรือหากำไรตามมาตรา 4 (6) (ค) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเสียภาษีธุรกิจเฉพาะ**) แต่มีหน้าที่เสีย **อากรแสตมป์อัตราร้อยละ 0.5** (1 บาท ทุก 200 บาท หรือเศษของ 200 บาท ตามบัญชีอัตราอากรแสตมป์ ลักษณะ 28. (ข)) · **แปลงที่สอง**: ขายภายใน 5 ปีนับแต่วันที่ได้มา เข้าลักษณะเป็"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**แปลงที่หนึ่ง**: เป็นการขายอสังหาริมทรัพย์ที่ได้มาทางมรดก (เข้าข้อยกเว้นไม่ถือเป็นการขายเป็นทางค้าหรือหากำไรตามมาตรา 4 (6) (ข) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเสียภาษีธุรกิจเฉพาะ**) แต่มีหน้าที่เสีย **อากรแสตมป์อัตราร้อยละ 0.5** (1 บาท ทุก 200 บาท หรือเศษของ 200 บาท ตามบัญชีอัตราอากรแสตมป์ ลักษณะ 28. (ข)) · **แปลงที่สอง**: ขายภายใน 5 ปีนับแต่วันที่ได้มา เข้าลักษณะเป็"
     },
     {
       "case_id": "B1-07F",
@@ -392,7 +392,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -443,7 +443,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -486,7 +486,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -531,7 +531,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -564,7 +564,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อเปลี่ยนผู้รับโอนที่ดินจากบุตรชอบด้วยกฎหมายเป็น **หลานสาว** เนื่องในงานสมรสตามประเพณี ย่อม **ไม่ได้รับยกเว้นตามมาตรา 42 (26)** อีกต่อไป และ **ไม่อาจสรุปตายตัวเป็นยอดยกเว้น 10,000,000 บาท / ส่วนเกิน 15,000,000 บาท** เนื่องจากเป็นการโอนกรรมสิทธิ์อสังหาริมทรัพย์โดยไม่มีค่าตอบแทนซึ่ง **ผู้โอนเป็นผู้มีเงินได้** (ต้องให้ฝ่ายกฎหมายยืนยันขอบเขตการใช้มาตรา 42 (28) กับการโอนที่ดิน) และขึ้นอยู่กับความสัมพันธ์ของ \"หลานสาว\" ตาม พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับท"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nผลทางภาษีเมื่อเปลี่ยนผู้รับโอนที่ดินเป็น **\"หลานสาว\"** เนื่องในงานสมรสตามประเพณี แยกเป็นฝั่งผู้โอนและฝั่งผู้รับโอนตามเงื่อนไขความสัมพันธ์ (พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) ดังนี้: (1) **ฝั่งผู้โอน (Donor)**: เมื่อผู้รับโอนไม่ใช่บุตรชอบด้วยกฎหมาย ย่อม **ไม่ได้รับสิทธิยกเว้นการโอนกรรมสิทธิ์ที่ดินให้บุตรชอบด้วยกฎหมายไม่เกิน 20,000,000 บาท ตามมาตรา 42 (26)** อีกต่อไป (การโอนกรรมสิทธิ์อสังหาริมทรัพย์โดยไม่มีค่าตอบแทนถือว่าผู้โอนเป็นผู้มีเง"
     },
     {
       "case_id": "B1-10",
@@ -576,7 +576,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -619,7 +619,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -660,7 +660,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -711,7 +711,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -752,7 +752,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -791,7 +791,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -834,7 +834,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -875,7 +875,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -920,7 +920,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -965,7 +965,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1010,7 +1010,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1063,7 +1063,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1106,7 +1106,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1145,7 +1145,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1184,7 +1184,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1220,7 +1220,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1256,7 +1256,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1293,7 +1293,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1338,7 +1338,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1383,7 +1383,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1426,7 +1426,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1469,7 +1469,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1510,7 +1510,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1559,7 +1559,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1602,7 +1602,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1653,7 +1653,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1704,7 +1704,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1745,7 +1745,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1790,7 +1790,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1833,7 +1833,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1876,7 +1876,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1913,7 +1913,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+        "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",

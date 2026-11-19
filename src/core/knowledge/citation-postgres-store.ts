@@ -36,10 +36,29 @@ export type CitationDbTransport = <T = Record<string, unknown>>(
 
 let customCitationDbTransport: CitationDbTransport | null = null;
 
+const ONBOARDED_SOURCES_CACHE_TTL_MS = 30_000;
+let onboardedSourcesCache: {
+  expiresAt: number;
+  data: {
+    documents: Record<string, OfficialDocumentRecord>;
+    versions: Record<string, DocumentVersionRecord>;
+    locations: Record<string, OfficialLocationRecord>;
+    extractions: Record<string, ExtractionRevisionRecord>;
+    passages: Record<string, EvidencePassageRecord>;
+  };
+} | null = null;
+const syncedCanonicalBundleKeys = new Set<string>();
+
+export function invalidateCitationPostgresReadCaches(): void {
+  onboardedSourcesCache = null;
+  syncedCanonicalBundleKeys.clear();
+}
+
 export function setCustomCitationDbTransportForTesting(
   transport: CitationDbTransport | null
 ): void {
   customCitationDbTransport = transport;
+  invalidateCitationPostgresReadCaches();
 }
 
 export function resolveActiveCitationDbTransport(): CitationDbTransport | null {
@@ -294,52 +313,118 @@ export async function persistCitationSourceBundleToPostgres(params: {
     ]
   );
 
-  for (const psg of params.passages) {
-    const safeAnchors =
-      psg.anchors && psg.anchors.length > 0
-        ? psg.anchors
-        : [{ anchor_kind: "html_text_quote", exact_quote: psg.verbatim_text.slice(0, 120) }];
-    await db(
-      `INSERT INTO citation_evidence_passage (
-         passage_id, extraction_revision_id, version_id, doc_id, verbatim_text,
-         text_sha256, surrounding_before, surrounding_after, section_paragraph_path,
-         statement_role, physical_page_start, physical_page_end, printed_page_start,
-         printed_page_end, anchors, human_pinpoint_th, locator_replay_status,
-         quarantine_reason, eligible_for_publication, access_scope, created_at
-       ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21
-       )
-       ON CONFLICT (passage_id) DO UPDATE SET
-         extraction_revision_id = EXCLUDED.extraction_revision_id,
-         verbatim_text = EXCLUDED.verbatim_text,
-         text_sha256 = EXCLUDED.text_sha256,
-         locator_replay_status = EXCLUDED.locator_replay_status,
-         eligible_for_publication = EXCLUDED.eligible_for_publication,
-         quarantine_reason = EXCLUDED.quarantine_reason`,
-      [
-        psg.passage_id,
-        psg.extraction_revision_id,
-        psg.version_id,
-        psg.doc_id,
-        psg.verbatim_text,
-        psg.text_sha256.padEnd(64, "0").slice(0, 64),
-        psg.surrounding_before || "",
-        psg.surrounding_after || "",
-        JSON.stringify(psg.section_paragraph_path || []),
-        psg.statement_role,
-        psg.physical_page_start,
-        psg.physical_page_end,
-        psg.printed_page_start,
-        psg.printed_page_end,
-        JSON.stringify(safeAnchors),
-        psg.human_pinpoint_th,
-        psg.locator_replay_status,
-        psg.quarantine_reason,
-        psg.eligible_for_publication,
-        psg.access_scope || "scope.platform.public",
-        psg.created_at,
-      ]
-    );
+  if (!customCitationDbTransport && params.passages.length > 1) {
+    const chunkSize = 50;
+    for (let offset = 0; offset < params.passages.length; offset += chunkSize) {
+      const chunk = params.passages.slice(offset, offset + chunkSize);
+      const valuesSql: string[] = [];
+      const flatParams: unknown[] = [];
+      for (const psg of chunk) {
+        const safeAnchors =
+          psg.anchors && psg.anchors.length > 0
+            ? psg.anchors
+            : [{ anchor_kind: "html_text_quote", exact_quote: psg.verbatim_text.slice(0, 120) }];
+        const base = flatParams.length;
+        valuesSql.push(
+          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9}::jsonb,$${base + 10},$${base + 11},$${base + 12},$${base + 13},$${base + 14},$${base + 15}::jsonb,$${base + 16},$${base + 17},$${base + 18},$${base + 19},$${base + 20},$${base + 21})`
+        );
+        flatParams.push(
+          psg.passage_id,
+          psg.extraction_revision_id,
+          psg.version_id,
+          psg.doc_id,
+          psg.verbatim_text,
+          psg.text_sha256.padEnd(64, "0").slice(0, 64),
+          psg.surrounding_before || "",
+          psg.surrounding_after || "",
+          JSON.stringify(psg.section_paragraph_path || []),
+          psg.statement_role,
+          psg.physical_page_start,
+          psg.physical_page_end,
+          psg.printed_page_start,
+          psg.printed_page_end,
+          JSON.stringify(safeAnchors),
+          psg.human_pinpoint_th,
+          psg.locator_replay_status,
+          psg.quarantine_reason,
+          psg.eligible_for_publication,
+          psg.access_scope || "scope.platform.public",
+          psg.created_at
+        );
+      }
+      await db(
+        `INSERT INTO citation_evidence_passage (
+           passage_id, extraction_revision_id, version_id, doc_id, verbatim_text,
+           text_sha256, surrounding_before, surrounding_after, section_paragraph_path,
+           statement_role, physical_page_start, physical_page_end, printed_page_start,
+           printed_page_end, anchors, human_pinpoint_th, locator_replay_status,
+           quarantine_reason, eligible_for_publication, access_scope, created_at
+         ) VALUES ${valuesSql.join(",")}
+         ON CONFLICT (passage_id) DO UPDATE SET
+           extraction_revision_id = EXCLUDED.extraction_revision_id,
+           verbatim_text = EXCLUDED.verbatim_text,
+           text_sha256 = EXCLUDED.text_sha256,
+           locator_replay_status = EXCLUDED.locator_replay_status,
+           eligible_for_publication = EXCLUDED.eligible_for_publication,
+           quarantine_reason = EXCLUDED.quarantine_reason`,
+        flatParams
+      );
+    }
+  } else {
+    for (const psg of params.passages) {
+      const safeAnchors =
+        psg.anchors && psg.anchors.length > 0
+          ? psg.anchors
+          : [{ anchor_kind: "html_text_quote", exact_quote: psg.verbatim_text.slice(0, 120) }];
+      await db(
+        `INSERT INTO citation_evidence_passage (
+           passage_id, extraction_revision_id, version_id, doc_id, verbatim_text,
+           text_sha256, surrounding_before, surrounding_after, section_paragraph_path,
+           statement_role, physical_page_start, physical_page_end, printed_page_start,
+           printed_page_end, anchors, human_pinpoint_th, locator_replay_status,
+           quarantine_reason, eligible_for_publication, access_scope, created_at
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14,$15::jsonb,$16,$17,$18,$19,$20,$21
+         )
+         ON CONFLICT (passage_id) DO UPDATE SET
+           extraction_revision_id = EXCLUDED.extraction_revision_id,
+           verbatim_text = EXCLUDED.verbatim_text,
+           text_sha256 = EXCLUDED.text_sha256,
+           locator_replay_status = EXCLUDED.locator_replay_status,
+           eligible_for_publication = EXCLUDED.eligible_for_publication,
+           quarantine_reason = EXCLUDED.quarantine_reason`,
+        [
+          psg.passage_id,
+          psg.extraction_revision_id,
+          psg.version_id,
+          psg.doc_id,
+          psg.verbatim_text,
+          psg.text_sha256.padEnd(64, "0").slice(0, 64),
+          psg.surrounding_before || "",
+          psg.surrounding_after || "",
+          JSON.stringify(psg.section_paragraph_path || []),
+          psg.statement_role,
+          psg.physical_page_start,
+          psg.physical_page_end,
+          psg.printed_page_start,
+          psg.printed_page_end,
+          JSON.stringify(safeAnchors),
+          psg.human_pinpoint_th,
+          psg.locator_replay_status,
+          psg.quarantine_reason,
+          psg.eligible_for_publication,
+          psg.access_scope || "scope.platform.public",
+          psg.created_at,
+        ]
+      );
+    }
+  }
+
+  if (
+    !params.doc.canonical_work_id ||
+    params.passages.some((p) => !p.eligible_for_publication)
+  ) {
+    onboardedSourcesCache = null;
   }
 
   if (params.auditEvent) {
@@ -573,8 +658,22 @@ export async function persistAnswerRevisionToPostgres(params: {
   const env = params.envelope;
 
   // Ensure all referenced source documents/versions/passages exist in PostgreSQL for FK integrity & cold-start resolution!
+  // On live Neon (`!customCitationDbTransport`), skip redundant re-upserts for immutable canonical release bundles
+  // already synced in this container lifetime (saves 5-15 HTTPS round-trips per warm save).
   for (const b of params.referenced_bundles) {
+    const bundleKey = b.doc.canonical_work_id
+      ? `${b.doc.doc_id}|${b.version.version_id}|${b.passages
+          .map((p) => `${p.passage_id}:${p.eligible_for_publication ? 1 : 0}`)
+          .sort()
+          .join(",")}`
+      : null;
+    if (!customCitationDbTransport && bundleKey && syncedCanonicalBundleKeys.has(bundleKey)) {
+      continue;
+    }
     await persistCitationSourceBundleToPostgres(b);
+    if (!customCitationDbTransport && bundleKey) {
+      syncedCanonicalBundleKeys.add(bundleKey);
+    }
   }
 
   const validIsoDate = (d: string | null | undefined) =>
@@ -621,45 +720,64 @@ export async function persistAnswerRevisionToPostgres(params: {
     ]
   );
 
-  for (const clm of env.claims) {
-    const validLinkCount = clm.evidence_references.filter(
-      (r) => r.verification_status === "supported"
-    ).length;
-    await db(
-      `INSERT INTO citation_atomic_claim (
-         claim_id, answer_revision_id, display_order, displayed_claim_text,
-         claim_type, premise_claim_ids, verification_decision, evidence_link_count,
-         published, withheld_reason_th, human_approved_by, human_approval_audit_id
-       ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)`,
-      [
-        clm.claim_id,
-        env.answer_revision,
-        clm.claim_number,
-        clm.text,
-        clm.claim_type,
-        JSON.stringify(clm.premise_ids || []),
-        clm.verification_decision,
-        validLinkCount,
-        clm.published,
-        clm.withheld_explanation_th,
-        null,
-        null,
-      ]
-    );
-
-    for (const ref of clm.evidence_references) {
-      if (ref.verification_status === "legacy_unverified") continue;
+  if (!customCitationDbTransport) {
+    if (env.claims.length > 0) {
+      const claimValuesSql: string[] = [];
+      const claimParams: unknown[] = [];
+      for (const clm of env.claims) {
+        const validLinkCount = clm.evidence_references.filter(
+          (r) => r.verification_status === "supported"
+        ).length;
+        const base = claimParams.length;
+        claimValuesSql.push(
+          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6}::jsonb,$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12})`
+        );
+        claimParams.push(
+          clm.claim_id,
+          env.answer_revision,
+          clm.claim_number,
+          clm.text,
+          clm.claim_type,
+          JSON.stringify(clm.premise_ids || []),
+          clm.verification_decision,
+          validLinkCount,
+          clm.published,
+          clm.withheld_explanation_th,
+          null,
+          null
+        );
+      }
       await db(
-        `INSERT INTO citation_claim_evidence_link (
-           link_id, answer_revision_id, claim_id, passage_id, version_id,
-           support_role, required_group, citation_label_th, official_url,
-           resolver_url, human_pinpoint_th, deterministic_check, substantive_check,
-           verifier_or_reviewer_id, ruleset_version, verified_at
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'PASS','supported',$12,$13,$14)`,
-        [
+        `INSERT INTO citation_atomic_claim (
+           claim_id, answer_revision_id, display_order, displayed_claim_text,
+           claim_type, premise_claim_ids, verification_decision, evidence_link_count,
+           published, withheld_reason_th, human_approved_by, human_approval_audit_id
+         ) VALUES ${claimValuesSql.join(",")}`,
+        claimParams
+      );
+    }
+
+    const allLinks: Array<{ clmId: string; ref: ClaimEvidenceReferenceDto }> = [];
+    for (const clm of env.claims) {
+      for (const ref of clm.evidence_references) {
+        if (ref.verification_status === "legacy_unverified") continue;
+        allLinks.push({ clmId: clm.claim_id, ref });
+      }
+    }
+    const linkChunkSize = 100;
+    for (let offset = 0; offset < allLinks.length; offset += linkChunkSize) {
+      const chunk = allLinks.slice(offset, offset + linkChunkSize);
+      const linkValuesSql: string[] = [];
+      const linkParams: unknown[] = [];
+      for (const { clmId, ref } of chunk) {
+        const base = linkParams.length;
+        linkValuesSql.push(
+          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},'PASS','supported',$${base + 12},$${base + 13},$${base + 14})`
+        );
+        linkParams.push(
           ref.link_id,
           env.answer_revision,
-          clm.claim_id,
+          clmId,
           ref.evidence_id,
           ref.version_id,
           ref.support_role,
@@ -670,9 +788,73 @@ export async function persistAnswerRevisionToPostgres(params: {
           ref.locator.human_pinpoint_th,
           env.verifier_metadata.verifier_version,
           env.verifier_metadata.ruleset_version,
-          env.generated_at,
+          env.generated_at
+        );
+      }
+      await db(
+        `INSERT INTO citation_claim_evidence_link (
+           link_id, answer_revision_id, claim_id, passage_id, version_id,
+           support_role, required_group, citation_label_th, official_url,
+           resolver_url, human_pinpoint_th, deterministic_check, substantive_check,
+           verifier_or_reviewer_id, ruleset_version, verified_at
+         ) VALUES ${linkValuesSql.join(",")}`,
+        linkParams
+      );
+    }
+  } else {
+    for (const clm of env.claims) {
+      const validLinkCount = clm.evidence_references.filter(
+        (r) => r.verification_status === "supported"
+      ).length;
+      await db(
+        `INSERT INTO citation_atomic_claim (
+           claim_id, answer_revision_id, display_order, displayed_claim_text,
+           claim_type, premise_claim_ids, verification_decision, evidence_link_count,
+           published, withheld_reason_th, human_approved_by, human_approval_audit_id
+         ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)`,
+        [
+          clm.claim_id,
+          env.answer_revision,
+          clm.claim_number,
+          clm.text,
+          clm.claim_type,
+          JSON.stringify(clm.premise_ids || []),
+          clm.verification_decision,
+          validLinkCount,
+          clm.published,
+          clm.withheld_explanation_th,
+          null,
+          null,
         ]
       );
+
+      for (const ref of clm.evidence_references) {
+        if (ref.verification_status === "legacy_unverified") continue;
+        await db(
+          `INSERT INTO citation_claim_evidence_link (
+             link_id, answer_revision_id, claim_id, passage_id, version_id,
+             support_role, required_group, citation_label_th, official_url,
+             resolver_url, human_pinpoint_th, deterministic_check, substantive_check,
+             verifier_or_reviewer_id, ruleset_version, verified_at
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'PASS','supported',$12,$13,$14)`,
+          [
+            ref.link_id,
+            env.answer_revision,
+            clm.claim_id,
+            ref.evidence_id,
+            ref.version_id,
+            ref.support_role,
+            ref.required_group,
+            ref.citation_label_th,
+            ref.official_url,
+            ref.resolver_url,
+            ref.locator.human_pinpoint_th,
+            env.verifier_metadata.verifier_version,
+            env.verifier_metadata.ruleset_version,
+            env.generated_at,
+          ]
+        );
+      }
     }
   }
 
@@ -1374,6 +1556,10 @@ export async function listSavedAnswersSummaryFromPostgres(
 /**
  * Loads all onboarded official documents/attachments/versions/passages from PostgreSQL
  * so cold-start containers on new Vercel deployments immediately include attached/onboarded sources!
+ *
+ * Uses a single joined SQL query filtered to non-canonical attachments or quarantined overrides
+ * + a 30s in-process TTL cache on live Neon (`!customCitationDbTransport`), eliminating the
+ * 200-query N+1 sequential HTTPS bottleneck while keeping custom Vitest mock transports compatible.
  */
 export async function loadAllOnboardedSourcesFromPostgres(): Promise<{
   documents: Record<string, OfficialDocumentRecord>;
@@ -1384,6 +1570,227 @@ export async function loadAllOnboardedSourcesFromPostgres(): Promise<{
 } | null> {
   const db = resolveActiveCitationDbTransport();
   if (!db) return null;
+
+  if (!customCitationDbTransport) {
+    if (onboardedSourcesCache && Date.now() < onboardedSourcesCache.expiresAt) {
+      return onboardedSourcesCache.data;
+    }
+
+    const res = await db<{
+      passage_id: string;
+      extraction_revision_id: string;
+      version_id: string;
+      doc_id: string;
+      verbatim_text: string;
+      text_sha256: string;
+      surrounding_before: string;
+      surrounding_after: string;
+      section_paragraph_path: string[];
+      statement_role: EvidencePassageRecord["statement_role"];
+      physical_page_start: number | null;
+      physical_page_end: number | null;
+      printed_page_start: string | null;
+      printed_page_end: string | null;
+      anchors: EvidencePassageRecord["anchors"];
+      human_pinpoint_th: string;
+      locator_replay_status: "VERIFIED" | "QUARANTINED";
+      quarantine_reason: string | null;
+      eligible_for_publication: boolean;
+      access_scope: string;
+      psg_created_at: string;
+      source_family: OfficialDocumentRecord["source_family"];
+      issuer_id: string;
+      source_native_id: string | null;
+      reviewed_surrogate_id: string | null;
+      is_reviewed_surrogate: boolean;
+      original_title_th: string;
+      language: "th" | "en" | "mixed";
+      record_type: OfficialDocumentRecord["record_type"];
+      access_permission: OfficialDocumentRecord["access_permission"];
+      preservation_permission: OfficialDocumentRecord["preservation_permission"];
+      access_conditions_th: string | null;
+      eligible_for_citation: boolean;
+      ineligible_reason: string | null;
+      canonical_work_id: string | null;
+      artifact_sha256: string;
+      captured_at: string;
+      artifact_ref: string;
+      mime_type: string;
+      byte_size: number;
+      source_metadata: Record<string, unknown>;
+      publication_date: string | null;
+      effective_from: string | null;
+      effective_to: string | null;
+      parser_or_ocr_version: string;
+      is_scanned_material: boolean;
+      page_mapping: ExtractionRevisionRecord["page_mapping"];
+      raw_transcription: string;
+      normalized_search_text: string;
+      review_status: ExtractionRevisionRecord["review_status"];
+      reviewer_id: string | null;
+      reviewed_at: string | null;
+      correction_note: string | null;
+      location_id: string | null;
+      exact_official_url: string | null;
+      original_observed_url: string | null;
+      link_health: OfficialLocationRecord["link_health"] | null;
+      last_successful_verified_at: string | null;
+      prior_location_ids: OfficialLocationRecord["prior_urls"] | null;
+    }>(
+      `SELECT p.passage_id, p.extraction_revision_id, p.version_id, p.doc_id, p.verbatim_text,
+              p.text_sha256, p.surrounding_before, p.surrounding_after, p.section_paragraph_path,
+              p.statement_role, p.physical_page_start, p.physical_page_end, p.printed_page_start,
+              p.printed_page_end, p.anchors, p.human_pinpoint_th, p.locator_replay_status,
+              p.quarantine_reason, p.eligible_for_publication, p.access_scope,
+              p.created_at::text AS psg_created_at,
+              d.source_family, d.issuer_id, d.source_native_id, d.reviewed_surrogate_id,
+              d.is_reviewed_surrogate, d.original_title_th, d.language, d.record_type,
+              d.access_permission, d.preservation_permission, d.access_conditions_th,
+              d.eligible_for_citation, d.ineligible_reason, d.canonical_work_id,
+              v.artifact_sha256, v.captured_at::text AS captured_at, v.artifact_ref,
+              v.mime_type, v.byte_size::bigint AS byte_size, v.source_metadata,
+              v.publication_date::text AS publication_date, v.effective_from::text AS effective_from,
+              v.effective_to::text AS effective_to,
+              e.parser_or_ocr_version, e.is_scanned_material, e.page_mapping,
+              e.raw_transcription, e.normalized_search_text, e.review_status,
+              e.reviewer_id, e.reviewed_at::text AS reviewed_at, e.correction_note,
+              loc.location_id, loc.exact_official_url, loc.original_observed_url,
+              loc.link_health, loc.last_successful_verified_at::text AS last_successful_verified_at,
+              loc.prior_location_ids
+       FROM citation_evidence_passage p
+       JOIN citation_official_document d ON d.doc_id = p.doc_id
+       JOIN citation_document_version v ON v.version_id = p.version_id
+       JOIN citation_extraction_revision e ON e.extraction_revision_id = p.extraction_revision_id
+       LEFT JOIN citation_official_location loc ON loc.doc_id = d.doc_id AND loc.is_active_primary = TRUE
+       WHERE d.canonical_work_id IS NULL OR p.eligible_for_publication = FALSE
+       ORDER BY p.created_at DESC
+       LIMIT 200`
+    );
+
+    const documents: Record<string, OfficialDocumentRecord> = {};
+    const versions: Record<string, DocumentVersionRecord> = {};
+    const locations: Record<string, OfficialLocationRecord> = {};
+    const extractions: Record<string, ExtractionRevisionRecord> = {};
+    const passages: Record<string, EvidencePassageRecord> = {};
+
+    for (const r of res.rows) {
+      documents[r.doc_id] = {
+        doc_id: r.doc_id,
+        source_family: r.source_family,
+        issuer_id: r.issuer_id,
+        source_native_id: r.source_native_id,
+        reviewed_surrogate_id: r.reviewed_surrogate_id,
+        is_reviewed_surrogate: r.is_reviewed_surrogate,
+        original_title_th: r.original_title_th,
+        language: r.language,
+        record_type: r.record_type,
+        access_permission: r.access_permission,
+        preservation_permission: r.preservation_permission,
+        access_scope: r.access_scope,
+        access_conditions_th: r.access_conditions_th,
+        eligible_for_citation: r.eligible_for_citation,
+        ineligible_reason: r.ineligible_reason,
+        canonical_work_id: r.canonical_work_id,
+        owner_batch_id: "B01",
+        created_at: r.psg_created_at,
+      };
+      versions[r.version_id] = {
+        version_id: r.version_id,
+        doc_id: r.doc_id,
+        artifact_sha256: r.artifact_sha256,
+        captured_at: r.captured_at,
+        artifact_ref: r.artifact_ref,
+        mime_type: r.mime_type,
+        byte_size: Number(r.byte_size || 0),
+        source_metadata: r.source_metadata || {},
+        publication_date: r.publication_date,
+        publication_date_status: r.publication_date ? "known" : "unknown_explicit",
+        effective_from: r.effective_from,
+        effective_to: r.effective_to,
+        effective_date_status: r.effective_from ? "known" : "unknown_explicit",
+        applicability_rules_th: [],
+        affected_provisions: [],
+        predecessor_version_id: null,
+        amending_version_ids: [],
+        byte_change_classification: "initial_capture",
+        canonical_version_id: null,
+        created_at: r.captured_at,
+      };
+      const locId = r.location_id || "oloc.pg";
+      locations[locId] = {
+        location_id: locId,
+        doc_id: r.doc_id,
+        version_id: r.version_id,
+        exact_official_url: r.exact_official_url || "",
+        role: "primary_official",
+        parent_landing_location_id: null,
+        original_observed_url: r.original_observed_url || "",
+        redirect_history: [],
+        prior_urls: Array.isArray(r.prior_location_ids) ? r.prior_location_ids : [],
+        first_verified_at: r.last_successful_verified_at,
+        last_verified_at: r.last_successful_verified_at,
+        last_successful_verified_at: r.last_successful_verified_at,
+        verification_method: "postgres_durable",
+        identity_match_result: "VERIFIED_MATCH",
+        link_health: r.link_health || "verified_online",
+        last_http_status: 200,
+        failure_reason: null,
+        is_active_primary: true,
+      };
+      extractions[r.extraction_revision_id] = {
+        extraction_revision_id: r.extraction_revision_id,
+        version_id: r.version_id,
+        parent_revision_id: null,
+        parser_or_ocr_version: r.parser_or_ocr_version,
+        is_scanned_material: r.is_scanned_material,
+        page_mapping: Array.isArray(r.page_mapping) ? r.page_mapping : [],
+        raw_transcription: r.raw_transcription,
+        normalized_search_text: r.normalized_search_text,
+        alignment_map: [],
+        ocr_ambiguity_detected: false,
+        ocr_ambiguity_reasons: [],
+        review_status: r.review_status,
+        reviewer_id: r.reviewer_id,
+        reviewed_at: r.reviewed_at,
+        correction_note: r.correction_note,
+        created_at: r.psg_created_at,
+      };
+      passages[r.passage_id] = {
+        passage_id: r.passage_id,
+        extraction_revision_id: r.extraction_revision_id,
+        version_id: r.version_id,
+        doc_id: r.doc_id,
+        verbatim_text: r.verbatim_text,
+        normalized_search_text: r.normalized_search_text,
+        text_sha256: r.text_sha256,
+        surrounding_before: r.surrounding_before,
+        surrounding_after: r.surrounding_after,
+        section_paragraph_path: Array.isArray(r.section_paragraph_path)
+          ? r.section_paragraph_path
+          : [],
+        statement_role: r.statement_role,
+        physical_page_start: r.physical_page_start,
+        physical_page_end: r.physical_page_end,
+        printed_page_start: r.printed_page_start,
+        printed_page_end: r.printed_page_end,
+        anchors: Array.isArray(r.anchors) ? r.anchors : [],
+        human_pinpoint_th: r.human_pinpoint_th,
+        source_family_pinpoint: {},
+        locator_replay_status: r.locator_replay_status,
+        quarantine_reason: r.quarantine_reason,
+        eligible_for_publication: r.eligible_for_publication,
+        access_scope: r.access_scope,
+        created_at: r.psg_created_at,
+      };
+    }
+
+    const result = { documents, versions, locations, extractions, passages };
+    onboardedSourcesCache = {
+      expiresAt: Date.now() + ONBOARDED_SOURCES_CACHE_TTL_MS,
+      data: result,
+    };
+    return result;
+  }
 
   const psgRes = await db<{ passage_id: string }>(
     `SELECT passage_id FROM citation_evidence_passage ORDER BY created_at DESC LIMIT 200`

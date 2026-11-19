@@ -145,8 +145,14 @@ export function mutateCitationLedgerAtomically<T>(
   store: DurableKnowledgeStore,
   opName: string,
   actorId: string,
-  mutator: (ledger: PersistedCitationTraceabilityState, state: CanonicalPersistedState) => T
+  mutator: (ledger: PersistedCitationTraceabilityState, state: CanonicalPersistedState) => T,
+  options?: { skipLocalDiskPersist?: boolean }
 ): T {
+  if (options?.skipLocalDiskPersist) {
+    const state = store.getState();
+    const ledger = ensureCitationLedgerInState(state);
+    return mutator(ledger, state);
+  }
   if (isProtectedFrozenBaselineStore(store)) {
     const state = store.getState();
     const overlay = readSidecarOverlay(store) || state.citation_ledger || createEmptyCitationLedger();
@@ -1535,6 +1541,7 @@ export function commitTraceableAnswerAtomically(
       owner_tenant_id: string;
     } | null;
     trusted_calculation_tokens_by_claim_text?: Record<string, string[]>;
+    skip_local_disk_persist?: boolean;
   }
 ): TraceableAnswerEnvelope {
   const unified = getUnifiedCitationLedgerView(store, envelope.verifier_metadata.release_id);
@@ -1918,7 +1925,8 @@ export function commitTraceableAnswerAtomically(
       });
 
       return finalEnvelope;
-    }
+    },
+    { skipLocalDiskPersist: Boolean(meta.skip_local_disk_persist) }
   );
 }
 
@@ -2333,6 +2341,7 @@ export async function saveOrReviseAnswerServerVerified(
           }
         : null,
     trusted_calculation_tokens_by_claim_text: trustedCalcTokensMap,
+    skip_local_disk_persist: pgActive,
   });
 
   // Gather referenced source bundles and persist to hosted PostgreSQL (`citation-postgres-store.ts`)

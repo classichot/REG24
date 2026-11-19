@@ -1,0 +1,16 @@
+{
+  "verified_at": "2026-11-19T17:42:58.555Z",
+  "b1_07_http_status": 200,
+  "b1_07_saved_revision": "ans.trc.6848c54b9d21ae.r1",
+  "stage_timing_header": "query=10301.88;persist=2792.71;audit=1.5;total=13098.31",
+  "evidence_opened_id": "psg.490b24cb99a2c9",
+  "evidence_opened_ok": true,
+  "evidence_official_url": "https://www.rd.go.th/2818.html",
+  "verdict_saved_postgres": true,
+  "verdict_feedback_id": "fb.staging.r3.1795110177312",
+  "verdict_reloaded_from_durable_neon": true,
+  "verdict_reloaded_verdict": "PASS_SUPPORTED",
+  "persist_answer_false_http_status": 200,
+  "persist_answer_false_published_answer_rows_written": 0,
+  "persist_answer_false_ephemeral_revision_id": "ans.trc.7639c67cae3b8b.r1"
+}

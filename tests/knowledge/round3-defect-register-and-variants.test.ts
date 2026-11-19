@@ -115,8 +115,10 @@ describe("REG24 Round 3 — Defect Refinements, Regression Variants & 5 Prior Pa
       { store }
     );
     expect(b109f.status).toBe("ANSWERED");
-    expect(b109f.answer).toContain("ผู้โอนเป็นผู้มีเงินได้");
-    expect(b109f.answer).toContain("ไม่อาจสรุปตายตัวเป็นยอดยกเว้น 10,000,000 บาท");
+    expect(b109f.answer).toContain("ฝั่งผู้โอน");
+    expect(b109f.answer).toContain("ฝั่งผู้รับโอน");
+    expect(b109f.answer).toContain("แยกเป็นฝั่งผู้โอนและฝั่งผู้รับโอนตามเงื่อนไขความสัมพันธ์");
+    expect(b109f.answer).not.toContain("ไม่อาจสรุปตายตัว");
   });
 
   it("3. B1-07F keeps Plot 2 unchanged & explains Decree 342 §4(6) scope; B1-11F cites Decree 799; B1-16 asks decisive facts; B1-17F does not adjudicate suspicion merits", async () => {

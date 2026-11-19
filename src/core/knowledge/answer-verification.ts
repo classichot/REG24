@@ -476,6 +476,77 @@ export function evaluateSubstantiveClaimSupport(params: {
     }
   }
 
+  // 1b. Exact Thai subparagraph (`(ก)`–`(ช)`) substantive grounding check (e.g. Royal Decree 342 §4(6)(ข) inheritance vs (ค) residence, §65 ter (3)(ก) vs (ข))!
+  // Rejects any claim that cites a valid parent section/decree but attaches the wrong subparagraph letter for the stated exception!
+  const SUBPARA_CONCEPT_FAMILIES: Array<{ label: string; pattern: RegExp }> = [
+    { label: "inheritance", pattern: /มรดก|ทายาทโดยธรรม|พินัยกรรม/ },
+    { label: "principal_residence", pattern: /ทะเบียนบ้าน|สถานที่อยู่อาศัย|อยู่อาศัยอันเป็นแหล่งสำคัญ/ },
+    { label: "expropriation", pattern: /เวนคืน/ },
+    { label: "legitimate_child_gift", pattern: /บุตรชอบด้วยกฎหมาย/ },
+    { label: "political_party", pattern: /พรรคการเมือง/ },
+    { label: "public_charity", pattern: /การกุศลสาธารณะ|สาธารณกุศล|สาธารณประโยชน์/ },
+    { label: "government_agency", pattern: /ส่วนราชการ|องค์การของรัฐบาล/ },
+  ];
+  const subparaLetterMatches = Array.from(
+    normClaim.matchAll(
+      /มาตรา\s*([0-9]+(?:\/[0-9]+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นว|ทศ))?)\s*\(([0-9]{1,2})\)\s*\(([ก-ช])\)/g
+    )
+  );
+  if (subparaLetterMatches.length > 0) {
+    const bodyCompact = combinedNormBodyOnly.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+    // Extract sibling subparagraph slices `(ก)`..`(ช)` from the cited body text
+    const siblingSlices = new Map<string, string>();
+    const markerRegex = /\(([ก-ช])\)/g;
+    const markers: Array<{ letter: string; index: number }> = [];
+    let mk: RegExpExecArray | null;
+    while ((mk = markerRegex.exec(bodyCompact)) !== null) {
+      markers.push({ letter: mk[1], index: mk.index });
+    }
+    for (let i = 0; i < markers.length; i++) {
+      const start = markers[i].index;
+      const end = i + 1 < markers.length ? markers[i + 1].index : Math.min(bodyCompact.length, start + 500);
+      const slice = bodyCompact.slice(start, Math.min(end, start + 500));
+      const prev = siblingSlices.get(markers[i].letter) || "";
+      siblingSlices.set(markers[i].letter, prev ? `${prev}\n${slice}` : slice);
+    }
+
+    for (const sm of subparaLetterMatches) {
+      const citedLetter = sm[3];
+      const citedSlice = siblingSlices.get(citedLetter);
+      if (!citedSlice) {
+        return {
+          supported: false,
+          reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
+          detail_th: `ระงับการรับรองข้อกล่าวอ้าง เนื่องจากหลักฐานที่แนบไม่ปรากฏอนุมาตราย่อย "(${citedLetter})" ของ "${sm[0]}"`,
+          overlap_ratio: 0,
+        };
+      }
+      const mIdx = sm.index ?? 0;
+      const localClaimWindow = normClaim.slice(Math.max(0, mIdx - 120), Math.min(normClaim.length, mIdx + 120));
+      for (const fam of SUBPARA_CONCEPT_FAMILIES) {
+        if (!fam.pattern.test(localClaimWindow)) continue;
+        if (fam.pattern.test(citedSlice)) continue;
+        // Claim asserts this exception concept on `(${citedLetter})`, yet `(${citedLetter})` does NOT contain it
+        // while a DIFFERENT sibling subparagraph `(ก)`–`(ช)` in the same cited text DOES!
+        let matchingSibling: string | null = null;
+        for (const [sibLetter, sibText] of siblingSlices.entries()) {
+          if (sibLetter !== citedLetter && fam.pattern.test(sibText)) {
+            matchingSibling = sibLetter;
+            break;
+          }
+        }
+        if (matchingSibling) {
+          return {
+            supported: false,
+            reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
+            detail_th: `ระงับการรับรองข้อกล่าวอ้าง เนื่องจากอนุมาตราย่อย "${sm[0]}" ไม่รองรับข้อเท็จจริงข้อยกเว้นที่กล่าวอ้าง (เนื้อหาข้อยกเว้นดังกล่าวอยู่ในอนุมาตราย่อย "(${matchingSibling})" มิใช่ "(${citedLetter})")`,
+            overlap_ratio: 0,
+          };
+        }
+      }
+    }
+  }
+
   const sourceRulings = new Set(extractCanonicalRulingIds(combinedRawFull));
   for (const rId of claimRulings) {
     const bareRId = rId.replace(/^กค\s*/, "");

@@ -1,0 +1,112 @@
+{
+  "schema_version": "1.0",
+  "phase": "after",
+  "measured_at": "2026-11-19T17:32:43.267Z",
+  "git_commit_sha": "0f6fc7f67388883e97cbaa3e80dcd053606faf6c",
+  "neon_project_id": "shiny-pond-32049060",
+  "persist_answer": true,
+  "cold_first_request_ms": 11478.6,
+  "cold_neon_sql_roundtrips": 25,
+  "cold_neon_sql_ms": 1372.68,
+  "warm_median_p50_ms": 3542.12,
+  "warm_p95_ms": 5999.25,
+  "warm_max_ms": 5999.25,
+  "warm_total_neon_sql_roundtrips": 134,
+  "warm_total_neon_sql_ms": 5960.73,
+  "errors": 0,
+  "first_attempt_timeouts": 0,
+  "retries": 0,
+  "timeout_threshold_ms": 45000,
+  "per_case": [
+    {
+      "case_id": "B1-01",
+      "http_status": 200,
+      "total_ms": 2852.35,
+      "neon_sql_roundtrips": 6,
+      "neon_sql_total_ms": 262.99,
+      "compute_ms": 2589.36,
+      "saved_revision": "ans.trc.92300670177eee.r1"
+    },
+    {
+      "case_id": "B1-02",
+      "http_status": 200,
+      "total_ms": 3556.5,
+      "neon_sql_roundtrips": 24,
+      "neon_sql_total_ms": 1077,
+      "compute_ms": 2479.5,
+      "saved_revision": "ans.trc.a2da512058b2c8.r1"
+    },
+    {
+      "case_id": "B1-06",
+      "http_status": 200,
+      "total_ms": 4543.56,
+      "neon_sql_roundtrips": 18,
+      "neon_sql_total_ms": 742.68,
+      "compute_ms": 3800.88,
+      "saved_revision": "ans.trc.4f4d05c7d8a548.r1"
+    },
+    {
+      "case_id": "B1-07",
+      "http_status": 200,
+      "total_ms": 5999.25,
+      "neon_sql_roundtrips": 48,
+      "neon_sql_total_ms": 2106.33,
+      "compute_ms": 3892.92,
+      "saved_revision": "ans.trc.91a373eed5823f.r1"
+    },
+    {
+      "case_id": "B1-09",
+      "http_status": 200,
+      "total_ms": 4347.51,
+      "neon_sql_roundtrips": 19,
+      "neon_sql_total_ms": 829.68,
+      "compute_ms": 3517.83,
+      "saved_revision": "ans.trc.2604c53716ec9d.r1"
+    },
+    {
+      "case_id": "B1-09F",
+      "http_status": 200,
+      "total_ms": 3542.12,
+      "neon_sql_roundtrips": 7,
+      "neon_sql_total_ms": 311,
+      "compute_ms": 3231.12,
+      "saved_revision": "ans.trc.2604c53716ec9d.r2"
+    },
+    {
+      "case_id": "B1-16",
+      "http_status": 200,
+      "total_ms": 1286.38,
+      "neon_sql_roundtrips": 0,
+      "neon_sql_total_ms": 0,
+      "compute_ms": 1286.38,
+      "saved_revision": null
+    },
+    {
+      "case_id": "B1-16F",
+      "http_status": 200,
+      "total_ms": 3880.15,
+      "neon_sql_roundtrips": 6,
+      "neon_sql_total_ms": 390.9,
+      "compute_ms": 3489.25,
+      "saved_revision": "ans.trc.47814c7ab47965.r1"
+    },
+    {
+      "case_id": "B1-20",
+      "http_status": 200,
+      "total_ms": 187.18,
+      "neon_sql_roundtrips": 0,
+      "neon_sql_total_ms": 0,
+      "compute_ms": 187.18,
+      "saved_revision": null
+    },
+    {
+      "case_id": "B1-22",
+      "http_status": 200,
+      "total_ms": 2986.9,
+      "neon_sql_roundtrips": 6,
+      "neon_sql_total_ms": 240.15,
+      "compute_ms": 2746.75,
+      "saved_revision": "ans.trc.e3a4f80b45090d.r1"
+    }
+  ]
+}

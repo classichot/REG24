@@ -505,7 +505,10 @@ export function analyzeLegalIssuesAndFacts(params: {
   const asksGiftTransfer =
     /(?:โอนที่ดิน|ให้อสังหาริมทรัพย์|ให้ที่ดิน|ให้โดยเสน่หา|โอนกรรมสิทธิ์[^\n]{0,40}โดยไม่มีค่าตอบแทน)/.test(
       mergedContext
-    ) && /(?:บุตร|หลาน|งานสมรส|ยกเว้นภาษี|มาตรา\s*42)/.test(mergedContext);
+    ) &&
+    /(?:บุตร|หลาน|ผู้สืบสันดาน|ญาติ|งานสมรส|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา)/.test(
+      mergedContext
+    );
   if (asksGiftTransfer) {
     regimes.add("PIT_GIFT_TAX");
     controlling.add("prov.th.rc.42");
@@ -518,21 +521,42 @@ export function analyzeLegalIssuesAndFacts(params: {
       parseThaiMoneyAmountsWithContext(mergedContext).find((a) => /มูลค่า|ที่ดิน|ราคา/.test(a.leftContext))
         ?.amount ??
       null;
-    const isLan = /หลานสาว|หลานชาย|หลาน/.test(activeClean);
+    const isExplicitGrandchild =
+      /บุตรของบุตร|หลานปู่|หลานตา|หลานย่า|หลานยาย|ผู้สืบสันดานสายตรง|ผู้สืบสันดานโดยตรง/.test(
+        activeClean
+      );
+    const isExplicitNiece =
+      !isExplicitGrandchild &&
+      /บุตรของพี่|บุตรของน้อง|ลูกของพี่|ลูกของน้อง|หลานลุง|หลานอา|หลานน้า|หลานป้า/.test(
+        activeClean
+      );
+    const isAmbiguousLan =
+      !isExplicitGrandchild && !isExplicitNiece && /หลานสาว|หลานชาย|หลาน/.test(activeClean);
     const isAdopted = /เป็นบุตรบุญธรรม/.test(activeClean) && !/ไม่ใช่บุตรบุญธรรม/.test(activeClean);
     const isLegitChild =
-      !isLan && !isAdopted && /บุตรชอบด้วยกฎหมาย/.test(activeClean);
+      !isExplicitGrandchild &&
+      !isExplicitNiece &&
+      !isAmbiguousLan &&
+      !isAdopted &&
+      /บุตรชอบด้วยกฎหมาย/.test(activeClean);
     const isCeremony = /งานสมรส|พิธี|ขนบธรรมเนียมประเพณี|หน้าที่ธรรมจรรยา/.test(activeClean);
 
-    if (valAmt !== null && (isLan || isLegitChild || isAdopted)) {
+    if (
+      valAmt !== null &&
+      (isExplicitGrandchild || isExplicitNiece || isAmbiguousLan || isLegitChild || isAdopted)
+    ) {
       calcs.push(
         verifyComprehensiveGiftTaxCalculation({
           isImmovableProperty: isImmovable,
-          recipientRole: isLan
-            ? "AMBIGUOUS_LAN_OR_NIECE"
-            : isAdopted
-              ? "ADOPTED_CHILD"
-              : "LEGITIMATE_CHILD",
+          recipientRole: isExplicitGrandchild
+            ? "EXPLICIT_LINEAL_GRANDCHILD"
+            : isExplicitNiece
+              ? "EXPLICIT_COLLATERAL_NIECE"
+              : isAmbiguousLan
+                ? "AMBIGUOUS_LAN_OR_NIECE"
+                : isAdopted
+                  ? "ADOPTED_CHILD"
+                  : "LEGITIMATE_CHILD",
           isCeremonyOrCustomOrMoralDuty: isCeremony,
           transferValueBaht: valAmt,
         })
@@ -802,7 +826,12 @@ export function analyzeLegalIssuesAndFacts(params: {
 
     const isFinanceBusiness =
       /ธุรกิจเงินทุน|ธนาคาร|หลักทรัพย์|เครดิตฟองซิเอร์|รายรับดอกเบี้ย/.test(activeClean);
-    const isRealEstateSale = /ขายที่ดิน|อสังหาริมทรัพย์/.test(mergedContext);
+    const isRealEstateSale = /ขายที่ดิน|ขายบ้าน|อสังหาริมทรัพย์/.test(mergedContext);
+
+    const detectResidence1Yr = (segment: string): boolean =>
+      /(?:มีชื่ออยู่ในทะเบียนบ้าน(?:ไม่น้อยกว่า|เกิน|มา|ครบ)?\s*[1-9]\s*ปี|ใช้เป็นสถานที่อยู่อาศัยอันเป็นแหล่งสำคัญ|ทะเบียนบ้าน(?:ไม่น้อยกว่า|เกิน|มา|ครบ)?\s*[1-9]\s*ปี)/.test(
+        segment
+      ) && !/ไม่มีชื่ออยู่ในทะเบียนบ้าน|ไม่ได้มีชื่ออยู่ในทะเบียนบ้าน/.test(segment);
 
     if (isFinanceBusiness) {
       demoteRulingsBeforeIso = "2020-01-01";
@@ -831,7 +860,10 @@ export function analyzeLegalIssuesAndFacts(params: {
 
       if (isPlot1Override) {
         const yrs = Number(activeClean.match(/ถือครอง(?:เกิน|มา)?\s*([0-9]+)\s*ปี/)?.[1] || "6");
-        const inherited = /รับมรดก|ทางมรดก/.test(activeClean);
+        const inherited =
+          /รับมรดก|ทางมรดก/.test(activeClean) &&
+          !/ไม่ได้รับมรดก|มิได้รับมรดก|ไม่ได้มาทางมรดก|มิได้มาทางมรดก/.test(activeClean);
+        const hasResidence1Yr = detectResidence1Yr(activeClean);
         const hasPriorPlot2 = /แปลงที่สอง/.test(mergedContext);
         const priorPlot2Mos = mergedContext.match(/แปลงที่สอง[\s\S]{0,120}?ถือครอง(?:ได้|มา)?\s*([0-9]+)\s*เดือน/)?.[1];
         calcs.push(
@@ -841,6 +873,7 @@ export function analyzeLegalIssuesAndFacts(params: {
               {
                 plotLabelTh: "ที่ดินแปลงที่หนึ่ง (กรณีซื้อมาจากบุคคลภายนอกและถือครองเกิน 5 ปี)",
                 acquiredByInheritance: inherited,
+                hasPrincipalResidenceOneYear: hasResidence1Yr,
                 holdingYears: yrs,
                 holdingMonths: null,
                 isCommercialDeveloper: isDeveloper,
@@ -851,6 +884,7 @@ export function analyzeLegalIssuesAndFacts(params: {
                     {
                       plotLabelTh: "ที่ดินแปลงที่สอง (ข้อเท็จจริงเดิมไม่เปลี่ยนแปลง — ซื้อมาถือครองไม่เกิน 5 ปี)",
                       acquiredByInheritance: false,
+                      hasPrincipalResidenceOneYear: false,
                       holdingYears: null,
                       holdingMonths: priorPlot2Mos ? Number(priorPlot2Mos) : 3,
                       isCommercialDeveloper: isDeveloper,
@@ -874,6 +908,7 @@ export function analyzeLegalIssuesAndFacts(params: {
               {
                 plotLabelTh: "แปลงที่หนึ่ง",
                 acquiredByInheritance: /มรดก/.test(seg1),
+                hasPrincipalResidenceOneYear: detectResidence1Yr(seg1),
                 holdingYears: yrs1 ? Number(yrs1) : null,
                 holdingMonths: null,
                 isCommercialDeveloper: isDeveloper,
@@ -882,6 +917,7 @@ export function analyzeLegalIssuesAndFacts(params: {
               {
                 plotLabelTh: "แปลงที่สอง",
                 acquiredByInheritance: /มรดก/.test(seg2),
+                hasPrincipalResidenceOneYear: detectResidence1Yr(seg2),
                 holdingYears: yrs2 ? Number(yrs2) : null,
                 holdingMonths: mos2 ? Number(mos2) : null,
                 isCommercialDeveloper: isDeveloper,
@@ -893,15 +929,21 @@ export function analyzeLegalIssuesAndFacts(params: {
       } else {
         const yrsSingle = activeClean.match(/ถือครอง(?:มา|ได้|เกิน)?\s*([0-9]+)\s*ปี/)?.[1];
         const mosSingle = activeClean.match(/ถือครอง(?:มา|ได้)?\s*([0-9]+)\s*เดือน/)?.[1];
-        const inheritedSingle = /รับมรดก|ทางมรดก/.test(activeClean);
-        if (yrsSingle || mosSingle || inheritedSingle) {
+        const inheritedSingle =
+          /รับมรดก|ทางมรดก/.test(activeClean) &&
+          !/ไม่ได้รับมรดก|มิได้รับมรดก|ไม่ได้มาทางมรดก|มิได้มาทางมรดก/.test(activeClean);
+        const hasResidence1YrSingle = detectResidence1Yr(activeClean);
+        if (yrsSingle || mosSingle || inheritedSingle || hasResidence1YrSingle) {
           calcs.push(
             verifySpecificBusinessTaxCalculation({
               activityKind: "REAL_ESTATE_PLOTS",
               plots: [
                 {
-                  plotLabelTh: "ที่ดินที่ขาย",
+                  plotLabelTh: hasResidence1YrSingle
+                    ? "บ้านพร้อมที่ดินที่ใช้เป็นสถานที่อยู่อาศัยอันเป็นแหล่งสำคัญ"
+                    : "ที่ดินที่ขาย",
                   acquiredByInheritance: inheritedSingle,
+                  hasPrincipalResidenceOneYear: hasResidence1YrSingle,
                   holdingYears: yrsSingle ? Number(yrsSingle) : null,
                   holdingMonths: mosSingle ? Number(mosSingle) : null,
                   isCommercialDeveloper: isDeveloper,
