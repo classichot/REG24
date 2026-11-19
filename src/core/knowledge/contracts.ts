@@ -501,6 +501,7 @@ export interface ExecutionProvenanceMetadata {
     hierarchy_of_authority_retrieval: boolean;
     separate_calculation_verification: boolean;
     negated_fact_stripping_enabled: boolean;
+    tax_foundation_pilot_enabled?: boolean;
   };
 }
 
@@ -522,6 +523,7 @@ export interface GroundedAnswer {
   traceable_answer?: TraceableAnswerEnvelope;
   calculation_verifications?: Array<Record<string, unknown>>;
   execution_provenance?: ExecutionProvenanceMetadata;
+  tax_foundation_trace?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -892,6 +894,8 @@ export interface QueryRequest {
   comparison_work_ids?: string[];
   conversation_history?: ConversationTurnInput[];
   attachment_doc_ids?: string[];
+  /** Opt-in isolated staging flag for Separate Mission: Thai Tax Foundation A/B pilot (defaults to false). */
+  enable_tax_foundation_pilot?: boolean;
 }
 
 // ============================================================================

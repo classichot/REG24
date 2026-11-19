@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-11-19T02:38:24.346Z",
+  "mission_id": "mission.thai_tax_foundation.vat_pilot.v2p1",
+  "drive_folder_id": "1PhIxtwdGTvH32sgctk-Zii0UpcLensSg",
+  "volume_2_part_1_file_id": "1PzlwWVEaJWOXJcBoEggKHMZW3B8pJJ2M",
+  "source_intake_mode": "SCHEMA_SEED_AWAITING_SPLIT_PDF_BYTES",
+  "source_pdf_sha256": null,
+  "edition_cutoff_iso": "2018-05-31",
+  "permitted_use_scope": "INTERNAL_RD_AND_STAGING_EVAL_ONLY",
+  "usable_as_controlling_law": false,
+  "existing_canonical_store_untouched": true,
+  "page_routing_summary": {
+    "inspected_pdf_page_start": 27,
+    "inspected_pdf_page_end": 80,
+    "printed_page_start": "4-001",
+    "printed_page_end": "4-054",
+    "native_text_pages": 0,
+    "font_repaired_pages": 0,
+    "selective_ocr_pages": 0,
+    "ocr_cost_usd_incl_tax": 0
+  },
+  "concepts_mapped_count": 4,
+  "total_authority_links": 13,
+  "verified_links_count": 12,
+  "candidate_links_quarantined_count": 1,
+  "post_2018_05_amended_links_count": 2,
+  "sample_dual_locators": [
+    {
+      "concept_id": "vat.fnd.deemed_sale_and_territoriality",
+      "chapter": "4 (ภาษีมูลค่าเพิ่ม (Value Added Tax))",
+      "section": "4.1 ขอบเขตการขายสินค้า การถือเป็นการขาย (แจก/แถมสินค้า) และหลักดินแดนของการให้บริการ",
+      "printed_page": "4-001",
+      "pdf_page_number": 27
+    },
+    {
+      "concept_id": "vat.fnd.small_business_threshold_and_registration",
+      "chapter": "4 (ภาษีมูลค่าเพิ่ม (Value Added Tax))",
+      "section": "4.2 มูลค่าของฐานภาษี กิจการขนาดย่อมที่ได้รับยกเว้น และหน้าที่จดทะเบียนภาษีมูลค่าเพิ่ม",
+      "printed_page": "4-018",
+      "pdf_page_number": 44
+    },
+    {
+      "concept_id": "vat.fnd.rates_and_export_service_zero_rate",
+      "chapter": "4 (ภาษีมูลค่าเพิ่ม (Value Added Tax))",
+      "section": "4.3 อัตราภาษีมูลค่าเพิ่ม ภาษีท้องถิ่น และหลักเกณฑ์การส่งออกบริการอัตราร้อยละ 0",
+      "printed_page": "4-032",
+      "pdf_page_number": 58
+    },
+    {
+      "concept_id": "vat.fnd.non_deductible_input_tax_and_reverse_charge",
+      "chapter": "4 (ภาษีมูลค่าเพิ่ม (Value Added Tax))",
+      "section": "4.4 ภาษีซื้อต้องห้าม (ค่ารับรอง/ใบกำกับภาษีไม่สมบูรณ์) และการนำส่ง VAT กรณีจ่ายค่าบริการไปต่างประเทศ (ภ.พ.36)",
+      "printed_page": "4-048",
+      "pdf_page_number": 74
+    }
+  ]
+}

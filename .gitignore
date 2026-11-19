@@ -9,3 +9,5 @@ build
 .env*.local
 coverage
 data/ocr-pilot-quarantine
+data/foundation-vat-pilot
+data/knowledge-store-foundation-vat-pilot

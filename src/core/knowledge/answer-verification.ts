@@ -773,6 +773,16 @@ export function verifyClaimAgainstPassages(
     cited.push(p);
   }
 
+  // Expert commentary (`คำอธิบายประมวลรัษฎากร` / `secondary_commentary`) is non-binding guidance, NEVER controlling law!
+  // Every material claim MUST be supported by at least one primary official source (`statutory_text`, `official_conclusion`, etc.).
+  if (cited.every((p) => p.statement_role === "secondary_commentary")) {
+    return {
+      verification_result: "UNSUPPORTED",
+      allow_confident_answer: false,
+      reason: "COMMENTARY_CANNOT_SERVE_AS_CONTROLLING_AUTHORITY",
+    };
+  }
+
   // Block claims that attempt to execute or repeat prompt-injection commands from quarantined untrusted text (AT09)
   if (
     cited.some((p) => p.contains_untrusted_instruction_like_text) &&

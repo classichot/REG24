@@ -29,6 +29,10 @@ import {
 } from "./retrieval";
 import { getDefaultKnowledgeStore, type DurableKnowledgeStore } from "./store";
 import {
+  consultVatTaxFoundationLayer,
+  loadIsolatedVatFoundationLedger,
+} from "./tax-foundation-layer";
+import {
   evaluateRulingTemporalApplicability,
   evaluateStatutoryVersionApplicability,
   formatAmendmentLedgerSummaryTh,
@@ -581,6 +585,32 @@ async function executeCoreKnowledgeQuery(
     state,
   });
 
+  const foundationPilotEnabled = Boolean(req.enable_tax_foundation_pilot);
+  const foundationConsult = foundationPilotEnabled
+    ? consultVatTaxFoundationLayer({
+        question: req.question,
+        mergedUserFacts: issueAnalysis.mergedUserFactContextText,
+        applicableDateIso: req.applicable_date ?? null,
+        ledger: loadIsolatedVatFoundationLedger(),
+        state,
+      })
+    : null;
+
+  if (foundationConsult && foundationConsult.verified_controlling_work_ids.length > 0) {
+    for (const fWid of foundationConsult.verified_controlling_work_ids) {
+      if (!issueAnalysis.controllingWorkIds.includes(fWid)) {
+        issueAnalysis.controllingWorkIds.push(fWid);
+      }
+    }
+  }
+  if (foundationConsult && foundationConsult.missing_decisive_fact_questions_th.length > 0) {
+    for (const dq of foundationConsult.missing_decisive_fact_questions_th) {
+      if (!issueAnalysis.decisiveMissingFactQuestionsTh.includes(dq)) {
+        issueAnalysis.decisiveMissingFactQuestionsTh.push(dq);
+      }
+    }
+  }
+
   const buildProvenance = () => ({
     git_commit_sha: gitCommitSha,
     release_id: releaseId,
@@ -597,6 +627,7 @@ async function executeCoreKnowledgeQuery(
       hierarchy_of_authority_retrieval: true,
       separate_calculation_verification: true,
       negated_fact_stripping_enabled: true,
+      tax_foundation_pilot_enabled: foundationPilotEnabled,
     },
   });
 
@@ -2131,6 +2162,12 @@ async function executeCoreKnowledgeQuery(
     }
 
     // Emit passage-grounded Law-to-Fact Application & Deterministically Verified Tax Calculations at the top of the answer!
+    if (foundationConsult && foundationConsult.structured_issue_framing_th) {
+      answerSections.unshift(foundationConsult.structured_issue_framing_th);
+      for (const warn of foundationConsult.post_2018_05_warnings_th) {
+        coverageWarnings.push(warn);
+      }
+    }
     if (issueAnalysis.conditionalFrameworkSummaryTh) {
       answerSections.unshift(issueAnalysis.conditionalFrameworkSummaryTh);
     }
@@ -2290,6 +2327,9 @@ async function executeCoreKnowledgeQuery(
         ? (issueAnalysis.verifiedCalculations as unknown as Array<Record<string, unknown>>)
         : undefined,
     execution_provenance: buildProvenance(),
+    tax_foundation_trace: foundationConsult
+      ? (foundationConsult as unknown as Record<string, unknown>)
+      : undefined,
   };
 }
 
