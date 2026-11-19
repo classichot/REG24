@@ -501,12 +501,12 @@ export function analyzeLegalIssuesAndFacts(params: {
     );
   }
 
-  // --- Regime F: Gift Tax / Gratuitous Property Transfer (`มาตรา 41 ทวิ`, `42 (26)-(28)`, `48`, `49 ทวิ`, `50 (5)-(6)`, `พ.ร.บ. 40`) ---
+  // --- Regime F: Gift Tax / Gratuitous Property Transfer (`มาตรา 41 ทวิ`, `42 (26)-(28)`, `48`, `49 ทวิ`, `50 (5)-(6)`, `54`, `พ.ร.บ. 40`) ---
   const asksGiftTransfer =
     /(?:โอนที่ดิน|ให้อสังหาริมทรัพย์|ให้ที่ดิน|ให้โดยเสน่หา|มอบเงินสด|ให้เงินสด|โอนเงินให้|ของขวัญงานสมรส|โอนกรรมสิทธิ์[^\n]{0,40}โดยไม่มีค่าตอบแทน)/.test(
       mergedContext
     ) &&
-    /(?:บุตร|หลาน|ผู้สืบสันดาน|ญาติ|งานสมรส|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา|ภาษีการรับให้)/.test(
+    /(?:บุตร|หลาน|ผู้สืบสันดาน|ญาติ|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|เพื่อน|บุคคลภายนอก|งานสมรส|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา|ภาษีการรับให้)/.test(
       mergedContext
     );
   if (asksGiftTransfer) {
@@ -531,6 +531,22 @@ export function analyzeLegalIssuesAndFacts(params: {
       controlling.add("prov.th.rc.50");
     }
 
+    // Step 2: Detect whose tax the active prompt is asking about (Recipient vs Donor vs Both)
+    const asksRecipientTax =
+      /(?:ภาษี(?:เงินได้)?ของ(?:ผู้รับโอน|ผู้รับ|หลานสาว|หลานชาย|หลาน|บุตรบุญธรรม|บุตร|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|เพื่อน)|ผู้รับโอน[^\n]{0,25}(?:เสียภาษี|รับภาระภาษี)|หลาน(?:สาว|ชาย)?[^\n]{0,25}(?:เสียภาษี|ยกเว้นภาษี|เปลี่ยนอย่างไร)|เงินได้ของ(?:บุตร|หลาน|ผู้รับ))/.test(
+        activeClean
+      );
+    const asksDonorTax =
+      /(?:ภาษี(?:เงินได้)?ของ(?:ผู้โอน|ผู้ให้|บิดา|มารดา|พ่อ|แม่|ลุง|ป้า|น้า|อา)|ผู้โอน[^\n]{0,25}(?:เสียภาษี|หักภาษี|ต้องหัก))/.test(
+        activeClean
+      );
+    const queriedPartyFocus: "RECIPIENT" | "DONOR" | "BOTH" =
+      asksRecipientTax && !asksDonorTax
+        ? "RECIPIENT"
+        : asksDonorTax && !asksRecipientTax
+          ? "DONOR"
+          : "BOTH";
+
     const mergedAmounts = parseThaiMoneyAmountsWithContext(mergedContext);
     const valAmt =
       amounts.find((a) => /มูลค่า|ที่ดิน|ราคา|เงินสด|จำนวน/.test(a.leftContext))?.amount ??
@@ -550,6 +566,7 @@ export function analyzeLegalIssuesAndFacts(params: {
     const holdingYearsMatch = mergedContext.match(/ถือครอง(?:มา|ไว้|นาน|เกิน)?\s*([0-9]+)\s*ปี/);
     const holdingYears = holdingYearsMatch ? Number(holdingYearsMatch[1]) : null;
 
+    // Step 3: Detect updated recipient relationship (active turn overrides prior turn's relationship!)
     const isExplicitGrandchild =
       /บุตรของบุตร|หลานปู่|หลานตา|หลานย่า|หลานยาย|ผู้สืบสันดานสายตรง|ผู้สืบสันดานโดยตรง/.test(
         activeClean
@@ -561,22 +578,54 @@ export function analyzeLegalIssuesAndFacts(params: {
       );
     const isAmbiguousLan =
       !isExplicitGrandchild && !isExplicitNiece && /หลานสาว|หลานชาย|หลาน/.test(activeClean);
-    const isAdopted = /เป็นบุตรบุญธรรม/.test(activeClean) && !/ไม่ใช่บุตรบุญธรรม/.test(activeClean);
+    const isAdopted =
+      /บุตรบุญธรรม/.test(activeClean) &&
+      !/ไม่ใช่บุตรบุญธรรม|มิใช่บุตรบุญธรรม|ไม่รวม(?:ถึง)?บุตรบุญธรรม/.test(activeClean);
+    const isSpouse =
+      !isExplicitGrandchild &&
+      !isExplicitNiece &&
+      !isAmbiguousLan &&
+      !isAdopted &&
+      /(?:ให้(?:แก่)?(?:คู่สมรส|สามี|ภริยา|ภรรยา)|ผู้รับโอน[^\n]{0,25}(?:เป็น|คือ)\s*(?:คู่สมรส|สามี|ภริยา|ภรรยา))/.test(
+        activeClean
+      );
+    const isOtherCollateralOrThirdParty =
+      !isExplicitGrandchild &&
+      !isExplicitNiece &&
+      !isAmbiguousLan &&
+      !isAdopted &&
+      !isSpouse &&
+      /(?:ให้(?:แก่)?(?:พี่สาว|พี่ชาย|น้องสาว|น้องชาย|เพื่อน|บุคคลภายนอก)|ผู้รับโอน[^\n]{0,25}(?:เป็น|คือ)\s*(?:พี่สาว|พี่ชาย|น้องสาว|น้องชาย|เพื่อน|บุคคลภายนอก))/.test(
+        activeClean
+      );
     const isLegitChild =
       !isExplicitGrandchild &&
       !isExplicitNiece &&
       !isAmbiguousLan &&
       !isAdopted &&
+      !isSpouse &&
+      !isOtherCollateralOrThirdParty &&
       /บุตรชอบด้วยกฎหมาย/.test(activeClean);
     const isCeremony = /งานสมรส|พิธี|ขนบธรรมเนียมประเพณี|หน้าที่ธรรมจรรยา/.test(mergedContext);
 
+    if (isImmovable && !isLegitChild) {
+      controlling.add("prov.th.rc.54");
+    }
+
     if (
       (isImmovable || valAmt !== null) &&
-      (isExplicitGrandchild || isExplicitNiece || isAmbiguousLan || isLegitChild || isAdopted)
+      (isExplicitGrandchild ||
+        isExplicitNiece ||
+        isAmbiguousLan ||
+        isLegitChild ||
+        isAdopted ||
+        isSpouse ||
+        isOtherCollateralOrThirdParty)
     ) {
       calcs.push(
         verifyComprehensiveGiftTaxCalculation({
           isImmovableProperty: isImmovable,
+          queriedPartyFocus,
           recipientRole: isExplicitGrandchild
             ? "EXPLICIT_LINEAL_GRANDCHILD"
             : isExplicitNiece
@@ -585,7 +634,11 @@ export function analyzeLegalIssuesAndFacts(params: {
                 ? "AMBIGUOUS_LAN_OR_NIECE"
                 : isAdopted
                   ? "ADOPTED_CHILD"
-                  : "LEGITIMATE_CHILD",
+                  : isSpouse
+                    ? "SPOUSE"
+                    : isOtherCollateralOrThirdParty
+                      ? "NON_LINEAL_RELATIVE_OR_THIRD_PARTY"
+                      : "LEGITIMATE_CHILD",
           isCeremonyOrCustomOrMoralDuty: isCeremony,
           transferValueBaht: valAmt,
           officialAppraisedValueBaht: officialAppraisalAmt,

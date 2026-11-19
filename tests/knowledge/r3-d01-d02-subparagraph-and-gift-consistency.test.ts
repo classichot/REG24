@@ -286,8 +286,8 @@ describe("Round 3 Defect Gate — R3-D01 (RD 342 Subparagraphs) & R3-D02 (Gift T
       expect(rendered).not.toContain("ฝ่ายกฎหมายควรยืนยัน");
     });
 
-    it("handles LAND follow-up to ambiguous 'หลานสาว' (original B1-09F): gives kinship-independent Donor & Recipient rules without inventing withholding or cash-gift tax figures", async () => {
-      const res = await queryKnowledge(
+    it("handles LAND follow-up to ambiguous 'หลานสาว' (original B1-09F) AND fresh-session upfront prompt: LEADS with Recipient PIT + Legal review flag, separates §54 shortfall, then Donor §41 bis/§50(5)/§49 bis", async () => {
+      const followUpRes = await queryKnowledge(
         {
           question:
             "ข้อมูลเพิ่มเติมจากข้อ B1-09: ผู้รับโอนไม่ใช่บุตรชอบด้วยกฎหมาย แต่เป็นหลานสาวของนายสมชาย และการให้ที่ดินมูลค่า 25,000,000 บาท เป็นการให้เนื่องในงานสมรสตามประเพณีเมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของหลานสาวเปลี่ยนอย่างไร",
@@ -299,19 +299,87 @@ describe("Round 3 Defect Gate — R3-D01 (RD 342 Subparagraphs) & R3-D02 (Gift T
         { store, persistAnswerAtomically: false }
       );
 
-      expect(res.status).toBe("ANSWERED");
-      const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
-      expect(rendered).toContain("ฝั่งผู้โอน");
-      expect(rendered).toContain("ฝั่งผู้รับโอน");
-      expect(rendered).toContain("มาตรา 41 ทวิ");
-      expect(rendered).toContain("มาตรา 50 (6)");
-      expect(rendered).toContain("มาตรา 50 (5)");
-      expect(rendered).toContain("มาตรา 49 ทวิ");
-      expect(rendered).toContain("มีผลเหมือนกันทั้งกรณีหลานปู่หลานตา");
-      expect(rendered).not.toContain("750,000");
-      expect(rendered).not.toContain("250,000");
-      expect(rendered).not.toContain("ไม่อาจสรุปตายตัว");
-      expect(rendered).not.toContain("ฝ่ายกฎหมายควรยืนยัน");
+      const upfrontFreshRes = await queryKnowledge(
+        {
+          question:
+            "นายสมชายโอนที่ดินมูลค่า 25,000,000 บาท โดยไม่มีค่าตอบแทนให้แก่หลานสาวของนายสมชาย เนื่องในงานสมรสตามประเพณีเมื่อวันที่ 10 กุมภาพันธ์ 2568 ผลทางภาษีเงินได้ของหลานสาวเป็นอย่างไร",
+          applicable_date: "2025-02-10",
+          enable_tax_foundation_pilot: false,
+        },
+        TEST_ACTOR,
+        { store, persistAnswerAtomically: false }
+      );
+
+      for (const res of [followUpRes, upfrontFreshRes]) {
+        expect(res.status).toBe("ANSWERED");
+        const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
+        // Must LEAD with Recipient's own PIT before Donor analysis!
+        const recIdx = rendered.indexOf("ฝั่งผู้รับโอน");
+        const donIdx = rendered.indexOf("ฝั่งผู้โอน (Donor");
+        expect(recIdx).toBeGreaterThanOrEqual(0);
+        expect(donIdx).toBeGreaterThan(recIdx);
+        // Must explicitly flag unsettled recipient PIT on land for Legal review, distinguish §54 shortfall, and explain Donor rule
+        expect(rendered).toContain("ส่งต่อฝ่ายกฎหมาย");
+        expect(rendered).toContain("ไม่สมมติว่าผู้รับโอนไม่มีภาระภาษีเลย");
+        expect(rendered).toContain("มาตรา 54");
+        expect(rendered).toContain("มาตรา 41 ทวิ");
+        expect(rendered).toContain("มาตรา 50 (6)");
+        expect(rendered).toContain("มาตรา 50 (5)");
+        expect(rendered).toContain("มาตรา 49 ทวิ");
+        expect(rendered).toContain("มีผลเหมือนกันทั้งกรณีหลานปู่หลานตา");
+        expect(rendered).not.toContain("750,000");
+        expect(rendered).not.toContain("250,000");
+        expect(rendered).not.toContain("ไม่อาจสรุปตายตัว");
+
+        // Verify official §54 URL (`https://www.rd.go.th/5937.html#mata54`) is linked in evidence
+        const allUrls = (res.traceable_answer?.claims || [])
+          .flatMap((c) => c.evidence_references || [])
+          .map((r) => r.official_url || "");
+        expect(allUrls.some((u) => u.includes("5937.html#mata54"))).toBe(true);
+      }
+    });
+
+    it("generalizes to unseen changed-party follow-ups (adopted child & elder sister on land) without case-ID hardcoding", async () => {
+      const adoptedLand = await queryKnowledge(
+        {
+          question:
+            "ข้อมูลเพิ่มเติม: หากเปลี่ยนผู้รับโอนที่ดินมูลค่า 25,000,000 บาท เป็นบุตรบุญธรรมแทนบุตรชอบด้วยกฎหมาย ผลทางภาษีเงินได้ของผู้รับโอนและผู้โอนเปลี่ยนอย่างไร",
+          applicable_date: "2025-02-10",
+          conversation_history: [{ role: "user", content: B1_09_TURN_1 }],
+          enable_tax_foundation_pilot: false,
+        },
+        TEST_ACTOR,
+        { store, persistAnswerAtomically: false }
+      );
+      const adoptedText = adoptedLand.traceable_answer?.rendered_answer_th || adoptedLand.answer;
+      expect(adoptedLand.status).toBe("ANSWERED");
+      expect(adoptedText).toContain("บุตรบุญธรรม");
+      expect(adoptedText).toContain("ส่งต่อฝ่ายกฎหมาย");
+      expect(adoptedText).toContain("มาตรา 54");
+      expect(adoptedText).toContain("ไม่ได้รับสิทธิยกเว้นตามมาตรา 42 (26)");
+      expect(adoptedText).toContain("มาตรา 50 (5)");
+      expect(adoptedText).not.toContain("250,000");
+
+      const sisterLand = await queryKnowledge(
+        {
+          question:
+            "ข้อมูลเพิ่มเติม: หากเปลี่ยนผู้รับโอนที่ดินเป็นพี่สาวของนายสมชาย ผลทางภาษีเงินได้ของพี่สาวเปลี่ยนอย่างไร",
+          applicable_date: "2025-02-10",
+          conversation_history: [{ role: "user", content: B1_09_TURN_1 }],
+          enable_tax_foundation_pilot: false,
+        },
+        TEST_ACTOR,
+        { store, persistAnswerAtomically: false }
+      );
+      const sisterText = sisterLand.traceable_answer?.rendered_answer_th || sisterLand.answer;
+      expect(sisterLand.status).toBe("ANSWERED");
+      expect(sisterText.indexOf("ฝั่งผู้รับโอน")).toBeLessThan(
+        sisterText.indexOf("ฝั่งผู้โอน (Donor")
+      );
+      expect(sisterText).toContain("ส่งต่อฝ่ายกฎหมาย");
+      expect(sisterText).toContain("มาตรา 54");
+      expect(sisterText).toContain("มาตรา 50 (5)");
+      expect(sisterText).not.toContain("750,000");
     });
 
     it("switches rules cleanly for a matching CASH wedding-gift comparison (25,000,000 baht cash) for niece, granddaughter, and ambiguous 'หลานสาว'", async () => {
@@ -429,6 +497,26 @@ describe("Round 3 Defect Gate — R3-D01 (RD 342 Subparagraphs) & R3-D02 (Gift T
       });
       expect(wrongPartyClaim.supported).toBe(false);
       expect(wrongPartyClaim.reason_code).toBe("UNGROUNDED_LEGAL_IDENTIFIER");
+
+      // Blanket zero-tax assertion on a non-legitimate-child land recipient
+      const blanketZeroTaxClaim = evaluateSubstantiveClaimSupport({
+        claim_text:
+          "การโอนที่ดินให้แก่หลานสาวโดยไม่มีค่าตอบแทน ผู้รับโอนไม่มีภาระภาษีเงินได้ตามมาตรา 42 (26)",
+        passages: act40Passages,
+        verified_calculation_numeric_tokens: [],
+      });
+      expect(blanketZeroTaxClaim.supported).toBe(false);
+      expect(blanketZeroTaxClaim.reason_code).toBe("UNGROUNDED_LEGAL_IDENTIFIER");
+
+      // Overstating pre-2558 ruling กค 0702/5958 as deciding 2025 recipient PIT without scope limit
+      const overstatedOldRuling = evaluateSubstantiveClaimSupport({
+        claim_text:
+          "ตามหนังสือตอบข้อหารือ กค 0702/5958 ชี้ขาดว่าหลานสาวที่รับโอนที่ดินในปี 2568 ได้รับยกเว้นภาษีเงินได้ตามมาตรา 42 (26)",
+        passages: act40Passages,
+        verified_calculation_numeric_tokens: ["2568"],
+      });
+      expect(overstatedOldRuling.supported).toBe(false);
+      expect(overstatedOldRuling.reason_code).toBe("UNGROUNDED_LEGAL_IDENTIFIER");
     });
   });
 });

@@ -607,6 +607,40 @@ export function evaluateSubstantiveClaimSupport(params: {
     }
   }
 
+  // Reject blanket zero-tax assertion on a non-legitimate-child land recipient without statutory authority,
+  // and reject treating pre-2558 ruling กค 0702/5958 as deciding 2025 recipient PIT without stating its §54/pre-2558 scope limit.
+  const mentionsNonLegitRecipient =
+    /(?:หลานสาว|หลานชาย|บุตรของพี่|บุตรของน้อง|บุตรของบุตร|บุตรบุญธรรม|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส)/.test(
+      normClaim
+    );
+  const claimsBlanketZeroRecipientTax =
+    /(?:ผู้รับโอน|หลานสาว|หลานชาย|บุตรบุญธรรม)[^\n]{0,40}(?:ไม่ต้องเสียภาษีเลย|ไม่มีภาระภาษีเงินได้|ภาระภาษีเป็นศูนย์|ได้รับยกเว้นภาษีทั้งหมด)/.test(
+      normClaim
+    ) && !/ไม่สมมติว่าผู้รับโอนไม่มีภาระภาษี/.test(normClaim);
+  if (mentionsLandOrImmovable && mentionsNonLegitRecipient && claimsBlanketZeroRecipientTax) {
+    return {
+      supported: false,
+      reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
+      detail_th:
+        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากสรุปเหมารวมว่าผู้รับโอนที่ดิน (มิใช่บุตรชอบด้วยกฎหมาย) ไม่มีภาระภาษีเงินได้โดยไม่มีบทบัญญัติชี้ขาดรองรับ",
+      overlap_ratio: 0,
+    };
+  }
+
+  if (
+    /0702\/5958/.test(strippedClaim) &&
+    /(?:2568|2025)/.test(normClaim) &&
+    !/(?:ก่อน(?:พระราชบัญญัติ|พ\.ร\.บ\.)|เทียบเคียง|มาตรา\s*54|ไม่อาจนำมาชี้ขาด)/.test(normClaim)
+  ) {
+    return {
+      supported: false,
+      reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
+      detail_th:
+        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากอ้างหนังสือตอบข้อหารือ กค 0702/5958 (ก่อน พ.ร.บ. ฉบับที่ 40 พ.ศ. 2558) เพื่อชี้ขาดภาระภาษีฝั่งผู้รับโอนปี พ.ศ. 2568 โดยไม่ระบุข้อจำกัดของมาตรา 54 และช่วงเวลาใช้บังคับ",
+      overlap_ratio: 0,
+    };
+  }
+
   const sourceRulings = new Set(extractCanonicalRulingIds(combinedRawFull));
   for (const rId of claimRulings) {
     const bareRId = rId.replace(/^กค\s*/, "");

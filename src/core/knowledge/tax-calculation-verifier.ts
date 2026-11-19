@@ -483,9 +483,11 @@ export function verifyGiftTaxExemptionCalculation(params: {
  */
 export function verifyComprehensiveGiftTaxCalculation(params: {
   isImmovableProperty: boolean;
+  queriedPartyFocus?: "RECIPIENT" | "DONOR" | "BOTH";
   recipientRole:
     | "LEGITIMATE_CHILD"
     | "ADOPTED_CHILD"
+    | "SPOUSE"
     | "AMBIGUOUS_LAN_OR_NIECE"
     | "EXPLICIT_LINEAL_GRANDCHILD"
     | "EXPLICIT_COLLATERAL_NIECE"
@@ -499,6 +501,7 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
 }): VerifiedCalculationResult {
   const hasVal = params.transferValueBaht !== null && Number.isFinite(params.transferValueBaht);
   const val = hasVal ? Math.max(0, params.transferValueBaht as number) : 0;
+  const focus = params.queriedPartyFocus ?? "BOTH";
 
   // =========================================================================
   // STEP 1: CLASSIFY ASSET FIRST — IMMOVABLE PROPERTY (`อสังหาริมทรัพย์/ที่ดิน`)
@@ -591,11 +594,11 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
       };
     }
 
-    // 1B. Non-legitimate-child IMMOVABLE transfer (niece, granddaughter, ambiguous หลานสาว, adopted child, other):
-    //     Asset is LAND -> `§41 ทวิ` deems DONOR to have assessable income; `§42(26)` does NOT apply;
-    //     `§50(6)` routes to `§50(5)` progressive withholding at registration using `§49 ทวิ` official appraised value.
-    //     NEVER carry over movable-gift `§42(27)-(28)` / `§48(6)-(7)` cash thresholds or 5% tax numbers to land,
-    //     and NEVER invent withholding figures when official appraised value / acquisition method / holding years are missing!
+    // 1B. Non-legitimate-child IMMOVABLE transfer (niece, granddaughter, ambiguous หลานสาว, adopted child, spouse, sibling/other):
+    //     Asset is LAND -> Lead with Recipient's own PIT status (explicitly stating verified authorities do not settle
+    //     whether receiving land title gives rise to separate recipient PIT & flagging for Legal review — never substituting
+    //     donor tax, never assuming zero tax, never importing movable/cash-gift thresholds into land), distinguish §54
+    //     withholding-shortfall joint liability separately, and explain Donor's §41 bis / §50(6)->§50(5) / §49 bis rule separately!
     const roleLabelTh =
       params.recipientRole === "EXPLICIT_COLLATERAL_NIECE"
         ? "หลานสาวที่เป็นบุตรของพี่หรือน้อง (ญาติสายข้าง — มิใช่บุตรชอบด้วยกฎหมาย)"
@@ -603,9 +606,11 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
           ? "หลานสาวที่เป็นบุตรของบุตร (หลานปู่/หลานตา — ผู้สืบสันดานสายตรง แต่มิใช่บุตรชอบด้วยกฎหมาย)"
           : params.recipientRole === "ADOPTED_CHILD"
             ? "บุตรบุญธรรม (มิใช่บุตรชอบด้วยกฎหมายตามข้อยกเว้นมาตรา 42 (26))"
-            : params.recipientRole === "AMBIGUOUS_LAN_OR_NIECE"
-              ? `ผู้รับโอนที่เป็น "หลานสาว" (ไม่ว่าจะเป็นบุตรของบุตรหรือบุตรของพี่หรือน้อง ก็มิใช่บุตรชอบด้วยกฎหมาย)`
-              : "บุคคลอื่นที่มิใช่บุตรชอบด้วยกฎหมาย";
+            : params.recipientRole === "SPOUSE"
+              ? "คู่สมรส (มิใช่บุตรชอบด้วยกฎหมายตามข้อยกเว้นมาตรา 42 (26))"
+              : params.recipientRole === "AMBIGUOUS_LAN_OR_NIECE"
+                ? `ผู้รับโอนที่เป็น "หลานสาว" (ไม่ว่าจะเป็นบุตรของบุตรหรือบุตรของพี่หรือน้อง ก็มิใช่บุตรชอบด้วยกฎหมาย)`
+                : "บุคคลอื่นที่มิใช่บุตรชอบด้วยกฎหมาย";
 
     const missingDonorFacts: string[] = [];
     if (params.officialAppraisedValueBaht === null || params.officialAppraisedValueBaht === undefined) {
@@ -622,21 +627,46 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
       missingDonorFacts.push("จำนวนปีที่ผู้โอนถือครองที่ดินเพื่อคำนวณหักค่าใช้จ่ายและเฉลี่ยภาษีตามมาตรา 50 (5)");
     }
 
+    const recipientLandScopeTh =
+      `**ฝั่งผู้รับโอน (Recipient — ภาษีเงินได้บุคคลธรรมดาจากการรับโอนกรรมสิทธิ์ที่ดิน)**: **หลักฐานกฎหมายที่ตรวจสอบแล้วยังไม่ชี้ขาดว่าผู้รับโอนมีภาระภาษีเงินได้บุคคลธรรมดาของตนเองจากการรับโอนกรรมสิทธิ์ที่ดิน (อสังหาริมทรัพย์) รายนี้หรือไม่ จึงขอส่งต่อฝ่ายกฎหมายเพื่อตรวจสอบยืนยันเพิ่มเติม (Flag for Legal Review)** — เหตุผลคือ บทบัญญัติ **มาตรา 41 ทวิ** กำหนดให้ **ผู้โอน** เป็นผู้มีเงินได้จากการโอนอสังหาริมทรัพย์โดยไม่มีค่าตอบแทน ขณะที่แนวทางของกรมสรรพากรว่าด้วยภาษีการรับให้อธิบายเกณฑ์ยกเว้นตาม **มาตรา 42 (27)** (20,000,000 บาท) และ **มาตรา 42 (28)** (10,000,000 บาท) รวมถึงเงินได้ตาม **มาตรา 40 (8)** ไว้ภายใต้กรณี **การให้สังหาริมทรัพย์หรือเงินสด** ดังนั้น ระบบจึง **ไม่นำผลภาษีของฝั่งผู้โอนมาแทนคำตอบของฝั่งผู้รับโอน ไม่สมมติว่าผู้รับโอนไม่มีภาระภาษีเลย และไม่นำเกณฑ์ยกเว้น 20,000,000 บาท / 10,000,000 บาท หรือตัวเลขภาษีร้อยละ 5 ของการให้เงินสด/สังหาริมทรัพย์มาคำนวณกับการโอนที่ดินรายนี้**`;
+
+    const shortfallDistinctionTh =
+      `**ความรับผิดร่วมกรณีหักภาษี ณ ที่จ่ายไม่ครบตามมาตรา 54 (แยกต่างหากจากภาษีเงินได้ของฝั่งผู้รับโอนเอง)**: ประมวลรัษฎากร **มาตรา 54** กำหนดเรื่องความรับผิดร่วมในกรณีที่ผู้จ่ายเงินตาม **มาตรา 50** มิได้หักและนำส่งภาษี หรือหักและนำส่งไว้ไม่ครบถ้วน ซึ่งเป็นคนละประเด็นกับภาระภาษีเงินได้บุคคลธรรมดาของฝั่งผู้รับโอนจากการรับกรรมสิทธิ์ที่ดิน ทั้งนี้ แนววินิจฉัยในอดีตที่เกี่ยวข้องกับการโอนที่ดินโดยเสน่หาระหว่างลุงกับหลานก่อนพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558 มีผลใช้บังคับ ใช้เพียงเป็นข้อเทียบเคียงในประเด็นความรับผิดร่วมกรณีหักภาษี ณ ที่จ่ายขาดตามมาตรา 54 แห่งประมวลรัษฎากร และ **ไม่อาจนำมาชี้ขาดภาระภาษีเงินได้ของฝั่งผู้รับโอนภายใต้กฎหมายที่ใช้บังคับกับธุรกรรมปี พ.ศ. 2568 ได้**`;
+
     const donorRuleTh =
-      `**ฝั่งผู้โอน (Donor)**: ตาม **มาตรา 41 ทวิ** การโอนกรรมสิทธิ์อสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ถือว่า **ผู้โอนเป็นผู้มีเงินได้** เมื่อผู้รับโอนคือ ${roleLabelTh} จึง **ไม่ได้รับสิทธิยกเว้นตามมาตรา 42 (26)** และไม่ได้ใช้อัตราหัก ณ ที่จ่ายร้อยละ 5 สำหรับบุตรชอบด้วยกฎหมายตามข้อยกเว้นท้าย **มาตรา 50 (6)** แต่ต้องกลับมาใช้หลักเกณฑ์ทั่วไปตาม **มาตรา 50 (6)** ซึ่งกำหนดให้ผู้โอนหักภาษีเงินได้ ณ ที่จ่ายในวันจดทะเบียนโอน **ตามเกณฑ์ในมาตรา 50 (5)** (คำนวณหักค่าใช้จ่ายตามวิธีได้มาและจำนวนปีที่ถือครองแล้วคิดตามบัญชีอัตราก้าวหน้า) โดยใช้ **ราคาประเมินทุนทรัพย์ของทางราชการตามมาตรา 49 ทวิ** เป็นฐานคำนวณ`;
+      `**ฝั่งผู้โอน (Donor — แยกพิจารณาต่างหากจากฝั่งผู้รับโอน)**: ตาม **มาตรา 41 ทวิ** การโอนกรรมสิทธิ์อสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ถือว่า **ผู้โอนเป็นผู้มีเงินได้** เมื่อผู้รับโอนคือ ${roleLabelTh} จึง **ไม่ได้รับสิทธิยกเว้นตามมาตรา 42 (26)** และไม่ใช้เกณฑ์หัก ณ ที่จ่ายร้อยละ 5 สำหรับบุตรชอบด้วยกฎหมายตามข้อยกเว้นท้าย **มาตรา 50 (6)** (ไม่นำการคำนวณกรณีโอนให้บุตรชอบด้วยกฎหมายมาใช้ซ้ำ) แต่ต้องใช้หลักเกณฑ์ทั่วไปตาม **มาตรา 50 (6)** ซึ่งกำหนดให้ผู้โอนหักภาษีเงินได้ ณ ที่จ่ายในวันจดทะเบียนโอน **ตามเกณฑ์ในมาตรา 50 (5)** (คำนวณหักค่าใช้จ่ายตามวิธีได้มาและจำนวนปีที่ถือครองแล้วคิดตามบัญชีอัตราก้าวหน้า) โดยใช้ **ราคาประเมินทุนทรัพย์ของทางราชการตามมาตรา 49 ทวิ** เป็นฐานคำนวณ`;
 
     const donorMissingTh =
       missingDonorFacts.length > 0
         ? `**ไม่สามารถคำนวณยอดภาษีหัก ณ ที่จ่ายฝั่งผู้โอนเป็นตัวเลขจากข้อเท็จจริงที่มีอยู่ได้** เนื่องจากยังขาดข้อเท็จจริงที่จำเป็นตามมาตรา 49 ทวิ และมาตรา 50 (5) ได้แก่: ${missingDonorFacts.join("; ")}`
         : `มีข้อมูลราคาประเมินทุนทรัพย์ วิธีได้มา และจำนวนปีถือครองครบถ้วนสำหรับคำนวณตามมาตรา 50 (5)`;
 
-    const recipientLandScopeTh =
-      `**ฝั่งผู้รับโอน (Recipient)**: เนื่องจากทรัพย์สินที่โอนคือ **อสังหาริมทรัพย์ (ที่ดิน)** ไม่ใช่เงินสดหรือสังหาริมทรัพย์ บทบัญญัติ **มาตรา 41 ทวิ** กำหนดให้ **ผู้โอน** (มิใช่ผู้รับโอน) เป็นผู้มีเงินได้จากการโอนกรรมสิทธิ์โดยไม่มีค่าตอบแทน ขณะที่แนวทางของกรมสรรพากรว่าด้วยภาษีการรับให้อธิบายการใช้ **มาตรา 42 (27)** (20,000,000 บาท) และ **มาตรา 42 (28)** (10,000,000 บาทในพิธีตามขนบธรรมเนียมประเพณี) ไว้ภายใต้กรณี **การให้สังหาริมทรัพย์/เงินสด** — ดังนั้น **ระบบจึงไม่นำเกณฑ์ยกเว้น 20,000,000 บาท / 10,000,000 บาท หรือตัวเลขภาษีร้อยละ 5 ของการให้สังหาริมทรัพย์มาคำนวณเป็นยอดภาษีฝั่งผู้รับโอนสำหรับการโอนที่ดินรายนี้** จนกว่าจะมีการยืนยันฐานกฎหมายฝั่งผู้รับโอนสำหรับอสังหาริมทรัพย์ที่สอดคล้องกับมาตรา 41 ทวิ และแนวทางกรมสรรพากรอย่างชัดเจน`;
-
     const kinshipNoteTh =
       params.recipientRole === "AMBIGUOUS_LAN_OR_NIECE"
-        ? `**ขอบเขตผลของความกำกวมคำว่า "หลานสาว"**: สำหรับการโอน **ที่ดิน** รายนี้ ข้อสรุปฝั่งผู้โอน (ไม่ได้รับยกเว้นตามมาตรา 42 (26), ต้องหักภาษี ณ ที่จ่ายตามมาตรา 50 (6) ประกอบมาตรา 50 (5) และมาตรา 49 ทวิ, และยังคำนวณตัวเลขไม่ได้เพราะขาดราคาประเมินทุนทรัพย์/วิธีได้มา/จำนวนปีถือครอง) รวมถึงการไม่นำตัวเลขภาษีการรับให้สังหาริมทรัพย์มาคำนวณฝั่งผู้รับโอน **มีผลเหมือนกันทั้งกรณีหลานปู่หลานตา (บุตรของบุตร) และหลานลุงหลานอา (บุตรของพี่หรือน้อง)** โดยความแตกต่างระหว่างบุตรของบุตรกับบุตรของพี่หรือน้องจะมีผลชี้ขาดเฉพาะกรณีทรัพย์สินที่ให้เป็น **เงินสดหรือสังหาริมทรัพย์** (มาตรา 42 (27) เทียบกับมาตรา 42 (28)) เท่านั้น`
+        ? `**ขอบเขตผลของคำว่า "หลานสาว" ที่ยังกำกวม**: สำหรับการโอน **ที่ดิน** รายนี้ ข้อสรุปทั้งสามประเด็น (สถานะที่ยังไม่ชี้ขาดของภาษีเงินได้ฝั่งผู้รับโอนและการไม่นำเกณฑ์รับให้เงินสดมาใช้, การแยกความรับผิดร่วมตามมาตรา 54, และภาระภาษีหัก ณ ที่จ่ายฝั่งผู้โอนตามมาตรา 41 ทวิ / มาตรา 50 (6) ประกอบมาตรา 50 (5) และมาตรา 49 ทวิ ที่ยังคำนวณตัวเลขไม่ได้เพราะขาดราคาประเมินทุนทรัพย์/วิธีได้มา/จำนวนปีถือครอง) **มีผลเหมือนกันทั้งกรณีหลานปู่หลานตา (บุตรของบุตร) และหลานลุงหลานอา (บุตรของพี่หรือน้อง)** จึงยังไม่จำเป็นต้องสอบถามความสัมพันธ์เพิ่มเติมเพื่อให้ข้อสรุปสำหรับการโอนที่ดินนี้ เว้นแต่ทรัพย์สินที่ให้จะเปลี่ยนเป็น **เงินสดหรือสังหาริมทรัพย์** (ซึ่งมาตรา 42 (27) กับมาตรา 42 (28) ให้ผลต่างกันตามความสัมพันธ์)`
         : null;
+
+    const orderedSteps =
+      focus === "DONOR"
+        ? [
+            donorRuleTh,
+            donorMissingTh,
+            recipientLandScopeTh,
+            shortfallDistinctionTh,
+            ...(kinshipNoteTh ? [kinshipNoteTh] : []),
+          ]
+        : [
+            recipientLandScopeTh,
+            shortfallDistinctionTh,
+            donorRuleTh,
+            donorMissingTh,
+            ...(kinshipNoteTh ? [kinshipNoteTh] : []),
+          ];
+
+    const summaryStatementTh =
+      focus === "DONOR"
+        ? `ผลทางภาษีสำหรับการโอนกรรมสิทธิ์ **ที่ดิน (อสังหาริมทรัพย์)** โดยไม่มีค่าตอบแทนให้แก่ ${roleLabelTh}: (1) ${donorRuleTh} ทั้งนี้ ${donorMissingTh}; (2) ${recipientLandScopeTh}; (3) ${shortfallDistinctionTh}${kinshipNoteTh ? `; (4) ${kinshipNoteTh}` : ""}`
+        : `ผลทางภาษีสำหรับการโอนกรรมสิทธิ์ **ที่ดิน (อสังหาริมทรัพย์)** โดยไม่มีค่าตอบแทนให้แก่ ${roleLabelTh} (ตอบประเด็นผู้รับโอนก่อนและแยกประเด็นผู้โอนกับมาตรา 54 ออกจากกันชัดเจน): (1) ${recipientLandScopeTh}; (2) ${shortfallDistinctionTh}; (3) ${donorRuleTh} ทั้งนี้ ${donorMissingTh}${kinshipNoteTh ? `; (4) ${kinshipNoteTh}` : ""}`;
 
     return {
       calculation_id:
@@ -646,14 +676,19 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
             ? "calc.pit.gift.land.explicit_grandchild"
             : params.recipientRole === "AMBIGUOUS_LAN_OR_NIECE"
               ? "calc.pit.gift.land.ambiguous_lan"
-              : "calc.pit.gift.land.non_legitimate_child",
+              : params.recipientRole === "ADOPTED_CHILD"
+                ? "calc.pit.gift.land.adopted_child"
+                : params.recipientRole === "SPOUSE"
+                  ? "calc.pit.gift.land.spouse"
+                  : "calc.pit.gift.land.non_legitimate_child",
       verifier_version: "reg24-tax-calc-verifier-v1.0",
       regime: "PIT_GIFT_EXEMPTION_S42",
       formula_th:
-        "โอนอสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ผู้รับที่มิใช่บุตรชอบด้วยกฎหมาย: ผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ ไม่เข้าข้อยกเว้นมาตรา 42 (26) และต้องหักภาษี ณ ที่จ่ายตามมาตรา 50 (6) ประกอบมาตรา 50 (5) โดยใช้ราคาประเมินทุนทรัพย์ตามมาตรา 49 ทวิ (ไม่นำเกณฑ์รับให้สังหาริมทรัพย์มาตรา 42 (27)-(28) มาคำนวณตัวเลขฝั่งผู้รับโอนสำหรับที่ดิน)",
+        "โอนอสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ผู้รับที่มิใช่บุตรชอบด้วยกฎหมาย: แยก 3 ประเด็น (1) ภาษีเงินได้ของฝั่งผู้รับโอนจากการรับโอนที่ดินยังไม่ชี้ขาดจากหลักฐานกฎหมายในระบบและต้องส่งต่อฝ่ายกฎหมายโดยไม่นำเกณฑ์รับให้เงินสดมาตรา 42 (27)-(28) มาใช้และไม่สมมติว่าไม่มีภาษี (2) ความรับผิดร่วมกรณีหักภาษี ณ ที่จ่ายไม่ครบตามมาตรา 54 เป็นคนละประเด็น (3) ฝั่งผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ ไม่เข้าข้อยกเว้นมาตรา 42 (26) และต้องหักภาษี ณ ที่จ่ายตามมาตรา 50 (6) ประกอบมาตรา 50 (5) โดยใช้ราคาประเมินทุนทรัพย์ตามมาตรา 49 ทวิ",
       inputs: {
         asset_kind: "IMMOVABLE_PROPERTY",
         is_immovable_property: true,
+        queried_party_focus: focus,
         recipient_role: params.recipientRole,
         is_ceremony_or_custom: params.isCeremonyOrCustomOrMoralDuty,
         stated_value_baht: hasVal ? val : null,
@@ -661,14 +696,13 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
         acquisition_method: params.acquisitionMethod ?? null,
         holding_years: params.holdingYears ?? null,
       },
-      steps_th: [
-        donorRuleTh,
-        donorMissingTh,
-        recipientLandScopeTh,
-        ...(kinshipNoteTh ? [kinshipNoteTh] : []),
-      ],
+      steps_th: orderedSteps,
       outputs: {
         asset_kind: "IMMOVABLE_PROPERTY",
+        queried_party_focus: focus,
+        recipient_land_pit_settled: false,
+        recipient_flagged_for_legal_review: true,
+        section_54_shortfall_distinguished: true,
         donor_qualifies_s42_26: false,
         donor_withholding_rule: "SECTION_50_6_TO_50_5_PROGRESSIVE_WITH_49_BIS_APPRAISAL",
         donor_withholding_computable: missingDonorFacts.length === 0,
@@ -681,15 +715,19 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
         20_000_000,
         10_000_000,
         5,
+        2558,
+        2568,
       ]),
       required_authority_work_ids: [
+        "prov.th.rc.40",
         "prov.th.rc.41_ทวิ",
         "prov.th.rc.42",
         "prov.th.rc.49_ทวิ",
         "prov.th.rc.50",
+        "prov.th.rc.54",
         "statute.th.rc_amendment_40_2558",
       ],
-      summary_statement_th: `ผลทางภาษีสำหรับการโอนกรรมสิทธิ์ **ที่ดิน (อสังหาริมทรัพย์)** โดยไม่มีค่าตอบแทนให้แก่ ${roleLabelTh} แยกเป็นฝั่งผู้โอนและฝั่งผู้รับโอนตามประมวลรัษฎากรดังนี้: (1) ${donorRuleTh} ทั้งนี้ ${donorMissingTh}; (2) ${recipientLandScopeTh}${kinshipNoteTh ? `; (3) ${kinshipNoteTh}` : ""}`,
+      summary_statement_th: summaryStatementTh,
       arithmetic_verified: true,
     };
   }
@@ -702,7 +740,8 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
   if (
     params.recipientRole === "LEGITIMATE_CHILD" ||
     params.recipientRole === "EXPLICIT_LINEAL_GRANDCHILD" ||
-    params.recipientRole === "LINEAL_DESCENDANT"
+    params.recipientRole === "LINEAL_DESCENDANT" ||
+    params.recipientRole === "SPOUSE"
   ) {
     const exempt = Math.min(val, 20_000_000);
     const excess = Math.max(0, val - 20_000_000);
@@ -710,7 +749,9 @@ export function verifyComprehensiveGiftTaxCalculation(params: {
     const label =
       params.recipientRole === "EXPLICIT_LINEAL_GRANDCHILD"
         ? "หลานสาวที่เป็นบุตรของบุตร (ผู้สืบสันดานโดยตรง)"
-        : "บุตรชอบด้วยกฎหมาย/ผู้สืบสันดานโดยตรง";
+        : params.recipientRole === "SPOUSE"
+          ? "คู่สมรส"
+          : "บุตรชอบด้วยกฎหมาย/ผู้สืบสันดานโดยตรง";
     return {
       calculation_id: "calc.pit.gift.movable.lineal_descendant",
       verifier_version: "reg24-tax-calc-verifier-v1.0",
