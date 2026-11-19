@@ -1,0 +1,262 @@
+{
+  "schema_version": "1.0",
+  "phase": "before",
+  "measured_at": "2026-11-19T14:45:25.952Z",
+  "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
+  "release_id": "rel.B01.rc6",
+  "manifest_id": "mfst.b01.rc6_core_auth",
+  "vat_foundation_pilot_enabled": false,
+  "prompt_count": 30,
+  "cold_first_query_ms": 5051.97,
+  "cold_first_query_status": "ANSWERED",
+  "warm_p50_ms": 2952.47,
+  "warm_p95_ms": 3796.99,
+  "warm_mean_ms": 3005.49,
+  "warm_min_ms": 1036.73,
+  "warm_max_ms": 4401.71,
+  "errors": 0,
+  "timeouts": 0,
+  "timeout_threshold_ms": 15000,
+  "per_case": [
+    {
+      "case_id": "B1-01",
+      "latency_ms": 2867.16,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-02",
+      "latency_ms": 2598.52,
+      "status": "ANSWERED",
+      "traceable_status": "partial",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-03",
+      "latency_ms": 2975.63,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-04",
+      "latency_ms": 2943.95,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-05",
+      "latency_ms": 3322.4,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-05F",
+      "latency_ms": 3236.17,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-06",
+      "latency_ms": 3614.61,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-07",
+      "latency_ms": 3500.7,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-07F",
+      "latency_ms": 4401.71,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-08",
+      "latency_ms": 2766.72,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-09",
+      "latency_ms": 3234.76,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-09F",
+      "latency_ms": 3552.93,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-10",
+      "latency_ms": 2940.7,
+      "status": "ANSWERED",
+      "traceable_status": "partial",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-11",
+      "latency_ms": 3351.14,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-11F",
+      "latency_ms": 3192.83,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-12",
+      "latency_ms": 2808.56,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-12F",
+      "latency_ms": 2952.47,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-13",
+      "latency_ms": 2868.37,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-14",
+      "latency_ms": 2443.75,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-14F",
+      "latency_ms": 3381.82,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-15",
+      "latency_ms": 3012.11,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-15F",
+      "latency_ms": 2754.85,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-16",
+      "latency_ms": 2053.45,
+      "status": "NEEDS_CLARIFICATION",
+      "traceable_status": "partial",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-16F",
+      "latency_ms": 3796.99,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-17",
+      "latency_ms": 3038.96,
+      "status": "ANSWERED",
+      "traceable_status": "partial",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-17F",
+      "latency_ms": 2780.56,
+      "status": "ANSWERED",
+      "traceable_status": "partial",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-18",
+      "latency_ms": 2432.59,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "traceable_status": "insufficient",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-19",
+      "latency_ms": 2862.33,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "traceable_status": "insufficient",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-20",
+      "latency_ms": 1036.73,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "traceable_status": "insufficient",
+      "error": null,
+      "timed_out": false
+    },
+    {
+      "case_id": "B1-22",
+      "latency_ms": 3441.32,
+      "status": "ANSWERED",
+      "traceable_status": "complete",
+      "error": null,
+      "timed_out": false
+    }
+  ]
+}

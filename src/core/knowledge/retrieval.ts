@@ -29,6 +29,34 @@ import {
 import type { Actor, Assertion, EvidenceCard, Passage } from "./contracts";
 import type { CanonicalPersistedState, DurableKnowledgeStore } from "./store";
 
+const taxRulingSubjectIndexCache = new WeakMap<
+  CanonicalPersistedState,
+  { workCount: number; entries: Array<{ work_id: string; subjPart: string }> }
+>();
+
+function getPrecomputedTaxRulingSubjects(
+  state: CanonicalPersistedState
+): Array<{ work_id: string; subjPart: string }> {
+  const workCount = Object.keys(state.works).length;
+  const cached = taxRulingSubjectIndexCache.get(state);
+  if (cached && cached.workCount === workCount) {
+    return cached.entries;
+  }
+  const entries: Array<{ work_id: string; subjPart: string }> = [];
+  for (const w of Object.values(state.works)) {
+    if (w.type !== "TaxRuling") continue;
+    const subjPart = thaiDigitsToArabic(w.title_th.replace(/^[^—]+—\s*/, ""))
+      .replace(/\s+/g, " ")
+      .toLowerCase()
+      .trim();
+    if (subjPart.length >= 26 || subjPart.includes("กรณี")) {
+      entries.push({ work_id: w.work_id, subjPart });
+    }
+  }
+  taxRulingSubjectIndexCache.set(state, { workCount, entries });
+  return entries;
+}
+
 export type RetrievalStrategy = "exact_lexical" | "hybrid_no_graph" | "hybrid_with_graph";
 
 export interface RankedPassageHit {
@@ -632,14 +660,11 @@ export function retrieveAuthorizedKnowledge(
       }
       // Refine top 250 IDF candidates + any exact ruling/statute header-subject matches
       const qClean = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").toLowerCase().trim();
-      for (const p of candidatePool) {
-        const w = state.works[p.work_id];
-        if (w?.type !== "TaxRuling") continue;
-        const subjPart = thaiDigitsToArabic(w.title_th.replace(/^[^—]+—\s*/, ""))
-          .replace(/\s+/g, " ")
-          .toLowerCase()
-          .trim();
-        if ((subjPart.length >= 26 || subjPart.includes("กรณี")) && qClean.includes(subjPart)) {
+      for (const entry of getPrecomputedTaxRulingSubjects(state)) {
+        if (!qClean.includes(entry.subjPart)) continue;
+        const wPsgs = passagesByWorkId.get(entry.work_id);
+        if (!wPsgs) continue;
+        for (const p of wPsgs) {
           hitAccum.set(p.passage_id, (hitAccum.get(p.passage_id) || 0) + 40.0);
         }
       }

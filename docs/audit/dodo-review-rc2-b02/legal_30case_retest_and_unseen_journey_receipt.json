@@ -1,6 +1,6 @@
 {
-  "generated_at_iso": "2026-11-18T22:12:18.994Z",
-  "git_base_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+  "generated_at_iso": "2026-11-19T15:35:21.919Z",
+  "git_base_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
   "staging_store_sha256": "f48b290d030857ffd0515f2cf6606970e4476642e5f317a80111b04e0f8d4c8f",
   "release_id": "rel.B01.rc6",
   "manifest_id": "mfst.b01.rc6_core_auth",
@@ -22,7 +22,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -36,7 +36,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -64,7 +65,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -78,7 +79,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -108,7 +110,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -122,7 +124,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -152,7 +155,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -166,7 +169,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -196,7 +200,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -210,7 +214,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -244,7 +249,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -258,7 +263,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -292,7 +298,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -306,7 +312,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -334,7 +341,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -348,7 +355,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -384,7 +392,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -398,7 +406,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -422,7 +431,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินแปลงที่หนึ่ง (กรณีซื้อมาจากบุคคลภายนอกและถือครองเกิน 5 ปี)**: ถือครองเกิน 5 ปีนับแต่วันที่ได้มา (5 ปี) และมิได้ประกอบธุรกิจค้าอสังหาริมทรัพย์เป็นปกติ (ไม่อยู่ในเกณฑ์ขายภายใน 5 ปีตามมาตรา 4 (6) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 ดังนั้นแม้ไม่ได้รับมาทางมรดกแต่ซื้อมาและถือครองเกิน 5 ปี ผลทางภาษีธุรกิจเฉพาะจึง **ไม่เปลี่ยนแปลง** คือยังคงไม่ต้องเสียภาษีธุรกิจเฉพาะ) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเส"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินแปลงที่หนึ่ง (กรณีซื้อมาจากบุคคลภายนอกและถือครองเกิน 5 ปี)**: ถือครองเกิน 5 ปี (5 ปี) และมิได้ค้าอสังหาริมทรัพย์เป็นปกติ ไม่เข้าเกณฑ์มาตรา 4 (6) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 ผลทางภาษีธุรกิจเฉพาะจึง **ไม่เปลี่ยนแปลง** (เฉพาะเงื่อนไข 5 ปี มิได้ยกเว้นอนุมาตราอื่นแห่งพระราชกฤษฎีกาฉบับเดียวกัน) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเสียภาษีธุรกิจเฉพาะ**) แต่มีหน้าที่เสีย **อากรแสตมป์อัตราร้อยละ 0.5**"
     },
     {
       "case_id": "B1-08",
@@ -434,7 +443,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -448,7 +457,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -464,7 +474,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 65 ตรี (3) (ข) ประกอบ **คำสั่งกรมสรรพากร ที่ ป. 52/2537** เพดานรายจ่ายเพื่อการกุศลสาธารณะ \"ไม่เกินร้อยละ 2 ของกำไรสุทธิ\" คำนวณจากกำไรสุทธิ **หลังหักรายจ่ายการกุศลสาธารณะนั้นแล้ว** (คิดเป็นสัดส่วน **2/102 ของกำไรสุทธิก่อนหักรายจ่ายบริจาค** กรณีไม่มีรายจ่ายเพื่อการศึกษา/กีฬา) ดังนั้น จากกำไรสุทธิก่อนรายจ่ายบริจาค 20,000,000 บาท เพดานสูงสุดที่หักได้คือ `20,000,000 × 2 / 102` = **392,156.86 บาท** (ทำให้เหลือกำไรสุทธิหลังหักเงินบริจาค 19,607,"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 65 ตรี (3) (ข) ประกอบ **คำสั่งกรมสรรพากร ที่ ป. 52/2537** รายจ่ายเพื่อการกุศลสาธารณะหักได้เฉพาะเมื่อตรวจสอบแล้วว่าผู้รับเป็นองค์การสาธารณกุศลตามประกาศกระทรวงการคลัง/ประกาศอธิบดีกรมสรรพากร และไม่เกินร้อยละ 2 ของกำไรสุทธิ โดยตาม ป. 52/2537 เมื่อโจทย์กำหนดกำไรสุทธิ **ก่อน** หักรายจ่ายบริจาค 20,000,000 บาท เพดานสูงสุดตามสัดส่วน **2/102** คือ `20,000,000 × 2 / 102` = **392,156.86 บาท** (ส่วนที่เกิน **607,843.14 บาท** เป็นรายจ่ายต้องห้าม; ทั้ง"
     },
     {
       "case_id": "B1-09",
@@ -476,7 +486,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -490,7 +500,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -508,7 +519,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 42 (26) และ (27) ประกอบมาตรา 40 (8) และมาตรา 48 (6) (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) จากมูลค่าที่ดิน 25,000,000 บาท ได้รับยกเว้นภาษีเงินได้เฉพาะส่วนที่ไม่เกิน **20,000,000 บาท** ตลอดปีภาษี ส่วนที่เกินอีกจำนวน **5,000,000 บาท** ไม่ได้รับยกเว้นและต้องนำมาคำนวณภาษีเงินได้บุคคลธรรมดา (โดยเลือกเสียภาษีแยกต่างหากในอัตราร้อยละ 5 ของส่วนที่เกิน คิดเป็นภาษี **250,000 บาท** หรือนำไปรวมคำนวณกับเงินไ"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร **มาตรา 42 (26) และมาตรา 48 (4/1)** (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) กรณีบิดาโอนกรรมสิทธิ์ที่ดินโดยไม่มีค่าตอบแทนให้แก่บุตรชอบด้วยกฎหมาย (ไม่รวมบุตรบุญธรรม) **ผู้โอน (บิดา) เป็นผู้มีเงินได้และมีหน้าที่เสียภาษีเงินได้บุคคลธรรมดา — มิใช่บุตรผู้รับโอน** โดยได้รับยกเว้นเฉพาะส่วนที่ไม่เกิน **20,000,000 บาท** ต่อบุตรหนึ่งคนตลอดปีภาษี และส่วนที่เกินอีกจำนวน **5,000,000 บาท** เป็นเงินได้พึงประเมินของ *"
     },
     {
       "case_id": "B1-09F",
@@ -520,7 +531,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -534,25 +545,26 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
-        "prov.th.rc.42",
         "prov.th.rc.48",
+        "prov.th.rc.42",
         "prov.th.rc.40",
         "statute.th.rc_amendment_40_2558"
       ],
       "cited_official_identifiers": [
-        "มาตรา 42",
         "มาตรา 48",
+        "มาตรา 42",
         "มาตรา 40",
         "พระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558"
       ],
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อเปลี่ยนข้อเท็จจริงจากบุตรชอบด้วยกฎหมายเป็น **หลานสาว** และให้เนื่องในงานสมรสตามประเพณี จะ **ไม่ได้รับสิทธิยกเว้นตามมาตรา 42 (26)** อีกต่อไป โดยผลทางภาษีเงินได้ของหลานสาวขึ้นอยู่กับความสัมพันธ์ของคำว่า \"หลานสาว\" ตามพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558 ดังนี้: (1) หากเป็นบุตรของพี่หรือน้อง (หลานลุง/หลานน้า/หลานอา ซึ่งมิใช่ผู้สืบสันดานโดยตรง) การให้ในงานสมรสตามประเพณีเข้าเกณฑ์ **มาตรา 42 (28)** ได้รับยกเว้นเพียง **10,000,000 บาท** "
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อเปลี่ยนผู้รับโอนที่ดินจากบุตรชอบด้วยกฎหมายเป็น **หลานสาว** เนื่องในงานสมรสตามประเพณี ย่อม **ไม่ได้รับยกเว้นตามมาตรา 42 (26)** อีกต่อไป และ **ไม่อาจสรุปตายตัวเป็นยอดยกเว้น 10,000,000 บาท / ส่วนเกิน 15,000,000 บาท** เนื่องจากเป็นการโอนกรรมสิทธิ์อสังหาริมทรัพย์โดยไม่มีค่าตอบแทนซึ่ง **ผู้โอนเป็นผู้มีเงินได้** (ต้องให้ฝ่ายกฎหมายยืนยันขอบเขตการใช้มาตรา 42 (28) กับการโอนที่ดิน) และขึ้นอยู่กับความสัมพันธ์ของ \"หลานสาว\" ตาม พ.ร.บ. แก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับท"
     },
     {
       "case_id": "B1-10",
@@ -564,7 +576,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -578,7 +590,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -606,7 +619,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -620,7 +633,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -646,7 +660,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -660,7 +674,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -696,7 +711,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -710,7 +725,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -736,7 +752,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -750,7 +766,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -774,7 +791,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -788,7 +805,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -816,7 +834,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -830,7 +848,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -856,7 +875,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -870,7 +889,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -900,7 +920,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -914,7 +934,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -944,7 +965,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -958,7 +979,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -988,7 +1010,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1002,7 +1024,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1024,10 +1047,11 @@
       "law_application_claim_count": 0,
       "traceable_answer_status": "partial",
       "clarification_questions": [
-        "ผู้รับเงินค่าที่ปรึกษาเป็นบุคคลประเภทใดและมีถิ่นที่อยู่/สถานประกอบการใด: (1) บริษัทหรือห้างหุ้นส่วนนิติบุคคลที่ตั้งขึ้นตามกฎหมายไทย/ประกอบกิจการในไทย, (2) บุคคลธรรมดาผู้มีถิ่นที่อยู่ในไทย, หรือ (3) บริษัทต่างประเทศที่มิได้ประกอบกิจการในประเทศไทย?",
-        "ขอบเขตงานที่ปรึกษาเข้าลักษณะใด (วิชาชีพอิสระตามมาตรา 40 (6), รับทำงานให้ตามมาตรา 40 (2), จ้างทำของ/บริการตามมาตรา 40 (7)/(8), หรือมีการถ่ายทอดวิทยาการอันเป็นค่าสิทธิตามมาตรา 40 (3)) และเป็นการนำส่งผ่านระบบ e-Withholding Tax ตามมาตรา 3 ปัณรส หรือไม่?"
+        "ผู้รับเงินค่าที่ปรึกษาเป็นบุคคลประเภทใดและมีถิ่นที่อยู่/สถานประกอบการถาวรที่ใด: (1) บริษัทหรือห้างหุ้นส่วนนิติบุคคลที่ตั้งขึ้นตามกฎหมายไทยหรือประกอบกิจการในไทย, (2) บุคคลธรรมดาผู้มีถิ่นที่อยู่ในไทย, หรือ (3) บริษัทต่างประเทศที่มิได้ประกอบกิจการในประเทศไทย?",
+        "ลักษณะงานที่ปรึกษาเข้าประเภทเงินได้ใด (มาตรา 40 (2) รับทำงานให้, มาตรา 40 (3) ค่าสิทธิ, มาตรา 40 (6) วิชาชีพอิสระ, หรือมาตรา 40 (7)/(8) จ้างทำของ/ธุรกิจทั่วไป) งานดังกล่าวกระทำในประเทศไทยหรือต่างประเทศ และเป็นการนำส่งผ่านระบบ e-Withholding Tax ตามมาตรา 3 ปัณรส หรือไม่?",
+        "หากผู้รับเงินเป็นนิติบุคคลหรือบุคคลที่มีถิ่นที่อยู่ในต่างประเทศ กรุณาระบุประเทศถิ่นที่อยู่เพื่อตรวจสอบข้อเท็จจริงตามอนุสัญญาภาษีซ้อน (DTA) ที่เกี่ยวข้อง"
       ],
-      "answer_preview_th": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**กรอบหลักกฎหมายแบบมีเงื่อนไขตามข้อเท็จจริงที่ยังขาด**: การหักภาษี ณ ที่จ่ายสำหรับ \"ค่าที่ปรึกษา\" จำนวน 2,000,000 บาท ไม่สามารถฟันธงเป็นตัวเลขเดียวได้หากยังไม่ทราบสถานะผู้รับเงินและลักษณะงาน โดยแยกตามบทบัญญัติประมวลรัษฎากรดังนี้:\n- **กรณีที่ 1 ผู้รับเป็นบริษัท/ห้างหุ้นส่วนนิติบุคคลไทย (หรือบริษัทต่างประเทศที่ประกอบกิจการในไทยมีสถ"
+      "answer_preview_th": "**สถานะการวิเคราะห์: ต้องการข้อเท็จจริงเพิ่มเติม (`NEEDS_CLARIFICATION`)** เนื่องจากข้อเท็จจริงอันเป็นเงื่อนไขชี้ขาดยังไม่ปรากฏชัดเจน จึงสรุปหลักเกณฑ์ตามแนววินิจฉัยแบบมีเงื่อนไขไว้ดังนี้:\n\n**ยังไม่สามารถสรุปอัตราหัก ณ ที่จ่ายหรือสรุปว่าไม่ต้องหักภาษีได้จนกว่าจะยืนยันข้อเท็จจริงสำคัญข้างต้น** — สำหรับ \"ค่าที่ปรึกษา\" จำนวน 2,000,000 บาท ภาระภาษีหัก ณ ที่จ่ายขึ้นอยู่กับสถานะและถิ่นที่อยู่ผู้รับเงิน ลักษณะงาน สถานที่ให้บริการ และอนุสัญญาภาษีซ้อน โดยแยกกรอบกฎหมายตามประมวลรัษฎากรดังนี้:\n- **กรณีที่ 1 ผู้รับเป็นบริษัท/ห้า"
     },
     {
       "case_id": "B1-16F",
@@ -1039,7 +1063,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1053,7 +1077,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1081,7 +1106,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1095,7 +1120,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1119,7 +1145,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1133,7 +1159,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1145,7 +1172,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "partial",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อข้อเท็จจริงเปลี่ยนเป็นอธิบดีกรมสรรพากรได้อนุมัติให้ขยายระยะเวลาการออกหมายเรียกเพราะมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร **ผลทางกฎหมายตามประมวลรัษฎากร มาตรา 19 ย่อมเปลี่ยนแปลงไป**: จากวันยื่นแบบ `2022-05-28` ขยายเวลาได้ไม่เกิน **5 ปี** คือถึงวันที่ `2027-05-28` ดังนั้น หมายเรียกวันที่ `2025-08-10` จึงอยู่ภายในกำหนด 5 ปี และ **เจ้าพนักงานประเมินมีอำนาจออกหมายเรียกได้โดยชอบด้วยกฎหมาย** (ทั้งนี้ ต้องให้เวลาล่วงหน้าไม่น้อยกว่า 7 วันนับแต่"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nเมื่อข้อเท็จจริงเปลี่ยนเป็นอธิบดีกรมสรรพากรได้อนุมัติให้ขยายระยะเวลาการออกหมายเรียกเพราะมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร **ผลทางกฎหมายตามประมวลรัษฎากร มาตรา 19 ย่อมเปลี่ยนแปลงไป**: จากวันยื่นแบบ `2022-05-28` ขยายเวลาได้ไม่เกิน **5 ปี** คือถึงวันที่ `2027-05-28` ดังนั้น หมายเรียกวันที่ `2025-08-10` จึงอยู่ภายในกรอบระยะเวลา 5 ปี และ **เจ้าพนักงานประเมินมีอำนาจออกหมายเรียกได้โดยชอบด้วยประมวลรัษฎากร มาตรา 19** (ทั้งนี้ เป็นการตรวจสอบเฉพาะ"
     },
     {
       "case_id": "B1-18",
@@ -1157,7 +1184,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1193,7 +1220,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1229,7 +1256,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1243,7 +1270,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [],
@@ -1256,7 +1284,7 @@
       "answer_preview_th": "ไม่พบข้อมูลคำพิพากษาศาลฎีกาที่ `8877/2567` ในคลังข้อมูลที่ผ่านการตรวจรับรองของ REG24 Batch 1 (ซึ่งครอบคลุมประมวลรัษฎากร กฎหมายลำดับรอง และหนังสือตอบข้อหารือกรมสรรพากรที่รับรองแล้ว) ระบบจึง **ขอระงับการสรุปผลคำวินิจฉัยของคำพิพากษาศาลฎีกาที่ `8877/2567` (Abstain)** เพื่อไม่ให้คาดเดาหรือนำหนังสือตอบข้อหารืออื่นที่ไม่ตรงเรื่องมาอ้างแทนคำพิพากษาศาลฎีกา ทั้งนี้ สำหรับคำถามว่านำมาใช้กับกรณีขายที่ดินของท่านได้หรือไม่ ในทางกฎหมายภาษีอากร การขายที่ดินจะอยู่ในบังคับภาษีธุรกิจเฉพาะ (อัตราร้อยละ 3.3 รวมภาษีท้องถิ่น) หรือไม่ พิจ"
     },
     {
-      "case_id": "B1-21",
+      "case_id": "B1-22",
       "suite": "LEGAL_TEAM_30_CASE_RETEST",
       "prior_turn_case_id": null,
       "passed_all_assertions": true,
@@ -1265,7 +1293,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1279,7 +1307,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1309,7 +1338,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1323,7 +1352,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1353,7 +1383,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1367,7 +1397,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1395,7 +1426,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1409,7 +1440,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1437,7 +1469,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1451,7 +1483,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1477,7 +1510,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1491,7 +1524,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1525,7 +1559,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1539,7 +1573,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1567,7 +1602,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1581,7 +1616,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1605,7 +1641,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินที่ขาย**: ขายภายใน 5 ปีนับแต่วันที่ได้มา เข้าลักษณะเป็นการขายเป็นทางค้าหรือหากำไรตาม **ประมวลรัษฎากร มาตรา 91/2 (6) และมาตรา 91/6 (3) ประกอบพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 มาตรา 4 (6)** จึง **ต้องเสียภาษีธุรกิจเฉพาะอัตราร้อยละ 3.0 บวกภาษีท้องถิ่นอีกร้อยละ 10 ของภาษีธุรกิจเฉพาะ รวมเป็นอัตราร้อยละ 3.3** และ **ได้รับยกเว้นไม่ต้องเสียอากรแสตมป์** ตามข้อยกเว้นท้ายบัญชีอัตราอากรแสตมป์ ลักษณะ 28.\n\n**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแย"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินที่ขาย**: ขายภายใน 5 ปีนับแต่วันที่ได้มา เข้าลักษณะเป็นการขายเป็นทางค้าหรือหากำไรตาม **ประมวลรัษฎากร มาตรา 91/2 (6) และมาตรา 91/6 (3) ประกอบพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 มาตรา 4 (6)** จึง **ต้องเสียภาษีธุรกิจเฉพาะตามอัตราภาษีธุรกิจเฉพาะร้อยละ 3.0 ของรายรับ บวกภาษีท้องถิ่นอีกร้อยละ 10 ของภาษีธุรกิจเฉพาะ รวมเป็นอัตราร้อยละ 3.3** และ **ได้รับยกเว้นไม่ต้องเสียอากรแสตมป์** ตามข้อยกเว้นท้ายบัญชีอัตราอากรแสตมป์ ลักษณะ 28.\n\n**รายละเอียดขั้นตอนการคำนวณแ"
     },
     {
       "case_id": "U-05F",
@@ -1617,7 +1653,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1631,7 +1667,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1655,7 +1692,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินที่ขาย**: ถือครองเกิน 5 ปีนับแต่วันที่ได้มา (8 ปี) และมิได้ประกอบธุรกิจค้าอสังหาริมทรัพย์เป็นปกติ (ไม่อยู่ในเกณฑ์ขายภายใน 5 ปีตามมาตรา 4 (6) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 ดังนั้นแม้ไม่ได้รับมาทางมรดกแต่ซื้อมาและถือครองเกิน 5 ปี ผลทางภาษีธุรกิจเฉพาะจึง **ไม่เปลี่ยนแปลง** คือยังคงไม่ต้องเสียภาษีธุรกิจเฉพาะ) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเสียภาษีธุรกิจเฉพาะ**) แต่มีหน้าที่เสีย **อากรแสตมป์อั"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n**ที่ดินที่ขาย**: ถือครองเกิน 5 ปี (8 ปี) และมิได้ค้าอสังหาริมทรัพย์เป็นปกติ ไม่เข้าเกณฑ์มาตรา 4 (6) แห่งพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 ผลทางภาษีธุรกิจเฉพาะจึง **ไม่เปลี่ยนแปลง** (เฉพาะเงื่อนไข 5 ปี มิได้ยกเว้นอนุมาตราอื่นแห่งพระราชกฤษฎีกาฉบับเดียวกัน) จึงไม่อยู่ในบังคับต้องเสียภาษีธุรกิจเฉพาะตามประมวลรัษฎากร มาตรา 91/2 (6) (**ไม่ต้องเสียภาษีธุรกิจเฉพาะ**) แต่มีหน้าที่เสีย **อากรแสตมป์อัตราร้อยละ 0.5** (1 บาท ทุก 200 บาท หรือเศษของ 200 บาท ตามบัญชีอัตรา"
     },
     {
       "case_id": "U-06",
@@ -1667,7 +1704,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1681,7 +1718,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1695,7 +1733,7 @@
       "law_application_claim_count": 1,
       "traceable_answer_status": "complete",
       "clarification_questions": [],
-      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 65 ตรี (3) (ข) ประกอบ **คำสั่งกรมสรรพากร ที่ ป. 52/2537** เพดานรายจ่ายเพื่อการกุศลสาธารณะ \"ไม่เกินร้อยละ 2 ของกำไรสุทธิ\" คำนวณจากกำไรสุทธิ **หลังหักรายจ่ายการกุศลสาธารณะนั้นแล้ว** (คิดเป็นสัดส่วน **2/102 ของกำไรสุทธิก่อนหักรายจ่ายบริจาค** กรณีไม่มีรายจ่ายเพื่อการศึกษา/กีฬา) ดังนั้น จากกำไรสุทธิก่อนรายจ่ายบริจาค 10,200,000 บาท เพดานสูงสุดที่หักได้คือ `10,200,000 × 2 / 102` = **200,000 บาท** (ทำให้เหลือกำไรสุทธิหลังหักเงินบริจาค 10,000,000"
+      "answer_preview_th": "**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\nตามประมวลรัษฎากร มาตรา 65 ตรี (3) (ข) ประกอบ **คำสั่งกรมสรรพากร ที่ ป. 52/2537** รายจ่ายเพื่อการกุศลสาธารณะหักได้เฉพาะเมื่อตรวจสอบแล้วว่าผู้รับเป็นองค์การสาธารณกุศลตามประกาศกระทรวงการคลัง/ประกาศอธิบดีกรมสรรพากร และไม่เกินร้อยละ 2 ของกำไรสุทธิ โดยตาม ป. 52/2537 เมื่อโจทย์กำหนดกำไรสุทธิ **ก่อน** หักรายจ่ายบริจาค 10,200,000 บาท เพดานสูงสุดตามสัดส่วน **2/102** คือ `10,200,000 × 2 / 102` = **200,000 บาท** (ส่วนที่เกิน **100,000 บาท** เป็นรายจ่ายต้องห้าม; ทั้งนี้ หา"
     },
     {
       "case_id": "U-07",
@@ -1707,7 +1745,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1721,7 +1759,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1751,7 +1790,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1765,7 +1804,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1793,7 +1833,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1807,7 +1847,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
@@ -1835,7 +1876,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1849,7 +1890,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [],
@@ -1871,7 +1913,7 @@
       "release_id": "rel.B01.rc6",
       "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
       "execution_provenance": {
-        "git_commit_sha": "c9d7329c305354bf4674ac2f3c8e154dea8b738a",
+        "git_commit_sha": "4a6d0ed6f8fd43536da64a1f04134492d9e5adec",
         "release_id": "rel.B01.rc6",
         "manifest_id": "mfst.b01.rc6_core_auth",
         "manifest_hash": "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
@@ -1885,7 +1927,8 @@
           "store_topology_mode": "configured_env_dir",
           "hierarchy_of_authority_retrieval": true,
           "separate_calculation_verification": true,
-          "negated_fact_stripping_enabled": true
+          "negated_fact_stripping_enabled": true,
+          "tax_foundation_pilot_enabled": false
         }
       },
       "cited_work_ids": [
