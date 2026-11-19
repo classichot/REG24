@@ -545,7 +545,7 @@ export function analyzeLegalIssuesAndFacts(params: {
   // --- Regime H: VAT Rate (`7%` domestic / `807` expiry / `0%` export of service vs used in Thailand) ---
   const asksVatRate =
     !asksVatRegistration &&
-    (/(?:คิด\s*VAT\s*กี่ร้อยละ|VAT\s*ร้อยละ\s*7\s*หรือ\s*ร้อยละ\s*0|อัตรา\s*VAT|ความรับผิดใน\s*VAT[\s\S]{0,60}อัตราเท่าใด|พระราชกฤษฎีกาฉบับที่\s*807|เสียภาษีมูลค่าเพิ่มอัตราร้อยละ)/i.test(
+    (/(?:คิด\s*VAT\s*กี่ร้อยละ|VAT\s*ร้อยละ\s*7\s*หรือ\s*ร้อยละ\s*0|อัตรา\s*VAT|ความรับผิดใน\s*VAT[\s\S]{0,80}อัตรา(?:ที่ต้องใช้เป็น)?เท่าใด|พระราชกฤษฎีกาฉบับที่\s*807|เสียภาษีมูลค่าเพิ่มอัตราร้อยละ)/i.test(
       mergedContext
     ) && !/สำนักงานเศรษฐกิจและการค้าของต่างประเทศ/.test(activeClean));
 
@@ -620,6 +620,7 @@ export function analyzeLegalIssuesAndFacts(params: {
     const isRecipientUnspecified =
       !isForeignNoPe &&
       !isDomesticThaiCompanyRecipient &&
+      !/e-Withholding|3\s*ปัณรส/i.test(activeClean) &&
       !/บุคคลธรรมดา|มูลนิธิ|สมาคม/.test(activeClean) &&
       /(?:จ่าย\s*['"“”]?ค่าที่ปรึกษา|จ่ายค่าบริการ|จ่ายค่าจ้าง)/.test(activeClean);
 

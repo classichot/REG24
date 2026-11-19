@@ -769,6 +769,9 @@ export default function Reg24ModernistPage() {
   const taMaxRef = useRef<HTMLTextAreaElement | null>(null);
   const trIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const typeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const kgConversationHistoryRef = useRef<
+    Array<{ role: "user" | "assistant"; content: string; applicable_date?: string | null }>
+  >([]);
 
   const t = T[lang];
   const isTh = lang === "th";
@@ -969,20 +972,34 @@ export default function Reg24ModernistPage() {
 
       try {
         // Consult Knowledge GraphRAG store first when querying RD tax rulings, Revenue Code, or historical law
+        const looksLikeFollowUpTurn =
+          kgConversationHistoryRef.current.length > 0 &&
+          /^(?:ข้อมูลเพิ่มเติม|ข้อเท็จจริงเปลี่ยน|คำถามต่อเนื่อง|ต่อจากข้อ|หากเปลี่ยน|ถ้าเปลี่ยน|สมมติเปลี่ยน|\bfollow[- ]?up\b|\badditional\s+facts?\b|\bchanged\s+facts?\b)/i.test(
+            baseQ
+          );
         const looksLikeTaxOrRulingQuery =
           scope === "rd" ||
-          /กค\s*[0-9๐-๙]|ข้อหารือ|สรรพากร|ภาษี|อากรแสตมป์|ประมวลรัษฎากร|มาตรา\s*[0-9๐-๙]|พระราชกฤษฎีกา|ท\.ป\./i.test(
+          looksLikeFollowUpTurn ||
+          /กค\s*[0-9๐-๙]|ข้อหารือ|สรรพากร|ภาษี|อากรแสตมป์|ประมวลรัษฎากร|มาตรา\s*[0-9๐-๙]|พระราชกฤษฎีกา|กฎกระทรวง|ท\.ป\.|\bVAT\b|\bWHT\b|\bCIT\b|\bPIT\b|\bSBT\b|e-Withholding|withholding\s+tax|corporate\s+income\s+tax|คุ้มครองแรงงาน|คำพิพากษาศาลฎีกา|ฎีกาที่|หมายเรียก|บริจาค|โอนที่ดิน/i.test(
             baseQ
           );
         if (looksLikeTaxOrRulingQuery) {
           const explicitApplicableDate = chips.tm ? String(year) : null;
+          const historyForKg = looksLikeFollowUpTurn
+            ? kgConversationHistoryRef.current.slice(-6)
+            : [];
+          const isPureExactLookup =
+            /^(?:ค้นหา|แสดงแนววินิจฉัย|ขอสรุปแนววินิจฉัยในหนังสือตอบข้อหารือเลขที่)/i.test(
+              baseQ.trim()
+            );
           const kgRes = await fetch("/api/v1/knowledge/query", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               question: baseQ,
               applicable_date: explicitApplicableDate,
-              mode: /กค\s*[0-9๐-๙]/.test(baseQ) ? "exact_lookup" : "standard",
+              mode: isPureExactLookup ? "exact_lookup" : "standard",
+              conversation_history: historyForKg.length > 0 ? historyForKg : undefined,
             }),
           });
           if (kgRes.ok) {
@@ -1003,10 +1020,22 @@ export default function Reg24ModernistPage() {
                       .map((cq: string) => `- ${cq}`)
                       .join("\n")}`
                   : "";
+              const fullRenderedKgAnswer = `${kgAns.answer}${clarificationSuffix}`;
+              kgConversationHistoryRef.current = [
+                ...historyForKg,
+                { role: "user", content: baseQ, applicable_date: explicitApplicableDate },
+                { role: "assistant", content: fullRenderedKgAnswer },
+              ];
               const effectiveDateLabel =
                 kgAns.applicable_date || (lang === "th" ? "ตามข้อเท็จจริงในคำถาม" : "per query facts");
+              const provCommit = kgAns.execution_provenance?.git_commit_sha
+                ? ` · Commit ${String(kgAns.execution_provenance.git_commit_sha).slice(0, 7)}`
+                : "";
+              const provManifest = kgAns.execution_provenance?.manifest_id
+                ? ` (${kgAns.execution_provenance.manifest_id})`
+                : "";
               finalPayload = {
-                answer: `${kgAns.answer}${clarificationSuffix}`,
+                answer: fullRenderedKgAnswer,
                 citations:
                   Array.isArray(kgAns.evidence) && kgAns.evidence.length > 0
                     ? kgAns.evidence.slice(0, 4).map(
@@ -1018,8 +1047,8 @@ export default function Reg24ModernistPage() {
                     : [],
                 note:
                   lang === "th"
-                    ? `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · ขอบเขตเวลา: ${effectiveDateLabel}`
-                    : `GraphRAG Release ${kgAns.release_id} (${kgAns.status}) · Temporal scope: ${effectiveDateLabel}`,
+                    ? `GraphRAG Release ${kgAns.release_id}${provManifest}${provCommit} (${kgAns.status}) · ขอบเขตเวลา: ${effectiveDateLabel}`
+                    : `GraphRAG Release ${kgAns.release_id}${provManifest}${provCommit} (${kgAns.status}) · Temporal scope: ${effectiveDateLabel}`,
                 traceableAnswer: kgAns.traceable_answer || kgJson?.traceable_answer || null,
               };
             }

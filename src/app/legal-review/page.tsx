@@ -290,7 +290,12 @@ export default function LegalTeamReviewStudioPage() {
     setStatusBanner(null);
     setCheckedOriginalSource(false);
 
-    const historyForCall = appendFollowUp ? conversationHistory : [];
+    const looksLikeExplicitFollowUp =
+      conversationHistory.length > 0 &&
+      /^(?:ข้อมูลเพิ่มเติม|ข้อเท็จจริงเปลี่ยน|คำถามต่อเนื่อง|ต่อจากข้อ|หากเปลี่ยน|ถ้าเปลี่ยน|สมมติเปลี่ยน|\bfollow[- ]?up\b|\badditional\s+facts?\b|\bchanged\s+facts?\b)/i.test(
+        qToRun
+      );
+    const historyForCall = appendFollowUp || looksLikeExplicitFollowUp ? conversationHistory : [];
 
     try {
       const res = await fetch("/api/v1/knowledge/query", {
@@ -1114,6 +1119,16 @@ export default function LegalTeamReviewStudioPage() {
                   <span style={{ fontSize: "12px", color: "#9ca3af" }}>
                     หลักฐานที่ผูกอ้างอิง: <strong>{answerResult.evidence.length}</strong> รายการ ·
                     Trace ID: <code>{answerResult.trace_id}</code>
+                    {answerResult.execution_provenance ? (
+                      <>
+                        {" "}
+                        · Release: <code>{answerResult.execution_provenance.release_id}</code> (
+                        <code>{answerResult.execution_provenance.manifest_id || "-"}</code>) · Commit:{" "}
+                        <code>{answerResult.execution_provenance.git_commit_sha.slice(0, 7)}</code> ·
+                        CalcVerifier:{" "}
+                        <code>{answerResult.execution_provenance.calculation_verifier_version}</code>
+                      </>
+                    ) : null}
                   </span>
                 </div>
 
