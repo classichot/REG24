@@ -453,6 +453,7 @@ export interface TraceableAnswerEnvelope {
   unresolved_issues: UnresolvedIssueDto[];
   legacy_warning_th: string | null;
   update_notices?: NewerMaterialUpdateNoticeDto[];
+  execution_provenance?: import("./contracts").ExecutionProvenanceMetadata | null;
   verifier_metadata: {
     verifier_version: string;
     ruleset_version: string;

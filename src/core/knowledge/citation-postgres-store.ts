@@ -686,10 +686,10 @@ export async function persistAnswerRevisionToPostgres(params: {
        status, rendered_answer_th, ordered_claim_ids, unresolved_issues,
        user_supplied_facts, assumptions, legacy_warning_th, release_id,
        verifier_version, ruleset_version, owner_actor_id, owner_tenant_id,
-       actor_id, tenant_id, revision_reason, environment_scope
+       actor_id, tenant_id, revision_reason, environment_scope, execution_provenance
      ) VALUES (
        $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,
-       $16,$17,$18,$19,$20,$21,$22,$23,$24,$25
+       $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb
      )`,
     [
       env.answer_revision,
@@ -717,6 +717,7 @@ export async function persistAnswerRevisionToPostgres(params: {
       params.actor.tenant_id,
       params.revision_reason,
       envScope,
+      env.execution_provenance ? JSON.stringify(env.execution_provenance) : null,
     ]
   );
 
@@ -730,7 +731,7 @@ export async function persistAnswerRevisionToPostgres(params: {
         ).length;
         const base = claimParams.length;
         claimValuesSql.push(
-          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6}::jsonb,$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12})`
+          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6}::jsonb,$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13}::jsonb)`
         );
         claimParams.push(
           clm.claim_id,
@@ -744,14 +745,15 @@ export async function persistAnswerRevisionToPostgres(params: {
           clm.published,
           clm.withheld_explanation_th,
           null,
-          null
+          null,
+          clm.bound_calculation ? JSON.stringify(clm.bound_calculation) : null
         );
       }
       await db(
         `INSERT INTO citation_atomic_claim (
            claim_id, answer_revision_id, display_order, displayed_claim_text,
            claim_type, premise_claim_ids, verification_decision, evidence_link_count,
-           published, withheld_reason_th, human_approved_by, human_approval_audit_id
+           published, withheld_reason_th, human_approved_by, human_approval_audit_id, bound_calculation
          ) VALUES ${claimValuesSql.join(",")}`,
         claimParams
       );
@@ -810,8 +812,8 @@ export async function persistAnswerRevisionToPostgres(params: {
         `INSERT INTO citation_atomic_claim (
            claim_id, answer_revision_id, display_order, displayed_claim_text,
            claim_type, premise_claim_ids, verification_decision, evidence_link_count,
-           published, withheld_reason_th, human_approved_by, human_approval_audit_id
-         ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12)`,
+           published, withheld_reason_th, human_approved_by, human_approval_audit_id, bound_calculation
+         ) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13::jsonb)`,
         [
           clm.claim_id,
           env.answer_revision,
@@ -825,6 +827,7 @@ export async function persistAnswerRevisionToPostgres(params: {
           clm.withheld_explanation_th,
           null,
           null,
+          clm.bound_calculation ? JSON.stringify(clm.bound_calculation) : null,
         ]
       );
 
@@ -920,12 +923,14 @@ export async function loadSavedAnswerFromPostgres(
     actor_id: string;
     tenant_id: string;
     revision_reason: string;
+    execution_provenance?: TraceableAnswerEnvelope["execution_provenance"];
   }>(
     `SELECT answer_revision_id, answer_id, revision_number, supersedes_revision_id,
             channel, question_text, generated_at::text AS generated_at, as_of_date_raw,
             status, rendered_answer_th, unresolved_issues, user_supplied_facts,
             assumptions, legacy_warning_th, release_id, verifier_version, ruleset_version,
-            owner_actor_id, owner_tenant_id, actor_id, tenant_id, revision_reason
+            owner_actor_id, owner_tenant_id, actor_id, tenant_id, revision_reason,
+            execution_provenance
      FROM citation_published_answer
      WHERE answer_revision_id = $1 OR answer_id = $1
      ORDER BY revision_number DESC
@@ -987,9 +992,11 @@ export async function loadSavedAnswerFromPostgres(
     verification_decision: PublishedAtomicClaimDto["verification_decision"];
     published: boolean;
     withheld_reason_th: string | null;
+    bound_calculation?: PublishedAtomicClaimDto["bound_calculation"];
   }>(
     `SELECT claim_id, display_order, displayed_claim_text, claim_type,
-            premise_claim_ids, verification_decision, published, withheld_reason_th
+            premise_claim_ids, verification_decision, published, withheld_reason_th,
+            bound_calculation
      FROM citation_atomic_claim
      WHERE answer_revision_id = $1
      ORDER BY display_order ASC`,
@@ -1033,7 +1040,7 @@ export async function loadSavedAnswerFromPostgres(
             p.printed_page_start, p.printed_page_end, p.anchors, p.access_scope,
             d.issuer_id, d.source_family, d.record_type, d.access_permission, d.access_conditions_th,
             v.effective_from::text AS effective_from, v.publication_date::text AS publication_date,
-            COALESCE(loc.link_health, 'verified_online') AS link_health,
+            COALESCE(loc.link_health, 'unchecked_live') AS link_health,
             loc.last_successful_verified_at::text AS last_successful_verified_at
      FROM citation_claim_evidence_link l
      JOIN citation_evidence_passage p ON p.passage_id = l.passage_id
@@ -1142,6 +1149,7 @@ export async function loadSavedAnswerFromPostgres(
       published: Boolean(c.published),
       withheld_explanation_th: c.withheld_reason_th,
       evidence_references: refs,
+      bound_calculation: c.bound_calculation ?? null,
     };
   });
 
@@ -1190,6 +1198,7 @@ export async function loadSavedAnswerFromPostgres(
       claims: claimsOut,
       unresolved_issues: Array.isArray(row.unresolved_issues) ? row.unresolved_issues : [],
       legacy_warning_th: row.legacy_warning_th,
+      execution_provenance: row.execution_provenance ?? null,
       verifier_metadata: {
         verifier_version: row.verifier_version,
         ruleset_version: row.ruleset_version,
@@ -1369,8 +1378,8 @@ export async function loadPinnedPassageFromPostgres(
       last_successful_verified_at: r.last_successful_verified_at,
       verification_method: "postgres_durable",
       identity_match_result: "VERIFIED_MATCH",
-      link_health: r.link_health || "verified_online",
-      last_http_status: 200,
+      link_health: r.link_health || "unchecked_live",
+      last_http_status: r.link_health === "verified_online" ? 200 : null,
       failure_reason: null,
       is_active_primary: true,
     },
@@ -1732,8 +1741,8 @@ export async function loadAllOnboardedSourcesFromPostgres(): Promise<{
         last_successful_verified_at: r.last_successful_verified_at,
         verification_method: "postgres_durable",
         identity_match_result: "VERIFIED_MATCH",
-        link_health: r.link_health || "verified_online",
-        last_http_status: 200,
+        link_health: r.link_health || "unchecked_live",
+        last_http_status: r.link_health === "verified_online" ? 200 : null,
         failure_reason: null,
         is_active_primary: true,
       };

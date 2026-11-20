@@ -211,15 +211,35 @@ export default function LegalTeamReviewStudioPage() {
               ? "CONDITIONAL"
               : "INSUFFICIENT_EVIDENCE",
         answer: env.rendered_answer_th,
-        claims: [],
+        claims: env.claims.map((c) => ({
+          claim_id: c.claim_id,
+          statement: c.text,
+          claim_type:
+            c.claim_type === "interpretation"
+              ? ("qualified_legal_synthesis" as const)
+              : ("direct_source_statement" as const),
+          statement_role: "statutory_text" as const,
+          supporting_passage_ids: c.evidence_references.map((r) => r.evidence_id),
+          applicable_version_id: c.evidence_references[0]?.version_id ?? null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result:
+            c.verification_decision === "supported"
+              ? ("VERIFIED" as const)
+              : ("UNSUPPORTED" as const),
+          bound_calculation: c.bound_calculation ?? null,
+        })),
         evidence: evidenceCards,
         assumptions: env.assumptions,
         clarification_questions: [],
         coverage_warnings: [],
         applicable_date: env.as_of_date,
-        model_policy_version: env.verifier_metadata.verifier_version,
+        model_policy_version:
+          env.execution_provenance?.model_policy_version || env.verifier_metadata.verifier_version,
         trace_id: env.answer_revision,
         latency_ms: 0,
+        execution_provenance: env.execution_provenance ?? undefined,
         traceable_answer: env,
       };
     },

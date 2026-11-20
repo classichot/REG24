@@ -2518,6 +2518,9 @@ export async function saveOrReviseAnswerServerVerified(
     assumptions: sub.assumptions || [],
     persist_atomically: false,
   });
+  if (sub.execution_provenance) {
+    serverValidated.execution_provenance = sub.execution_provenance;
+  }
 
   // Reject if caller tried to save an answer claiming to be supported when server validation found ZERO supported claims!
   if (callerClaimedSupported && serverValidated.status === "insufficient") {

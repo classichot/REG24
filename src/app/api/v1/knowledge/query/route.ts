@@ -14,6 +14,10 @@ import type { TraceablePublicationChannel } from "../../../../../core/knowledge/
 import type { ConversationTurnInput } from "../../../../../core/knowledge/contracts";
 import { saveOrReviseAnswerServerVerified } from "../../../../../core/knowledge/claim-traceability-engine";
 
+// Allow up to 300s on Vercel Fluid Compute / Serverless so live Gemini 4 Neon @ low (30–90s)
+// + cold-start hydration + Neon Postgres persistence never hit a 60s timeout cutoff.
+export const maxDuration = 300;
+
 export async function POST(req: Request) {
   const reqStartedAt = performance.now();
   try {
@@ -132,7 +136,10 @@ export async function POST(req: Request) {
         body.conversation_history.some((t) => t.role === "user" && Boolean(t.content?.trim()));
 
       const pgSaved = await saveOrReviseAnswerServerVerified(store, {
-        submitted_envelope: answer.traceable_answer,
+        submitted_envelope: {
+          ...answer.traceable_answer,
+          execution_provenance: answer.execution_provenance ?? null,
+        },
         question_text: qClean,
         revision_reason: isFollowUpSave
           ? "Persisted follow-up verified answer from query endpoint"

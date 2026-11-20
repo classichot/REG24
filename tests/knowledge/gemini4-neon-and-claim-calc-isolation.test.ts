@@ -331,4 +331,379 @@ describe("Gemini 4 Neon Staging Candidate & Per-Claim Calculation Isolation", ()
     expect(reopened.answer?.claims[0].bound_calculation?.outputs.elective_tax_thb).toBe(750_000);
     expect(reopened.answer?.rendered_answer_th).not.toContain("ค่าธรรมเนียมพิเศษเพิ่มเติม");
   });
+
+  it("4) RC9.1 Neon Postgres persistence accepts link_health='unchecked_live' and round-trips execution_provenance + bound_calculation on cold-start reopen", async () => {
+    const {
+      loadSavedAnswerFromPostgres,
+      persistAnswerRevisionToPostgres,
+      setCustomCitationDbTransportForTesting,
+    } = await import("../../src/core/knowledge/citation-postgres-store");
+
+    const ALLOWED_LINK_HEALTH = new Set([
+      "verified_online",
+      "unchecked_live",
+      "temporarily_offline",
+      "moved_verified",
+      "quarantined_identity_failure",
+    ]);
+    const savedRows: {
+      location?: Record<string, unknown>;
+      answer?: Record<string, unknown>;
+      claims: Record<string, unknown>[];
+      links: Record<string, unknown>[];
+    } = { claims: [], links: [] };
+
+    const parseJson = (v: unknown) => (typeof v === "string" ? JSON.parse(v) : v);
+
+    setCustomCitationDbTransportForTesting(async <T = Record<string, unknown>>(query: string, params: unknown[] = []) => {
+      const q = query.trim();
+      if (q.startsWith("INSERT INTO citation_official_location")) {
+        const lh = String(params[14]);
+        if (!ALLOWED_LINK_HEALTH.has(lh)) {
+          throw new Error(
+            `NEON_CITATION_SQL_HTTP_400: violates check constraint "citation_official_location_link_health_check" (${lh})`
+          );
+        }
+        savedRows.location = { doc_id: params[1], link_health: lh, last_successful_verified_at: params[11] };
+        return { rows: [] as T[], rowCount: 1 };
+      }
+      if (q.startsWith("INSERT INTO citation_published_answer")) {
+        savedRows.answer = {
+          answer_revision_id: params[0],
+          answer_id: params[1],
+          revision_number: params[2],
+          supersedes_revision_id: params[3],
+          channel: params[4],
+          question_text: params[5],
+          generated_at: params[6],
+          as_of_date_raw: params[8],
+          status: params[9],
+          rendered_answer_th: params[10],
+          ordered_claim_ids: parseJson(params[11]),
+          unresolved_issues: parseJson(params[12]),
+          user_supplied_facts: parseJson(params[13]),
+          assumptions: parseJson(params[14]),
+          legacy_warning_th: params[15],
+          release_id: params[16],
+          verifier_version: params[17],
+          ruleset_version: params[18],
+          owner_actor_id: params[19],
+          owner_tenant_id: params[20],
+          actor_id: params[21],
+          tenant_id: params[22],
+          revision_reason: params[23],
+          execution_provenance: parseJson(params[25]),
+        };
+        return { rows: [] as T[], rowCount: 1 };
+      }
+      if (q.startsWith("INSERT INTO citation_atomic_claim")) {
+        savedRows.claims.push({
+          claim_id: params[0],
+          answer_revision_id: params[1],
+          display_order: params[2],
+          displayed_claim_text: params[3],
+          claim_type: params[4],
+          premise_claim_ids: parseJson(params[5]),
+          verification_decision: params[6],
+          published: params[8],
+          withheld_reason_th: params[9],
+          bound_calculation: parseJson(params[12]),
+        });
+        return { rows: [] as T[], rowCount: 1 };
+      }
+      if (q.startsWith("INSERT INTO citation_claim_evidence_link")) {
+        savedRows.links.push({
+          link_id: params[0],
+          claim_id: params[2],
+          passage_id: params[3],
+          version_id: params[4],
+          support_role: params[5],
+          required_group: params[6],
+          citation_label_th: params[7],
+          official_url: params[8],
+          resolver_url: params[9],
+          human_pinpoint_th: params[10],
+          doc_id: "doc.test.rc9",
+          extraction_revision_id: "ext.test.rc9",
+          section_paragraph_path: ["มาตรา 42 (28)"],
+          physical_page_start: 1,
+          physical_page_end: 1,
+          printed_page_start: "1",
+          printed_page_end: "1",
+          anchors: [],
+          access_scope: "scope.platform.public",
+          issuer_id: "reg.th.rd",
+          source_family: "gazette_enactment",
+          record_type: "full_record",
+          access_permission: "public",
+          access_conditions_th: null,
+          effective_from: "2016-02-01",
+          publication_date: "2015-08-05",
+          link_health: savedRows.location?.link_health ?? "unchecked_live",
+          last_successful_verified_at: null,
+        });
+        return { rows: [] as T[], rowCount: 1 };
+      }
+      if (q.startsWith("SELECT answer_revision_id, answer_id, revision_number, supersedes_revision_id,")) {
+        return { rows: (savedRows.answer ? [savedRows.answer] : []) as T[], rowCount: savedRows.answer ? 1 : 0 };
+      }
+      if (q.startsWith("SELECT answer_revision_id, revision_number, supersedes_revision_id,")) {
+        return { rows: (savedRows.answer ? [savedRows.answer] : []) as T[], rowCount: savedRows.answer ? 1 : 0 };
+      }
+      if (q.startsWith("SELECT claim_id, display_order, displayed_claim_text,")) {
+        return { rows: savedRows.claims as T[], rowCount: savedRows.claims.length };
+      }
+      if (q.startsWith("SELECT l.link_id, l.claim_id, l.passage_id,")) {
+        return { rows: savedRows.links as T[], rowCount: savedRows.links.length };
+      }
+      return { rows: [] as T[], rowCount: 0 };
+    });
+
+    try {
+      const boundCalc: ClaimBoundCalculationRecord = {
+        calculation_id: "calc.pg.roundtrip.1",
+        claim_id: "clm.pg.1",
+        answer_revision: "ans.pg.rc9.r1",
+        verifier_version: "reg24-tax-calc-verifier-v1.0",
+        formula: "elective_tax_5pct = (25,000,000 - 10,000,000) * 5% = 750,000 THB",
+        inputs: { gift_amount_thb: 25_000_000, exemption_thb: 10_000_000 },
+        outputs: { elective_tax_thb: 750_000 },
+        units: { primary_unit: "THB", detail_th: "บาท" },
+        source_versions: [{ evidence_id: "psg.test.rc9", doc_id: "doc.test.rc9", version_id: "ver.test.rc9" }],
+        verified_numeric_tokens: ["750000"],
+        verified_at: new Date().toISOString(),
+      };
+      const execProv = {
+        git_commit_sha: "b4b1f585764d564a877547bd446d7535fa8e467a",
+        release_id: "rel.B01.rc6",
+        manifest_id: "mfst.b01.rc6_core_auth",
+        manifest_hash: "c539710fa3804b05f5e47729977b085993a5b5e5c109003ed71a24a7d8621ed5",
+        model_id: "google-gemini:gemini-4-neon",
+        model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+        claim_verifier_version: "reg24-claim-verifier-v2.1",
+        calculation_verifier_version: "reg24-tax-calc-verifier-v1.0",
+        ruleset_version: "th-official-traceability-2026.11.2",
+        query_kind: "LEGAL_FACT_APPLICATION" as const,
+        generation_mode: "llm_grounded" as const,
+        configuration: {
+          store_topology_mode: "ephemeral_serverless_tmp" as const,
+          hierarchy_of_authority_retrieval: true,
+          separate_calculation_verification: true,
+          negated_fact_stripping_enabled: true,
+          tax_foundation_pilot_enabled: false,
+          grounded_llm_staging_enabled: true,
+          template_fallback_disabled: true,
+        },
+        provider_invocation: {
+          provider: "google-gemini" as const,
+          api_surface: "interactions-v1beta" as const,
+          requested_model: "gemini-4-neon",
+          resolved_model: "gemini-4-neon",
+          actual_model_invoked: "gemini-4-neon",
+          pinned_settings: {
+            thinking_level: "low" as const,
+            thinking_level_note: null,
+            temperature: 0,
+            max_output_tokens: 16384,
+            timeout_ms: 120000,
+            store: false as const,
+          },
+          prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+          live_provider_called: true,
+          silent_fallback_disabled: true,
+          provider_interaction_id: null,
+          provider_response_status: "completed" as const,
+          failure_classification: "NONE" as const,
+          latency_ms: 30871,
+          input_tokens: 20374,
+          output_tokens: 1925,
+          thought_tokens: 1629,
+          total_tokens: 23928,
+          estimated_cost_usd: 0.061,
+          attempts: [],
+          error_summary: null,
+        },
+      };
+
+      await persistAnswerRevisionToPostgres({
+        envelope: {
+          schema_version: "reg24.citation-traceability.v1",
+          answer_id: "ans.pg.rc9",
+          answer_revision: "ans.pg.rc9.r1",
+          revision_number: 1,
+          supersedes_answer_revision: null,
+          channel: "chat",
+          generated_at: new Date().toISOString(),
+          as_of_date: "2026-09-30",
+          status: "complete",
+          rendered_answer_th: "คำตอบที่บันทึกไว้",
+          user_supplied_facts: [],
+          assumptions: [],
+          execution_provenance: execProv,
+          claims: [
+            {
+              claim_id: "clm.pg.1",
+              claim_number: 1,
+              text: "ภาษี 750,000 บาท",
+              claim_type: "interpretation",
+              claim_type_label_th: "การปรับใช้ข้อกฎหมาย",
+              premise_ids: [],
+              verification_decision: "supported",
+              published: true,
+              withheld_explanation_th: null,
+              bound_calculation: boundCalc,
+              evidence_references: [
+                {
+                  link_id: "lnk.pg.1",
+                  evidence_id: "psg.test.rc9",
+                  doc_id: "doc.test.rc9",
+                  version_id: "ver.test.rc9",
+                  extraction_revision_id: "ext.test.rc9",
+                  support_role: "primary_authority",
+                  support_role_label_th: "หลักฐานกฎหมายหลัก",
+                  required_group: "grp.1",
+                  citation_label_th: "ประมวลรัษฎากร มาตรา 42 (28)",
+                  issuer_name_th: "กรมสรรพากร",
+                  source_family: "gazette_enactment",
+                  source_family_label_th: "กฎหมาย",
+                  record_type: "full_record",
+                  record_type_label_th: "เอกสารฉบับเต็มทางการ",
+                  date_relied_on: "2026-09-30",
+                  official_url: "https://www.rd.go.th/5937.html",
+                  official_url_with_anchor: "https://www.rd.go.th/5937.html",
+                  resolver_url: "/api/v1/knowledge/evidence/psg.test.rc9",
+                  locator: {
+                    human_pinpoint_th: "มาตรา 42 (28)",
+                    section_paragraph_path: ["มาตรา 42 (28)"],
+                    physical_page_start: 1,
+                    physical_page_end: 1,
+                    printed_page_start: "1",
+                    printed_page_end: "1",
+                    anchors: [],
+                  },
+                  verification_status: "supported",
+                  link_health: "unchecked_live",
+                  link_health_notice_th: null,
+                  last_successful_verification_at: null,
+                  access_permission: "public",
+                  access_conditions_th: null,
+                },
+              ],
+            },
+          ],
+          unresolved_issues: [],
+          legacy_warning_th: null,
+          verifier_metadata: {
+            verifier_version: "reg24-claim-verifier-v2.1",
+            ruleset_version: "th-official-traceability-2026.11.2",
+            release_id: "rel.B01.rc6",
+            publication_gate_mode: "enforced",
+          },
+        },
+        question_text: "คำถามทดสอบ",
+        owner_actor_id: QA_ACTOR.actor_id,
+        owner_tenant_id: QA_ACTOR.tenant_id,
+        actor: QA_ACTOR,
+        revision_reason: "RC9.1 cold-start reopen provenance test",
+        referenced_bundles: [
+          {
+            doc: {
+              doc_id: "doc.test.rc9",
+              source_family: "gazette_enactment",
+              issuer_id: "reg.th.rd",
+              source_native_id: "มาตรา 42 (28)",
+              reviewed_surrogate_id: null,
+              is_reviewed_surrogate: false,
+              original_title_th: "ประมวลรัษฎากร มาตรา 42 (28)",
+              language: "th",
+              record_type: "full_record",
+              access_permission: "public",
+              preservation_permission: "retained_artifact_permitted",
+              access_scope: "scope.platform.public",
+              access_conditions_th: null,
+              eligible_for_citation: true,
+              ineligible_reason: null,
+              canonical_work_id: "work.test.rc9",
+              owner_batch_id: "B01",
+              created_at: new Date().toISOString(),
+            },
+            version: {
+              version_id: "ver.test.rc9",
+              doc_id: "doc.test.rc9",
+              artifact_sha256: "a".repeat(64),
+              captured_at: new Date().toISOString(),
+              artifact_ref: "mem://test",
+              mime_type: "text/plain",
+              byte_size: 100,
+              source_metadata: {},
+              publication_date: "2015-08-05",
+              publication_date_status: "known",
+              effective_from: "2016-02-01",
+              effective_to: null,
+              effective_date_status: "open_ended",
+              applicability_rules_th: [],
+              affected_provisions: [],
+              predecessor_version_id: null,
+              amending_version_ids: [],
+              byte_change_classification: "initial_capture",
+              canonical_version_id: null,
+              created_at: new Date().toISOString(),
+            },
+            location: {
+              location_id: "oloc.test.rc9",
+              doc_id: "doc.test.rc9",
+              version_id: "ver.test.rc9",
+              exact_official_url: "https://www.rd.go.th/5937.html",
+              role: "primary_official",
+              parent_landing_location_id: null,
+              original_observed_url: "https://www.rd.go.th/5937.html",
+              redirect_history: [],
+              prior_urls: [],
+              first_verified_at: null,
+              last_verified_at: null,
+              last_successful_verified_at: null,
+              verification_method: "canonical_corpus_unchecked_live",
+              identity_match_result: "VERIFIED_MATCH",
+              link_health: "unchecked_live",
+              last_http_status: null,
+              failure_reason: null,
+              is_active_primary: true,
+            },
+            extraction: {
+              extraction_revision_id: "ext.test.rc9",
+              version_id: "ver.test.rc9",
+              parent_revision_id: null,
+              parser_or_ocr_version: "v1",
+              is_scanned_material: false,
+              page_mapping: [],
+              raw_transcription: "มาตรา 42 (28)",
+              normalized_search_text: "มาตรา 42 (28)",
+              alignment_map: [],
+              ocr_ambiguity_detected: false,
+              ocr_ambiguity_reasons: [],
+              review_status: "VERIFIED_NATIVE",
+              reviewer_id: null,
+              reviewed_at: null,
+              correction_note: null,
+              created_at: new Date().toISOString(),
+            },
+            passages: [],
+          },
+        ],
+      });
+
+      const reloaded = await loadSavedAnswerFromPostgres("ans.pg.rc9.r1", QA_ACTOR);
+      expect(reloaded.found).toBe(true);
+      expect(reloaded.answer?.execution_provenance?.model_id).toBe("google-gemini:gemini-4-neon");
+      expect(reloaded.answer?.execution_provenance?.provider_invocation?.resolved_model).toBe("gemini-4-neon");
+      expect(
+        (reloaded.answer?.execution_provenance?.provider_invocation?.pinned_settings as Record<string, unknown> | undefined)
+          ?.thinking_level
+      ).toBe("low");
+      expect(reloaded.answer?.claims[0].bound_calculation?.outputs.elective_tax_thb).toBe(750_000);
+      expect(reloaded.answer?.claims[0].evidence_references[0].link_health).toBe("unchecked_live");
+    } finally {
+      setCustomCitationDbTransportForTesting(null);
+    }
+  });
 });

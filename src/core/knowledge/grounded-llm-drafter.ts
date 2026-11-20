@@ -957,8 +957,10 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
     requestedThinking
   );
 
-  // Give high-thinking reasoning models enough synchronous budget (90s default) so high reasoning isn't prematurely aborted.
-  const timeoutMs = params.timeoutMs ?? (thinking_level === "high" ? 90_000 : 60_000);
+  // Give Gemini 4 reasoning models enough synchronous budget (120s default) so live low/high reasoning isn't prematurely aborted at 60s.
+  const isGemini4Family = /^gemini-4(?:\b|-)/i.test(requestedModel);
+  const timeoutMs =
+    params.timeoutMs ?? (isGemini4Family ? 120_000 : thinking_level === "high" ? 90_000 : 60_000);
   const userPrompt = buildGroundedLlmUserPrompt({
     question: params.question,
     factLedger: params.factLedger,
