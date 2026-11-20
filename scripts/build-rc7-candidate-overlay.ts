@@ -17,25 +17,26 @@
  *   4. Adds verified graph edges (`AMENDS`, `MADE_UNDER`, `HAS_EXCEPTION`, `HAS_CONDITION`) connecting
  *      the VAT reduction decrees, Revenue Code §80 / §80/1 / §81 / §78 / §78/1, and local-tax authority.
  *   5. Builds Fielded BM25 Lexical + Graph + Deliberately-Disabled Vector projections from the SAME immutable
- *      manifest for BOTH `rel.B01.rc6` (for clean rollback!) AND `rel.B01.rc7`, using real Python PyThaiNLP `newmm`
- *      + `reg24-th-legal-dict-v1.0` when `.venv-nlp` is present.
+ *      manifest for BOTH `rel.B01.rc6` (for clean rollback!) AND `rel.B01.rc7`, using ONE pinned single-engine
+ *      TypeScript normalization/tokenizer/dictionary contract (`ts_legal_dict_intl_v1.0+reg24-th-legal-dict-v1.0`)
+ *      identically at index build and live query time (zero mixed-engine build, zero per-passage fallback).
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { execFileSync } from "node:child_process";
 import { sha256Bytes } from "../src/core/knowledge/identity";
 import { DurableKnowledgeStore } from "../src/core/knowledge/store";
 import {
   buildReleaseProjectionsFromOutbox,
   inspectReleaseProjectionDiagnostics,
+  runTokenizerParityProbe,
 } from "../src/core/knowledge/projections";
 import {
   extractCompositeLegalTokens,
   extractPreservedNegationTokens,
   getThaiLegalDictionarySha256,
+  getThaiTokenizerContractMetadata,
   normalizeTextForThaiLegalSearchField,
-  THAI_LEGAL_COMPOUND_TERMS,
   THAI_LEGAL_DICTIONARY_VERSION,
 } from "../src/core/knowledge/thai-legal-dictionary-v1";
 import type {
@@ -255,54 +256,6 @@ const VERIFIED_DECREES: VerifiedDecreeSpec[] = [
     ],
   },
 ];
-
-function runPyThaiNlpTokenizerForRelease(
-  store: DurableKnowledgeStore,
-  releaseId: string
-):
-  | {
-      tokenizer_engine: string;
-      legal_dictionary_version: string;
-      legal_dictionary_sha256: string;
-      passages: Record<string, { title_tokens: string[]; body_tokens: string[] }>;
-    }
-  | undefined {
-  if (!fs.existsSync(PYTHON_EXE) || !fs.existsSync(PY_TOKENIZER_SCRIPT)) {
-    console.warn("Python PyThaiNLP venv not found; falling back to runtime TS dictionary tokenizer.");
-    return undefined;
-  }
-  const st = store.getState();
-  const passages = store.getPassagesForRelease(releaseId);
-  const tmpDir = path.join(store.dataDir, "reports");
-  fs.mkdirSync(tmpDir, { recursive: true });
-  const inPath = path.join(tmpDir, `_tmp_pythainlp_in_${releaseId}.json`);
-  const outPath = path.join(tmpDir, `_tmp_pythainlp_out_${releaseId}.json`);
-
-  const payload = {
-    legal_dictionary_version: THAI_LEGAL_DICTIONARY_VERSION,
-    legal_dictionary_sha256: getThaiLegalDictionarySha256(),
-    legal_dictionary_terms: Array.from(THAI_LEGAL_COMPOUND_TERMS),
-    passages: passages.map((p) => {
-      const w = st.works[p.work_id];
-      return {
-        passage_id: p.passage_id,
-        title_text: `${w?.title_th || ""} ${p.contextualized_header || ""} ${(p.structural_path || []).join(" ")}`,
-        body_text: p.exact_text,
-      };
-    }),
-  };
-  fs.writeFileSync(inPath, JSON.stringify(payload), "utf8");
-  try {
-    execFileSync(PYTHON_EXE, [PY_TOKENIZER_SCRIPT, "--input", inPath, "--output", outPath], {
-      stdio: "inherit",
-      env: { ...process.env, PYTHONUTF8: "1" },
-    });
-    return JSON.parse(fs.readFileSync(outPath, "utf8"));
-  } finally {
-    if (fs.existsSync(inPath)) fs.unlinkSync(inPath);
-    if (fs.existsSync(outPath)) fs.unlinkSync(outPath);
-  }
-}
 
 async function main() {
   const store = new DurableKnowledgeStore(STORE_DIR);
@@ -741,7 +694,7 @@ async function main() {
         prior_release_preserved_state: rc6Rel.state,
         prior_chat_approval_preserved: false,
         explanation:
-          "Isolated Batch 1 candidate adding Gazette-verified Royal Decree 790 (2024-10-01..2025-09-30), revalidating Gazette originals & explicit end dates for 799 (2025-10-01..2026-09-30) and 807 (2026-10-01..2027-09-30), and building manifest-pinned Thai legal fielded BM25 projections (PyThaiNLP newmm + reg24-th-legal-dict-v1.0) with legacy char-hash vectors deliberately disabled.",
+          "Isolated Batch 1 candidate adding Gazette-verified Royal Decree 790 (2024-10-01..2025-09-30), revalidating Gazette originals & explicit end dates for 799 (2025-10-01..2026-09-30) and 807 (2026-10-01..2027-09-30), and building manifest-pinned Thai legal fielded BM25 projections using ONE single-engine pinned TypeScript tokenizer contract (ts_legal_dict_intl_v1.0+reg24-th-legal-dict-v1.0) identically on both index and query sides, with legacy char-hash vectors deliberately disabled.",
       },
       created_work_ids: ["subreg.th.rc.royal_decree.790"],
       created_version_ids: createdVersions.map((v) => v.version_id),
@@ -758,7 +711,7 @@ async function main() {
           actor_id: "engineering.rc10@reg24.th",
           at: nowIso,
           revision: 7,
-          note: "Built isolated rel.B01.rc7 candidate from rel.B01.rc6 without mutating RC6",
+          note: "Built isolated rel.B01.rc7 candidate from rel.B01.rc6 without mutating RC6 (single-engine TS tokenizer parity enforced)",
         },
       ],
       created_at: beforeState.releases[RC7_RELEASE_ID]?.created_at || nowIso,
@@ -767,27 +720,31 @@ async function main() {
   });
 
   // 2. Build matching projections for BOTH rel.B01.rc6 (clean rollback!) AND rel.B01.rc7
-  console.log("\n=== Tokenizing & building Fielded BM25 + Graph projections for rel.B01.rc6 (rollback set) ===");
-  const rc6PyTok = runPyThaiNlpTokenizerForRelease(store, "rel.B01.rc6");
+  // Uses ONE single-engine pinned TypeScript normalization/tokenizer/dictionary contract on BOTH index & live query!
+  // Zero Python/Node mixed-engine build and zero per-passage fallback.
+  console.log("\n=== Building Fielded BM25 (TS single-engine parity) + Graph projections for rel.B01.rc6 (rollback set) ===");
   const rc6Receipts = await buildReleaseProjectionsFromOutbox(store, "rel.B01.rc6", "durable_disk", {
     vectorMode: "deliberately_disabled",
-    externalTokenizerOutput: rc6PyTok,
   });
   console.log("rel.B01.rc6 receipts:", rc6Receipts.map((r) => `${r.projection_kind}:${r.completion_state}:${r.item_count}:${r.vector_status || "ok"}`));
 
-  console.log("\n=== Tokenizing & building Fielded BM25 + Graph projections for rel.B01.rc7 (new candidate) ===");
-  const rc7PyTok = runPyThaiNlpTokenizerForRelease(store, RC7_RELEASE_ID);
+  console.log("\n=== Building Fielded BM25 (TS single-engine parity) + Graph projections for rel.B01.rc7 (new candidate) ===");
   const rc7Receipts = await buildReleaseProjectionsFromOutbox(store, RC7_RELEASE_ID, "durable_disk", {
     vectorMode: "deliberately_disabled",
-    externalTokenizerOutput: rc7PyTok,
   });
   console.log("rel.B01.rc7 receipts:", rc7Receipts.map((r) => `${r.projection_kind}:${r.completion_state}:${r.item_count}:${r.vector_status || "ok"}`));
 
   const diagRc6 = inspectReleaseProjectionDiagnostics(store, "rel.B01.rc6");
   const diagRc7 = inspectReleaseProjectionDiagnostics(store, RC7_RELEASE_ID);
+  const parityProbeRc7 = runTokenizerParityProbe(store, RC7_RELEASE_ID);
   console.log("\n=== PROJECTION DIAGNOSTICS ===");
   console.log("rel.B01.rc6:", JSON.stringify(diagRc6, null, 2));
   console.log("rel.B01.rc7:", JSON.stringify(diagRc7, null, 2));
+  console.log("\n=== TOKENIZER PARITY PROBE (rel.B01.rc7) ===");
+  console.log(JSON.stringify(parityProbeRc7, null, 2));
+  if (!parityProbeRc7.all_probes_ok) {
+    throw new Error("TOKENIZER_PARITY_PROBE_FAILED on rel.B01.rc7!");
+  }
 
   // Verify idempotency & rollback separation
   const rc6PsgIds = store.getPassagesForRelease("rel.B01.rc6").map((p) => p.passage_id);

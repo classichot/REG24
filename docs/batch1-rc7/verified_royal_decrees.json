@@ -1,0 +1,129 @@
+{
+  "receipt_schema_version": "1.0",
+  "release_id": "rel.B01.rc7",
+  "preserved_rollback_release_id": "rel.B01.rc6",
+  "verification_method": "Direct HTTP 200 fetch from www.rd.go.th + SHA-256 verification + immutable binary archival in repo + page-by-page visual inspection of rendered Gazette PDF pages (required because Gazette TCPDF files have non-standard ToUnicode CMap tables).",
+  "decrees": [
+    {
+      "work_id": "subreg.th.rc.royal_decree.790",
+      "version_id_rc7": "ver.th.rc.royal_decree.790.v1",
+      "present_in_rc6": false,
+      "title_th": "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ ๗๙๐) พ.ศ. ๒๕๖๗",
+      "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc790.pdf",
+      "repo_archived_pdf_path": "data/knowledge-store-b01-rc2-staging/artifacts/8cee8f1d3715313f0538e99b1f6cb6887945e943ade089022a5d9d2bc8c5a14e.bin",
+      "sha256": "8cee8f1d3715313f0538e99b1f6cb6887945e943ade089022a5d9d2bc8c5a14e",
+      "byte_size": 93999,
+      "page_count": 3,
+      "royal_gazette": {
+        "volume": "๑๔๑",
+        "part": "๕๗ ก",
+        "pages": "๑–๓"
+      },
+      "dates": {
+        "enactment_date": "2024-09-19",
+        "publication_date": "2024-09-20",
+        "commencement_date": "2024-10-01",
+        "covered_transaction_period": {
+          "from": "2017-10-01",
+          "to": "2025-09-30"
+        },
+        "active_governing_window": {
+          "valid_from": "2024-10-01",
+          "valid_to": "2025-09-30",
+          "is_temporary_rule": true
+        }
+      },
+      "countersigning_minister": "แพทองธาร ชินวัตร นายกรัฐมนตรี",
+      "verified_sections": [
+        { "section_key": "sec_1_2", "pdf_page_zero_based": 0, "printed_page": "หน้า ๑", "summary": "มาตรา ๑ ชื่อกฎหมาย, มาตรา ๒ ใช้บังคับตั้งแต่วันที่ ๑ ตุลาคม พ.ศ. ๒๕๖๗" },
+        { "section_key": "sec_3_4", "pdf_page_zero_based": 1, "printed_page": "หน้า ๒", "summary": "มาตรา ๓-๔ แก้ไข พ.ร.ฎ. ๖๔๖ คงจัดเก็บ VAT ๖.๓% สำหรับความรับผิด ๑ ต.ค. ๒๕๖๐ – ๓๐ ก.ย. ๒๕๖๘" },
+        { "section_key": "note", "pdf_page_zero_based": 2, "printed_page": "หน้า ๓", "summary": "หมายเหตุ เหตุผลในการขยายเวลาลดอัตรา VAT ถึง ๓๐ ก.ย. ๒๕๖๘" }
+      ]
+    },
+    {
+      "work_id": "subreg.th.rc.royal_decree.799",
+      "version_id_rc7": "ver.th.rc.royal_decree.799.v2",
+      "present_in_rc6": true,
+      "rc6_version_preserved": "ver.th.rc.royal_decree.799.v1",
+      "rc6_defects_fixed": [
+        "publication_date corrected from 2025-10-01 to 2025-09-14 (separate from commencement_date 2025-10-01)",
+        "enactment_date 2025-09-13 and covered_transaction_period 2017-10-01..2026-09-30 stored separately",
+        "official Royal Gazette PDF archived with SHA-256 and real pdf_page locators"
+      ],
+      "title_th": "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ ๗๙๙) พ.ศ. ๒๕๖๘",
+      "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf",
+      "repo_archived_pdf_path": "data/knowledge-store-b01-rc2-staging/artifacts/796b9aff527081720587dcf5b378833eb09bac731c3cc941fea382ce18302ba3.bin",
+      "sha256": "796b9aff527081720587dcf5b378833eb09bac731c3cc941fea382ce18302ba3",
+      "byte_size": 94325,
+      "page_count": 3,
+      "royal_gazette": {
+        "volume": "๑๔๒",
+        "part": "๕๙ ก",
+        "pages": "๑–๓"
+      },
+      "dates": {
+        "enactment_date": "2025-09-13",
+        "publication_date": "2025-09-14",
+        "commencement_date": "2025-10-01",
+        "covered_transaction_period": {
+          "from": "2017-10-01",
+          "to": "2026-09-30"
+        },
+        "active_governing_window": {
+          "valid_from": "2025-10-01",
+          "valid_to": "2026-09-30",
+          "is_temporary_rule": true
+        }
+      },
+      "countersigning_minister": "ภูมิธรรม เวชยชัย รองนายกรัฐมนตรี",
+      "verified_sections": [
+        { "section_key": "sec_1_2", "pdf_page_zero_based": 0, "printed_page": "หน้า ๑", "summary": "มาตรา ๑ ชื่อกฎหมาย, มาตรา ๒ ใช้บังคับตั้งแต่วันที่ ๑ ตุลาคม พ.ศ. ๒๕๖๘" },
+        { "section_key": "sec_3_4", "pdf_page_zero_based": 1, "printed_page": "หน้า ๒", "summary": "มาตรา ๓-๔ แก้ไข พ.ร.ฎ. ๖๔๖/๗๙๐ คงจัดเก็บ VAT ๖.๓% สำหรับความรับผิด ๑ ต.ค. ๒๕๖๐ – ๓๐ ก.ย. ๒๕๖๙" },
+        { "section_key": "note", "pdf_page_zero_based": 2, "printed_page": "หน้า ๓", "summary": "หมายเหตุ เหตุผลในการขยายเวลาลดอัตรา VAT ถึง ๓๐ ก.ย. ๒๕๖๙" }
+      ]
+    },
+    {
+      "work_id": "subreg.th.rc.royal_decree.807",
+      "version_id_rc7": "ver.th.rc.royal_decree.807.v2",
+      "present_in_rc6": true,
+      "rc6_version_preserved": "ver.th.rc.royal_decree.807.v1",
+      "rc6_defects_fixed": [
+        "CRITICAL: valid_to corrected from null (open-ended!) to 2027-09-30 with is_temporary_rule=true so post-2027-09-30 reverts to statutory 10% under RC §80",
+        "publication_date corrected from 2026-10-01 to 2026-08-23 (separate from commencement_date 2026-10-01)",
+        "enactment_date 2026-08-20 and covered_transaction_period 2017-10-01..2027-09-30 stored separately",
+        "official Royal Gazette PDF archived with SHA-256 and real pdf_page locators"
+      ],
+      "title_th": "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ ๘๐๗) พ.ศ. ๒๕๖๙",
+      "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc807.pdf",
+      "repo_archived_pdf_path": "data/knowledge-store-b01-rc2-staging/artifacts/a4e0c55a2324397af4079317d2a5138fa075fcd87eb9348771742ed7ad6dab70.bin",
+      "sha256": "a4e0c55a2324397af4079317d2a5138fa075fcd87eb9348771742ed7ad6dab70",
+      "byte_size": 106820,
+      "page_count": 3,
+      "royal_gazette": {
+        "volume": "๑๔๓",
+        "part": "๕๐ ก",
+        "pages": "๒๐–๒๒"
+      },
+      "dates": {
+        "enactment_date": "2026-08-20",
+        "publication_date": "2026-08-23",
+        "commencement_date": "2026-10-01",
+        "covered_transaction_period": {
+          "from": "2017-10-01",
+          "to": "2027-09-30"
+        },
+        "active_governing_window": {
+          "valid_from": "2026-10-01",
+          "valid_to": "2027-09-30",
+          "is_temporary_rule": true
+        }
+      },
+      "countersigning_minister": "อนุทิน ชาญวีรกูล นายกรัฐมนตรี",
+      "verified_sections": [
+        { "section_key": "sec_1_2", "pdf_page_zero_based": 0, "printed_page": "หน้า ๒๐", "summary": "มาตรา ๑ ชื่อกฎหมาย, มาตรา ๒ ใช้บังคับตั้งแต่วันที่ ๑ ตุลาคม พ.ศ. ๒๕๖๙" },
+        { "section_key": "sec_3_4", "pdf_page_zero_based": 1, "printed_page": "หน้า ๒๑", "summary": "มาตรา ๓-๔ แก้ไข พ.ร.ฎ. ๖๔๖/๗๙๙ คงจัดเก็บ VAT ๖.๓% สำหรับความรับผิด ๑ ต.ค. ๒๕๖๐ – ๓๐ ก.ย. ๒๕๗๐" },
+        { "section_key": "note", "pdf_page_zero_based": 2, "printed_page": "หน้า ๒๒", "summary": "หมายเหตุ เหตุผลในการขยายเวลาลดอัตรา VAT ถึง ๓๐ ก.ย. ๒๕๗๐" }
+      ]
+    }
+  ]
+}

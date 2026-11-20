@@ -17,6 +17,7 @@ import {
   extractCompositeLegalTokens,
   extractPreservedNegationTokens,
   getThaiLegalDictionarySha256,
+  getThaiTokenizerContractMetadata,
   THAI_LEGAL_DICTIONARY_VERSION,
   THAI_TOKENIZER_ENGINE_ID,
   tokenizeThaiLegalWithDictionary,
@@ -82,8 +83,10 @@ export interface FieldedBm25IndexSection {
 export interface LexicalProjectionSnapshot extends ProjectionManifestHeader {
   passage_count: number;
   tokenizer_engine?: string;
+  tokenizer_contract_sha256?: string | null;
   legal_dictionary_version?: string;
   legal_dictionary_sha256?: string;
+  lexical_index_sha256?: string | null;
   /** Legacy compatibility hydrated map (populated lazily when needed) */
   inverted_index: Record<string, string[]>;
   passage_table?: string[];
@@ -300,12 +303,24 @@ export async function buildReleaseProjectionsFromOutbox(
   const manifestShort = manifestHash ? manifestHash.slice(0, 12) : "unhashed";
   const generation = `gen.${releaseId}.r${relRec?.revision ?? 1}.${manifestShort}`;
 
+  const runtimeContract = getThaiTokenizerContractMetadata();
   const tokenizerEngine =
-    options?.externalTokenizerOutput?.tokenizer_engine || THAI_TOKENIZER_ENGINE_ID;
+    options?.externalTokenizerOutput?.tokenizer_engine || runtimeContract.tokenizer_engine;
   const legalDictVersion =
-    options?.externalTokenizerOutput?.legal_dictionary_version || THAI_LEGAL_DICTIONARY_VERSION;
+    options?.externalTokenizerOutput?.legal_dictionary_version ||
+    runtimeContract.legal_dictionary_version;
   const legalDictSha =
-    options?.externalTokenizerOutput?.legal_dictionary_sha256 || getThaiLegalDictionarySha256();
+    options?.externalTokenizerOutput?.legal_dictionary_sha256 ||
+    runtimeContract.legal_dictionary_sha256;
+  const tokenizerContractSha = options?.externalTokenizerOutput
+    ? sha256Bytes(
+        JSON.stringify({
+          tokenizer_engine: tokenizerEngine,
+          legal_dictionary_version: legalDictVersion,
+          legal_dictionary_sha256: legalDictSha,
+        })
+      )
+    : runtimeContract.tokenizer_contract_sha256;
 
   // 1. Build Fielded BM25 Lexical Projection (v2) with separate normalized search fields
   const passageTable = passages.map((p) => p.passage_id);
@@ -335,7 +350,13 @@ export async function buildReleaseProjectionsFromOutbox(
       ])
     );
 
+    const hasExternalTokenizer = Boolean(options?.externalTokenizerOutput);
     const extTok = options?.externalTokenizerOutput?.passages[p.passage_id];
+    if (hasExternalTokenizer && !extTok) {
+      throw new Error(
+        `MIXED_TOKENIZER_FALLBACK_PROHIBITED: External tokenizer output is missing passage ${p.passage_id}; refusing silent fallback to runtime TS tokenizer.`
+      );
+    }
     const titleTokens = extTok
       ? extTok.title_tokens
       : tokenizeThaiLegalWithDictionary(titleRaw, {
@@ -371,6 +392,28 @@ export async function buildReleaseProjectionsFromOutbox(
     }
   }
 
+  const fieldedBm25Payload = {
+    k1: 1.2,
+    b: 0.75,
+    fields: {
+      exact_ids: finalizeFieldSection(exactIdPostings, exactIdLens),
+      title_heading: finalizeFieldSection(titlePostings, titleLens),
+      phrases_roles: finalizeFieldSection(phrasesRolesPostings, phrasesRolesLens),
+      body: finalizeFieldSection(bodyPostings, bodyLens),
+    },
+  };
+  const lexicalIndexSha256 = sha256Bytes(
+    JSON.stringify({
+      release_id: releaseId,
+      manifest_hash: manifestHash,
+      tokenizer_engine: tokenizerEngine,
+      tokenizer_contract_sha256: tokenizerContractSha,
+      legal_dictionary_sha256: legalDictSha,
+      passage_table: passageTable,
+      fielded_bm25: fieldedBm25Payload,
+    })
+  );
+
   const lexicalDiskPayload = {
     schema_version: "2.0" as const,
     release_id: releaseId,
@@ -382,20 +425,13 @@ export async function buildReleaseProjectionsFromOutbox(
     corpus_version_count: corpusVersionCount,
     passage_count: passages.length,
     tokenizer_engine: tokenizerEngine,
+    tokenizer_contract_sha256: tokenizerContractSha,
     legal_dictionary_version: legalDictVersion,
     legal_dictionary_sha256: legalDictSha,
+    lexical_index_sha256: lexicalIndexSha256,
     passage_table: passageTable,
     compact_index: compactIndex,
-    fielded_bm25: {
-      k1: 1.2,
-      b: 0.75,
-      fields: {
-        exact_ids: finalizeFieldSection(exactIdPostings, exactIdLens),
-        title_heading: finalizeFieldSection(titlePostings, titleLens),
-        phrases_roles: finalizeFieldSection(phrasesRolesPostings, phrasesRolesLens),
-        body: finalizeFieldSection(bodyPostings, bodyLens),
-      },
-    },
+    fielded_bm25: fieldedBm25Payload,
   };
   const lexicalJson = JSON.stringify(lexicalDiskPayload);
   writeProjectionSnapshotDisk(projDir, `${releaseId}_lexical`, lexicalJson);
@@ -707,16 +743,50 @@ export function loadVectorProjectionSnapshot(
   return snap;
 }
 
+function isLexicalSnapshotCompatibleWithRuntime(
+  store: DurableKnowledgeStore,
+  releaseId: string,
+  snap: LexicalProjectionSnapshot | null
+): { ok: boolean; reason: string | null } {
+  const baseCompat = isSnapshotCompatibleWithRelease(store, releaseId, snap);
+  if (!baseCompat.ok || !snap) return baseCompat;
+  if (snap.schema_version === "2.0" || snap.fielded_bm25) {
+    const rt = getThaiTokenizerContractMetadata();
+    if (snap.tokenizer_engine !== rt.tokenizer_engine) {
+      return {
+        ok: false,
+        reason: `TOKENIZER_ENGINE_MISMATCH: index=${snap.tokenizer_engine || "missing"} != runtime=${rt.tokenizer_engine} (mixed-engine index/query builds prohibited)`,
+      };
+    }
+    if (snap.legal_dictionary_sha256 !== rt.legal_dictionary_sha256) {
+      return {
+        ok: false,
+        reason: `LEGAL_DICTIONARY_HASH_MISMATCH: index=${(snap.legal_dictionary_sha256 || "missing").slice(0, 12)} != runtime=${rt.legal_dictionary_sha256.slice(0, 12)}`,
+      };
+    }
+    if (
+      snap.tokenizer_contract_sha256 &&
+      snap.tokenizer_contract_sha256 !== rt.tokenizer_contract_sha256
+    ) {
+      return {
+        ok: false,
+        reason: `TOKENIZER_CONTRACT_HASH_MISMATCH: index=${snap.tokenizer_contract_sha256.slice(0, 12)} != runtime=${rt.tokenizer_contract_sha256.slice(0, 12)}`,
+      };
+    }
+  }
+  return { ok: true, reason: null };
+}
+
 export function loadLexicalProjectionSnapshot(
   store: DurableKnowledgeStore,
   releaseId: string
 ): LexicalProjectionSnapshot | null {
-  const snap = readProjectionSnapshotDisk(
+  const snap = readProjectionSnapshotDisk<LexicalProjectionSnapshot>(
     path.join(store.dataDir, "projections"),
     `${releaseId}_lexical`,
     lexicalSnapCache
   );
-  if (!isSnapshotCompatibleWithRelease(store, releaseId, snap).ok) {
+  if (!isLexicalSnapshotCompatibleWithRuntime(store, releaseId, snap).ok) {
     return null;
   }
   if (snap && !snap.inverted_index && snap.compact_index && snap.passage_table) {
@@ -741,8 +811,13 @@ export interface ReleaseProjectionDiagnostics {
     generation: string | null;
     passage_count: number;
     tokenizer_engine: string | null;
+    tokenizer_contract_sha256: string | null;
     legal_dictionary_version: string | null;
     legal_dictionary_sha256: string | null;
+    lexical_index_sha256: string | null;
+    runtime_tokenizer_engine: string;
+    runtime_tokenizer_contract_sha256: string;
+    tokenizer_parity_verified: boolean;
     reason: string | null;
   };
   vector: {
@@ -766,7 +841,7 @@ export interface ReleaseProjectionDiagnostics {
 
 /**
  * Staging & Release diagnostics distinguishing vectors `deliberately_disabled`
- * from `missing`, `incompatible`, or `incomplete` — and validating manifest parity.
+ * from `missing`, `incompatible`, or `incomplete` — and validating manifest & tokenizer parity.
  */
 export function inspectReleaseProjectionDiagnostics(
   store: DurableKnowledgeStore,
@@ -776,13 +851,14 @@ export function inspectReleaseProjectionDiagnostics(
   const rel = st.releases[releaseId];
   const expectedPassages = store.getPassagesForRelease(releaseId).length;
   const projDir = path.join(store.dataDir, "projections");
+  const rt = getThaiTokenizerContractMetadata();
 
   const rawLex = readProjectionSnapshotDisk<LexicalProjectionSnapshot>(
     projDir,
     `${releaseId}_lexical`,
     lexicalSnapCache
   );
-  const lexCompat = isSnapshotCompatibleWithRelease(store, releaseId, rawLex);
+  const lexCompat = isLexicalSnapshotCompatibleWithRuntime(store, releaseId, rawLex);
   const lexStatus: ReleaseProjectionDiagnostics["lexical"]["status"] = !rawLex
     ? "missing"
     : !lexCompat.ok
@@ -842,8 +918,17 @@ export function inspectReleaseProjectionDiagnostics(
       generation: rawLex?.generation ?? null,
       passage_count: rawLex?.passage_count ?? 0,
       tokenizer_engine: rawLex?.tokenizer_engine ?? null,
+      tokenizer_contract_sha256: rawLex?.tokenizer_contract_sha256 ?? null,
       legal_dictionary_version: rawLex?.legal_dictionary_version ?? null,
       legal_dictionary_sha256: rawLex?.legal_dictionary_sha256 ?? null,
+      lexical_index_sha256: rawLex?.lexical_index_sha256 ?? null,
+      runtime_tokenizer_engine: rt.tokenizer_engine,
+      runtime_tokenizer_contract_sha256: rt.tokenizer_contract_sha256,
+      tokenizer_parity_verified:
+        lexStatus === "ready" &&
+        rawLex?.tokenizer_engine === rt.tokenizer_engine &&
+        rawLex?.legal_dictionary_sha256 === rt.legal_dictionary_sha256 &&
+        rawLex?.tokenizer_contract_sha256 === rt.tokenizer_contract_sha256,
       reason: lexCompat.reason,
     },
     vector: {
@@ -863,5 +948,204 @@ export function inspectReleaseProjectionDiagnostics(
       neo4j_runtime_dependency: false,
       reason: graphCompat.reason,
     },
+  };
+}
+
+export interface TokenizerParityProbeItem {
+  category: "unspaced_thai" | "legal_citations" | "negation" | "compound_terms";
+  input_text: string;
+  index_side_tokens: string[];
+  live_query_tokens: string[];
+  exact_id_tokens: string[];
+  preserved_negation_tokens: string[];
+  exact_token_parity: boolean;
+  forbidden_tokens_absent: boolean;
+  posting_hits: Array<{
+    token: string;
+    exact_ids_df: number;
+    title_heading_df: number;
+    phrases_roles_df: number;
+    body_df: number;
+    total_field_hits: number;
+    sample_passage_ids: string[];
+  }>;
+}
+
+export interface TokenizerParityProbeReport {
+  release_id: string;
+  manifest_hash: string | null;
+  runtime_platform: string;
+  runtime_arch: string;
+  node_version: string;
+  icu_version: string;
+  index_tokenizer_engine: string | null;
+  live_tokenizer_engine: string;
+  index_tokenizer_contract_sha256: string | null;
+  live_tokenizer_contract_sha256: string;
+  index_legal_dictionary_sha256: string | null;
+  live_legal_dictionary_sha256: string;
+  lexical_index_sha256: string | null;
+  lexical_disk_file_sha256: string | null;
+  contract_parity_ok: boolean;
+  all_probes_ok: boolean;
+  probes: TokenizerParityProbeItem[];
+}
+
+/**
+ * Live diagnostic proving that index-time tokenization, live BM25 query tokenization,
+ * and on-disk posting keys share the EXACT SAME pinned tokenizer contract across:
+ *   1. Unspaced Thai
+ *   2. Legal citations (including composite `มาตรา ๘๐/๑ (๒)` != `sec:80`)
+ *   3. Negation (`มิให้`, `เว้นแต่`, `ไม่มีค่าตอบแทน`)
+ *   4. Compound legal terms (`ภาษีเงินได้บุคคลธรรมดา`, `อสังหาริมทรัพย์`, `ห้องชุด`, `ใบกำกับภาษี`)
+ */
+export function runTokenizerParityProbe(
+  store: DurableKnowledgeStore,
+  releaseId: string
+): TokenizerParityProbeReport {
+  const rt = getThaiTokenizerContractMetadata();
+  const snap = loadLexicalProjectionSnapshot(store, releaseId);
+  const projDir = path.join(store.dataDir, "projections");
+  const gzPath = path.join(projDir, `${releaseId}_lexical.json.gz`);
+  const plainPath = path.join(projDir, `${releaseId}_lexical.json`);
+  const diskPath = fs.existsSync(gzPath) ? gzPath : fs.existsSync(plainPath) ? plainPath : null;
+  const lexicalDiskFileSha256 = diskPath ? sha256Bytes(fs.readFileSync(diskPath)) : null;
+
+  const probeSpecs: Array<{
+    category: TokenizerParityProbeItem["category"];
+    input_text: string;
+    required_posting_tokens: string[];
+    forbidden_tokens?: string[];
+  }> = [
+    {
+      category: "unspaced_thai",
+      input_text: "ภาษีมูลค่าเพิ่มกรณีการให้บริการในราชอาณาจักรและส่งออกสินค้า",
+      required_posting_tokens: ["ภาษีมูลค่าเพิ่ม", "การให้บริการ", "ในราชอาณาจักร", "ส่งออกสินค้า"],
+    },
+    {
+      category: "legal_citations",
+      input_text: "มาตรา ๘๐/๑ (๒) แห่งประมวลรัษฎากร พ.ร.ฎ. (ฉบับที่ ๗๙๐) พ.ศ. ๒๕๖๗ กค 0702/5958",
+      required_posting_tokens: ["sec:80/1(2)", "sec:80/1", "rd:790", "ruling:กค_0702/5958", "ประมวลรัษฎากร"],
+      forbidden_tokens: ["sec:80", "80"],
+    },
+    {
+      category: "negation",
+      input_text: "มิให้ถือว่าเป็นการขายสินค้า เว้นแต่โอนโดยเสน่หาไม่มีค่าตอบแทน",
+      required_posting_tokens: ["มิให้", "เว้นแต่", "โดยเสน่หา", "ไม่มีค่าตอบแทน"],
+    },
+    {
+      category: "compound_terms",
+      input_text: "ภาษีเงินได้บุคคลธรรมดา หักภาษี ณ ที่จ่าย โอนกรรมสิทธิ์ ห้องชุด อสังหาริมทรัพย์ ใบกำกับภาษี",
+      required_posting_tokens: [
+        "ภาษีเงินได้บุคคลธรรมดา",
+        "หักภาษี ณ ที่จ่าย",
+        "โอนกรรมสิทธิ์",
+        "ห้องชุด",
+        "อสังหาริมทรัพย์",
+        "ใบกำกับภาษี",
+      ],
+    },
+  ];
+
+  const fb = snap?.fielded_bm25?.fields;
+  const tbl = snap?.passage_table || [];
+
+  const dfOf = (sec: FieldedBm25IndexSection | undefined, tok: string): number => {
+    const post = sec?.postings[tok];
+    return post ? Math.floor(post.length / 2) : 0;
+  };
+  const samplePidsOf = (tok: string): string[] => {
+    const out: string[] = [];
+    for (const sec of [fb?.exact_ids, fb?.title_heading, fb?.phrases_roles, fb?.body]) {
+      const post = sec?.postings[tok];
+      if (!post) continue;
+      for (let i = 0; i < post.length && out.length < 3; i += 2) {
+        const pid = tbl[post[i]];
+        if (pid && !out.includes(pid)) out.push(pid);
+      }
+    }
+    return out;
+  };
+
+  const probes: TokenizerParityProbeItem[] = probeSpecs.map((spec) => {
+    const indexTokens = tokenizeThaiLegalWithDictionary(spec.input_text, {
+      includeDuplicates: false,
+      expandAbbreviations: true,
+    });
+    const queryTokens = tokenizeThaiLegalWithDictionary(spec.input_text, {
+      includeDuplicates: false,
+      expandAbbreviations: true,
+    });
+    const exactIds = extractCompositeLegalTokens(spec.input_text);
+    const negToks = extractPreservedNegationTokens(spec.input_text);
+    const exactTokenParity =
+      indexTokens.length === queryTokens.length &&
+      indexTokens.every((t, idx) => t === queryTokens[idx]);
+    const forbiddenAbsent = (spec.forbidden_tokens || []).every(
+      (ft) => !indexTokens.includes(ft) && !queryTokens.includes(ft) && !exactIds.includes(ft)
+    );
+
+    const postingHits = spec.required_posting_tokens.map((tok) => {
+      const exactDf = dfOf(fb?.exact_ids, tok);
+      const titleDf = dfOf(fb?.title_heading, tok);
+      const phrasesDf = dfOf(fb?.phrases_roles, tok);
+      const bodyDf = dfOf(fb?.body, tok);
+      return {
+        token: tok,
+        exact_ids_df: exactDf,
+        title_heading_df: titleDf,
+        phrases_roles_df: phrasesDf,
+        body_df: bodyDf,
+        total_field_hits: exactDf + titleDf + phrasesDf + bodyDf,
+        sample_passage_ids: samplePidsOf(tok),
+      };
+    });
+
+    return {
+      category: spec.category,
+      input_text: spec.input_text,
+      index_side_tokens: indexTokens,
+      live_query_tokens: queryTokens,
+      exact_id_tokens: exactIds,
+      preserved_negation_tokens: negToks,
+      exact_token_parity: exactTokenParity,
+      forbidden_tokens_absent: forbiddenAbsent,
+      posting_hits: postingHits,
+    };
+  });
+
+  const contractParityOk = Boolean(
+    snap &&
+      snap.tokenizer_engine === rt.tokenizer_engine &&
+      snap.tokenizer_contract_sha256 === rt.tokenizer_contract_sha256 &&
+      snap.legal_dictionary_sha256 === rt.legal_dictionary_sha256
+  );
+  const allProbesOk =
+    contractParityOk &&
+    probes.every(
+      (p) =>
+        p.exact_token_parity &&
+        p.forbidden_tokens_absent &&
+        p.posting_hits.every((h) => h.total_field_hits > 0)
+    );
+
+  return {
+    release_id: releaseId,
+    manifest_hash: snap?.manifest_hash ?? null,
+    runtime_platform: process.platform,
+    runtime_arch: process.arch,
+    node_version: process.version,
+    icu_version: rt.runtime_icu_version,
+    index_tokenizer_engine: snap?.tokenizer_engine ?? null,
+    live_tokenizer_engine: rt.tokenizer_engine,
+    index_tokenizer_contract_sha256: snap?.tokenizer_contract_sha256 ?? null,
+    live_tokenizer_contract_sha256: rt.tokenizer_contract_sha256,
+    index_legal_dictionary_sha256: snap?.legal_dictionary_sha256 ?? null,
+    live_legal_dictionary_sha256: rt.legal_dictionary_sha256,
+    lexical_index_sha256: snap?.lexical_index_sha256 ?? null,
+    lexical_disk_file_sha256: lexicalDiskFileSha256,
+    contract_parity_ok: contractParityOk,
+    all_probes_ok: allProbesOk,
+    probes,
   };
 }

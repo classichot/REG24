@@ -9,7 +9,10 @@ import {
   knowledgeApiErrorResponse,
   resolveServerActor,
 } from "../../../../../core/knowledge/http-auth";
-import { inspectReleaseProjectionDiagnostics } from "../../../../../core/knowledge/projections";
+import {
+  inspectReleaseProjectionDiagnostics,
+  runTokenizerParityProbe,
+} from "../../../../../core/knowledge/projections";
 import { getDefaultKnowledgeStore } from "../../../../../core/knowledge/store";
 
 export async function GET(req: Request) {
@@ -37,7 +40,12 @@ export async function GET(req: Request) {
     const activeReleaseId = pinnedEnvRelease || state.active_release_id || fallbackCandidateRel || "rel.B01.rc6";
     const relRec = state.releases[activeReleaseId];
     const counts = computeBatchTraceabilityInventoryCounts(store, "B01", activeReleaseId);
+    const reqUrl = new URL(req.url);
+    const includeTokenizerProbe = reqUrl.searchParams.get("probe_tokenizer") === "1";
     const projectionDiagnostics = inspectReleaseProjectionDiagnostics(store, activeReleaseId);
+    const tokenizerParityProbe = includeTokenizerProbe
+      ? runTokenizerParityProbe(store, activeReleaseId)
+      : undefined;
     const dbActive = Boolean(resolveActiveCitationDbTransport());
     const groundedEnabled = process.env.REG24_GROUNDED_LLM_STAGING_ENABLED === "true";
     const llmConfig = resolveConfiguredProviderAndModel();
@@ -80,6 +88,7 @@ export async function GET(req: Request) {
           updated_at: relRec?.updated_at || null,
         },
         projections: projectionDiagnostics,
+        ...(tokenizerParityProbe ? { tokenizer_parity_probe: tokenizerParityProbe } : {}),
         model_and_verifiers: {
           generation_mode: groundedEnabled ? "llm_grounded" : "baseline_deterministic",
           model_id: groundedEnabled

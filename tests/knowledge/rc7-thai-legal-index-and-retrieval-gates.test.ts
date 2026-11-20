@@ -9,11 +9,14 @@ import {
   loadGraphProjectionSnapshot,
   loadLexicalProjectionSnapshot,
   loadVectorProjectionSnapshot,
+  runTokenizerParityProbe,
 } from "../../src/core/knowledge/projections";
 import { retrieveAuthorizedKnowledge } from "../../src/core/knowledge/retrieval";
 import {
   extractCompositeLegalTokens,
   extractPreservedNegationTokens,
+  getThaiTokenizerContractMetadata,
+  THAI_TOKENIZER_ENGINE_ID,
   tokenizeThaiLegalWithDictionary,
 } from "../../src/core/knowledge/thai-legal-dictionary-v1";
 import type { Actor } from "../../src/core/knowledge/contracts";
@@ -213,12 +216,28 @@ describe("REG24 Batch 1 RC7 — Thai Legal Indexing, Manifest-Pinned Projections
     const diagRc7 = inspectReleaseProjectionDiagnostics(store, "rel.B01.rc7");
     const diagRc6 = inspectReleaseProjectionDiagnostics(store, "rel.B01.rc6");
 
+    const rtMeta = getThaiTokenizerContractMetadata();
     expect(diagRc7.lexical.status).toBe("ready");
     expect(diagRc7.lexical.schema_version).toBe("2.0");
-    expect(diagRc7.lexical.tokenizer_engine).toContain("pythainlp_newmm");
+    expect(diagRc7.lexical.tokenizer_engine).toBe(THAI_TOKENIZER_ENGINE_ID);
+    expect(diagRc7.lexical.tokenizer_contract_sha256).toBe(rtMeta.tokenizer_contract_sha256);
+    expect(diagRc7.lexical.legal_dictionary_sha256).toBe(rtMeta.legal_dictionary_sha256);
+    expect(diagRc7.lexical.tokenizer_parity_verified).toBe(true);
+    expect(diagRc7.lexical.lexical_index_sha256).toMatch(/^[0-9a-f]{64}$/);
     expect(diagRc7.vector.status).toBe("deliberately_disabled");
     expect(diagRc7.graph.status).toBe("ready");
     expect(diagRc7.graph.neo4j_runtime_dependency).toBe(false);
+
+    // Live tokenizer parity probe across unspaced Thai, legal citations, negation, and compound terms
+    const parity = runTokenizerParityProbe(store, "rel.B01.rc7");
+    expect(parity.contract_parity_ok).toBe(true);
+    expect(parity.all_probes_ok).toBe(true);
+    expect(parity.probes.map((p) => p.category)).toEqual([
+      "unspaced_thai",
+      "legal_citations",
+      "negation",
+      "compound_terms",
+    ]);
 
     expect(diagRc6.lexical.status).toBe("ready");
     expect(diagRc6.lexical.generation).not.toBe(diagRc7.lexical.generation);
@@ -268,13 +287,29 @@ describe("REG24 Batch 1 RC7 — Thai Legal Indexing, Manifest-Pinned Projections
       expect(beforeDiag.lexical.status).toBe("missing");
       expect(beforeDiag.vector.status).toBe("missing");
 
-      // After building with default vectorMode -> deliberately_disabled
+      // After building with default vectorMode -> deliberately_disabled + exact tokenizer parity
       await buildReleaseProjectionsFromOutbox(tmpStore, "rel.B01.test", "durable_disk");
       const readyDiag = inspectReleaseProjectionDiagnostics(tmpStore, "rel.B01.test");
       expect(readyDiag.lexical.status).toBe("ready");
+      expect(readyDiag.lexical.tokenizer_parity_verified).toBe(true);
       expect(readyDiag.vector.status).toBe("deliberately_disabled");
 
-      // Mutate manifest_hash on release (simulating stale projection from older manifest) -> REJECTED & incompatible!
+      // Mixed-engine lexical snapshot (e.g. PyThaiNLP index queried by TS runtime) MUST be rejected as incompatible!
+      const lexPath = path.join(tmpDir, "projections", "rel.B01.test_lexical.json");
+      const lexObj = JSON.parse(fs.readFileSync(lexPath, "utf8"));
+      lexObj.tokenizer_engine = "pythainlp_newmm_v5.4.0+reg24-th-legal-dict-v1.0";
+      fs.writeFileSync(lexPath, JSON.stringify(lexObj), "utf8");
+      // Touch mtime +2s to ensure cache reload
+      const future = new Date(Date.now() + 2000);
+      fs.utimesSync(lexPath, future, future);
+      expect(loadLexicalProjectionSnapshot(tmpStore, "rel.B01.test")).toBeNull();
+      const mixedDiag = inspectReleaseProjectionDiagnostics(tmpStore, "rel.B01.test");
+      expect(mixedDiag.lexical.status).toBe("incompatible");
+      expect(mixedDiag.lexical.tokenizer_parity_verified).toBe(false);
+      expect(mixedDiag.lexical.reason).toContain("TOKENIZER_ENGINE_MISMATCH");
+
+      // Rebuild cleanly, then mutate manifest_hash -> REJECTED & incompatible!
+      await buildReleaseProjectionsFromOutbox(tmpStore, "rel.B01.test", "durable_disk");
       await tmpStore.transact("BUMP_MANIFEST_HASH", (draft) => {
         draft.releases["rel.B01.test"].manifest_hash =
           "ffff9999eeee8888dddd7777cccc6666ffff9999eeee8888dddd7777cccc6666";

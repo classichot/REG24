@@ -1,11 +1,13 @@
 /**
- * REG24 — Versioned Thai Legal Dictionary & Thai-Aware Tokenizer (`reg24-th-legal-dict-v1.0`)
+ * REG24 — Versioned Thai Legal Dictionary & Pinned Thai-Aware Tokenizer (`reg24-th-legal-dict-v1.0`)
  *
- * Shared single source of truth for BOTH:
- *   1. Python PyThaiNLP `newmm` indexing (`scripts/build-thai-legal-index.py`), and
- *   2. Runtime TypeScript `newmm`-compatible query & fielded BM25 tokenization on Vercel.
+ * Single pinned normalization, tokenizer, and legal dictionary contract used identically on BOTH:
+ *   1. Offline/candidate index build (`buildReleaseProjectionsFromOutbox` / `build-rc7-candidate-overlay.ts`), and
+ *   2. Live BM25 query runtime (`retrieveAuthorizedKnowledge`) on Next.js / Vercel Linux.
  *
  * Design guarantees (Section 1 & Section 2):
+ *   - ONE engine on both sides (`ts_legal_dict_intl_v1.0+reg24-th-legal-dict-v1.0`); ZERO mixed-engine
+ *     index/query builds and ZERO silent per-passage fallback.
  *   - Preserves original Thai text untouched; all normalization happens in separate search fields.
  *   - Normalizes Thai digits <-> Arabic digits, known Thai legal abbreviations, spacing, and citation forms.
  *   - Preserves composite identifiers atomically (e.g., `มาตรา ๘๐/๑ (๒)` -> `sec:80/1(2)` + `sec:80/1`,
@@ -17,7 +19,7 @@
 import { sha256Bytes, thaiDigitsToArabic } from "./identity";
 
 export const THAI_LEGAL_DICTIONARY_VERSION = "reg24-th-legal-dict-v1.0";
-export const THAI_TOKENIZER_ENGINE_ID = "pythainlp_newmm_v5.4.0+reg24_legal_dict_v1.0";
+export const THAI_TOKENIZER_ENGINE_ID = "ts_legal_dict_intl_v1.0+reg24-th-legal-dict-v1.0";
 
 /** Negations & exception markers that MUST remain intact single tokens at index and query time. */
 export const THAI_LEGAL_NEGATIONS_AND_EXCEPTIONS: readonly string[] = [
@@ -219,8 +221,39 @@ export function getThaiLegalDictionarySha256(): string {
     JSON.stringify({
       version: THAI_LEGAL_DICTIONARY_VERSION,
       terms: THAI_LEGAL_COMPOUND_TERMS,
+      negations: THAI_LEGAL_NEGATIONS_AND_EXCEPTIONS,
+      abbreviations: THAI_LEGAL_ABBREVIATION_MAP.map(([re, repl]) => [re.source, re.flags, repl]),
     })
   );
+}
+
+export interface ThaiTokenizerContractMetadata {
+  tokenizer_engine: string;
+  tokenizer_contract_sha256: string;
+  legal_dictionary_version: string;
+  legal_dictionary_sha256: string;
+  runtime_icu_version: string;
+}
+
+export function getThaiTokenizerContractMetadata(): ThaiTokenizerContractMetadata {
+  const dictSha = getThaiLegalDictionarySha256();
+  const contractSha = sha256Bytes(
+    JSON.stringify({
+      tokenizer_engine: THAI_TOKENIZER_ENGINE_ID,
+      normalizer: "thaiDigitsToArabic+abbrevMapV1+compositeSlashMaskV1",
+      segmenter: "longestMatchLegalDict+Intl.Segmenter(th,word)",
+      legal_dictionary_version: THAI_LEGAL_DICTIONARY_VERSION,
+      legal_dictionary_sha256: dictSha,
+    })
+  );
+  return {
+    tokenizer_engine: THAI_TOKENIZER_ENGINE_ID,
+    tokenizer_contract_sha256: contractSha,
+    legal_dictionary_version: THAI_LEGAL_DICTIONARY_VERSION,
+    legal_dictionary_sha256: dictSha,
+    runtime_icu_version:
+      (typeof process !== "undefined" && process.versions?.icu) || "unknown",
+  };
 }
 
 /**
@@ -268,16 +301,16 @@ export function extractCompositeLegalTokens(rawText: string): string[] {
     out.add(`rc_amend:${m[1]}`);
   }
 
-  // 3. Revenue Department Rulings: กค 0702/5958, กค 0811/พ.06343
+  // 3. Revenue Department Rulings: กค 0702/5958, 0702/5958 (bare), กค 0811/พ.06343
   const rulingRe =
-    /(?:กค\s*[0-9]{2,5}(?:\s*\([^)]+\))?\s*[\/\-]\s*(?:[ก-ฮA-Za-z.]+\s*[\/\-]?\s*)?[0-9]+[ก-ฮA-Za-z]*)/g;
+    /(?:กค\s*[0-9]{2,5}|(?<![0-9/])0[78][0-9]{2})(?:\s*\([^)]+\))?\s*[\/\-]\s*(?:[ก-ฮA-Za-z.]+\s*[\/\-]?\s*)?[0-9]+[ก-ฮA-Za-z]*/g;
   while ((m = rulingRe.exec(arabic)) !== null) {
-    const normRuling = m[0]
+    const bare = m[0]
+      .replace(/^กค\s*/, "")
       .replace(/\s+/g, " ")
       .replace(/\s*\/\s*/g, "/")
-      .replace(/^กค\s*/, "กค_")
       .trim();
-    out.add(`ruling:${normRuling}`);
+    out.add(`ruling:กค_${bare}`);
   }
 
   // 4. Tax Order TP / P: ท.ป. 4/2528, ป. 52/2537
@@ -324,11 +357,14 @@ export function extractPreservedNegationTokens(rawText: string): string[] {
  *   3. Keeps standalone English/number tokens cleanly normalized.
  */
 let thaiWordSegmenter: Intl.Segmenter | null = null;
-function getThaiSegmenter(): Intl.Segmenter | null {
+function getThaiSegmenter(): Intl.Segmenter {
   if (thaiWordSegmenter) return thaiWordSegmenter;
-  if (typeof Intl !== "undefined" && typeof Intl.Segmenter === "function") {
-    thaiWordSegmenter = new Intl.Segmenter("th", { granularity: "word" });
+  if (typeof Intl === "undefined" || typeof Intl.Segmenter !== "function") {
+    throw new Error(
+      "TOKENIZER_CONTRACT_VIOLATION: Intl.Segmenter('th') is unavailable in this runtime; refusing silent regex fallback."
+    );
   }
+  thaiWordSegmenter = new Intl.Segmenter("th", { granularity: "word" });
   return thaiWordSegmenter;
 }
 
@@ -361,18 +397,11 @@ export function tokenizeThaiLegalWithDictionary(
     if (end <= residualStart) return;
     const chunk = maskedForGeneralTokens.slice(residualStart, end);
     const seg = getThaiSegmenter();
-    if (seg) {
-      for (const part of seg.segment(chunk)) {
-        if (!part.isWordLike) continue;
-        const tok = part.segment.toLowerCase().trim();
-        if (tok.length >= 2 || /^[0-9]+$/.test(tok)) {
-          tokens.push(tok);
-        }
-      }
-    } else {
-      const cleaned = chunk.toLowerCase().replace(/[^\u0E00-\u0E7Fa-z0-9/.]+/g, " ").trim();
-      for (const tok of cleaned.split(/\s+/)) {
-        if (tok.length >= 2) tokens.push(tok);
+    for (const part of seg.segment(chunk)) {
+      if (!part.isWordLike) continue;
+      const tok = part.segment.toLowerCase().trim();
+      if (tok.length >= 2 || /^[0-9]+$/.test(tok)) {
+        tokens.push(tok);
       }
     }
   };

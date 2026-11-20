@@ -1,0 +1,402 @@
+{
+  "release_id": "rel.B01.rc7",
+  "manifest_hash": "e01101062bd07c4dee79f44f39940024ad2f16c2bf9557d609aae23837119781",
+  "runtime_platform": "win32",
+  "runtime_arch": "x64",
+  "node_version": "v24.17.0",
+  "icu_version": "78.3",
+  "index_tokenizer_engine": "ts_legal_dict_intl_v1.0+reg24-th-legal-dict-v1.0",
+  "live_tokenizer_engine": "ts_legal_dict_intl_v1.0+reg24-th-legal-dict-v1.0",
+  "index_tokenizer_contract_sha256": "6d5783be8b8a39a34b55b383e7735b916d9912a01e831165b45a50abb4a2b5a1",
+  "live_tokenizer_contract_sha256": "6d5783be8b8a39a34b55b383e7735b916d9912a01e831165b45a50abb4a2b5a1",
+  "index_legal_dictionary_sha256": "4af2531db0861dbe64abbbef502b71d9292282f661094a38afec5f80768540f8",
+  "live_legal_dictionary_sha256": "4af2531db0861dbe64abbbef502b71d9292282f661094a38afec5f80768540f8",
+  "lexical_index_sha256": "9cd653449bc3e9e73a1d0bacfcdd200fa2d0ee66441e33f5e842fbb7ca9d1880",
+  "lexical_disk_file_sha256": "db28458fdd615b59a59172cb27bf8f2c9f16e06c103dee7489184b900aa34f65",
+  "contract_parity_ok": true,
+  "all_probes_ok": true,
+  "probes": [
+    {
+      "category": "unspaced_thai",
+      "input_text": "ภาษีมูลค่าเพิ่มกรณีการให้บริการในราชอาณาจักรและส่งออกสินค้า",
+      "index_side_tokens": [
+        "ภาษีมูลค่าเพิ่ม",
+        "กรณี",
+        "การให้บริการ",
+        "ในราชอาณาจักร",
+        "และ",
+        "ส่งออกสินค้า"
+      ],
+      "live_query_tokens": [
+        "ภาษีมูลค่าเพิ่ม",
+        "กรณี",
+        "การให้บริการ",
+        "ในราชอาณาจักร",
+        "และ",
+        "ส่งออกสินค้า"
+      ],
+      "exact_id_tokens": [],
+      "preserved_negation_tokens": [],
+      "exact_token_parity": true,
+      "forbidden_tokens_absent": true,
+      "posting_hits": [
+        {
+          "token": "ภาษีมูลค่าเพิ่ม",
+          "exact_ids_df": 0,
+          "title_heading_df": 4170,
+          "phrases_roles_df": 0,
+          "body_df": 4102,
+          "total_field_hits": 8272,
+          "sample_passage_ids": [
+            "psg.803d6f62b0f43a",
+            "psg.c08237def07528",
+            "psg.e0c9bb1bdf483e"
+          ]
+        },
+        {
+          "token": "การให้บริการ",
+          "exact_ids_df": 0,
+          "title_heading_df": 465,
+          "phrases_roles_df": 0,
+          "body_df": 1651,
+          "total_field_hits": 2116,
+          "sample_passage_ids": [
+            "psg.890fefdc1853c9",
+            "psg.e8f260fde76fee",
+            "psg.d853f8d43a1f20"
+          ]
+        },
+        {
+          "token": "ในราชอาณาจักร",
+          "exact_ids_df": 0,
+          "title_heading_df": 64,
+          "phrases_roles_df": 0,
+          "body_df": 543,
+          "total_field_hits": 607,
+          "sample_passage_ids": [
+            "psg.c8fc0ce173a010",
+            "psg.062af976e2451b",
+            "psg.f7720842f10217"
+          ]
+        },
+        {
+          "token": "ส่งออกสินค้า",
+          "exact_ids_df": 0,
+          "title_heading_df": 18,
+          "phrases_roles_df": 0,
+          "body_df": 73,
+          "total_field_hits": 91,
+          "sample_passage_ids": [
+            "psg.e420bb76286b23",
+            "psg.2e6f0499c77302",
+            "psg.1b604c32fd22f8"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "legal_citations",
+      "input_text": "มาตรา ๘๐/๑ (๒) แห่งประมวลรัษฎากร พ.ร.ฎ. (ฉบับที่ ๗๙๐) พ.ศ. ๒๕๖๗ กค 0702/5958",
+      "index_side_tokens": [
+        "sec:80/1",
+        "sec:80/1(2)",
+        "rd:790",
+        "ruling:กค_0702/5958",
+        "แห่ง",
+        "ประมวลรัษฎากร",
+        "พระราชกฤษฎีกา",
+        "ฉบับ",
+        "ที่",
+        "790",
+        "พ.ศ",
+        "2567",
+        "กค",
+        "0702",
+        "5958"
+      ],
+      "live_query_tokens": [
+        "sec:80/1",
+        "sec:80/1(2)",
+        "rd:790",
+        "ruling:กค_0702/5958",
+        "แห่ง",
+        "ประมวลรัษฎากร",
+        "พระราชกฤษฎีกา",
+        "ฉบับ",
+        "ที่",
+        "790",
+        "พ.ศ",
+        "2567",
+        "กค",
+        "0702",
+        "5958"
+      ],
+      "exact_id_tokens": [
+        "sec:80/1",
+        "sec:80/1(2)",
+        "rd:790",
+        "ruling:กค_0702/5958"
+      ],
+      "preserved_negation_tokens": [],
+      "exact_token_parity": true,
+      "forbidden_tokens_absent": true,
+      "posting_hits": [
+        {
+          "token": "sec:80/1(2)",
+          "exact_ids_df": 24,
+          "title_heading_df": 24,
+          "phrases_roles_df": 118,
+          "body_df": 118,
+          "total_field_hits": 284,
+          "sample_passage_ids": [
+            "psg.e0b92181db0c6e",
+            "psg.720924d4c8b971",
+            "psg.8874b437206b09"
+          ]
+        },
+        {
+          "token": "sec:80/1",
+          "exact_ids_df": 95,
+          "title_heading_df": 95,
+          "phrases_roles_df": 336,
+          "body_df": 336,
+          "total_field_hits": 862,
+          "sample_passage_ids": [
+            "psg.de4ac28aae6a8e",
+            "psg.e8012d09c20b8e",
+            "psg.555104b3c30d12"
+          ]
+        },
+        {
+          "token": "rd:790",
+          "exact_ids_df": 5,
+          "title_heading_df": 3,
+          "phrases_roles_df": 3,
+          "body_df": 3,
+          "total_field_hits": 14,
+          "sample_passage_ids": [
+            "psg.rc7.rd790.sec_1_2",
+            "psg.rc7.rd790.sec_3_4",
+            "psg.rc7.rd790.note"
+          ]
+        },
+        {
+          "token": "ruling:กค_0702/5958",
+          "exact_ids_df": 2,
+          "title_heading_df": 2,
+          "phrases_roles_df": 0,
+          "body_df": 0,
+          "total_field_hits": 4,
+          "sample_passage_ids": [
+            "psg.e962efb267c00a",
+            "psg.f52de9a716c669"
+          ]
+        },
+        {
+          "token": "ประมวลรัษฎากร",
+          "exact_ids_df": 0,
+          "title_heading_df": 1703,
+          "phrases_roles_df": 0,
+          "body_df": 7274,
+          "total_field_hits": 8977,
+          "sample_passage_ids": [
+            "psg.7b8cd7b80618b6",
+            "psg.10e09c5fdd973a",
+            "psg.68b88eef17aeab"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "negation",
+      "input_text": "มิให้ถือว่าเป็นการขายสินค้า เว้นแต่โอนโดยเสน่หาไม่มีค่าตอบแทน",
+      "index_side_tokens": [
+        "มิให้",
+        "ถือว่า",
+        "เป็น",
+        "การขายสินค้า",
+        "เว้นแต่",
+        "โอน",
+        "โดยเสน่หา",
+        "ไม่มีค่าตอบแทน"
+      ],
+      "live_query_tokens": [
+        "มิให้",
+        "ถือว่า",
+        "เป็น",
+        "การขายสินค้า",
+        "เว้นแต่",
+        "โอน",
+        "โดยเสน่หา",
+        "ไม่มีค่าตอบแทน"
+      ],
+      "exact_id_tokens": [],
+      "preserved_negation_tokens": [
+        "มิให้",
+        "เว้นแต่",
+        "ไม่มีค่าตอบแทน",
+        "โดยเสน่หา"
+      ],
+      "exact_token_parity": true,
+      "forbidden_tokens_absent": true,
+      "posting_hits": [
+        {
+          "token": "มิให้",
+          "exact_ids_df": 0,
+          "title_heading_df": 0,
+          "phrases_roles_df": 242,
+          "body_df": 167,
+          "total_field_hits": 409,
+          "sample_passage_ids": [
+            "psg.512d39e55d352b",
+            "psg.5f0246ea75993a",
+            "psg.e7a1c3e6184c1d"
+          ]
+        },
+        {
+          "token": "เว้นแต่",
+          "exact_ids_df": 0,
+          "title_heading_df": 4,
+          "phrases_roles_df": 446,
+          "body_df": 444,
+          "total_field_hits": 894,
+          "sample_passage_ids": [
+            "psg.6ac0b6aaa0ad01",
+            "psg.e9b56d22f08697",
+            "psg.c26947ff0903a6"
+          ]
+        },
+        {
+          "token": "โดยเสน่หา",
+          "exact_ids_df": 0,
+          "title_heading_df": 2,
+          "phrases_roles_df": 70,
+          "body_df": 70,
+          "total_field_hits": 142,
+          "sample_passage_ids": [
+            "psg.180d36b9820320",
+            "psg.0149d2bbefc468",
+            "psg.68b88eef17aeab"
+          ]
+        },
+        {
+          "token": "ไม่มีค่าตอบแทน",
+          "exact_ids_df": 0,
+          "title_heading_df": 26,
+          "phrases_roles_df": 152,
+          "body_df": 145,
+          "total_field_hits": 323,
+          "sample_passage_ids": [
+            "psg.170b76593e208b",
+            "psg.c757e362c4fc0a",
+            "psg.046f82877a17d8"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "compound_terms",
+      "input_text": "ภาษีเงินได้บุคคลธรรมดา หักภาษี ณ ที่จ่าย โอนกรรมสิทธิ์ ห้องชุด อสังหาริมทรัพย์ ใบกำกับภาษี",
+      "index_side_tokens": [
+        "ภาษีเงินได้บุคคลธรรมดา",
+        "หักภาษี ณ ที่จ่าย",
+        "โอนกรรมสิทธิ์",
+        "ห้องชุด",
+        "อสังหาริมทรัพย์",
+        "ใบกำกับภาษี"
+      ],
+      "live_query_tokens": [
+        "ภาษีเงินได้บุคคลธรรมดา",
+        "หักภาษี ณ ที่จ่าย",
+        "โอนกรรมสิทธิ์",
+        "ห้องชุด",
+        "อสังหาริมทรัพย์",
+        "ใบกำกับภาษี"
+      ],
+      "exact_id_tokens": [],
+      "preserved_negation_tokens": [],
+      "exact_token_parity": true,
+      "forbidden_tokens_absent": true,
+      "posting_hits": [
+        {
+          "token": "ภาษีเงินได้บุคคลธรรมดา",
+          "exact_ids_df": 0,
+          "title_heading_df": 2007,
+          "phrases_roles_df": 0,
+          "body_df": 1308,
+          "total_field_hits": 3315,
+          "sample_passage_ids": [
+            "psg.f5f1e421fa6403",
+            "psg.48db6a6e2a7b6d",
+            "psg.7b7f8bbbfd13f2"
+          ]
+        },
+        {
+          "token": "หักภาษี ณ ที่จ่าย",
+          "exact_ids_df": 0,
+          "title_heading_df": 216,
+          "phrases_roles_df": 0,
+          "body_df": 1173,
+          "total_field_hits": 1389,
+          "sample_passage_ids": [
+            "psg.40e79ce50c8526",
+            "psg.0eb9704a6cf02f",
+            "psg.2541c5e2dca3f3"
+          ]
+        },
+        {
+          "token": "โอนกรรมสิทธิ์",
+          "exact_ids_df": 0,
+          "title_heading_df": 76,
+          "phrases_roles_df": 0,
+          "body_df": 434,
+          "total_field_hits": 510,
+          "sample_passage_ids": [
+            "psg.d8f0ccd5e955c5",
+            "psg.ac90322b218e14",
+            "psg.3a67f4fb5af8a2"
+          ]
+        },
+        {
+          "token": "ห้องชุด",
+          "exact_ids_df": 0,
+          "title_heading_df": 28,
+          "phrases_roles_df": 0,
+          "body_df": 111,
+          "total_field_hits": 139,
+          "sample_passage_ids": [
+            "psg.f88ffb0c818d89",
+            "psg.c887dd57cd7151",
+            "psg.1782a2a31912be"
+          ]
+        },
+        {
+          "token": "อสังหาริมทรัพย์",
+          "exact_ids_df": 0,
+          "title_heading_df": 478,
+          "phrases_roles_df": 0,
+          "body_df": 962,
+          "total_field_hits": 1440,
+          "sample_passage_ids": [
+            "psg.d8f0ccd5e955c5",
+            "psg.ac90322b218e14",
+            "psg.96fe4d9b3dfc72"
+          ]
+        },
+        {
+          "token": "ใบกำกับภาษี",
+          "exact_ids_df": 0,
+          "title_heading_df": 304,
+          "phrases_roles_df": 0,
+          "body_df": 1185,
+          "total_field_hits": 1489,
+          "sample_passage_ids": [
+            "psg.4ccb1fb73524dc",
+            "psg.6a3b1f9c0b2740",
+            "psg.1852d2915f26cb"
+          ]
+        }
+      ]
+    }
+  ]
+}
