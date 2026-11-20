@@ -1,0 +1,632 @@
+{
+  "source_commit": "6e4fde13253ca66c3e46f9ca56005776dc9011f1",
+  "case_count": 46,
+  "sealed_count": 21,
+  "nitibench_count": 25,
+  "cases": [
+    {
+      "case_id": "G-VAT-790-START",
+      "suite": "SEALED_GATE",
+      "category": "vat_effective_date",
+      "applicable_date": "2024-10-01",
+      "expected_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.790",
+        "subreg.th.rd.vat_local_tax_guide"
+      ],
+      "expected_version_ids": [
+        "ver.th.rc.royal_decree.790.v1"
+      ],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-790-END",
+      "suite": "SEALED_GATE",
+      "category": "vat_effective_date",
+      "applicable_date": "2025-09-30",
+      "expected_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.790",
+        "subreg.th.rd.vat_local_tax_guide"
+      ],
+      "expected_version_ids": [
+        "ver.th.rc.royal_decree.790.v1"
+      ],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-799-START",
+      "suite": "SEALED_GATE",
+      "category": "vat_effective_date",
+      "applicable_date": "2025-10-01",
+      "expected_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rd.vat_local_tax_guide"
+      ],
+      "expected_version_ids": [
+        "ver.th.rc.royal_decree.799.v2"
+      ],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-799-END",
+      "suite": "SEALED_GATE",
+      "category": "vat_effective_date",
+      "applicable_date": "2026-09-30",
+      "expected_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rd.vat_local_tax_guide"
+      ],
+      "expected_version_ids": [
+        "ver.th.rc.royal_decree.799.v2"
+      ],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-807-START",
+      "suite": "SEALED_GATE",
+      "category": "vat_effective_date",
+      "applicable_date": "2026-10-01",
+      "expected_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.807",
+        "subreg.th.rd.vat_local_tax_guide"
+      ],
+      "expected_version_ids": [
+        "ver.th.rc.royal_decree.807.v2"
+      ],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-807-END",
+      "suite": "SEALED_GATE",
+      "category": "vat_effective_date",
+      "applicable_date": "2027-09-30",
+      "expected_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.807",
+        "subreg.th.rd.vat_local_tax_guide"
+      ],
+      "expected_version_ids": [
+        "ver.th.rc.royal_decree.807.v2"
+      ],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-POST-807",
+      "suite": "SEALED_GATE",
+      "category": "vat_effective_date",
+      "applicable_date": "2027-10-01",
+      "expected_work_ids": [
+        "prov.th.rc.80"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-NO-DATE",
+      "suite": "SEALED_GATE",
+      "category": "vat_missing_date",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.80",
+        "prov.th.rc.78/1",
+        "subreg.th.rd.vat_local_tax_guide"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-ZERO-EXPORT",
+      "suite": "SEALED_GATE",
+      "category": "vat_regime_distinction",
+      "applicable_date": "2026-06-15",
+      "expected_work_ids": [
+        "prov.th.rc.80/1",
+        "subreg.th.rd.dg_vat.105"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-EXEMPT-81",
+      "suite": "SEALED_GATE",
+      "category": "vat_regime_distinction",
+      "applicable_date": "2026-06-15",
+      "expected_work_ids": [
+        "prov.th.rc.81"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-MIXED-82-6",
+      "suite": "SEALED_GATE",
+      "category": "vat_regime_distinction",
+      "applicable_date": "2026-06-15",
+      "expected_work_ids": [
+        "prov.th.rc.82/6"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-VAT-CROSSBORDER-PP36",
+      "suite": "SEALED_GATE",
+      "category": "vat_regime_distinction",
+      "applicable_date": "2026-06-15",
+      "expected_work_ids": [
+        "prov.th.rc.77/2",
+        "prov.th.rc.83/6"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-EXACT-SEC-80-1-2",
+      "suite": "SEALED_GATE",
+      "category": "exact_composite_id",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.80/1"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-EXACT-RULING-5958",
+      "suite": "SEALED_GATE",
+      "category": "exact_ruling_lookup",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "work.th.rd.0702_5958_2015_04f2b49f"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-EXACT-RULING-FAKE",
+      "suite": "SEALED_GATE",
+      "category": "exact_ruling_abstention",
+      "applicable_date": null,
+      "expected_work_ids": [],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-GIFT-T09-CONDO-NEPHEW",
+      "suite": "SEALED_GATE",
+      "category": "gift_changed_facts",
+      "applicable_date": "2026-06-15",
+      "expected_work_ids": [
+        "prov.th.rc.42",
+        "prov.th.rc.48",
+        "prov.th.rc.50",
+        "prov.th.rc.54"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-GIFT-B1-09-CASH-NIECE",
+      "suite": "SEALED_GATE",
+      "category": "gift_exception",
+      "applicable_date": "2026-02-10",
+      "expected_work_ids": [
+        "prov.th.rc.42",
+        "prov.th.rc.48"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-GIFT-CONDO-BROTHER",
+      "suite": "SEALED_GATE",
+      "category": "gift_changed_facts",
+      "applicable_date": "2026-06-15",
+      "expected_work_ids": [
+        "prov.th.rc.42",
+        "prov.th.rc.50",
+        "prov.th.rc.54"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-PARAPHRASE-EN-VAT",
+      "suite": "SEALED_GATE",
+      "category": "en_to_th_paraphrase",
+      "applicable_date": "2026-09-30",
+      "expected_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rd.vat_local_tax_guide"
+      ],
+      "expected_version_ids": [
+        "ver.th.rc.royal_decree.799.v2"
+      ],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-PARAPHRASE-EN-GIFT",
+      "suite": "SEALED_GATE",
+      "category": "en_to_th_paraphrase",
+      "applicable_date": "2026-06-15",
+      "expected_work_ids": [
+        "prov.th.rc.42",
+        "prov.th.rc.48",
+        "prov.th.rc.50",
+        "prov.th.rc.54"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "G-ANALOGOUS-RULING-EXPORT",
+      "suite": "SEALED_GATE",
+      "category": "analogous_ruling_research",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.80/1"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-01",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.77/1",
+        "prov.th.rc.82/5",
+        "prov.th.rc.80/1",
+        "prov.th.rc.82/4"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-02",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/5",
+        "prov.th.rc.65"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-03",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-04",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.69_ทวิ"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-05",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.77/1"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-06",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.50_ทวิ",
+        "prov.th.rc.50"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-07",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.39",
+        "prov.th.rc.50"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-08",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.71_ทวิ"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-09",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.65"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-10",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.77/1",
+        "prov.th.rc.113",
+        "prov.th.rc.39"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-11",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.39",
+        "prov.th.rc.42",
+        "prov.th.rc.56"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-12",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.104"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-13",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.7"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-14",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.39",
+        "prov.th.rc.71_ทวิ"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-15",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.81"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-16",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.39",
+        "prov.th.rc.47"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-17",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.42"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-18",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.65_ทวิ",
+        "prov.th.rc.65",
+        "prov.th.rc.70_ตรี"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-19",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.56"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-20",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.81"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-21",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.77/1",
+        "prov.th.rc.77/2",
+        "prov.th.rc.78"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-22",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.42",
+        "prov.th.rc.50"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-23",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.2",
+        "prov.th.rc.121"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-24",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.47_ทวิ",
+        "prov.th.rc.65_ทวิ",
+        "prov.th.rc.65"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    },
+    {
+      "case_id": "NITI-TAX-25",
+      "suite": "NITIBENCH_TAX_SUPPLEMENT",
+      "category": "nitibench_tax",
+      "applicable_date": null,
+      "expected_work_ids": [
+        "prov.th.rc.41",
+        "prov.th.rc.56",
+        "prov.th.rc.50",
+        "prov.th.rc.48"
+      ],
+      "expected_version_ids": [],
+      "forbidden_work_ids": [],
+      "expect_unresolved_ruling": null
+    }
+  ]
+}

@@ -546,6 +546,43 @@ export function isGroundedLlmStagingModeEnabled(req: QueryRequest): boolean {
   return process.env.REG24_GROUNDED_LLM_STAGING_ENABLED === "true";
 }
 
+export interface RealAppEvidenceAssemblyCapture {
+  release_id: string;
+  controlling_date_iso: string | null;
+  retrieval_elapsed_ms: number;
+  retrieval_top_hits: Array<{
+    rank: number;
+    passage_id: string;
+    work_id: string;
+    version_id: string;
+    statement_role: string;
+    score: number;
+  }>;
+  unresolved_explicit_ruling_ids: string[];
+  pre_llm_response_status:
+    | "READY_FOR_LLM_GROUNDED"
+    | "CLARIFICATION_OR_CONDITIONAL_NEEDED"
+    | "INSUFFICIENT_EVIDENCE";
+  clarification_questions_th: string[];
+  coverage_warnings_th: string[];
+  actual_model_packet: Array<{
+    position: number;
+    passage_id: string;
+    work_id: string;
+    version_id: string;
+    official_identifier: string;
+    authority_tier: string;
+    evidence_role:
+      | "governing"
+      | "conditional_branch_authority"
+      | "historical_or_excluded_context"
+      | "contextual_ruling_or_guidance";
+    temporal_applicability_hint: string;
+    pinpoint: string;
+    official_url: string | null;
+  }>;
+}
+
 export async function queryKnowledge(
   req: QueryRequest,
   actor: Actor,
@@ -554,6 +591,10 @@ export async function queryKnowledge(
     retrievalStrategy?: RetrievalStrategy;
     channel?: TraceablePublicationChannel;
     persistAnswerAtomically?: boolean;
+    /** Evaluation/diagnostic hook capturing the EXACT ordered model packet assembled by the real app path. */
+    onRealAppEvidenceAssembly?: (capture: RealAppEvidenceAssemblyCapture) => void;
+    /** When true, runs the full real app retrieval + evidence assembly and stops right before the LLM network call. */
+    captureRealAppEvidenceAssemblyOnly?: boolean;
   }
 ): Promise<GroundedAnswer> {
   const store = options?.store || getDefaultKnowledgeStore();
@@ -686,6 +727,8 @@ async function executeCoreKnowledgeQuery(
     store?: DurableKnowledgeStore;
     retrievalStrategy?: RetrievalStrategy;
     rawOriginalQuestion?: string;
+    onRealAppEvidenceAssembly?: (capture: RealAppEvidenceAssemblyCapture) => void;
+    captureRealAppEvidenceAssemblyOnly?: boolean;
   }
 ): Promise<GroundedAnswer> {
   const startedAt = Date.now();
@@ -807,6 +850,7 @@ async function executeCoreKnowledgeQuery(
     };
   }
 
+  const tRetrieve0 = performance.now();
   const bundle = retrieveAuthorizedKnowledge(store, {
     question: req.question,
     release_id: releaseId,
@@ -817,7 +861,17 @@ async function executeCoreKnowledgeQuery(
     incidental_premise_section_ids: issueAnalysis.incidentalPremiseSectionIds,
     demote_rulings_before_iso: issueAnalysis.demoteRulingsIssuedBeforeIso,
     strategy: options?.retrievalStrategy || "hybrid_with_graph",
+    strict_verified_graph_only: true,
   });
+  const retrievalElapsedMs = Number((performance.now() - tRetrieve0).toFixed(2));
+  const captureTopHits = bundle.top_hits.map((h, idx) => ({
+    rank: idx + 1,
+    passage_id: h.passage.passage_id,
+    work_id: h.passage.work_id,
+    version_id: h.passage.version_id,
+    statement_role: h.passage.statement_role,
+    score: h.score,
+  }));
 
   const coverageWarnings: string[] = [...(releaseRec?.coverage_gaps || [])];
 
@@ -829,6 +883,19 @@ async function executeCoreKnowledgeQuery(
       resolvedIds.length > 0
         ? `ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ ${missingLabel} ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (${releaseId}) ระบบจึงระงับการสรุปเปรียบเทียบและไม่นำข้อหารือฉบับอื่นมาสวมรอยแทนโดยพลการ (เฉพาะเลขที่ที่ตรวจสอบพบต้นฉบับจริงในคลังข้อมูลคือ: ${resolvedIds.join(", ")})`
         : `ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ ${missingLabel} ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (${releaseId}) ระบบจึงระงับการสรุปข้อกฎหมายและไม่สร้างเลขที่เอกสารหรือนำข้อหารือฉบับอื่นมาอ้างอิงแทน`;
+    options?.onRealAppEvidenceAssembly?.({
+      release_id: releaseId,
+      controlling_date_iso: req.applicable_date ?? null,
+      retrieval_elapsed_ms: retrievalElapsedMs,
+      retrieval_top_hits: captureTopHits,
+      unresolved_explicit_ruling_ids: bundle.unresolved_explicit_ruling_ids,
+      pre_llm_response_status: "INSUFFICIENT_EVIDENCE",
+      clarification_questions_th: [
+        `กรุณาตรวจสอบเลขที่หนังสือตอบข้อหารือ (${missingLabel}) หรือวันที่ออกหนังสืออีกครั้ง`,
+      ],
+      coverage_warnings_th: coverageWarnings,
+      actual_model_packet: [],
+    });
     return {
       release_id: releaseId,
       knowledge_snapshot_at: snapshotAt,
@@ -1304,6 +1371,68 @@ async function executeCoreKnowledgeQuery(
         );
 
       const vatCoreWorkIds: string[] = [];
+      const historicalContextWorkIds = new Set<string>();
+      const isDomesticVatRateQuery =
+        !asksExempt || /ร้อยละ\s*7|อัตราภาษีมูลค่าเพิ่ม|มาตรา\s*80(?![/0-9])/.test(mergedUserBlob);
+
+      // Genuinely missing pre-2023-10-01 historical VAT reduction decree (between RD 646 and RD 780) -> Clean abstention!
+      if (
+        isDomesticVatRateQuery &&
+        !asksExportOrZeroRate &&
+        !asksExempt &&
+        !asksMixedUse &&
+        !asksCrossBorderInbound &&
+        ctrlDate &&
+        ctrlDate >= "2017-10-01" &&
+        ctrlDate < "2023-10-01"
+      ) {
+        const gapMsg = `ไม่พบหลักฐานเพียงพอสำหรับวันที่ ${ctrlDate} — คลังข้อมูล ${releaseId} มีพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่ตรวจสอบต้นฉบับราชกิจจานุเบกษาแล้วเฉพาะช่วง พ.ร.ฎ. ฉบับที่ 780/790/799/807 (ตั้งแต่ 1 ตุลาคม 2566 – 30 กันยายน 2570) แต่ยังไม่มีต้นฉบับพระราชกฤษฎีกาขยายเวลาลดอัตรารายปีในช่วงระหว่าง 1 ตุลาคม 2560 – 30 กันยายน 2566 ระบบจึงระงับการสรุปอัตราภาษีและไม่นำ พ.ร.ฎ. ฉบับที่ 790/799/807 มาสวมรอยแทน`;
+        options?.onRealAppEvidenceAssembly?.({
+          release_id: releaseId,
+          controlling_date_iso: ctrlDate,
+          retrieval_elapsed_ms: retrievalElapsedMs,
+          retrieval_top_hits: captureTopHits,
+          unresolved_explicit_ruling_ids: bundle.unresolved_explicit_ruling_ids,
+          pre_llm_response_status: "INSUFFICIENT_EVIDENCE",
+          clarification_questions_th: [
+            "กรุณาตรวจสอบพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มฉบับที่ใช้บังคับในช่วงปี พ.ศ. 2561–2566 จากราชกิจจานุเบกษาโดยตรง",
+          ],
+          coverage_warnings_th: [...coverageWarnings, gapMsg],
+          actual_model_packet: [],
+        });
+        return {
+          release_id: releaseId,
+          knowledge_snapshot_at: snapshotAt,
+          status: "INSUFFICIENT_EVIDENCE",
+          answer: gapMsg,
+          claims: [
+            {
+              claim_id: `clm.${traceId}.abstain_historical_vat_gap`,
+              statement: gapMsg,
+              claim_type: "abstention_notice",
+              statement_role: "reg24_inference",
+              supporting_passage_ids: [],
+              applicable_version_id: null,
+              factual_conditions: [],
+              exceptions: [],
+              counterevidence_passage_ids: [],
+              verification_result: "UNSUPPORTED",
+            },
+          ],
+          evidence: [],
+          assumptions: [],
+          clarification_questions: [
+            "กรุณาตรวจสอบพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มฉบับที่ใช้บังคับในช่วงปี พ.ศ. 2561–2566 จากราชกิจจานุเบกษาโดยตรง",
+          ],
+          coverage_warnings: [...coverageWarnings, gapMsg],
+          applicable_date: req.applicable_date ?? null,
+          model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+          trace_id: traceId,
+          latency_ms: Math.max(1, Date.now() - startedAt),
+          execution_provenance: buildProvenance(),
+        };
+      }
+
       if (asksExportOrZeroRate) {
         vatCoreWorkIds.push("prov.th.rc.80/1", "subreg.th.rd.dg_vat.105", "prov.th.rc.77/2");
       }
@@ -1318,7 +1447,7 @@ async function executeCoreKnowledgeQuery(
       }
 
       // Ordinary domestic VAT rate & tax point routing (select ONLY governing decree for ctrlDate!)
-      if (!asksExempt || /ร้อยละ\s*7|อัตราภาษีมูลค่าเพิ่ม|มาตรา\s*80(?![/0-9])/.test(mergedUserBlob)) {
+      if (isDomesticVatRateQuery) {
         vatCoreWorkIds.push("prov.th.rc.80", "prov.th.rc.78", "prov.th.rc.78/1", "subreg.th.rd.vat_local_tax_guide");
         if (!ctrlDate) {
           vatCoreWorkIds.push(
@@ -1333,6 +1462,8 @@ async function executeCoreKnowledgeQuery(
         } else if (ctrlDate >= "2026-10-01" && ctrlDate <= "2027-09-30") {
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.807");
         } else if (ctrlDate > "2027-09-30") {
+          // Decree 807 EXPIRED on 2027-09-30: include ONLY as clearly labeled historical/excluded context to explain expiry, NEVER as governing authority!
+          historicalContextWorkIds.add("subreg.th.rc.royal_decree.807");
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.807");
         } else if (ctrlDate >= "2023-10-01" && ctrlDate <= "2024-09-30") {
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.780");
@@ -1341,6 +1472,8 @@ async function executeCoreKnowledgeQuery(
       for (const vWid of Array.from(new Set(vatCoreWorkIds))) {
         appendWorkPassages(vWid);
       }
+      (candidatePassages as Passage[] & { __historicalWorkIds?: Set<string> }).__historicalWorkIds =
+        historicalContextWorkIds;
     }
 
     // 3. Add top domain-compatible retrieved passages (hybrid+graph) up to pack budget
@@ -1353,12 +1486,76 @@ async function executeCoreKnowledgeQuery(
     }
 
     const controllingDateIso = factLedger.temporal_facts.controlling_tax_point.iso_date;
+    const explicitRulingWorkIds = new Set<string>(
+      singleExplicitRulingPassage ? [singleExplicitRulingPassage.work_id] : []
+    );
+    const historicalContextWorkIds =
+      (candidatePassages as Passage[] & { __historicalWorkIds?: Set<string> })
+        .__historicalWorkIds || new Set<string>();
     const passagePack = buildGroundedPassagePack({
       passages: candidatePassages,
       state: freshState,
       controllingDateIso,
       maxPassages: 24,
+      explicitWorkIds: explicitRulingWorkIds,
+      historicalContextWorkIds,
     });
+
+    const needsDateClarification =
+      !controllingDateIso &&
+      passagePack.some((item) => item.evidence_role === "conditional_branch_authority");
+    const preLlmStatus: RealAppEvidenceAssemblyCapture["pre_llm_response_status"] =
+      needsDateClarification ? "CLARIFICATION_OR_CONDITIONAL_NEEDED" : "READY_FOR_LLM_GROUNDED";
+    options?.onRealAppEvidenceAssembly?.({
+      release_id: releaseId,
+      controlling_date_iso: controllingDateIso,
+      retrieval_elapsed_ms: retrievalElapsedMs,
+      retrieval_top_hits: captureTopHits,
+      unresolved_explicit_ruling_ids: bundle.unresolved_explicit_ruling_ids,
+      pre_llm_response_status: preLlmStatus,
+      clarification_questions_th: needsDateClarification
+        ? [
+            "กรุณาระบุวันที่เกิดความรับผิดในการเสียภาษีมูลค่าเพิ่ม (เช่น วันส่งมอบสินค้า วันออกใบกำกับภาษี หรือวันรับชำระค่าบริการ) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับ",
+          ]
+        : issueAnalysis.decisiveMissingFactQuestionsTh,
+      coverage_warnings_th: coverageWarnings,
+      actual_model_packet: passagePack.map((item, idx) => ({
+        position: idx + 1,
+        passage_id: item.passage_id,
+        work_id: item.work_id,
+        version_id: item.version_id,
+        official_identifier: item.official_identifier,
+        authority_tier: item.authority_tier,
+        evidence_role: item.evidence_role,
+        temporal_applicability_hint: item.effective_dates.temporal_applicability_hint,
+        pinpoint: item.pinpoint,
+        official_url: item.official_url,
+      })),
+    });
+    if (options?.captureRealAppEvidenceAssemblyOnly) {
+      return {
+        release_id: releaseId,
+        knowledge_snapshot_at: snapshotAt,
+        status: needsDateClarification ? "NEEDS_CLARIFICATION" : "ANSWERED",
+        answer: needsDateClarification
+          ? "ต้องระบุวันที่เกิดความรับผิดทางภาษี (หรือใช้คำตอบแบบมีเงื่อนไขตามช่วงวันใช้บังคับของ พ.ร.ฎ. 790/799/807)"
+          : "[DRY_RUN_EVIDENCE_ASSEMBLY_CAPTURED]",
+        claims: [],
+        evidence: [],
+        assumptions: [],
+        clarification_questions: needsDateClarification
+          ? [
+              "กรุณาระบุวันที่เกิดความรับผิดในการเสียภาษีมูลค่าเพิ่ม (เช่น วันส่งมอบสินค้า วันออกใบกำกับภาษี หรือวันรับชำระค่าบริการ) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับ",
+            ]
+          : issueAnalysis.decisiveMissingFactQuestionsTh,
+        coverage_warnings: coverageWarnings,
+        applicable_date: req.applicable_date ?? null,
+        model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+        trace_id: traceId,
+        latency_ms: Math.max(1, Date.now() - startedAt),
+        execution_provenance: buildProvenance(),
+      };
+    }
 
     const llmRes = await draftGroundedLegalAnswerWithLlm({
       question: rawQ,

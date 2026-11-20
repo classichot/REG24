@@ -47,6 +47,12 @@ export type AuthorityHierarchyTier =
   | "OFFICIAL_GUIDANCE"
   | "CASE_SPECIFIC_TAX_RULING";
 
+export type GroundedEvidenceRole =
+  | "governing"
+  | "conditional_branch_authority"
+  | "historical_or_excluded_context"
+  | "contextual_ruling_or_guidance";
+
 export interface GroundedPassagePackItem {
   passage_id: string;
   work_id: string;
@@ -55,6 +61,7 @@ export interface GroundedPassagePackItem {
   title_th: string;
   source_type: string;
   authority_tier: AuthorityHierarchyTier;
+  evidence_role: GroundedEvidenceRole;
   effective_dates: {
     valid_from: string | null;
     valid_to: string | null;
@@ -282,6 +289,8 @@ export function buildGroundedPassagePack(params: {
   state: CanonicalPersistedState;
   controllingDateIso: string | null;
   maxPassages?: number;
+  explicitWorkIds?: Set<string>;
+  historicalContextWorkIds?: Set<string>;
 }): GroundedPassagePackItem[] {
   const maxPassages = params.maxPassages ?? 28;
   const seen = new Set<string>();
@@ -305,6 +314,24 @@ export function buildGroundedPassagePack(params: {
     const isPdf =
       Boolean(resolvedUrl && /\.pdf(?:$|\?)/i.test(resolvedUrl)) ||
       art?.MIME === "application/pdf";
+    const temporalHint = evaluateTemporalHint(validFrom, validTo, params.controllingDateIso);
+    const isTemporaryDecree = Boolean(
+      ver?.legal_applicability?.[0]?.is_temporary_rule ||
+        p.work_id.startsWith("subreg.th.rc.royal_decree.")
+    );
+    let evidenceRole: GroundedEvidenceRole;
+    if (
+      temporalHint === "OUT_OF_WINDOW" ||
+      params.historicalContextWorkIds?.has(p.work_id)
+    ) {
+      evidenceRole = "historical_or_excluded_context";
+    } else if (temporalHint === "DATE_UNKNOWN" && isTemporaryDecree) {
+      evidenceRole = "conditional_branch_authority";
+    } else if (work?.type === "TaxRuling" && !params.explicitWorkIds?.has(p.work_id)) {
+      evidenceRole = "contextual_ruling_or_guidance";
+    } else {
+      evidenceRole = "governing";
+    }
 
     out.push({
       passage_id: p.passage_id,
@@ -315,17 +342,14 @@ export function buildGroundedPassagePack(params: {
       title_th: work?.title_th || p.contextualized_header || p.work_id,
       source_type: work?.type || "Statute",
       authority_tier: classifyAuthorityTier(work?.type, p.work_id),
+      evidence_role: evidenceRole,
       effective_dates: {
         valid_from: validFrom,
         valid_to: validTo,
         decision_date: ver?.decision_date || null,
         publication_date: ver?.publication_date || null,
         raw_date_text: ver?.raw_date_text || null,
-        temporal_applicability_hint: evaluateTemporalHint(
-          validFrom,
-          validTo,
-          params.controllingDateIso
-        ),
+        temporal_applicability_hint: temporalHint,
       },
       pinpoint:
         p.structural_path.filter(Boolean).join(" > ") ||
