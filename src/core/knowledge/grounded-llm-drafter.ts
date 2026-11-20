@@ -205,9 +205,9 @@ export function resolveThinkingLevelForModel(
     chosen = "minimal";
   }
 
-  // Per Gemini Thinking docs, `max_output_tokens` includes thought tokens: use 16384 for high/medium
-  // thinking so reasoning never truncates structured JSON output.
-  const maxOutputTokens = chosen === "high" || chosen === "medium" ? 16384 : 4096;
+  // Per Gemini Thinking docs, `max_output_tokens` includes thought tokens: always allocate 16384
+  // for Gemini 4 models (at any level) and for high/medium thinking so reasoning never truncates JSON.
+  const maxOutputTokens = isGemini4 || chosen === "high" || chosen === "medium" ? 16384 : 4096;
   return { thinking_level: chosen, max_output_tokens: maxOutputTokens, note };
 }
 
@@ -340,7 +340,13 @@ export function buildGroundedPassagePack(params: {
   return out;
 }
 
-/** Provider-neutral JSON Schema for structured legal application output (OpenAI strict mode adds `additionalProperties: false` automatically). */
+/**
+ * Provider-neutral JSON Schema for structured legal application output.
+ * Uses clean single-type declarations (avoiding multi-type union arrays like `["number", "null"]`
+ * which degrade constrained-decoding latency on Gemini 4 models); absent optional numeric fields
+ * are normalized to `null` after JSON parsing. `buildOpenAiStrictSchema` adapts this cleanly for
+ * OpenAI Responses API `strict: true` mode.
+ */
 export const GROUNDED_LLM_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
@@ -376,25 +382,20 @@ export const GROUNDED_LLM_RESPONSE_SCHEMA = {
           application_explanation_th: { type: "string" },
           authority_distinction_note_th: { type: "string" },
           proposed_calculation: {
-            type: ["object", "null"],
+            type: "object",
             properties: {
               formula_description_th: { type: "string" },
-              tax_base_thb: { type: ["number", "null"] },
-              exempt_amount_thb: { type: ["number", "null"] },
-              taxable_amount_thb: { type: ["number", "null"] },
-              rate_pct: { type: ["number", "null"] },
-              computed_tax_thb: { type: ["number", "null"] },
+              tax_base_thb: { type: "number" },
+              exempt_amount_thb: { type: "number" },
+              taxable_amount_thb: { type: "number" },
+              rate_pct: { type: "number" },
+              computed_tax_thb: { type: "number" },
               is_computable_from_stated_facts: { type: "boolean" },
               missing_inputs_th: { type: "array", items: { type: "string" } },
               steps_th: { type: "array", items: { type: "string" } },
             },
             required: [
               "formula_description_th",
-              "tax_base_thb",
-              "exempt_amount_thb",
-              "taxable_amount_thb",
-              "rate_pct",
-              "computed_tax_thb",
               "is_computable_from_stated_facts",
               "missing_inputs_th",
               "steps_th",
@@ -411,7 +412,6 @@ export const GROUNDED_LLM_RESPONSE_SCHEMA = {
           "governing_passage_ids",
           "application_explanation_th",
           "authority_distinction_note_th",
-          "proposed_calculation",
           "missing_facts_or_uncertainties_th",
         ],
       },
@@ -431,16 +431,81 @@ export const GROUNDED_LLM_RESPONSE_SCHEMA = {
   ],
 };
 
+function normalizeParsedDraftResponse(raw: GroundedLlmDraftResponse): GroundedLlmDraftResponse {
+  return {
+    ...raw,
+    case_facts_used: Array.isArray(raw.case_facts_used) ? raw.case_facts_used : [],
+    assumptions_th: Array.isArray(raw.assumptions_th) ? raw.assumptions_th : [],
+    clarification_questions_th: Array.isArray(raw.clarification_questions_th)
+      ? raw.clarification_questions_th
+      : [],
+    evidence_gaps_th: Array.isArray(raw.evidence_gaps_th) ? raw.evidence_gaps_th : [],
+    issues: (raw.issues || []).map((iss) => ({
+      ...iss,
+      material_facts_relied_on: Array.isArray(iss.material_facts_relied_on)
+        ? iss.material_facts_relied_on
+        : [],
+      governing_passage_ids: Array.isArray(iss.governing_passage_ids)
+        ? iss.governing_passage_ids
+        : [],
+      missing_facts_or_uncertainties_th: Array.isArray(iss.missing_facts_or_uncertainties_th)
+        ? iss.missing_facts_or_uncertainties_th
+        : [],
+      proposed_calculation: iss.proposed_calculation
+        ? {
+            formula_description_th: iss.proposed_calculation.formula_description_th || "",
+            tax_base_thb:
+              typeof iss.proposed_calculation.tax_base_thb === "number"
+                ? iss.proposed_calculation.tax_base_thb
+                : null,
+            exempt_amount_thb:
+              typeof iss.proposed_calculation.exempt_amount_thb === "number"
+                ? iss.proposed_calculation.exempt_amount_thb
+                : null,
+            taxable_amount_thb:
+              typeof iss.proposed_calculation.taxable_amount_thb === "number"
+                ? iss.proposed_calculation.taxable_amount_thb
+                : null,
+            rate_pct:
+              typeof iss.proposed_calculation.rate_pct === "number"
+                ? iss.proposed_calculation.rate_pct
+                : null,
+            computed_tax_thb:
+              typeof iss.proposed_calculation.computed_tax_thb === "number"
+                ? iss.proposed_calculation.computed_tax_thb
+                : null,
+            is_computable_from_stated_facts: Boolean(
+              iss.proposed_calculation.is_computable_from_stated_facts
+            ),
+            missing_inputs_th: Array.isArray(iss.proposed_calculation.missing_inputs_th)
+              ? iss.proposed_calculation.missing_inputs_th
+              : [],
+            steps_th: Array.isArray(iss.proposed_calculation.steps_th)
+              ? iss.proposed_calculation.steps_th
+              : [],
+          }
+        : null,
+    })),
+  };
+}
+
 export function buildOpenAiStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
   const clone = JSON.parse(JSON.stringify(schema)) as Record<string, unknown>;
   const walk = (node: Record<string, unknown>) => {
     const t = node.type;
     if (t === "object" || (Array.isArray(t) && t.includes("object"))) {
       node.additionalProperties = false;
-    }
-    if (node.properties && typeof node.properties === "object") {
-      for (const v of Object.values(node.properties as Record<string, unknown>)) {
-        if (v && typeof v === "object") walk(v as Record<string, unknown>);
+      if (node.properties && typeof node.properties === "object") {
+        const props = node.properties as Record<string, Record<string, unknown>>;
+        const reqSet = new Set<string>(Array.isArray(node.required) ? (node.required as string[]) : []);
+        // OpenAI `strict: true` requires EVERY property key in `required`, using `["<type>", "null"]` for optional fields.
+        for (const [k, v] of Object.entries(props)) {
+          if (!reqSet.has(k) && typeof v.type === "string") {
+            v.type = [v.type, "null"];
+          }
+          walk(v);
+        }
+        node.required = Object.keys(props);
       }
     }
     if (node.items && typeof node.items === "object") {
@@ -765,7 +830,7 @@ async function invokeOpenAiResponsesChallenger(params: {
       };
     }
 
-    const parsed = JSON.parse(outputText) as GroundedLlmDraftResponse;
+    const parsed = normalizeParsedDraftResponse(JSON.parse(outputText) as GroundedLlmDraftResponse);
     if (!parsed || !Array.isArray(parsed.issues)) {
       throw new Error("Invalid JSON output: missing required 'issues' array.");
     }
@@ -1049,7 +1114,7 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
       };
     }
 
-    const parsed = JSON.parse(outputText) as GroundedLlmDraftResponse;
+    const parsed = normalizeParsedDraftResponse(JSON.parse(outputText) as GroundedLlmDraftResponse);
     if (!parsed || !Array.isArray(parsed.issues)) {
       throw new Error("Invalid JSON output: missing required 'issues' array.");
     }
