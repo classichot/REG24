@@ -48,6 +48,9 @@ export function formatOfficialLinkStatusNoticeTh(
   if (loc.link_health === "moved_verified") {
     return "ลิงก์ทางการมีการย้ายที่อยู่และผ่านการตรวจสอบความตรงกันของรุ่นเอกสารแล้ว (เก็บรักษาประวัติ URL เดิมครบถ้วน)";
   }
+  if (loc.link_health === "unchecked_live") {
+    return "ลิงก์ทางการที่ผูกกับต้นฉบับในคลัง (ยังไม่ได้ตรวจเช็กการเข้าถึงออนไลน์แบบสด — แยกจากการยืนยันตัวตนเอกสารในคลัง)";
+  }
   return null;
 }
 

@@ -35,6 +35,7 @@ export async function POST(req: Request) {
       persist_answer?: boolean;
       stream?: boolean;
       qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
+      answer_generation_mode?: "llm_grounded" | "baseline_deterministic" | null;
     };
 
     if (!body.question || typeof body.question !== "string" || !body.question.trim()) {
@@ -62,6 +63,8 @@ export async function POST(req: Request) {
         enable_tax_foundation_pilot: false,
         qa_synthetic_fixture:
           process.env.VERCEL_ENV !== "production" ? body.qa_synthetic_fixture ?? null : null,
+        answer_generation_mode:
+          process.env.VERCEL_ENV !== "production" ? body.answer_generation_mode ?? null : null,
       },
       actor,
       {
@@ -123,6 +126,12 @@ export async function POST(req: Request) {
         },
       });
       answer.traceable_answer = pgSaved;
+      if (answer.llm_audit_trace && typeof answer.llm_audit_trace === "object") {
+        answer.llm_audit_trace = {
+          ...answer.llm_audit_trace,
+          final_answer_revision_id: pgSaved.answer_revision || null,
+        };
+      }
       persistMs = Math.round((performance.now() - persistStartedAt) * 100) / 100;
     }
 

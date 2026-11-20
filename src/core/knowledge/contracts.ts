@@ -502,7 +502,11 @@ export interface ExecutionProvenanceMetadata {
     separate_calculation_verification: boolean;
     negated_fact_stripping_enabled: boolean;
     tax_foundation_pilot_enabled?: boolean;
+    grounded_llm_staging_enabled?: boolean;
+    template_fallback_disabled?: boolean;
   };
+  generation_mode?: "llm_grounded" | "baseline_deterministic";
+  provider_invocation?: Record<string, unknown>;
 }
 
 export interface GroundedAnswer {
@@ -524,6 +528,7 @@ export interface GroundedAnswer {
   calculation_verifications?: Array<Record<string, unknown>>;
   execution_provenance?: ExecutionProvenanceMetadata;
   tax_foundation_trace?: Record<string, unknown>;
+  llm_audit_trace?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -903,6 +908,8 @@ export interface QueryRequest {
   enable_tax_foundation_pilot?: boolean;
   /** Non-production staging-only QA fixture hook (e.g., RC1 deterministic rejected-calculation leak verification). */
   qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
+  /** Staging-only flag to select the grounded LLM answer path vs frozen deterministic baseline (disabled in production). */
+  answer_generation_mode?: "llm_grounded" | "baseline_deterministic" | null;
 }
 
 // ============================================================================

@@ -52,6 +52,9 @@ export default function LegalTeamReviewStudioPage() {
   const [asOfDate, setAsOfDate] = useState<string>("");
   const [asOfDateSetByPreset, setAsOfDateSetByPreset] = useState<boolean>(false);
   const [queryMode, setQueryMode] = useState<"standard" | "exact_lookup" | "comparison">("standard");
+  const [answerGenerationMode, setAnswerGenerationMode] = useState<
+    "llm_grounded" | "baseline_deterministic"
+  >("llm_grounded");
   const createFreshConversationId = () =>
     `conv.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
 
@@ -488,6 +491,7 @@ export default function LegalTeamReviewStudioPage() {
           conversation_history: historyForCall,
           attachment_doc_ids: attachedDocIds,
           qa_synthetic_fixture: syntheticFixture ?? null,
+          answer_generation_mode: answerGenerationMode,
         }),
       });
       const json = await res.json();
@@ -1289,6 +1293,30 @@ export default function LegalTeamReviewStudioPage() {
                   <option value="comparison">โหมดเปรียบเทียบหลายเอกสาร (Comparison)</option>
                 </select>
 
+                <select
+                  value={answerGenerationMode}
+                  onChange={(e) =>
+                    setAnswerGenerationMode(
+                      e.target.value as "llm_grounded" | "baseline_deterministic"
+                    )
+                  }
+                  style={{
+                    background: "#0b0d10",
+                    color: "#93c5fd",
+                    border: "1px solid #1d4ed8",
+                    padding: "6px 8px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                  }}
+                >
+                  <option value="llm_grounded">
+                    Grounded LLM (Staging Flag · Zero Template Fallback)
+                  </option>
+                  <option value="baseline_deterministic">
+                    Baseline Deterministic (Comparison Control)
+                  </option>
+                </select>
+
                 <button
                   type="button"
                   disabled={queryBusy}
@@ -1427,8 +1455,63 @@ export default function LegalTeamReviewStudioPage() {
                         · Release: <code>{answerResult.execution_provenance.release_id}</code> (
                         <code>{answerResult.execution_provenance.manifest_id || "-"}</code>) · Commit:{" "}
                         <code>{answerResult.execution_provenance.git_commit_sha.slice(0, 7)}</code> ·
+                        Engine: <code>{answerResult.execution_provenance.model_id}</code> ·
+                        Policy: <code>{answerResult.execution_provenance.model_policy_version}</code> ·
                         CalcVerifier:{" "}
                         <code>{answerResult.execution_provenance.calculation_verifier_version}</code>
+                        {answerResult.execution_provenance.provider_invocation ? (
+                          <>
+                            {" "}
+                            · Provider:{" "}
+                            <code>
+                              {String(
+                                (
+                                  answerResult.execution_provenance.provider_invocation as Record<
+                                    string,
+                                    unknown
+                                  >
+                                ).provider || "-"
+                              )}
+                            </code>{" "}
+                            (live=
+                            <code>
+                              {String(
+                                Boolean(
+                                  (
+                                    answerResult.execution_provenance.provider_invocation as Record<
+                                      string,
+                                      unknown
+                                    >
+                                  ).live_provider_called
+                                )
+                              )}
+                            </code>
+                            , tokens=
+                            <code>
+                              {String(
+                                (
+                                  answerResult.execution_provenance.provider_invocation as Record<
+                                    string,
+                                    unknown
+                                  >
+                                ).total_tokens ?? 0
+                              )}
+                            </code>
+                            , cost=$
+                            <code>
+                              {String(
+                                (
+                                  answerResult.execution_provenance.provider_invocation as Record<
+                                    string,
+                                    unknown
+                                  >
+                                ).estimated_cost_usd ?? 0
+                              )}
+                            </code>
+                            , latency=
+                            <code>{answerResult.latency_ms}ms</code>)
+                          </>
+                        ) : null}
                       </>
                     ) : null}
                     {traceableEnvelope &&

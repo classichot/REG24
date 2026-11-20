@@ -242,14 +242,18 @@ export function selectBestOfficialLocation(
     exactVer(nonSynthetic).find(
       (l) =>
         l.is_active_primary &&
-        (l.link_health === "verified_online" || l.link_health === "moved_verified")
+        (l.link_health === "verified_online" ||
+          l.link_health === "moved_verified" ||
+          l.link_health === "unchecked_live")
     ) ||
     exactVer(nonSynthetic).find((l) => l.is_active_primary) ||
     exactVer(nonSynthetic)[0] ||
     nonSynthetic.find(
       (l) =>
         l.is_active_primary &&
-        (l.link_health === "verified_online" || l.link_health === "moved_verified")
+        (l.link_health === "verified_online" ||
+          l.link_health === "moved_verified" ||
+          l.link_health === "unchecked_live")
     ) ||
     nonSynthetic[0];
 
@@ -272,8 +276,8 @@ export function selectBestOfficialLocation(
       last_successful_verified_at: null,
       verification_method: "verified_statutory_corpus_url_resolver",
       identity_match_result: "VERIFIED_MATCH",
-      link_health: "verified_online",
-      last_http_status: 200,
+      link_health: "unchecked_live",
+      last_http_status: null,
       failure_reason: null,
       is_active_primary: true,
     };
@@ -481,13 +485,12 @@ function buildCanonicalCitationProjection(
         original_observed_url: rawOriginUri,
         redirect_history: [],
         prior_urls: [],
-        first_verified_at: isSyntheticUnresolved ? null : art?.fetched_at || ver.known_from,
-        last_verified_at: isSyntheticUnresolved ? null : art?.fetched_at || ver.known_from,
-        last_successful_verified_at:
-          isThirdParty || isSyntheticUnresolved ? null : art?.fetched_at || ver.known_from,
+        first_verified_at: null,
+        last_verified_at: null,
+        last_successful_verified_at: null,
         verification_method: isSyntheticUnresolved
           ? "synthetic_placeholder_unverified"
-          : "canonical_b01_verified_backfill_v1",
+          : "canonical_b01_corpus_mirror_unchecked_live",
         identity_match_result: isThirdParty
           ? "FAILED_UNTRUSTED_HOST"
           : isSyntheticUnresolved
@@ -496,8 +499,8 @@ function buildCanonicalCitationProjection(
         link_health:
           isThirdParty || isSyntheticUnresolved
             ? "quarantined_identity_failure"
-            : "verified_online",
-        last_http_status: isSyntheticUnresolved ? null : 200,
+            : "unchecked_live",
+        last_http_status: null,
         failure_reason: isSyntheticUnresolved
           ? "SYNTHETIC_INTERNAL_DEPENDENCY_URL_NOT_VERIFIED_ONLINE"
           : null,
@@ -2507,17 +2510,19 @@ export async function saveOrReviseAnswerServerVerified(
           original_observed_url: ref.official_url,
           redirect_history: [],
           prior_urls: [],
-          first_verified_at: isSynthFallback ? null : committed.generated_at,
-          last_verified_at: isSynthFallback ? null : committed.generated_at,
-          last_successful_verified_at: isSynthFallback ? null : committed.generated_at,
-          verification_method: isSynthFallback ? "synthetic_placeholder_unverified" : "canonical_verified",
+          first_verified_at: null,
+          last_verified_at: null,
+          last_successful_verified_at: null,
+          verification_method: isSynthFallback
+            ? "synthetic_placeholder_unverified"
+            : "canonical_corpus_unchecked_live",
           identity_match_result: isSynthFallback
             ? ("FAILED_SOFT_404" as const)
             : ("VERIFIED_MATCH" as const),
           link_health: isSynthFallback
             ? ("quarantined_identity_failure" as const)
-            : ("verified_online" as const),
-          last_http_status: isSynthFallback ? null : 200,
+            : ("unchecked_live" as const),
+          last_http_status: null,
           failure_reason: isSynthFallback
             ? "SYNTHETIC_INTERNAL_DEPENDENCY_URL_NOT_VERIFIED_ONLINE"
             : null,
@@ -2948,7 +2953,10 @@ export function resolveTraceableEvidenceById(
       extraction_revision_id: ext.extraction_revision_id,
       source_distinction_banner_th:
         "ข้อมูลด้านล่างนี้แสดงสำเนาข้อความตามรุ่นที่ REG24 เก็บรักษาและยืนยันค่าแฮช SHA-256 แยกจากลิงก์ไปยังเว็บไซต์ทางการของหน่วยงานผู้ออกเอกสารโดยชัดเจน",
-      reg24_preserved_copy_label_th: `สำเนาตามรุ่นที่ REG24 เก็บรักษา (${ver.version_id} · SHA-256 ${ver.artifact_sha256.slice(0, 12)}…)`,
+      reg24_preserved_copy_label_th:
+        ext.is_scanned_material && scanPages.length > 0
+          ? `สำเนาไฟล์สแกนต้นฉบับตามรุ่นที่ REG24 เก็บรักษา (${ver.version_id} · SHA-256 ${ver.artifact_sha256.slice(0, 12)}…)`
+          : `ข้อความถอดความจากคลังทางการ (Transcript — ไม่มีไฟล์สแกนต้นฉบับแนบในรุ่นนี้ · ${ver.version_id} · SHA-256 ${ver.artifact_sha256.slice(0, 12)}…)`,
       official_website_label_th: `เว็บไซต์ทางการของ${pubEntry?.name_th || "หน่วยงานผู้ออกเอกสาร"}`,
       issuer_id: doc.issuer_id,
       issuer_name_th: pubEntry?.name_th || doc.issuer_id,
@@ -3358,8 +3366,8 @@ export async function reopenSavedTraceableAnswerWithPostgres(
               last_successful_verified_at: null,
               verification_method: "verified_statutory_corpus_url_resolver",
               identity_match_result: "VERIFIED_MATCH",
-              link_health: "verified_online",
-              last_http_status: 200,
+              link_health: "unchecked_live",
+              last_http_status: null,
               failure_reason: null,
               is_active_primary: true,
             };

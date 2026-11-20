@@ -139,6 +139,7 @@ export type IdentityMatchResult =
 
 export type OfficialLinkHealthStatus =
   | "verified_online"
+  | "unchecked_live"
   | "temporarily_offline"
   | "moved_verified"
   | "quarantined_identity_failure";

@@ -9,6 +9,7 @@
 
 import { verifyClaimAgainstPassages } from "./answer-verification";
 import { getDeployedGitCommit } from "./baseline";
+import { buildStructuredCaseFactLedger } from "./case-fact-ledger";
 import {
   attachTraceableEnvelopeToGroundedAnswer,
   CLAIM_RULESET_VERSION,
@@ -19,6 +20,12 @@ import {
   resolveVerifiedOfficialUrlForDoc,
   tryAnswerFromOnboardedCitationSources,
 } from "./claim-traceability-engine";
+import {
+  buildGroundedPassagePack,
+  draftGroundedLegalAnswerWithLlm,
+  GROUNDED_LLM_PROMPT_VERSION,
+} from "./grounded-llm-drafter";
+import { verifyAndRenderGroundedLlmDraft } from "./grounded-llm-verifier";
 import type { TraceablePublicationChannel } from "./citation-contracts";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { sha256Bytes, thaiDigitsToArabic } from "./identity";
@@ -531,6 +538,14 @@ function buildSingleAnswerPremiseAndOperativeSummary(params: {
   return notes;
 }
 
+export function isGroundedLlmStagingModeEnabled(req: QueryRequest): boolean {
+  // Staging-only flag: strictly disabled in production until separate Owner release approval.
+  if (process.env.VERCEL_ENV === "production") return false;
+  if (req.answer_generation_mode === "baseline_deterministic") return false;
+  if (req.answer_generation_mode === "llm_grounded") return true;
+  return process.env.REG24_GROUNDED_LLM_STAGING_ENABLED === "true";
+}
+
 export async function queryKnowledge(
   req: QueryRequest,
   actor: Actor,
@@ -613,7 +628,10 @@ export async function queryKnowledge(
     };
   }
 
-  const baseAnswer = await executeCoreKnowledgeQuery(effectiveReq, actor, options);
+  const baseAnswer = await executeCoreKnowledgeQuery(effectiveReq, actor, {
+    ...options,
+    rawOriginalQuestion: req.question,
+  });
   const generatedAt = new Date().toISOString();
   const withTimestamp: GroundedAnswer = {
     ...baseAnswer,
@@ -627,6 +645,13 @@ export async function queryKnowledge(
     channel: options?.channel || "api",
     persist: options?.persistAnswerAtomically,
   });
+
+  if (withTimestamp.llm_audit_trace && typeof withTimestamp.llm_audit_trace === "object") {
+    withTimestamp.llm_audit_trace = {
+      ...withTimestamp.llm_audit_trace,
+      final_answer_revision_id: traceableEnvelope.answer_revision || null,
+    };
+  }
 
   // If a required passage on a Batch 1 work was explicitly withdrawn in citation_ledger, reflect the withheld status!
   if (
@@ -656,6 +681,7 @@ async function executeCoreKnowledgeQuery(
   options?: {
     store?: DurableKnowledgeStore;
     retrievalStrategy?: RetrievalStrategy;
+    rawOriginalQuestion?: string;
   }
 ): Promise<GroundedAnswer> {
   const startedAt = Date.now();
@@ -1167,6 +1193,174 @@ async function executeCoreKnowledgeQuery(
   const verificationPassageMap = new Map<string, Passage>(
     availablePassages.map((p) => [p.passage_id, p])
   );
+
+  // ============================================================================
+  // STAGING-ONLY GROUNDED LLM ANSWER PATH (Zero Prewritten Legal Conclusion Templates)
+  // Triggered behind `REG24_GROUNDED_LLM_STAGING_ENABLED=true` or non-production
+  // `answer_generation_mode: "llm_grounded"`. Strictly disabled in production.
+  // ============================================================================
+  if (isGroundedLlmStagingModeEnabled(req) && req.mode !== "exact_lookup") {
+    const rawQ = options?.rawOriginalQuestion || req.question;
+    const factLedger = buildStructuredCaseFactLedger({
+      question: rawQ,
+      applicableDate: req.applicable_date ?? null,
+      conversationHistory: req.conversation_history,
+    });
+
+    const candidatePassages: Passage[] = [];
+    const seenWorkIds = new Set<string>();
+    const rawPassagesById = new Map<string, Passage>();
+    const mergedUserBlob = [
+      ...factLedger.user_turns.map((t) => t.cleaned_active_text),
+      ...factLedger.material_facts.map((f) => `${f.original_text_th} ${f.normalized_category}`),
+    ].join(" ");
+    const isGiftContext =
+      factLedger.material_facts.some((f) => f.normalized_category === "GRATUITOUS_TRANSFER_NO_CONSIDERATION") ||
+      /(?:ให้โดยเสน่หา|โดยไม่มีค่าตอบแทน|ยก[^\n]{0,20}ให้|โอน[^\n]{0,20}ให้)/.test(mergedUserBlob);
+    const subsectionSelectionHint = [
+      mergedUserBlob,
+      isGiftContext ? "(26) (27) (28) (5) (6) (4/1) (7) (8)" : "",
+      /ภาษีธุรกิจเฉพาะ|ขายที่ดิน|มรดก/.test(mergedUserBlob) ? "มาตรา 4 (6) (ข) (ค) ใบรับ 28" : "",
+    ]
+      .filter(Boolean)
+      .join(" ");
+
+    const appendWorkPassages = (workId: string, seedOverride?: Passage) => {
+      if (seenWorkIds.has(workId)) return;
+      const seed =
+        seedOverride ||
+        availablePassages.find(
+          (p) =>
+            p.work_id === workId &&
+            (p.statement_role === "statutory_text" || p.statement_role === "official_conclusion") &&
+            !p.extraction_id.startsWith("ext.dep.") &&
+            !isNavigationOrBoilerplatePassageText(p.exact_text)
+        ) ||
+        allReleasePassages.find(
+          (p) =>
+            p.work_id === workId &&
+            (p.statement_role === "statutory_text" || p.statement_role === "official_conclusion") &&
+            !p.extraction_id.startsWith("ext.dep.") &&
+            !isNavigationOrBoilerplatePassageText(p.exact_text) &&
+            isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+        );
+      if (!seed) return;
+      const workObj = freshState.works[workId];
+      if (
+        !singleExplicitRulingPassage &&
+        workObj?.type === "TaxRuling" &&
+        isTaxRulingDomainIncompatibleWithQuery(mergedUserBlob, workObj.title_th || "", seed.exact_text || "")
+      ) {
+        return;
+      }
+      const orderedUnits = reassembleOrderedSectionUnits(seed, allReleasePassages, freshState, actor);
+      const narrowed = selectRelevantPassagesForClaimWork(
+        workId,
+        orderedUnits,
+        subsectionSelectionHint
+      );
+      seenWorkIds.add(workId);
+      for (const u of narrowed.slice(0, 4)) {
+        if (!rawPassagesById.has(u.passage_id)) {
+          rawPassagesById.set(u.passage_id, u);
+          candidatePassages.push(u);
+        }
+      }
+    };
+
+    // 1. Prioritize controlling statutory & subordinate works mapped to the transaction
+    for (const ctrlWorkId of issueAnalysis.controllingWorkIds) {
+      appendWorkPassages(ctrlWorkId);
+    }
+
+    // 2. For VAT queries, ensure the core VAT provisions & decrees in the corpus are surfaced cleanly
+    if (
+      /ภาษีมูลค่าเพิ่ม|\bVAT\b/i.test(mergedUserBlob) ||
+      factLedger.material_facts.some((f) => f.fact_key === "vat_transaction_type")
+    ) {
+      const vatCoreWorkIds = [
+        "prov.th.rc.80",
+        "prov.th.rc.78/1",
+        "prov.th.rc.80/1",
+        "subreg.th.rd.dg_vat.105",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rc.royal_decree.807",
+      ];
+      for (const vWid of vatCoreWorkIds) {
+        appendWorkPassages(vWid);
+      }
+    }
+
+    // 3. Add top domain-compatible retrieved passages (hybrid+graph) up to pack budget
+    for (const p of availablePassages) {
+      if (candidatePassages.length >= 24) break;
+      if (p.statement_role !== "statutory_text" && p.statement_role !== "official_conclusion") {
+        continue;
+      }
+      appendWorkPassages(p.work_id, p);
+    }
+
+    const controllingDateIso = factLedger.temporal_facts.controlling_tax_point.iso_date;
+    const passagePack = buildGroundedPassagePack({
+      passages: candidatePassages,
+      state: freshState,
+      controllingDateIso,
+      maxPassages: 24,
+    });
+
+    const llmRes = await draftGroundedLegalAnswerWithLlm({
+      question: rawQ,
+      factLedger,
+      passagePack,
+    });
+
+    const verifiedOutcome = verifyAndRenderGroundedLlmDraft({
+      traceId,
+      factLedger,
+      passagePack,
+      rawPassagesById,
+      state: freshState,
+      llmOk: llmRes.ok,
+      draft: llmRes.draft,
+      invocationAudit: llmRes.invocation_audit,
+      qaSyntheticFixture:
+        process.env.VERCEL_ENV !== "production" ? req.qa_synthetic_fixture ?? null : null,
+      stagingFlagActive: true,
+    });
+
+    const actualModelLabel = llmRes.invocation_audit.actual_model_invoked
+      ? `google-gemini:${llmRes.invocation_audit.actual_model_invoked}`
+      : `google-gemini:unavailable(${llmRes.invocation_audit.requested_model})`;
+
+    return {
+      release_id: releaseId,
+      knowledge_snapshot_at: snapshotAt,
+      status: verifiedOutcome.status,
+      answer: verifiedOutcome.rendered_answer_th,
+      claims: verifiedOutcome.claims,
+      evidence: verifiedOutcome.evidence_cards,
+      assumptions: verifiedOutcome.assumptions_th,
+      clarification_questions: verifiedOutcome.clarification_questions_th,
+      coverage_warnings: [...coverageWarnings, ...verifiedOutcome.coverage_warnings_th],
+      applicable_date: req.applicable_date ?? null,
+      model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+      trace_id: traceId,
+      latency_ms: Math.max(1, Date.now() - startedAt),
+      execution_provenance: {
+        ...buildProvenance(),
+        model_id: actualModelLabel,
+        model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+        generation_mode: "llm_grounded",
+        provider_invocation: llmRes.invocation_audit as unknown as Record<string, unknown>,
+        configuration: {
+          ...buildProvenance().configuration,
+          grounded_llm_staging_enabled: true,
+          template_fallback_disabled: true,
+        },
+      },
+      llm_audit_trace: verifiedOutcome.audit_trace as unknown as Record<string, unknown>,
+    };
+  }
 
   if (isComparisonMode) {
     // Guard historical period comparisons (`APPLICABLE_LAW_AT_TIME`) against unverified historical statutory versions or anachronistic rulings
