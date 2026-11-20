@@ -10,7 +10,7 @@
  */
 
 import type { KnowledgeEntityType, KnowledgeTypedPredicate } from "../graph/graph-schema";
-import type { TraceableAnswerEnvelope } from "./citation-contracts";
+import type { ClaimBoundCalculationRecord, TraceableAnswerEnvelope } from "./citation-contracts";
 
 export type BatchId =
   | "B01"
@@ -460,6 +460,8 @@ export interface ClaimLedgerItem {
   counterevidence_passage_ids: string[];
   verification_result: "VERIFIED" | "CONDITIONAL_QUALIFIED" | "BLOCKED_CONTRADICTION" | "UNSUPPORTED";
   verified_calculation_numeric_tokens?: string[];
+  /** Server-verified calculation bound strictly to THIS claim (never pooled to sibling claims). */
+  bound_calculation?: ClaimBoundCalculationRecord | null;
 }
 
 export interface EvidenceCard {
@@ -910,6 +912,12 @@ export interface QueryRequest {
   qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
   /** Staging-only flag to select the grounded LLM answer path vs frozen deterministic baseline (disabled in production). */
   answer_generation_mode?: "llm_grounded" | "baseline_deterministic" | null;
+  /** Staging-only explicit provider selection ("google-gemini" default, or "openai" for separate challenger — never silent fallback). */
+  challenger_provider?: "google-gemini" | "openai" | null;
+  /** Staging-only explicit model override for benchmark/challenger runs (never silently substituted). */
+  override_model?: string | null;
+  /** Staging-only explicit thinking/reasoning level override (pinned per run). */
+  thinking_level?: "minimal" | "low" | "medium" | "high" | null;
 }
 
 // ============================================================================

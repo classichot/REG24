@@ -36,6 +36,9 @@ export async function POST(req: Request) {
       stream?: boolean;
       qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
       answer_generation_mode?: "llm_grounded" | "baseline_deterministic" | null;
+      challenger_provider?: "google-gemini" | "openai" | null;
+      override_model?: string | null;
+      thinking_level?: "minimal" | "low" | "medium" | "high" | null;
     };
 
     if (!body.question || typeof body.question !== "string" || !body.question.trim()) {
@@ -65,6 +68,12 @@ export async function POST(req: Request) {
           process.env.VERCEL_ENV !== "production" ? body.qa_synthetic_fixture ?? null : null,
         answer_generation_mode:
           process.env.VERCEL_ENV !== "production" ? body.answer_generation_mode ?? null : null,
+        challenger_provider:
+          process.env.VERCEL_ENV !== "production" ? body.challenger_provider ?? null : null,
+        override_model:
+          process.env.VERCEL_ENV !== "production" ? body.override_model ?? null : null,
+        thinking_level:
+          process.env.VERCEL_ENV !== "production" ? body.thinking_level ?? null : null,
       },
       actor,
       {
@@ -85,24 +94,36 @@ export async function POST(req: Request) {
         answer.traceable_answer.status === "partial")
     ) {
       const persistStartedAt = performance.now();
-      const trustedCalcByClaimText: Record<string, string[]> = {};
-      const allCalcTokens = new Set<string>();
-      for (const gc of answer.claims || []) {
-        if (Array.isArray(gc.verified_calculation_numeric_tokens)) {
-          for (const tok of gc.verified_calculation_numeric_tokens) {
-            allCalcTokens.add(tok);
-          }
-          if (gc.statement) {
-            trustedCalcByClaimText[gc.statement] = gc.verified_calculation_numeric_tokens;
-          }
+      // STRICT PER-CLAIM CALCULATION BINDING (ZERO CROSS-CLAIM POOLING!):
+      // Bind each server-verified calculation strictly to its OWN claim_id (and exact source_versions).
+      // A separate unsupported claim that reuses a verified number from another claim MUST stay blocked!
+      const trustedCalcTokensByClaimId: Record<string, string[]> = {};
+      const trustedCalcsByClaimId: Record<string, NonNullable<typeof answer.claims[number]["bound_calculation"]>> = {};
+      for (const tc of answer.traceable_answer.claims || []) {
+        if (tc.bound_calculation) {
+          trustedCalcsByClaimId[tc.claim_id] = tc.bound_calculation;
+          trustedCalcTokensByClaimId[tc.claim_id] = tc.bound_calculation.verified_numeric_tokens;
+          continue;
         }
-      }
-      if (allCalcTokens.size > 0) {
-        const mergedCalcList = Array.from(allCalcTokens);
-        for (const tc of answer.traceable_answer.claims || []) {
-          if (!trustedCalcByClaimText[tc.text]) {
-            trustedCalcByClaimText[tc.text] = mergedCalcList;
-          }
+        // Match strictly to the exact owning GroundedAnswer claim (same claim_id or atomic segment prefix of THAT claim only!)
+        const owningClaim = (answer.claims || []).find(
+          (gc) =>
+            gc.claim_id === tc.claim_id ||
+            (Boolean(gc.claim_id) && tc.claim_id.startsWith(`${gc.claim_id}.p`))
+        );
+        if (owningClaim?.bound_calculation) {
+          trustedCalcsByClaimId[tc.claim_id] = {
+            ...owningClaim.bound_calculation,
+            claim_id: tc.claim_id,
+          };
+          trustedCalcTokensByClaimId[tc.claim_id] =
+            owningClaim.bound_calculation.verified_numeric_tokens;
+        } else if (
+          Array.isArray(owningClaim?.verified_calculation_numeric_tokens) &&
+          owningClaim.verified_calculation_numeric_tokens.length > 0
+        ) {
+          trustedCalcTokensByClaimId[tc.claim_id] =
+            owningClaim.verified_calculation_numeric_tokens;
         }
       }
 
@@ -121,8 +142,14 @@ export async function POST(req: Request) {
           conversation_id: body.conversation_id ?? null,
           prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
           conversation_history: body.conversation_history,
-          trusted_calculation_tokens_by_claim_text:
-            Object.keys(trustedCalcByClaimText).length > 0 ? trustedCalcByClaimText : undefined,
+          trusted_calculation_tokens_by_claim_id:
+            Object.keys(trustedCalcTokensByClaimId).length > 0
+              ? trustedCalcTokensByClaimId
+              : undefined,
+          trusted_calculations_by_claim_id:
+            Object.keys(trustedCalcsByClaimId).length > 0
+              ? trustedCalcsByClaimId
+              : undefined,
         },
       });
       answer.traceable_answer = pgSaved;

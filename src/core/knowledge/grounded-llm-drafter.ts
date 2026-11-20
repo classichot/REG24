@@ -1,17 +1,21 @@
 /**
- * REG24 — Grounded LLM Legal Application Drafter (Requirements 1.2, 1.3 & 2)
+ * REG24 — Provider-Neutral Grounded LLM Legal Application Drafter
+ * (Gemini 4 Neon Staging Candidate + Separate OpenAI Responses Challenger)
  *
- * Replaces prewritten legal-conclusion templates behind a staging-only flag by invoking
- * a real generative provider (Google Gemini via the official `@google/genai` Interactions API)
- * grounded strictly on:
- *   1. The structured Case Fact Ledger (`StructuredCaseFactLedger`)
- *   2. Exact official passages retrieved (or supplied in controlled comparisons) with full
- *      instrument, provision, version, authority tier, effective dates, and pinpoint metadata.
- *
- * Guarantees:
- * - Zero prewritten legal conclusion fallback if the model is unavailable or fails verification.
- * - Full auditable provider invocation metadata (actual model, interaction ID, prompt version,
- *   token usage, latency, estimated cost, and attempt log).
+ * Implements:
+ * - Primary staging reasoning model: `REG24_GROUNDED_LLM_MODEL=gemini-4-neon` via Google Gemini
+ *   Interactions API (`@google/genai`), starting at `thinking_level: "high"` (never sending
+ *   unsupported `"minimal"` to Gemini 4 or 3.8 models, and sizing `max_output_tokens: 16384`
+ *   so thinking tokens do not truncate structured JSON).
+ * - Strict NO SILENT FALLBACK: on 429, timeout, invalid output, blocked/incomplete response,
+ *   or unavailable model, never silently switches to Flash, Flash-Lite, OpenAI, or prewritten
+ *   legal-conclusion templates.
+ * - Separate opt-in challenger adapter for OpenAI Responses API (`gpt-6.2-astra`) sharing the
+ *   exact same provider-neutral JSON schema (invoked only when explicitly requested, never as
+ *   an automatic fallback).
+ * - Full auditable provider invocation metadata: `requested_model`, `resolved_model`, pinned
+ *   `thinking_level` / `temperature` / `max_output_tokens`, `failure_classification`, exact
+ *   token usage, latency, estimated cost, and attempt log.
  */
 
 import { GoogleGenAI } from "@google/genai";
@@ -23,7 +27,19 @@ import {
 import type { Passage } from "./contracts";
 import type { CanonicalPersistedState } from "./store";
 
-export const GROUNDED_LLM_PROMPT_VERSION = "reg24-grounded-llm-legal-application-v1.0";
+export const GROUNDED_LLM_PROMPT_VERSION = "reg24-grounded-llm-legal-application-v1.1";
+
+export type GroundedLlmProviderId = "google-gemini" | "openai";
+export type GroundedThinkingLevel = "minimal" | "low" | "medium" | "high";
+
+export type ProviderFailureClassification =
+  | "NONE"
+  | "RATE_LIMIT_429_FREE_TIER"
+  | "TIMEOUT"
+  | "INVALID_OUTPUT"
+  | "BLOCKED_OR_INCOMPLETE"
+  | "PROVIDER_UNAVAILABLE"
+  | "MISSING_CREDENTIALS";
 
 export type AuthorityHierarchyTier =
   | "CONTROLLING_STATUTE"
@@ -94,7 +110,9 @@ export interface GroundedLlmDraftResponse {
 }
 
 export interface ProviderAttemptRecord {
+  provider: GroundedLlmProviderId;
   model: string;
+  thinking_level: GroundedThinkingLevel;
   status: "succeeded" | "error";
   http_status?: number | null;
   latency_ms: number;
@@ -102,13 +120,26 @@ export interface ProviderAttemptRecord {
 }
 
 export interface ProviderInvocationAudit {
-  provider: "google-gemini";
-  api_surface: "interactions-v1beta";
+  provider: GroundedLlmProviderId;
+  api_surface: "interactions-v1beta" | "openai-responses-v1";
   requested_model: string;
+  resolved_model: string | null;
+  /** Back-compat alias equal to resolved_model || (live success ? requested_model : null). */
   actual_model_invoked: string | null;
+  pinned_settings: {
+    thinking_level: GroundedThinkingLevel;
+    thinking_level_note: string | null;
+    temperature: number;
+    max_output_tokens: number;
+    timeout_ms: number;
+    store: false;
+  };
   prompt_version: string;
   live_provider_called: boolean;
+  silent_fallback_disabled: true;
   provider_interaction_id: string | null;
+  provider_response_status: string | null;
+  failure_classification: ProviderFailureClassification;
   latency_ms: number;
   input_tokens: number;
   output_tokens: number;
@@ -125,12 +156,95 @@ const KNOWN_DECREE_WINDOWS: Record<string, { valid_from: string; valid_to: strin
 };
 
 const MODEL_PRICING_USD_PER_1M: Record<string, { input: number; output: number }> = {
+  "gemini-4-neon": { input: 1.25, output: 10.0 },
+  "gemini-4-argon": { input: 1.25, output: 10.0 },
   "gemini-3.8-flash": { input: 0.3, output: 2.5 },
   "gemini-3.5-flash": { input: 0.3, output: 2.5 },
   "gemini-3.5-flash-lite": { input: 0.1, output: 0.4 },
   "gemini-3.1-flash-lite": { input: 0.1, output: 0.4 },
-  "gemini-4-argon": { input: 1.25, output: 10.0 },
+  "gpt-6.2-astra": { input: 2.0, output: 8.0 },
 };
+
+/**
+ * Model-specific thinking/reasoning level resolver:
+ * - Gemini 4 family (`gemini-4-neon`, `gemini-4-argon`, etc.): does NOT support `"minimal"`;
+ *   starts at `"high"` by default and allows only `"low" | "medium" | "high"`.
+ * - Gemini 3.8 & 3.1 Pro: does NOT support `"minimal"`; allows `"low" | "medium" | "high"`.
+ * - Gemini 3.5/3.6 Flash / Flash-Lite (benchmark models): supports `"minimal" | "low" | "medium" | "high"`.
+ * - OpenAI Responses challenger (`gpt-6.2-astra`): maps `"minimal"` -> `"low"`, supports `"low" | "medium" | "high"`.
+ */
+export function resolveThinkingLevelForModel(
+  model: string,
+  requestedLevel?: GroundedThinkingLevel | null
+): {
+  thinking_level: GroundedThinkingLevel;
+  max_output_tokens: number;
+  note: string | null;
+} {
+  const m = (model || "").toLowerCase();
+  const isGemini4 = m.startsWith("gemini-4-") || m.includes("neon") || m.includes("argon");
+  const isGemini38OrPro = m.startsWith("gemini-3.8-") || m.includes("3.1-pro") || m.includes("3-pro");
+  const isOpenAi = m.startsWith("gpt-") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4");
+  const supportsMinimal = !isGemini4 && !isGemini38OrPro && !isOpenAi;
+
+  let chosen: GroundedThinkingLevel;
+  let note: string | null = null;
+
+  if (requestedLevel) {
+    if (requestedLevel === "minimal" && !supportsMinimal) {
+      chosen = isGemini4 ? "high" : "low";
+      note = `Model '${model}' does not support thinking_level='minimal'; normalized to '${chosen}'.`;
+    } else {
+      chosen = requestedLevel;
+    }
+  } else if (isGemini4 || isOpenAi) {
+    chosen = "high";
+  } else if (isGemini38OrPro) {
+    chosen = "medium";
+  } else {
+    chosen = "minimal";
+  }
+
+  // Per Gemini Thinking docs, `max_output_tokens` includes thought tokens: use 16384 for high/medium
+  // thinking so reasoning never truncates structured JSON output.
+  const maxOutputTokens = chosen === "high" || chosen === "medium" ? 16384 : 4096;
+  return { thinking_level: chosen, max_output_tokens: maxOutputTokens, note };
+}
+
+export function resolveConfiguredProviderAndModel(params?: {
+  challengerProvider?: GroundedLlmProviderId | null;
+  overrideModel?: string | null;
+}): {
+  provider: GroundedLlmProviderId;
+  requestedModel: string;
+  retiredDefaultNote: string | null;
+} {
+  const envProvider = (process.env.REG24_GROUNDED_LLM_PROVIDER || "").trim().toLowerCase();
+  const provider: GroundedLlmProviderId =
+    params?.challengerProvider === "openai" || (!params?.challengerProvider && envProvider === "openai")
+      ? "openai"
+      : "google-gemini";
+
+  if (provider === "openai") {
+    const model =
+      (params?.overrideModel || "").trim() ||
+      (process.env.REG24_OPENAI_CHALLENGER_MODEL || "").trim() ||
+      "gpt-6.2-astra";
+    return { provider: "openai", requestedModel: model, retiredDefaultNote: null };
+  }
+
+  const explicitOverride = (params?.overrideModel || "").trim();
+  const envStagingModel = (process.env.REG24_GROUNDED_LLM_MODEL || "").trim();
+  let primary = explicitOverride || envStagingModel || "gemini-4-neon";
+  let retiredDefaultNote: string | null = null;
+
+  if (/^gemini-(?:1\.5|2\.0|2\.5)-/i.test(primary)) {
+    retiredDefaultNote = `Configured legacy model '${primary}' returns HTTP 404 from Google Gemini API; pinned staging primary is 'gemini-4-neon'.`;
+    primary = "gemini-4-neon";
+  }
+
+  return { provider: "google-gemini", requestedModel: primary, retiredDefaultNote };
+}
 
 function classifyAuthorityTier(workType: string | undefined, workId: string): AuthorityHierarchyTier {
   if (workType === "TaxRuling") return "CASE_SPECIFIC_TAX_RULING";
@@ -217,7 +331,7 @@ export function buildGroundedPassagePack(params: {
         p.passage_id,
       official_url: resolvedUrl,
       representation_kind: isPdf ? "official_scan_pdf" : "verified_official_transcript",
-      verbatim_text: p.exact_text.slice(0, 1500),
+      verbatim_text: p.exact_text.slice(0, 1800),
     });
 
     if (out.length >= maxPassages) break;
@@ -226,7 +340,8 @@ export function buildGroundedPassagePack(params: {
   return out;
 }
 
-const GROUNDED_LLM_RESPONSE_SCHEMA = {
+/** Provider-neutral JSON Schema for structured legal application output (OpenAI strict mode adds `additionalProperties: false` automatically). */
+export const GROUNDED_LLM_RESPONSE_SCHEMA = {
   type: "object",
   properties: {
     answer_status: {
@@ -316,6 +431,26 @@ const GROUNDED_LLM_RESPONSE_SCHEMA = {
   ],
 };
 
+export function buildOpenAiStrictSchema(schema: Record<string, unknown>): Record<string, unknown> {
+  const clone = JSON.parse(JSON.stringify(schema)) as Record<string, unknown>;
+  const walk = (node: Record<string, unknown>) => {
+    const t = node.type;
+    if (t === "object" || (Array.isArray(t) && t.includes("object"))) {
+      node.additionalProperties = false;
+    }
+    if (node.properties && typeof node.properties === "object") {
+      for (const v of Object.values(node.properties as Record<string, unknown>)) {
+        if (v && typeof v === "object") walk(v as Record<string, unknown>);
+      }
+    }
+    if (node.items && typeof node.items === "object") {
+      walk(node.items as Record<string, unknown>);
+    }
+  };
+  walk(clone);
+  return clone;
+}
+
 const GROUNDED_SYSTEM_INSTRUCTION = `คุณคือทนายความและผู้เชี่ยวชาญกฎหมายภาษีอากรไทยของระบบ REG24 มีหน้าที่วิเคราะห์และปรับใช้บทบัญญัติกฎหมายกับข้อเท็จจริงของผู้ใช้อย่างเคร่งครัดตามหลักฐานต้นฉบับที่ได้รับเท่านั้น (Grounded Legal Application)
 
 กฎบังคับเด็ดขาด (ห้ามฝ่าฝืน):
@@ -328,7 +463,7 @@ const GROUNDED_SYSTEM_INSTRUCTION = `คุณคือทนายความ�
    - ตรวจสอบช่วงเวลาใช้บังคับ (valid_from / valid_to) ของทุกกฎหมายลำดับรองและพระราชกฤษฎีกาเทียบกับวันเกิดความรับผิดทางภาษี ห้ามนำพระราชกฤษฎีกาที่อยู่นอกช่วงวันใช้บังคับ (temporal_applicability_hint = "OUT_OF_WINDOW") มาใช้เป็นกฎหมายควบคุมสำหรับธุรกรรมนั้น และห้ามเหมารวมใช้ฉบับล่าสุดเมื่อไม่มีวันที่หรือวันที่อยู่นอกช่วง
    - แยกแยะลำดับศักดิ์แหล่งอ้างอิงอย่างชัดเจน: กฎหมายแม่บท/ประมวลรัษฎากร (CONTROLLING_STATUTE), กฎหมายลำดับรอง/พระราชกฤษฎีกา/ประกาศอธิบดี (CONTROLLING_SUBORDINATE_LEGISLATION), คู่มือ/คำแนะนำ (OFFICIAL_GUIDANCE) และหนังสือตอบข้อหารือเฉพาะราย (CASE_SPECIFIC_TAX_RULING ซึ่งผูกพันเฉพาะข้อเท็จจริงและกฎหมาย ณ เวลาที่วินิจฉัย — หากเป็นข้อหารือก่อนการแก้ไขกฎหมาย พ.ศ. 2558 ให้ระบุข้อจำกัดดังกล่าวอย่างตรงไปตรงมา)
    - ห้ามนำหนังสือตอบข้อหารือที่ไม่ตรงประเภทธุรกรรม (เช่น ข้อหารือส่งออกสินค้า/รองเท้า หรือเงินชดเชยเลิกจ้าง) มาใช้ตอบแทนหลักกฎหมาย
-3. แยกวิเคราะห์แต่ละประเด็นและภาระภาษีของแต่ละฝ่ายให้ครบถ้วน:
+3. แยกวิเคราะห์แต่ละประเด็นและภาระภาษีของแต่ละฝ่ายให้ครบถ้วน รวมทั้งข้อยกเว้นที่เกี่ยวข้อง:
    - สำหรับการโอนอสังหาริมทรัพย์โดยไม่มีค่าตอบแทน (เช่น ห้องชุด/ที่ดิน) ให้แยกประเด็นอย่างชัดเจนเสมอระหว่าง:
      (ก) ภาระภาษีเงินได้และการหักภาษี ณ ที่จ่ายในวันจดทะเบียนของผู้โอน (มาตรา 41 ทวิ, มาตรา 49 ทวิ ที่ใช้ราคาประเมินทุนทรัพย์ของทางราชการมิใช่ราคาตามสัญญา, มาตรา 50 (5)/(6), และข้อยกเว้นมาตรา 42 (26) เฉพาะบุตรชอบด้วยกฎหมายเท่านั้น)
      (ข) ความรับผิดกรณีหักภาษี ณ ที่จ่ายขาดตามมาตรา 54 (หากมี)
@@ -339,46 +474,42 @@ const GROUNDED_SYSTEM_INSTRUCTION = `คุณคือทนายความ�
 5. เขียนคำตอบภาษาไทยที่เป็นมืออาชีพ กระชับ ชัดเจน นำบทบัญญัติมาปรับใช้กับข้อเท็จจริงโดยตรง ห้ามคัดลอกตัวบทกฎหมายทั้งดุ้นมาแปะแทนการวิเคราะห์
 6. ส่งคืนเป็น JSON ที่ตรงตาม schema ที่กำหนดเท่านั้น`;
 
-export function resolveConfiguredGeminiModels(): {
-  requestedModel: string;
-  candidateModels: string[];
-  retiredDefaultNote: string | null;
-} {
-  const explicitStaging = (process.env.REG24_GROUNDED_LLM_MODEL || "").trim();
-  const envBalanced = (process.env.GEMINI_BALANCED_MODEL || "").trim();
-  const backupModel = (process.env.REG24_GROUNDED_LLM_BACKUP_MODEL || "gemini-3.5-flash").trim();
-
-  let retiredDefaultNote: string | null = null;
-  let primary = explicitStaging || envBalanced || "gemini-3.5-flash-lite";
-
-  // Measured live evidence:
-  // 1) Configured legacy Gemini 2.5/2.0/1.5 endpoints return HTTP 404 ("is no longer available to new users").
-  // 2) gemini-3.8-flash currently returns HTTP 503 high-demand / >45s hangs on this API key;
-  //    gemini-3.5-flash-lite responds in ~10-20s reliably with structured JSON (and REG24_GROUNDED_LLM_MODEL
-  //    allows switching to gemini-3.8-flash or gemini-3.5-flash via staging env var with zero code changes).
-  if (/^gemini-(?:1\.5|2\.0|2\.5)-/i.test(primary)) {
-    retiredDefaultNote = `Configured legacy model '${primary}' returns HTTP 404 from Google Gemini API; upgraded to live Interactions API model 'gemini-3.5-flash-lite' (backup 'gemini-3.5-flash').`;
-    primary = "gemini-3.5-flash-lite";
-  }
-
-  const candidates = [primary];
-  if (backupModel && !candidates.includes(backupModel)) {
-    candidates.push(backupModel);
-  }
-  return { requestedModel: primary, candidateModels: candidates, retiredDefaultNote };
-}
-
 function estimateCostUsd(model: string, inputTokens: number, outputTokens: number): number {
-  const rates = MODEL_PRICING_USD_PER_1M[model] || { input: 0.3, output: 2.5 };
+  const rates = MODEL_PRICING_USD_PER_1M[model] || { input: 1.25, output: 10.0 };
   const cost = (inputTokens * rates.input + outputTokens * rates.output) / 1_000_000;
   return Number(cost.toFixed(6));
 }
 
-function extractOutputTextFromInteraction(interaction: unknown): string {
+function classifyProviderFailure(
+  httpStatus: number | null,
+  message: string
+): ProviderFailureClassification {
+  const m = (message || "").toLowerCase();
+  if (httpStatus === 429 || /rate limit|quota|free tier|limit:\s*0/.test(m)) {
+    return "RATE_LIMIT_429_FREE_TIER";
+  }
+  if (/abort|timeout|timed out/.test(m)) return "TIMEOUT";
+  if (/invalid json|missing required|syntaxerror|unexpected token/.test(m)) {
+    return "INVALID_OUTPUT";
+  }
+  if (/blocked|safety|incomplete|content_filter|refusal/.test(m)) {
+    return "BLOCKED_OR_INCOMPLETE";
+  }
+  return "PROVIDER_UNAVAILABLE";
+}
+
+function extractOutputTextFromGeminiInteraction(interaction: unknown): {
+  text: string;
+  resolvedModel: string | null;
+  status: string | null;
+} {
   const obj = interaction as Record<string, unknown> | null;
-  if (!obj) return "";
+  if (!obj) return { text: "", resolvedModel: null, status: null };
+  const resolvedModel = typeof obj.model === "string" && obj.model.trim() ? obj.model.trim() : null;
+  const status = typeof obj.status === "string" && obj.status.trim() ? obj.status.trim() : null;
+
   if (typeof obj.output_text === "string" && obj.output_text.trim()) {
-    return obj.output_text.trim();
+    return { text: obj.output_text.trim(), resolvedModel, status };
   }
   const steps = Array.isArray(obj.steps) ? obj.steps : [];
   for (let i = steps.length - 1; i >= 0; i--) {
@@ -387,15 +518,17 @@ function extractOutputTextFromInteraction(interaction: unknown): string {
       const texts = step.content
         .map((c: Record<string, unknown>) => (typeof c?.text === "string" ? c.text : ""))
         .filter(Boolean);
-      if (texts.length > 0) return texts.join("\n").trim();
+      if (texts.length > 0) return { text: texts.join("\n").trim(), resolvedModel, status };
     }
   }
   const outputs = Array.isArray(obj.outputs) ? obj.outputs : [];
   for (let i = outputs.length - 1; i >= 0; i--) {
     const out = outputs[i] as Record<string, unknown>;
-    if (typeof out?.text === "string" && out.text.trim()) return out.text.trim();
+    if (typeof out?.text === "string" && out.text.trim()) {
+      return { text: out.text.trim(), resolvedModel, status };
+    }
   }
-  return "";
+  return { text: "", resolvedModel, status };
 }
 
 export function buildGroundedLlmUserPrompt(params: {
@@ -438,11 +571,298 @@ export function buildGroundedLlmUserPrompt(params: {
   );
 }
 
+/**
+ * Separate Challenger Adapter: OpenAI Responses API (`gpt-6.2-astra`).
+ * Invoked ONLY when explicitly selected via `challengerProvider: "openai"` or
+ * `REG24_GROUNDED_LLM_PROVIDER=openai`. NEVER called as an automatic fallback!
+ */
+async function invokeOpenAiResponsesChallenger(params: {
+  model: string;
+  thinkingLevel: GroundedThinkingLevel;
+  maxOutputTokens: number;
+  timeoutMs: number;
+  userPrompt: string;
+  thinkingNote: string | null;
+}): Promise<{
+  ok: boolean;
+  draft: GroundedLlmDraftResponse | null;
+  invocation_audit: ProviderInvocationAudit;
+  raw_output_text: string | null;
+}> {
+  const apiKey = (process.env.OPENAI_API_KEY || "").trim();
+  const overallStart = Date.now();
+  const pinnedSettings = {
+    thinking_level: params.thinkingLevel,
+    thinking_level_note: params.thinkingNote,
+    temperature: 0.0,
+    max_output_tokens: params.maxOutputTokens,
+    timeout_ms: params.timeoutMs,
+    store: false as const,
+  };
+
+  if (!apiKey) {
+    return {
+      ok: false,
+      draft: null,
+      raw_output_text: null,
+      invocation_audit: {
+        provider: "openai",
+        api_surface: "openai-responses-v1",
+        requested_model: params.model,
+        resolved_model: null,
+        actual_model_invoked: null,
+        pinned_settings: pinnedSettings,
+        prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+        live_provider_called: false,
+        silent_fallback_disabled: true,
+        provider_interaction_id: null,
+        provider_response_status: null,
+        failure_classification: "MISSING_CREDENTIALS",
+        latency_ms: Date.now() - overallStart,
+        input_tokens: 0,
+        output_tokens: 0,
+        thought_tokens: 0,
+        total_tokens: 0,
+        estimated_cost_usd: 0,
+        attempts: [],
+        error_summary: "OPENAI_API_KEY is not configured in the staging environment.",
+      },
+    };
+  }
+
+  const attempts: ProviderAttemptRecord[] = [];
+  const attemptStart = Date.now();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), params.timeoutMs);
+  try {
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: params.model,
+        store: false,
+        instructions: GROUNDED_SYSTEM_INSTRUCTION,
+        input: params.userPrompt,
+        reasoning: {
+          effort: params.thinkingLevel === "minimal" ? "low" : params.thinkingLevel,
+        },
+        max_output_tokens: params.maxOutputTokens,
+        text: {
+          format: {
+            type: "json_schema",
+            name: "reg24_grounded_legal_draft",
+            strict: true,
+            schema: buildOpenAiStrictSchema(GROUNDED_LLM_RESPONSE_SCHEMA),
+          },
+        },
+      }),
+    });
+    clearTimeout(timer);
+
+    const attemptLatency = Date.now() - attemptStart;
+    const body = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) {
+      const errMsg = String(
+        (body?.error as Record<string, unknown>)?.message || `OpenAI Responses API HTTP ${res.status}`
+      );
+      attempts.push({
+        provider: "openai",
+        model: params.model,
+        thinking_level: params.thinkingLevel,
+        status: "error",
+        http_status: res.status,
+        latency_ms: attemptLatency,
+        error_message: errMsg.slice(0, 300),
+      });
+      return {
+        ok: false,
+        draft: null,
+        raw_output_text: null,
+        invocation_audit: {
+          provider: "openai",
+          api_surface: "openai-responses-v1",
+          requested_model: params.model,
+          resolved_model: typeof body.model === "string" ? body.model : null,
+          actual_model_invoked: null,
+          pinned_settings: pinnedSettings,
+          prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+          live_provider_called: true,
+          silent_fallback_disabled: true,
+          provider_interaction_id: typeof body.id === "string" ? body.id : null,
+          provider_response_status: typeof body.status === "string" ? body.status : null,
+          failure_classification: classifyProviderFailure(res.status, errMsg),
+          latency_ms: Date.now() - overallStart,
+          input_tokens: 0,
+          output_tokens: 0,
+          thought_tokens: 0,
+          total_tokens: 0,
+          estimated_cost_usd: 0,
+          attempts,
+          error_summary: errMsg.slice(0, 300),
+        },
+      };
+    }
+
+    const respStatus = typeof body.status === "string" ? body.status : "completed";
+    const resolvedModel = typeof body.model === "string" ? body.model : params.model;
+    const outputText =
+      typeof body.output_text === "string" && body.output_text.trim()
+        ? body.output_text.trim()
+        : Array.isArray(body.output)
+          ? (body.output as Array<Record<string, unknown>>)
+              .flatMap((item) =>
+                Array.isArray(item.content)
+                  ? (item.content as Array<Record<string, unknown>>)
+                      .map((c) => (typeof c.text === "string" ? c.text : ""))
+                      .filter(Boolean)
+                  : []
+              )
+              .join("\n")
+              .trim()
+          : "";
+
+    if (respStatus !== "completed" || !outputText) {
+      const msg = `OpenAI Responses returned status='${respStatus}' with incomplete or empty output.`;
+      attempts.push({
+        provider: "openai",
+        model: params.model,
+        thinking_level: params.thinkingLevel,
+        status: "error",
+        http_status: res.status,
+        latency_ms: attemptLatency,
+        error_message: msg,
+      });
+      return {
+        ok: false,
+        draft: null,
+        raw_output_text: outputText || null,
+        invocation_audit: {
+          provider: "openai",
+          api_surface: "openai-responses-v1",
+          requested_model: params.model,
+          resolved_model: resolvedModel,
+          actual_model_invoked: resolvedModel,
+          pinned_settings: pinnedSettings,
+          prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+          live_provider_called: true,
+          silent_fallback_disabled: true,
+          provider_interaction_id: typeof body.id === "string" ? body.id : null,
+          provider_response_status: respStatus,
+          failure_classification: "BLOCKED_OR_INCOMPLETE",
+          latency_ms: Date.now() - overallStart,
+          input_tokens: 0,
+          output_tokens: 0,
+          thought_tokens: 0,
+          total_tokens: 0,
+          estimated_cost_usd: 0,
+          attempts,
+          error_summary: msg,
+        },
+      };
+    }
+
+    const parsed = JSON.parse(outputText) as GroundedLlmDraftResponse;
+    if (!parsed || !Array.isArray(parsed.issues)) {
+      throw new Error("Invalid JSON output: missing required 'issues' array.");
+    }
+    const usage = (body.usage || {}) as Record<string, unknown>;
+    const inputTokens = Number(usage.input_tokens ?? 0);
+    const outputTokens = Number(usage.output_tokens ?? 0);
+    const thoughtTokens = Number(
+      (usage.output_tokens_details as Record<string, unknown> | undefined)?.reasoning_tokens ?? 0
+    );
+    const totalTokens = Number(usage.total_tokens ?? inputTokens + outputTokens);
+
+    attempts.push({
+      provider: "openai",
+      model: params.model,
+      thinking_level: params.thinkingLevel,
+      status: "succeeded",
+      http_status: res.status,
+      latency_ms: attemptLatency,
+    });
+
+    return {
+      ok: true,
+      draft: parsed,
+      raw_output_text: outputText,
+      invocation_audit: {
+        provider: "openai",
+        api_surface: "openai-responses-v1",
+        requested_model: params.model,
+        resolved_model: resolvedModel,
+        actual_model_invoked: resolvedModel,
+        pinned_settings: pinnedSettings,
+        prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+        live_provider_called: true,
+        silent_fallback_disabled: true,
+        provider_interaction_id: typeof body.id === "string" ? body.id : null,
+        provider_response_status: respStatus,
+        failure_classification: "NONE",
+        latency_ms: Date.now() - overallStart,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        thought_tokens: thoughtTokens,
+        total_tokens: totalTokens,
+        estimated_cost_usd: estimateCostUsd(resolvedModel, inputTokens, outputTokens),
+        attempts,
+        error_summary: null,
+      },
+    };
+  } catch (err) {
+    clearTimeout(timer);
+    const msg = err instanceof Error ? err.message : String(err);
+    const attemptLatency = Date.now() - attemptStart;
+    attempts.push({
+      provider: "openai",
+      model: params.model,
+      thinking_level: params.thinkingLevel,
+      status: "error",
+      http_status: null,
+      latency_ms: attemptLatency,
+      error_message: msg.slice(0, 300),
+    });
+    return {
+      ok: false,
+      draft: null,
+      raw_output_text: null,
+      invocation_audit: {
+        provider: "openai",
+        api_surface: "openai-responses-v1",
+        requested_model: params.model,
+        resolved_model: null,
+        actual_model_invoked: null,
+        pinned_settings: pinnedSettings,
+        prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+        live_provider_called: true,
+        silent_fallback_disabled: true,
+        provider_interaction_id: null,
+        provider_response_status: null,
+        failure_classification: classifyProviderFailure(null, msg),
+        latency_ms: Date.now() - overallStart,
+        input_tokens: 0,
+        output_tokens: 0,
+        thought_tokens: 0,
+        total_tokens: 0,
+        estimated_cost_usd: 0,
+        attempts,
+        error_summary: msg.slice(0, 300),
+      },
+    };
+  }
+}
+
 export async function draftGroundedLegalAnswerWithLlm(params: {
   question: string;
   factLedger: StructuredCaseFactLedger;
   passagePack: GroundedPassagePackItem[];
-  overrideModel?: string;
+  challengerProvider?: GroundedLlmProviderId | null;
+  overrideModel?: string | null;
+  thinkingLevel?: GroundedThinkingLevel | null;
   timeoutMs?: number;
 }): Promise<{
   ok: boolean;
@@ -450,21 +870,64 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
   invocation_audit: ProviderInvocationAudit;
   raw_output_text: string | null;
 }> {
+  const { provider, requestedModel } = resolveConfiguredProviderAndModel({
+    challengerProvider: params.challengerProvider,
+    overrideModel: params.overrideModel,
+  });
+
+  const envThinking = (process.env.REG24_GROUNDED_LLM_THINKING_LEVEL || "").trim().toLowerCase() as
+    | GroundedThinkingLevel
+    | "";
+  const requestedThinking: GroundedThinkingLevel | null =
+    params.thinkingLevel ||
+    (envThinking === "minimal" ||
+    envThinking === "low" ||
+    envThinking === "medium" ||
+    envThinking === "high"
+      ? envThinking
+      : null);
+
+  const { thinking_level, max_output_tokens, note: thinkingNote } = resolveThinkingLevelForModel(
+    requestedModel,
+    requestedThinking
+  );
+
+  // Give high-thinking reasoning models enough synchronous budget (90s default) so high reasoning isn't prematurely aborted.
+  const timeoutMs = params.timeoutMs ?? (thinking_level === "high" ? 90_000 : 60_000);
+  const userPrompt = buildGroundedLlmUserPrompt({
+    question: params.question,
+    factLedger: params.factLedger,
+    passagePack: params.passagePack,
+  });
+
+  // Separate explicit OpenAI Responses API challenger path (never triggered automatically as fallback!)
+  if (provider === "openai") {
+    return invokeOpenAiResponsesChallenger({
+      model: requestedModel,
+      thinkingLevel: thinking_level,
+      maxOutputTokens: max_output_tokens,
+      timeoutMs,
+      userPrompt,
+      thinkingNote,
+    });
+  }
+
+  // Primary Google Gemini Interactions API path — SINGLE PINNED MODEL, ZERO SILENT SWITCH TO FLASH/FLASH-LITE!
   const apiKey = (
     process.env.GEMINI_API_KEY ||
     process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
     process.env.GOOGLE_API_KEY ||
     ""
   ).trim();
-
-  const modelPlan = resolveConfiguredGeminiModels();
-  const requestedModel = params.overrideModel || modelPlan.requestedModel;
-  const candidates = params.overrideModel
-    ? [params.overrideModel]
-    : modelPlan.candidateModels;
-  const timeoutMs = params.timeoutMs ?? 60_000;
   const overallStart = Date.now();
-  const attempts: ProviderAttemptRecord[] = [];
+  const pinnedSettings = {
+    thinking_level,
+    thinking_level_note: thinkingNote,
+    temperature: 0.0,
+    max_output_tokens,
+    timeout_ms: timeoutMs,
+    store: false as const,
+  };
 
   if (!apiKey) {
     return {
@@ -475,10 +938,15 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
         provider: "google-gemini",
         api_surface: "interactions-v1beta",
         requested_model: requestedModel,
+        resolved_model: null,
         actual_model_invoked: null,
+        pinned_settings: pinnedSettings,
         prompt_version: GROUNDED_LLM_PROMPT_VERSION,
         live_provider_called: false,
+        silent_fallback_disabled: true,
         provider_interaction_id: null,
+        provider_response_status: null,
+        failure_classification: "MISSING_CREDENTIALS",
         latency_ms: Date.now() - overallStart,
         input_tokens: 0,
         output_tokens: 0,
@@ -491,145 +959,191 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
     };
   }
 
-  const userPrompt = buildGroundedLlmUserPrompt({
-    question: params.question,
-    factLedger: params.factLedger,
-    passagePack: params.passagePack,
-  });
-
   const client = new GoogleGenAI({ apiKey });
+  const attempts: ProviderAttemptRecord[] = [];
+  const attemptStart = Date.now();
 
-  for (let mIdx = 0; mIdx < candidates.length; mIdx++) {
-    const model = candidates[mIdx];
-    const perModelTimeoutMs =
-      mIdx === 0 && candidates.length > 1 ? Math.min(timeoutMs, 60_000) : Math.max(timeoutMs, 45_000);
-    const thinkingLevel = model.includes("3.8") ? "low" : "minimal";
-    // Allow 1 fast retry only on explicit HTTP 429/503 (never waste another full timeout cycle on an already timed-out model)
-    for (let retry = 0; retry < 2; retry++) {
-      const attemptStart = Date.now();
-      try {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), perModelTimeoutMs);
-        let interaction: Awaited<ReturnType<typeof client.interactions.create>>;
-        try {
-          interaction = await client.interactions.create(
-            {
-              model,
-              store: false,
-              system_instruction: GROUNDED_SYSTEM_INSTRUCTION,
-              input: userPrompt,
-              generation_config: {
-                temperature: 0.0,
-                max_output_tokens: 4096,
-                thinking_level: thinkingLevel,
-              },
-              response_format: {
-                type: "text",
-                mime_type: "application/json",
-                schema: GROUNDED_LLM_RESPONSE_SCHEMA,
-              } as unknown as Record<string, unknown>,
-            },
-            { signal: controller.signal }
-          );
-        } finally {
-          clearTimeout(timer);
-        }
-
-        const attemptLatency = Date.now() - attemptStart;
-        const outputText = extractOutputTextFromInteraction(interaction);
-        const parsed = JSON.parse(outputText) as GroundedLlmDraftResponse;
-
-        if (!parsed || !Array.isArray(parsed.issues)) {
-          throw new Error("Model returned JSON missing required 'issues' array.");
-        }
-
-        const usage = (interaction as unknown as Record<string, unknown>)?.usage as
-          | Record<string, number>
-          | undefined;
-        const inputTokens = Number(usage?.total_input_tokens ?? usage?.input_tokens ?? 0);
-        const outputTokens = Number(usage?.total_output_tokens ?? usage?.output_tokens ?? 0);
-        const thoughtTokens = Number(usage?.total_thought_tokens ?? usage?.thought_tokens ?? 0);
-        const totalTokens = Number(
-          usage?.total_tokens ?? inputTokens + outputTokens + thoughtTokens
-        );
-        const interactionId =
-          typeof (interaction as unknown as Record<string, unknown>)?.id === "string"
-            ? String((interaction as unknown as Record<string, unknown>).id)
-            : `int.nostore.${Date.now().toString(36)}`;
-
-        attempts.push({
-          model,
-          status: "succeeded",
-          http_status: 200,
-          latency_ms: attemptLatency,
-        });
-
-        return {
-          ok: true,
-          draft: parsed,
-          raw_output_text: outputText,
-          invocation_audit: {
-            provider: "google-gemini",
-            api_surface: "interactions-v1beta",
-            requested_model: requestedModel,
-            actual_model_invoked: model,
-            prompt_version: GROUNDED_LLM_PROMPT_VERSION,
-            live_provider_called: true,
-            provider_interaction_id: interactionId,
-            latency_ms: Date.now() - overallStart,
-            input_tokens: inputTokens,
-            output_tokens: outputTokens,
-            thought_tokens: thoughtTokens,
-            total_tokens: totalTokens,
-            estimated_cost_usd: estimateCostUsd(model, inputTokens, outputTokens + thoughtTokens),
-            attempts,
-            error_summary: null,
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    let interaction: Awaited<ReturnType<typeof client.interactions.create>>;
+    try {
+      interaction = await client.interactions.create(
+        {
+          model: requestedModel,
+          store: false,
+          system_instruction: GROUNDED_SYSTEM_INSTRUCTION,
+          input: userPrompt,
+          generation_config: {
+            temperature: 0.0,
+            max_output_tokens,
+            thinking_level,
           },
-        };
-      } catch (err) {
-        const attemptLatency = Date.now() - attemptStart;
-        const msg = err instanceof Error ? err.message : String(err);
-        const statusMatch = msg.match(/\b(429|500|502|503|504|400|404)\b/);
-        const httpStatus = statusMatch ? Number(statusMatch[1]) : null;
-        attempts.push({
-          model,
-          status: "error",
-          http_status: httpStatus,
-          latency_ms: attemptLatency,
-          error_message: msg.slice(0, 300),
-        });
-
-        const isRetryableHttp = httpStatus === 429 || (httpStatus === 503 && mIdx === candidates.length - 1);
-        if (isRetryableHttp && retry === 0) {
-          await new Promise((r) => setTimeout(r, 800));
-          continue;
-        }
-        break;
-      }
+          response_format: {
+            type: "text",
+            mime_type: "application/json",
+            schema: GROUNDED_LLM_RESPONSE_SCHEMA,
+          } as unknown as Record<string, unknown>,
+        },
+        { signal: controller.signal }
+      );
+    } finally {
+      clearTimeout(timer);
     }
-  }
 
-  return {
-    ok: false,
-    draft: null,
-    raw_output_text: null,
-    invocation_audit: {
+    const attemptLatency = Date.now() - attemptStart;
+    const {
+      text: outputText,
+      resolvedModel,
+      status: providerStatus,
+    } = extractOutputTextFromGeminiInteraction(interaction);
+    const effectiveModel = resolvedModel || requestedModel;
+    const interactionId =
+      typeof (interaction as unknown as Record<string, unknown>)?.id === "string"
+        ? String((interaction as unknown as Record<string, unknown>).id)
+        : null;
+
+    // Handle blocked / incomplete / empty response explicitly — NEVER pass unverified or truncated output!
+    if (
+      (providerStatus &&
+        providerStatus !== "completed" &&
+        providerStatus !== "COMPLETED") ||
+      !outputText
+    ) {
+      const msg = `Provider returned status='${providerStatus || "empty"}' without complete output.`;
+      attempts.push({
+        provider: "google-gemini",
+        model: requestedModel,
+        thinking_level,
+        status: "error",
+        http_status: 200,
+        latency_ms: attemptLatency,
+        error_message: msg,
+      });
+      return {
+        ok: false,
+        draft: null,
+        raw_output_text: outputText || null,
+        invocation_audit: {
+          provider: "google-gemini",
+          api_surface: "interactions-v1beta",
+          requested_model: requestedModel,
+          resolved_model: resolvedModel,
+          actual_model_invoked: effectiveModel,
+          pinned_settings: pinnedSettings,
+          prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+          live_provider_called: true,
+          silent_fallback_disabled: true,
+          provider_interaction_id: interactionId,
+          provider_response_status: providerStatus,
+          failure_classification: "BLOCKED_OR_INCOMPLETE",
+          latency_ms: Date.now() - overallStart,
+          input_tokens: 0,
+          output_tokens: 0,
+          thought_tokens: 0,
+          total_tokens: 0,
+          estimated_cost_usd: 0,
+          attempts,
+          error_summary: msg,
+        },
+      };
+    }
+
+    const parsed = JSON.parse(outputText) as GroundedLlmDraftResponse;
+    if (!parsed || !Array.isArray(parsed.issues)) {
+      throw new Error("Invalid JSON output: missing required 'issues' array.");
+    }
+
+    const usage = (interaction as unknown as Record<string, unknown>)?.usage as
+      | Record<string, number>
+      | undefined;
+    const inputTokens = Number(usage?.total_input_tokens ?? usage?.input_tokens ?? 0);
+    const outputTokens = Number(usage?.total_output_tokens ?? usage?.output_tokens ?? 0);
+    const thoughtTokens = Number(usage?.total_thought_tokens ?? usage?.thought_tokens ?? 0);
+    const totalTokens = Number(
+      usage?.total_tokens ?? inputTokens + outputTokens + thoughtTokens
+    );
+
+    attempts.push({
       provider: "google-gemini",
-      api_surface: "interactions-v1beta",
-      requested_model: requestedModel,
-      actual_model_invoked: null,
-      prompt_version: GROUNDED_LLM_PROMPT_VERSION,
-      live_provider_called: attempts.length > 0,
-      provider_interaction_id: null,
-      latency_ms: Date.now() - overallStart,
-      input_tokens: 0,
-      output_tokens: 0,
-      thought_tokens: 0,
-      total_tokens: 0,
-      estimated_cost_usd: 0,
-      attempts,
-      error_summary:
-        attempts[attempts.length - 1]?.error_message || "All LLM provider invocation attempts failed.",
-    },
-  };
+      model: requestedModel,
+      thinking_level,
+      status: "succeeded",
+      http_status: 200,
+      latency_ms: attemptLatency,
+    });
+
+    return {
+      ok: true,
+      draft: parsed,
+      raw_output_text: outputText,
+      invocation_audit: {
+        provider: "google-gemini",
+        api_surface: "interactions-v1beta",
+        requested_model: requestedModel,
+        resolved_model: resolvedModel,
+        actual_model_invoked: effectiveModel,
+        pinned_settings: pinnedSettings,
+        prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+        live_provider_called: true,
+        silent_fallback_disabled: true,
+        provider_interaction_id: interactionId,
+        provider_response_status: providerStatus || "completed",
+        failure_classification: "NONE",
+        latency_ms: Date.now() - overallStart,
+        input_tokens: inputTokens,
+        output_tokens: outputTokens,
+        thought_tokens: thoughtTokens,
+        total_tokens: totalTokens,
+        estimated_cost_usd: estimateCostUsd(effectiveModel, inputTokens, outputTokens + thoughtTokens),
+        attempts,
+        error_summary: null,
+      },
+    };
+  } catch (err) {
+    const attemptLatency = Date.now() - attemptStart;
+    const msg = err instanceof Error ? err.message : String(err);
+    const statusMatch = msg.match(/\b(400|401|403|404|429|500|502|503|504)\b/);
+    const httpStatus = statusMatch ? Number(statusMatch[1]) : null;
+    const failureClass = classifyProviderFailure(httpStatus, msg);
+
+    attempts.push({
+      provider: "google-gemini",
+      model: requestedModel,
+      thinking_level,
+      status: "error",
+      http_status: httpStatus,
+      latency_ms: attemptLatency,
+      error_message: msg.slice(0, 320),
+    });
+
+    // NO SILENT FALLBACK TO FLASH / FLASH-LITE / OPENAI / TEMPLATES!
+    return {
+      ok: false,
+      draft: null,
+      raw_output_text: null,
+      invocation_audit: {
+        provider: "google-gemini",
+        api_surface: "interactions-v1beta",
+        requested_model: requestedModel,
+        resolved_model: null,
+        actual_model_invoked: null,
+        pinned_settings: pinnedSettings,
+        prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+        live_provider_called: true,
+        silent_fallback_disabled: true,
+        provider_interaction_id: null,
+        provider_response_status: null,
+        failure_classification: failureClass,
+        latency_ms: Date.now() - overallStart,
+        input_tokens: 0,
+        output_tokens: 0,
+        thought_tokens: 0,
+        total_tokens: 0,
+        estimated_cost_usd: 0,
+        attempts,
+        error_summary: msg.slice(0, 320),
+      },
+    };
+  }
 }

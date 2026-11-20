@@ -51,6 +51,7 @@ import type {
   AtomicClaimType,
   BatchIngestionStageCounts,
   CitationAcceptanceMeasurementReport,
+  ClaimBoundCalculationRecord,
   ClaimEvidenceReferenceDto,
   ClaimSupportRole,
   DocumentVersionRecord,
@@ -945,6 +946,8 @@ export interface ProposedStructuredClaimInput {
   scope_topic_th?: string;
   human_approved_by?: string | null;
   verified_calculation_numeric_tokens?: string[];
+  /** Server-verified calculation bound strictly to THIS claim (never shared with sibling claims). */
+  bound_calculation?: ClaimBoundCalculationRecord | null;
 }
 
 export interface ValidateAndPublishAnswerInput {
@@ -1363,10 +1366,15 @@ export function validateAndBuildTraceableAnswer(
 
     // Material Issue 1: Substantive claim-to-evidence support check!
     // An unrelated claim attached to a real, eligible source MUST remain unverified ('insufficient', published: false), NEVER 'supported'!
+    // Per-claim calculation binding: ONLY verified calculation tokens bound strictly to THIS claim are eligible.
+    const claimOwnCalcTokens =
+      prop.bound_calculation?.verified_numeric_tokens?.length
+        ? prop.bound_calculation.verified_numeric_tokens
+        : prop.verified_calculation_numeric_tokens;
     if (claimDecision === "supported" && validRefsForClaim.length > 0) {
       const substantiveCheck = evaluateSubstantiveClaimSupport({
         claim_text: prop.text,
-        verified_calculation_numeric_tokens: prop.verified_calculation_numeric_tokens,
+        verified_calculation_numeric_tokens: claimOwnCalcTokens,
         passages: validRefsForClaim.map((ref) => {
           const psg = view.passages[ref.evidence_id]!;
           const doc = view.documents[ref.doc_id];
@@ -1389,6 +1397,22 @@ export function validateAndBuildTraceableAnswer(
     }
 
     const isPublished = claimDecision === "supported" && validRefsForClaim.length > 0;
+    const finalizedBoundCalc: ClaimBoundCalculationRecord | null =
+      isPublished && prop.bound_calculation
+        ? {
+            ...prop.bound_calculation,
+            claim_id: claimId,
+            answer_revision: answerRevision,
+            source_versions:
+              prop.bound_calculation.source_versions.length > 0
+                ? prop.bound_calculation.source_versions
+                : validRefsForClaim.map((ref) => ({
+                    evidence_id: ref.evidence_id,
+                    doc_id: ref.doc_id,
+                    version_id: ref.version_id,
+                  })),
+          }
+        : null;
     evaluatedClaims.set(claimId, {
       claim_id: claimId,
       claim_number: idx + 1,
@@ -1400,6 +1424,7 @@ export function validateAndBuildTraceableAnswer(
       published: isPublished,
       withheld_explanation_th: isPublished ? null : withholdExplanationTh,
       evidence_references: isPublished ? validRefsForClaim : [],
+      bound_calculation: finalizedBoundCalc,
     });
 
     if (isPublished) {
@@ -1537,16 +1562,24 @@ export function validateAndBuildTraceableAnswer(
   };
 
   if (input.persist_atomically) {
-    const trustedByClaimText: Record<string, string[]> = {};
-    for (const pc of input.proposed_claims) {
-      if (pc.verified_calculation_numeric_tokens && pc.verified_calculation_numeric_tokens.length > 0) {
-        trustedByClaimText[pc.text] = pc.verified_calculation_numeric_tokens;
+    const trustedTokensByClaimId: Record<string, string[]> = {};
+    const trustedCalcsByClaimId: Record<string, ClaimBoundCalculationRecord> = {};
+    for (let idx = 0; idx < input.proposed_claims.length; idx++) {
+      const pc = input.proposed_claims[idx];
+      const cid = pc.claim_id || `clm.${answerRevision}.${idx + 1}`;
+      const evalClaim = evaluatedClaims.get(cid);
+      if (evalClaim?.bound_calculation) {
+        trustedCalcsByClaimId[cid] = evalClaim.bound_calculation;
+        trustedTokensByClaimId[cid] = evalClaim.bound_calculation.verified_numeric_tokens;
+      } else if (pc.verified_calculation_numeric_tokens && pc.verified_calculation_numeric_tokens.length > 0) {
+        trustedTokensByClaimId[cid] = pc.verified_calculation_numeric_tokens;
       }
     }
     commitTraceableAnswerAtomically(store, envelope, allLinksToPersist, {
       actor: input.actor,
       question_text: input.question,
-      trusted_calculation_tokens_by_claim_text: trustedByClaimText,
+      trusted_calculation_tokens_by_claim_id: trustedTokensByClaimId,
+      trusted_calculations_by_claim_id: trustedCalcsByClaimId,
     });
   }
 
@@ -1674,6 +1707,11 @@ export function commitTraceableAnswerAtomically(
       owner_actor_id: string;
       owner_tenant_id: string;
     } | null;
+    /** Per-claim verified calculation tokens keyed strictly by claim_id (zero cross-claim pooling). */
+    trusted_calculation_tokens_by_claim_id?: Record<string, string[]>;
+    /** Per-claim structured server-verified calculation bindings keyed strictly by claim_id. */
+    trusted_calculations_by_claim_id?: Record<string, ClaimBoundCalculationRecord>;
+    /** @deprecated Legacy exact-text fallback only when claim_id binding is not supplied; never pooled across claims. */
     trusted_calculation_tokens_by_claim_text?: Record<string, string[]>;
     skip_local_disk_persist?: boolean;
   }
@@ -1733,10 +1771,14 @@ export function commitTraceableAnswerAtomically(
   for (const sc of envelope.claims) {
     if (sc.verification_decision !== "supported") continue;
     const scLinks = links.filter((l) => l.claim_id === sc.claim_id);
+    // Strict per-claim binding: ONLY tokens explicitly bound to THIS claim_id are authorized!
+    const boundTokensForThisClaimOnly =
+      meta.trusted_calculations_by_claim_id?.[sc.claim_id]?.verified_numeric_tokens ??
+      meta.trusted_calculation_tokens_by_claim_id?.[sc.claim_id] ??
+      meta.trusted_calculation_tokens_by_claim_text?.[sc.text];
     const substantive = evaluateSubstantiveClaimSupport({
       claim_text: sc.text,
-      verified_calculation_numeric_tokens:
-        meta.trusted_calculation_tokens_by_claim_text?.[sc.text],
+      verified_calculation_numeric_tokens: boundTokensForThisClaimOnly,
       passages: scLinks.map((l) => {
         const psg = unified.passages[l.evidence_id]!;
         const doc = unified.documents[l.doc_id];
@@ -2122,6 +2164,11 @@ export async function saveOrReviseAnswerServerVerified(
       conversation_id?: string | null;
       prior_saved_answer_revision?: string | null;
       conversation_history?: ConversationTurnInput[];
+      /** Per-claim verified calculation tokens keyed strictly by claim_id (zero cross-claim pooling). */
+      trusted_calculation_tokens_by_claim_id?: Record<string, string[]>;
+      /** Per-claim structured server-verified calculation bindings keyed strictly by claim_id. */
+      trusted_calculations_by_claim_id?: Record<string, ClaimBoundCalculationRecord>;
+      /** @deprecated Legacy exact-text fallback only when claim_id binding is not supplied; never pooled across claims. */
       trusted_calculation_tokens_by_claim_text?: Record<string, string[]>;
     };
   }
@@ -2365,8 +2412,14 @@ export async function saveOrReviseAnswerServerVerified(
 
   const candidateIds = new Set<string>();
   const proposedClaims: ProposedStructuredClaimInput[] = [];
+  const trustedCalcTokensByClaimId =
+    params.query_persistence_context?.trusted_calculation_tokens_by_claim_id;
+  const trustedCalcsByClaimId =
+    params.query_persistence_context?.trusted_calculations_by_claim_id;
   const trustedCalcTokensMap =
     params.query_persistence_context?.trusted_calculation_tokens_by_claim_text;
+  const remappedTrustedTokensByClaimId: Record<string, string[]> = {};
+  const remappedTrustedCalcsByClaimId: Record<string, ClaimBoundCalculationRecord> = {};
   const shouldRemapClaimIds = requestedAnswerId !== sub.answer_id || nextRevHint > 1;
   const subClaimIdRemap = new Map<string, string>();
 
@@ -2414,6 +2467,27 @@ export async function saveOrReviseAnswerServerVerified(
       }
     }
 
+    // Strict per-claim calculation isolation: look up server-verified calculation ONLY for THIS
+    // exact rawClm.claim_id (never borrow or pool verified numbers from any sibling claim!).
+    const boundCalcForThisClaim = rawClm.claim_id
+      ? trustedCalcsByClaimId?.[rawClm.claim_id] ?? null
+      : null;
+    const verifiedTokensForThisClaimOnly =
+      boundCalcForThisClaim?.verified_numeric_tokens ??
+      (rawClm.claim_id ? trustedCalcTokensByClaimId?.[rawClm.claim_id] : undefined) ??
+      trustedCalcTokensMap?.[rawClm.text];
+
+    if (boundCalcForThisClaim) {
+      remappedTrustedCalcsByClaimId[nextClaimId] = {
+        ...boundCalcForThisClaim,
+        claim_id: nextClaimId,
+        answer_revision: `${requestedAnswerId}.r${nextRevHint}`,
+      };
+    }
+    if (verifiedTokensForThisClaimOnly && verifiedTokensForThisClaimOnly.length > 0) {
+      remappedTrustedTokensByClaimId[nextClaimId] = verifiedTokensForThisClaimOnly;
+    }
+
     proposedClaims.push({
       claim_id: nextClaimId,
       text: rawClm.text,
@@ -2421,7 +2495,8 @@ export async function saveOrReviseAnswerServerVerified(
         rawClm.claim_type === "interpretation" ? "interpretation" : "legal_proposition",
       premise_ids: (rawClm.premise_ids || []).map((pid) => subClaimIdRemap.get(pid) || pid),
       support_groups: Array.from(groupedMap.values()),
-      verified_calculation_numeric_tokens: trustedCalcTokensMap?.[rawClm.text],
+      verified_calculation_numeric_tokens: verifiedTokensForThisClaimOnly,
+      bound_calculation: remappedTrustedCalcsByClaimId[nextClaimId] ?? null,
     });
   }
 
@@ -2474,6 +2549,14 @@ export async function saveOrReviseAnswerServerVerified(
             owner_tenant_id: pgOwn.owner_tenant_id || params.actor.tenant_id,
           }
         : null,
+    trusted_calculation_tokens_by_claim_id:
+      Object.keys(remappedTrustedTokensByClaimId).length > 0
+        ? remappedTrustedTokensByClaimId
+        : undefined,
+    trusted_calculations_by_claim_id:
+      Object.keys(remappedTrustedCalcsByClaimId).length > 0
+        ? remappedTrustedCalcsByClaimId
+        : undefined,
     trusted_calculation_tokens_by_claim_text: trustedCalcTokensMap,
     skip_local_disk_persist: pgActive,
   });
@@ -2709,15 +2792,19 @@ export function attachTraceableEnvelopeToGroundedAnswer(
         ? baseGroups.map((g) => ({ ...g, role: "exception_or_proviso" as ClaimSupportRole }))
         : baseGroups;
 
+      const atomicClaimId =
+        atomicSegments.length === 1
+          ? rawClm.claim_id
+          : `${rawClm.claim_id}.p${claimSeq}`;
       proposed.push({
-        claim_id:
-          atomicSegments.length === 1
-            ? rawClm.claim_id
-            : `${rawClm.claim_id}.p${claimSeq}`,
+        claim_id: atomicClaimId,
         text: segText,
         claim_type: isFactApplication ? "interpretation" : "legal_proposition",
         support_groups: segGroups,
         verified_calculation_numeric_tokens: rawClm.verified_calculation_numeric_tokens,
+        bound_calculation: rawClm.bound_calculation
+          ? { ...rawClm.bound_calculation, claim_id: atomicClaimId }
+          : null,
       });
     }
   }

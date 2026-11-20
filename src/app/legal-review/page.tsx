@@ -1310,7 +1310,7 @@ export default function LegalTeamReviewStudioPage() {
                   }}
                 >
                   <option value="llm_grounded">
-                    Grounded LLM (Staging Flag · Zero Template Fallback)
+                    Grounded LLM — Gemini 4 Neon (Staging Flag · Zero Silent Fallback)
                   </option>
                   <option value="baseline_deterministic">
                     Baseline Deterministic (Comparison Control)
@@ -1473,7 +1473,53 @@ export default function LegalTeamReviewStudioPage() {
                                 ).provider || "-"
                               )}
                             </code>{" "}
-                            (live=
+                            (requested=
+                            <code>
+                              {String(
+                                (
+                                  answerResult.execution_provenance.provider_invocation as Record<
+                                    string,
+                                    unknown
+                                  >
+                                ).requested_model || "-"
+                              )}
+                            </code>
+                            , resolved=
+                            <code>
+                              {String(
+                                (
+                                  answerResult.execution_provenance.provider_invocation as Record<
+                                    string,
+                                    unknown
+                                  >
+                                ).resolved_model || "none"
+                              )}
+                            </code>
+                            , thinking=
+                            <code>
+                              {String(
+                                (
+                                  (
+                                    answerResult.execution_provenance.provider_invocation as Record<
+                                      string,
+                                      unknown
+                                    >
+                                  ).pinned_settings as Record<string, unknown> | undefined
+                                )?.thinking_level || "-"
+                              )}
+                            </code>
+                            , failure=
+                            <code>
+                              {String(
+                                (
+                                  answerResult.execution_provenance.provider_invocation as Record<
+                                    string,
+                                    unknown
+                                  >
+                                ).failure_classification || "NONE"
+                              )}
+                            </code>
+                            , live=
                             <code>
                               {String(
                                 Boolean(

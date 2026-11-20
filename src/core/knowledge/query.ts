@@ -1312,6 +1312,12 @@ async function executeCoreKnowledgeQuery(
       question: rawQ,
       factLedger,
       passagePack,
+      challengerProvider:
+        process.env.VERCEL_ENV !== "production" ? req.challenger_provider ?? null : null,
+      overrideModel:
+        process.env.VERCEL_ENV !== "production" ? req.override_model ?? null : null,
+      thinkingLevel:
+        process.env.VERCEL_ENV !== "production" ? req.thinking_level ?? null : null,
     });
 
     const verifiedOutcome = verifyAndRenderGroundedLlmDraft({
@@ -1328,9 +1334,11 @@ async function executeCoreKnowledgeQuery(
       stagingFlagActive: true,
     });
 
-    const actualModelLabel = llmRes.invocation_audit.actual_model_invoked
-      ? `google-gemini:${llmRes.invocation_audit.actual_model_invoked}`
-      : `google-gemini:unavailable(${llmRes.invocation_audit.requested_model})`;
+    const resolvedOrReq =
+      llmRes.invocation_audit.resolved_model || llmRes.invocation_audit.actual_model_invoked;
+    const actualModelLabel = resolvedOrReq
+      ? `${llmRes.invocation_audit.provider}:${resolvedOrReq}`
+      : `${llmRes.invocation_audit.provider}:unavailable(${llmRes.invocation_audit.requested_model})`;
 
     return {
       release_id: releaseId,
@@ -2623,8 +2631,9 @@ async function executeCoreKnowledgeQuery(
           Array.from(verificationPassageMap.values())
         );
         if (appVerCheck.allow_confident_answer) {
+          const calcClaimId = `clm.${traceId}.law_application.${cIdx + 1}`;
           claims.unshift({
-            claim_id: `clm.${traceId}.law_application.${cIdx + 1}`,
+            claim_id: calcClaimId,
             statement: calc.summary_statement_th,
             claim_type: "qualified_legal_synthesis",
             statement_role: "statutory_text",
@@ -2635,6 +2644,29 @@ async function executeCoreKnowledgeQuery(
             counterevidence_passage_ids: [],
             verification_result: appVerCheck.verification_result,
             verified_calculation_numeric_tokens: calc.verified_numeric_tokens,
+            bound_calculation: {
+              calculation_id: calc.calculation_id,
+              claim_id: calcClaimId,
+              answer_revision: `ans.${traceId}.r1`,
+              verifier_version: calc.verifier_version,
+              formula: calc.formula_th,
+              inputs: calc.inputs as Record<string, number | string | boolean | null>,
+              outputs: calc.outputs as Record<string, number | string | boolean | null>,
+              units: {
+                primary_unit: "MIXED",
+                detail_th: "บาท (THB) / อัตราร้อยละ (%)",
+              },
+              source_versions: dedupCalcPids.map((pid) => {
+                const pObj = verificationPassageMap.get(pid);
+                return {
+                  evidence_id: pid,
+                  doc_id: pObj?.work_id || pid,
+                  version_id: pObj?.version_id || primaryOfficial.version_id,
+                };
+              }),
+              verified_numeric_tokens: calc.verified_numeric_tokens,
+              verified_at: new Date().toISOString(),
+            },
           });
           calcBlocks.push(
             `**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n${calc.summary_statement_th}\n\n` +

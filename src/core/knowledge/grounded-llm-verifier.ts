@@ -15,6 +15,7 @@
 
 import { verifyClaimAgainstPassages } from "./answer-verification";
 import type { StructuredCaseFactLedger } from "./case-fact-ledger";
+import type { ClaimBoundCalculationRecord } from "./citation-contracts";
 import type { ClaimLedgerItem, EvidenceCard, Passage } from "./contracts";
 import type {
   AuthorityHierarchyTier,
@@ -90,6 +91,13 @@ export interface GroundedLlmAuditTrace {
     official_url: string | null;
     representation_kind: GroundedPassagePackItem["representation_kind"];
     live_reachability_status: "unchecked_live";
+  }>;
+  /** Exact passage IDs and versions consumed by the model in this run (for strict controlled-comparison equality). */
+  consumed_passage_ids: string[];
+  consumed_passage_versions: Array<{
+    passage_id: string;
+    work_id: string;
+    version_id: string;
   }>;
   provider_invocation: ProviderInvocationAudit;
   claims_before_verification: Array<{
@@ -588,10 +596,29 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     })
   );
 
-  // Zero Silent Template Fallback: If provider failed / unavailable -> explicit inability notice!
+  const consumedPassageIds = params.passagePack.map((p) => p.passage_id);
+  const consumedPassageVersions = params.passagePack.map((p) => ({
+    passage_id: p.passage_id,
+    work_id: p.work_id,
+    version_id: p.version_id,
+  }));
+
+  // Zero Silent Template Fallback / Zero Silent Model Switch: If provider failed / unavailable / 429 -> explicit inability notice!
   if (!params.llmOk || !params.draft) {
+    const fc = params.invocationAudit.failure_classification || "PROVIDER_UNAVAILABLE";
+    const reqModel = params.invocationAudit.requested_model;
+    const detailReason =
+      fc === "RATE_LIMIT_429_FREE_TIER"
+        ? `รุ่นที่กำหนด (${reqModel}) ถูกจำกัดสิทธิ์/โควตา API (HTTP 429 — ${params.invocationAudit.error_summary || "rate limit exceeded"})`
+        : fc === "TIMEOUT"
+          ? `หมดเวลาการรอคำตอบจากรุ่นที่กำหนด (${reqModel} · timeout=${params.invocationAudit.pinned_settings.timeout_ms}ms)`
+          : fc === "BLOCKED_OR_INCOMPLETE"
+            ? `คำตอบจากรุ่นที่กำหนด (${reqModel}) ถูกระงับหรือไม่สมบูรณ์ (${params.invocationAudit.provider_response_status || "incomplete"})`
+            : fc === "INVALID_OUTPUT"
+              ? `ผลลัพธ์จากรุ่นที่กำหนด (${reqModel}) ไม่ตรงตามโครงสร้าง JSON ที่ตรวจสอบได้`
+              : `ไม่สามารถรับคำตอบที่สมบูรณ์จากรุ่นที่กำหนด (${reqModel}) ได้ (${fc})`;
     const unableMsg =
-      "ไม่สามารถสร้างคำวิเคราะห์จากแบบจำลองภาษาได้ในขณะนี้ (Provider unavailable หรือผลลัพธ์ไม่สมบูรณ์) ระบบจึงระงับการเผยแพร่คำตอบและ **ไม่สลับไปใช้ข้อความสรุปสำเร็จรูป (Template Fallback Disabled)** กรุณาลองใหม่อีกครั้งหรือตรวจสอบสถานะการเชื่อมต่อผู้ให้บริการแบบจำลอง";
+      `ไม่สามารถสร้างคำวิเคราะห์จากแบบจำลองภาษาได้ในขณะนี้: ${detailReason} — ระบบจึงระงับการเผยแพร่คำตอบ และ **ไม่สลับไปใช้แบบจำลองรุ่นอื่น (เช่น Flash/Flash-Lite) หรือข้อความสรุปสำเร็จรูปโดยอัตโนมัติ (No Silent Fallback)**`;
     return {
       status: "REVIEW_REQUIRED",
       rendered_answer_th: unableMsg,
@@ -601,7 +628,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       assumptions_th: [],
       clarification_questions_th: [],
       coverage_warnings_th: [
-        params.invocationAudit.error_summary || "LLM provider unavailable; template fallback disabled.",
+        `[${fc}] ${params.invocationAudit.error_summary || "LLM provider unavailable; silent fallback disabled."}`,
       ],
       audit_trace: {
         schema_version: "reg24.llm_audit_trace.v1",
@@ -610,6 +637,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         template_fallback_used: false,
         input_fact_ledger: params.factLedger,
         supplied_passages: suppliedPassagesAudit,
+        consumed_passage_ids: consumedPassageIds,
+        consumed_passage_versions: consumedPassageVersions,
         provider_invocation: params.invocationAudit,
         claims_before_verification: [],
         claims_after_verification: [],
@@ -796,8 +825,44 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     }
 
     const firstRaw = params.rawPassagesById.get(finalPassageIds[0]);
+    const claimId = `clm.${params.traceId}.llm_issue.${idx + 1}`;
+    const boundCalcRecord: ClaimBoundCalculationRecord | null =
+      calcCheck.accepted && calcCheck.verifiedCalc
+        ? {
+            calculation_id: `calc.${params.traceId}.${iss.issue_id}`,
+            claim_id: claimId,
+            answer_revision: `ans.${params.traceId}.r1`,
+            verifier_version: "reg24-llm-calc-verifier-v1.1",
+            formula: calcCheck.verifiedCalc.formula_description_th,
+            inputs: {
+              tax_base_thb: calcCheck.verifiedCalc.tax_base_thb,
+              exempt_amount_thb: calcCheck.verifiedCalc.exempt_amount_thb,
+              rate_pct: calcCheck.verifiedCalc.rate_pct,
+            },
+            outputs: {
+              taxable_amount_thb: calcCheck.verifiedCalc.taxable_amount_thb,
+              computed_tax_thb: calcCheck.verifiedCalc.computed_tax_thb,
+            },
+            units: {
+              primary_unit: calcCheck.verifiedCalc.computed_tax_thb !== null ? "THB" : "PERCENT",
+              detail_th: "บาท (THB) และอัตราร้อยละ (%)",
+            },
+            source_versions: finalPassageIds.map((pid) => {
+              const pObj = packById.get(pid);
+              const rObj = params.rawPassagesById.get(pid);
+              return {
+                evidence_id: pid,
+                doc_id: pObj?.work_id || rObj?.work_id || pid,
+                version_id: pObj?.version_id || rObj?.version_id || "unknown",
+              };
+            }),
+            verified_numeric_tokens: trustedTokensArr,
+            verified_at: new Date().toISOString(),
+          }
+        : null;
+
     const claimLedgerItem: ClaimLedgerItem = {
-      claim_id: `clm.${params.traceId}.llm_issue.${idx + 1}`,
+      claim_id: claimId,
       statement: fullIssueClaimStatement,
       claim_type: "qualified_legal_synthesis",
       statement_role: firstRaw?.statement_role || "statutory_text",
@@ -808,6 +873,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       counterevidence_passage_ids: [],
       verification_result: entailmentCheck.verification_result,
       verified_calculation_numeric_tokens: trustedTokensArr,
+      bound_calculation: boundCalcRecord,
     };
 
     verifiedIssues.push({
@@ -851,6 +917,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         template_fallback_used: false,
         input_fact_ledger: params.factLedger,
         supplied_passages: suppliedPassagesAudit,
+        consumed_passage_ids: consumedPassageIds,
+        consumed_passage_versions: consumedPassageVersions,
         provider_invocation: params.invocationAudit,
         claims_before_verification: claimsBefore,
         claims_after_verification: [],
@@ -956,6 +1024,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       template_fallback_used: false,
       input_fact_ledger: params.factLedger,
       supplied_passages: suppliedPassagesAudit,
+      consumed_passage_ids: consumedPassageIds,
+      consumed_passage_versions: consumedPassageVersions,
       provider_invocation: params.invocationAudit,
       claims_before_verification: claimsBefore,
       claims_after_verification: verifiedIssues.map((v) => ({

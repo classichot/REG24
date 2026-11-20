@@ -43,18 +43,39 @@ const QA_ACTOR: Actor = {
 const MOCK_INVOCATION: ProviderInvocationAudit = {
   provider: "google-gemini",
   api_surface: "interactions-v1beta",
-  requested_model: "gemini-3.8-flash",
-  actual_model_invoked: "gemini-3.8-flash",
+  requested_model: "gemini-4-neon",
+  resolved_model: "gemini-4-neon",
+  actual_model_invoked: "gemini-4-neon",
+  pinned_settings: {
+    thinking_level: "high",
+    thinking_level_note: null,
+    temperature: 0.0,
+    max_output_tokens: 16384,
+    timeout_ms: 90000,
+    store: false,
+  },
   prompt_version: GROUNDED_LLM_PROMPT_VERSION,
   live_provider_called: true,
+  silent_fallback_disabled: true,
   provider_interaction_id: "int.test.001",
+  provider_response_status: "completed",
+  failure_classification: "NONE",
   latency_ms: 1200,
   input_tokens: 900,
   output_tokens: 350,
   thought_tokens: 50,
   total_tokens: 1300,
   estimated_cost_usd: 0.00127,
-  attempts: [{ model: "gemini-3.8-flash", status: "succeeded", http_status: 200, latency_ms: 1200 }],
+  attempts: [
+    {
+      provider: "google-gemini",
+      model: "gemini-4-neon",
+      thinking_level: "high",
+      status: "succeeded",
+      http_status: 200,
+      latency_ms: 1200,
+    },
+  ],
   error_summary: null,
 };
 
@@ -298,7 +319,7 @@ describe("Grounded LLM Answer Architecture (Zero Prewritten Conclusion Templates
     expect(outageRes.status).toBe("REVIEW_REQUIRED");
     expect(outageRes.claims).toEqual([]);
     expect(outageRes.audit_trace.template_fallback_used).toBe(false);
-    expect(outageRes.rendered_answer_th).toContain("ไม่สลับไปใช้ข้อความสรุปสำเร็จรูป");
+    expect(outageRes.rendered_answer_th).toContain("No Silent Fallback");
   });
 
   it("4. Evidence resolver distinguishes unchecked live URLs from verified_online and labels transcripts honestly", () => {

@@ -348,6 +348,27 @@ export interface ClaimEvidenceReferenceDto {
   access_conditions_th: string | null;
 }
 
+export interface ClaimBoundCalculationRecord {
+  calculation_id: string;
+  claim_id: string;
+  answer_revision: string;
+  verifier_version: string;
+  formula: string;
+  inputs: Record<string, number | string | boolean | null>;
+  outputs: Record<string, number | string | boolean | null>;
+  units: {
+    primary_unit: "THB" | "PERCENT" | "DAYS" | "YEARS" | "MIXED";
+    detail_th: string;
+  };
+  source_versions: Array<{
+    evidence_id: string;
+    doc_id: string;
+    version_id: string;
+  }>;
+  verified_numeric_tokens: string[];
+  verified_at: string;
+}
+
 export interface PublishedAtomicClaimDto {
   claim_id: string;
   claim_number: number;
@@ -359,6 +380,8 @@ export interface PublishedAtomicClaimDto {
   published: boolean;
   withheld_explanation_th: string | null;
   evidence_references: ClaimEvidenceReferenceDto[];
+  /** Server-verified calculation bound strictly to THIS claim and answer revision (never pooled across claims). */
+  bound_calculation?: ClaimBoundCalculationRecord | null;
 }
 
 export interface UnresolvedIssueDto {
