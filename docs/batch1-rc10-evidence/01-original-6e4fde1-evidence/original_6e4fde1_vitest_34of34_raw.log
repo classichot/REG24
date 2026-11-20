@@ -1,0 +1,34 @@
+The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+
+ RUN  v2.1.9 D:/Code/REG24
+
+ ✓ tests/knowledge/grounded-llm-architecture.test.ts (4 tests) 4675ms
+   ✓ Grounded LLM Answer Architecture (Zero Prewritten Conclusion Templates) > 4. Evidence resolver distinguishes unchecked live URLs from verified_online and labels transcripts honestly 900ms
+ ✓ tests/knowledge/rc7-thai-legal-index-and-retrieval-gates.test.ts (4 tests) 15593ms
+   ✓ REG24 Batch 1 RC7 — Thai Legal Indexing, Manifest-Pinned Projections & Retrieval Gates > 1) Royal Decrees 790, 799, 807 carry verified Gazette hashes, separate temporal fields, real pdf_page locators, and strict endpoint filtering (zero unknown-expiry inference) 5446ms
+   ✓ REG24 Batch 1 RC7 — Thai Legal Indexing, Manifest-Pinned Projections & Retrieval Gates > 2) Preserves composite identifiers (`มาตรา ๘๐/๑ (๒)` != `มาตรา 80`), negations/exceptions (`มิให้`, `เว้นแต่`), and reports unverified rulings without substitution 4743ms
+   ✓ REG24 Batch 1 RC7 — Thai Legal Indexing, Manifest-Pinned Projections & Retrieval Gates > 3) Manifest-pinned projections reject stale/mismatched snapshots, distinguish `deliberately_disabled` vectors from `missing`/`incompatible`, and prove rollback selects RC6 projections 5372ms
+ ✓ tests/knowledge/gemini4-neon-and-claim-calc-isolation.test.ts (4 tests) 16337ms
+   ✓ Gemini 4 Neon Staging Candidate & Per-Claim Calculation Isolation > 3. Per-claim calculation binding: valid calculation survives while a sibling unsupported claim reusing its exact number stays BLOCKED across UI/API, save, and reopen 12611ms
+ ✓ tests/knowledge/dodo-query-persist-revision-chain.test.ts (3 tests) 34623ms
+   ✓ Dodo Round 2 Blocker Regression — Answer Revision Write & Conversation Chain Integrity > 1. Preserves PostgreSQL FK constraint in migration DDL and fixes exact Dodo HTTP 400 failure on built-in cross-border tax question (LSC-COMPLEX-01) + same-conversation follow-up 11689ms
+   ✓ Dodo Round 2 Blocker Regression — Answer Revision Write & Conversation Chain Integrity > 2. Defense-in-depth: even if local memory has an unpersisted r1 while PostgreSQL has 0 rows, saveOrReviseAnswerServerVerified saves r1 (supersedes = null) without violating DB FK 14660ms
+   ✓ Dodo Round 2 Blocker Regression — Answer Revision Write & Conversation Chain Integrity > 3. Enforces conversation isolation: unsaved Turn 1 -> Turn 2 saves as r1; cross-conversation, phantom, first-turn-with-prior, and cross-user links are strictly blocked; calculation persist works cleanly 8273ms
+ ✓ tests/knowledge/gate1-generalized-remediation.test.ts (5 tests) 44549ms
+   ✓ Gate 1 Generalized Remediation (Workstreams 1–4) > W1: Domestic service VAT across pre-799 (2025-09-30), RD 799 (2025-10-01 / 2026-09-30), RD 807 (2026-10-01), absent date, and §78/1(1) competing dates 7366ms
+   ✓ Gate 1 Generalized Remediation (Workstreams 1–4) > W1+W2: Export of service to Japan (V6t1 -> 0%, never shoe ruling กค 0811/พ.4347), follow-up used in Chonburi (V6t2 -> 7% RD 799), and explicit follow-up date change (V7t1 -> V7t2) 5224ms
+   ✓ Gate 1 Generalized Remediation (Workstreams 1–4) > W2: Condo/nephew (T09) preserves 'ห้องชุด' & 'หลานชาย' without substituting land/niece; 3rd-turn context (C1t1->C1t2->C1t3) matches fresh session; cash support to mother (H2t1) & friend ordination (H2t2) + condo to brother (H3) 9708ms
+   ✓ Gate 1 Generalized Remediation (Workstreams 1–4) > W3: Evidence resolver consistency — zero synthetic /law-dependency/ URLs, zero nav boilerplate, narrowed passages, and B1-09F attaches กค 0702/5958 11457ms
+   ✓ Gate 1 Generalized Remediation (Workstreams 1–4) > W4: RC1 deterministic rejected-calculation staging fixture — zero leakage of rejected figures/steps in answer, claims, or traceable envelope 7645ms
+ ✓ tests/knowledge/official-citations-and-claim-traceability-t01-t13.test.ts (14 tests) 46522ms
+   ✓ REG24 Official-Source Citations & Claim Traceability (T01..T13 + Owner's Demo) > T02: Scan with ambiguous Thai digit or missing negation -> withheld despite high model confidence until Thai human review; corrected version opens highlighted scan while original OCR remains auditable 339ms
+   ✓ REG24 Official-Source Citations & Claim Traceability (T01..T13 + Owner's Demo) > T03: Conclusion requiring a statute AND separate ruling -> both passages and support roles appear; removing one premise withholds dependent conclusion while preserving independent premise 343ms
+   ✓ REG24 Official-Source Citations & Claim Traceability (T01..T13 + Owner's Demo) > T04: Same provision before and after amendment -> two as-of answers select respective versions; earlier saved answer & exported resolver still open earlier passage with separate update notice 535ms
+   ✓ REG24 Official-Source Citations & Claim Traceability (T01..T13 + Owner's Demo) > T13 + Section 8 + SSE Stream + Gate Switch: Compare saved answer across UI/REST API, MCP, Research, Reports, and Exported Report -> identical claim IDs, evidence IDs, versions, and pinpoints + 100% Section 8 acceptance metrics 904ms
+   ✓ REG24 Official-Source Citations & Claim Traceability (T01..T13 + Owner's Demo) > Section 10 Owner's Demo + Human Ambiguity Approval: Real Batch 1 Thai question -> inspect claim & locator -> save & export -> ingest later version -> reopen both outputs -> fresh as-of selects new version -> removing required passage prevents new claim publication 42942ms
+
+ Test Files  6 passed (6)
+      Tests  34 passed (34)
+   Start at  02:41:49
+   Duration  80.05s (transform 8.65s, setup 0ms, collect 97.08s, tests 162.30s, environment 1ms, prepare 1.87s)
+

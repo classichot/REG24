@@ -1,0 +1,364 @@
+Evaluating 21 sealed gate cases + 25 NitiBench-Tax supplement cases on rel.B01.rc7
+Projection diagnostics: {
+  "release_id": "rel.B01.rc7",
+  "manifest_id": "mfst.b01.rc7_thai_legal_index",
+  "manifest_hash": "870b5912da03acd6",
+  "lexical": {
+    "status": "ready",
+    "schema_version": "2.0",
+    "generation": "gen.rel.B01.rc7.r7.870b5912da03",
+    "passage_count": 11786,
+    "tokenizer_engine": "pythainlp_newmm_v5.4.0+reg24-th-legal-dict-v1.0",
+    "legal_dictionary_version": "reg24-th-legal-dict-v1.0",
+    "legal_dictionary_sha256": "0db4edfe76fd98fcc07dfddc561ef5b53c5e0e0e6f003bc4d074a5b52c826ebc",
+    "reason": null
+  },
+  "vector": {
+    "status": "deliberately_disabled",
+    "generation": "gen.rel.B01.rc7.r7.870b5912da03",
+    "embedding_model": null,
+    "embedding_version": null,
+    "dimensions": 0,
+    "vector_count": 0,
+    "reason": "Dense vectors are deliberately disabled on default path (legacy char-hash vectors off)"
+  },
+  "graph": {
+    "status": "ready",
+    "generation": "gen.rel.B01.rc7.r7.870b5912da03",
+    "node_count": 11645,
+    "edge_count": 43164,
+    "neo4j_runtime_dependency": false,
+    "reason": null
+  }
+}
+Exporting Batch 1 evaluation slice (359 passages) to Python LATTE + BGE-M3 ONNX...
+Reusing freshly computed LATTE + BGE-M3 ONNX slice output: C:\Users\I7\.gemini\antigravity\brain\ade02dfd-8b7a-4fcf-a521-8f458561a22a\scratch\_rc7_ablation_slice_out.json
+
+=== SEALED GATE SUMMARY ===
+{
+  "total_cases": 21,
+  "M1_BASE_PYTHAINLP": {
+    "all_required_hit_at_5": "21/21 (100.0%)",
+    "any_hit_at_5": "21/21 (100.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 184.1
+  },
+  "M1_CHALLENGER_LATTE": {
+    "all_required_hit_at_5": "19/21 (90.5%)",
+    "any_hit_at_5": "20/21 (95.2%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 31.55
+  },
+  "M2_BASE_PLUS_BGEM3": {
+    "all_required_hit_at_5": "21/21 (100.0%)",
+    "any_hit_at_5": "21/21 (100.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 537.87
+  },
+  "M3_BASE_PLUS_GRAPH": {
+    "all_required_hit_at_5": "21/21 (100.0%)",
+    "any_hit_at_5": "21/21 (100.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 195.08
+  },
+  "M4_BASE_PLUS_BOTH": {
+    "all_required_hit_at_5": "20/21 (95.2%)",
+    "any_hit_at_5": "21/21 (100.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 548.85
+  },
+  "final_evidence_packet_delivered": "21/21 (100.0%)",
+  "failures": []
+}
+
+=== NITIBENCH-TAX SUPPLEMENT SUMMARY ===
+{
+  "total_cases": 25,
+  "M1_BASE_PYTHAINLP": {
+    "all_required_hit_at_5": "3/25 (12.0%)",
+    "any_hit_at_5": "5/25 (20.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 184.1
+  },
+  "M1_CHALLENGER_LATTE": {
+    "all_required_hit_at_5": "3/25 (12.0%)",
+    "any_hit_at_5": "5/25 (20.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 31.55
+  },
+  "M2_BASE_PLUS_BGEM3": {
+    "all_required_hit_at_5": "3/25 (12.0%)",
+    "any_hit_at_5": "5/25 (20.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 537.87
+  },
+  "M3_BASE_PLUS_GRAPH": {
+    "all_required_hit_at_5": "3/25 (12.0%)",
+    "any_hit_at_5": "5/25 (20.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 195.08
+  },
+  "M4_BASE_PLUS_BOTH": {
+    "all_required_hit_at_5": "3/25 (12.0%)",
+    "any_hit_at_5": "5/25 (20.0%)",
+    "wrong_version_substitutions": 0,
+    "false_matches": 0,
+    "p95_latency_ms": 548.85
+  },
+  "final_evidence_packet_delivered": "3/25 (12.0%)",
+  "failures": [
+    {
+      "case_id": "NITI-TAX-01",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0702_พ_1601_2020_ed417735",
+        "work.th.rd.gk_0706_พ_513_2005_f45570d7",
+        "work.th.rd.gk_0706_พ_11232_2004_07a4e334",
+        "work.th.rd.gk_0706_415_2005_7648c19b",
+        "work.th.rd.gk_0706_11443_2004_b2e45da9"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-02",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0706_5302_2005_05b5edd6",
+        "work.th.rd.gk_0706_กม_08_1061_2004_fa6ae7fd",
+        "work.th.rd.gk_0706_6068_2005_ed6e3260",
+        "work.th.rd.gk_0706_770_2005_e1a1e18e",
+        "work.th.rd.gk_0706_3337_2005_7068a19a"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-03",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "prov.th.rc.80",
+        "subreg.th.rd.vat_local_tax_guide",
+        "prov.th.rc.77/2",
+        "subreg.th.rc.royal_decree.790",
+        "prov.th.rc.78/1"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-04",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_130_2005_b619689c"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-05",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "prov.th.rc.3_โสฬส",
+        "statute.th.rc_amendment_48_2562",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-07",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0706_3367_2005_a1cade88",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_พ_513_2005_f45570d7",
+        "work.th.rd.gk_0706_6068_2005_ed6e3260",
+        "work.th.rd.gk_0706_392_2005_b416d669"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-09",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0706_2604_2005_cd5d9b2c",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc",
+        "work.th.rd.gk_0706_11526_2004_0f52107a",
+        "work.th.rd.gk_0706_3367_2005_a1cade88",
+        "work.th.rd.gk_0706_พ_513_2005_f45570d7"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-10",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc",
+        "work.th.rd.gk_0706_พ_1464_2005_5d48c41d",
+        "work.th.rd.gk_0706_6068_2005_ed6e3260",
+        "work.th.rd.gk_0706_512_2005_5b99fa48",
+        "work.th.rd.gk_0706_11443_2004_b2e45da9"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-11",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "prov.th.rc.42",
+        "prov.th.rc.48",
+        "prov.th.rc.50",
+        "prov.th.rc.41_ทวิ",
+        "statute.th.rc_amendment_40_2558"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-13",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0811_135_2000_c618fae0",
+        "work.th.rd.gk_0811_2827_2000_rd23890_37f3a3dd",
+        "work.th.rd.gk_0706_พ_513_2005_f45570d7",
+        "work.th.rd.0811_กม_พ_2108_1998_aa13bae7",
+        "work.th.rd.gk_0702_พ_013_2022_ff44d7ec"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-14",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0702_34_2023_b9c130c4",
+        "work.th.rd.gk_0811_ก_705_2000_1c05cf4a",
+        "work.th.rd.gk_0702_237_2023_e8f2d49f",
+        "work.th.rd.gk_0706_กม_08_504_2005_671ec491",
+        "work.th.rd.gk_0706_416_2005_6d446247"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-15",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0702_7198_2020_9d35b871",
+        "work.th.rd.gk_0706_พ_11232_2004_07a4e334",
+        "work.th.rd.gk_0706_พ_3070_2005_68fb7a78",
+        "work.th.rd.gk_0706_512_2005_5b99fa48",
+        "work.th.rd.gk_0706_พ_3340_2005_bc77c290"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-16",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0706_6068_2005_ed6e3260",
+        "work.th.rd.gk_0702_399_2023_d374c6a4",
+        "work.th.rd.gk_0811_05371_1999_2c016b5d",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1",
+        "work.th.rd.gk_0811_16321_1998_56b237a2"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-17",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0702_530_2023_d8775339",
+        "work.th.rd.gk_0706_2604_2005_cd5d9b2c",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc",
+        "work.th.rd.gk_0706_พ_3071_2005_4e696ac8",
+        "work.th.rd.gk_0706_พ_1464_2005_5d48c41d"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-18",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0706_2604_2005_cd5d9b2c",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_พ_3070_2005_68fb7a78",
+        "work.th.rd.gk_0706_11526_2004_0f52107a",
+        "work.th.rd.gk_0706_392_2005_b416d669"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-19",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_2604_2005_cd5d9b2c",
+        "work.th.rd.gk_0706_พ_3071_2005_4e696ac8"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-20",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0702_พ_7338_2020_e5972c85",
+        "work.th.rd.0702_พ_6297_2018_5a74236a",
+        "work.th.rd.gk_0706_415_2005_7648c19b",
+        "work.th.rd.gk_0706_พ_3070_2005_68fb7a78",
+        "work.th.rd.gk_0706_กม_02_446_2005_ba49cf68"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-21",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0702_พ_1361_2023_f9aaae9e",
+        "work.th.rd.gk_0706_5302_2005_05b5edd6",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_11443_2004_b2e45da9"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-22",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "prov.th.rc.42",
+        "work.th.rd.gk_0706_3050_2005_1fc03075",
+        "work.th.rd.gk_0706_1627_2005_52652341"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-23",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0706_5302_2005_05b5edd6",
+        "work.th.rd.gk_0706_2604_2005_cd5d9b2c",
+        "work.th.rd.gk_0706_3337_2005_7068a19a",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc",
+        "work.th.rd.gk_0706_5103_2005_0730219d"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-24",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.0706_กม_5_875_2004_4bfc3449",
+        "work.th.rd.gk_0706_770_2005_e1a1e18e",
+        "work.th.rd.gk_0706_11526_2004_0f52107a",
+        "work.th.rd.gk_0706_415_2005_7648c19b",
+        "work.th.rd.gk_0706_2604_2005_cd5d9b2c"
+      ]
+    },
+    {
+      "case_id": "NITI-TAX-25",
+      "first_stage_failed": "3_RETRIEVAL_RANKING_TOP5",
+      "top5_M3": [
+        "work.th.rd.gk_0706_2604_2005_cd5d9b2c",
+        "work.th.rd.gk_0706_5302_2005_05b5edd6",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1",
+        "work.th.rd.gk_0706_พ_3071_2005_4e696ac8"
+      ]
+    }
+  ]
+}
+
+Saved full ablation & replay receipt to: C:\Users\I7\.gemini\antigravity\brain\ade02dfd-8b7a-4fcf-a521-8f458561a22a\scratch\rc7_retrieval_ablation_and_replay.json
