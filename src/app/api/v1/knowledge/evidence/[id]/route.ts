@@ -23,7 +23,8 @@ export async function GET(
     const gate = await enforceTrialAccessAndRateLimit(req, actor, "citation_open");
     const store = getDefaultKnowledgeStore();
 
-    const activeReleaseId = store.getState().active_release_id || undefined;
+    const pinnedEnvRel = (process.env.REG24_PINNED_RELEASE_ID || "").trim() || undefined;
+    const activeReleaseId = pinnedEnvRel || store.getState().active_release_id || undefined;
     const pinned = await resolveTraceableEvidenceWithPostgres(
       store,
       decodedId,

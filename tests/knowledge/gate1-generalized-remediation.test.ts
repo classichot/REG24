@@ -55,14 +55,15 @@ describe("Gate 1 Generalized Remediation (Workstreams 1–4)", () => {
     const basePrompt = (dateClause: string) =>
       `บริษัท นอร์ทสตาร์ โซลูชันส์ จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่มในประเทศไทย ให้บริการที่ปรึกษาด้านระบบสารสนเทศแก่บริษัทลูกค้าในกรุงเทพมหานคร ซึ่งใช้บริการทั้งหมดในประเทศไทย ${dateClause} ต้องเรียกเก็บภาษีมูลค่าเพิ่มในอัตราเท่าใด และตามกฎหมายฉบับใด`;
 
-    // V1: Historical 2025-09-30 -> MUST NOT credit RD 799 or RD 807 or unrelated กค 0706/พ./7898
+    // V1: Historical 2025-09-30 -> Gazette-verified RD 790 (2024-10-01..2025-09-30); MUST NOT credit RD 799, RD 807, or unrelated กค 0706/พ./7898
     const v1 = await queryKnowledge(
       { question: basePrompt("โดยออกใบกำกับภาษีและได้รับชำระค่าบริการครบถ้วนในวันเดียวกัน คือวันที่ 30 กันยายน 2568"), enable_tax_foundation_pilot: false },
       TEST_ACTOR,
       { store, persistAnswerAtomically: false }
     );
     expect(v1.answer).not.toContain("0706/พ./7898");
-    expect(v1.answer).toContain("ก่อนวันที่ 1 ตุลาคม 2568");
+    expect(v1.answer).toContain("ฉบับที่ 790");
+    expect(v1.evidence.some((e) => e.work_id === "subreg.th.rc.royal_decree.790")).toBe(true);
     expect(v1.evidence.some((e) => e.work_id === "subreg.th.rc.royal_decree.799")).toBe(false);
     expect(v1.evidence.some((e) => e.work_id === "subreg.th.rc.royal_decree.807")).toBe(false);
 

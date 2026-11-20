@@ -211,6 +211,15 @@ export interface ApplicabilityInterval {
   applicability_basis?: ApplicabilityBasis;
   enactment_effective_date?: string | null;
   applicability_from_tax_year_be?: number | null;
+  /** Temporary statutory/subordinate rules MUST have an explicit verified `valid_to`; unknown expiry never implies still in force. */
+  is_temporary_rule?: boolean;
+}
+
+export interface CoveredTransactionPeriod {
+  from: string | null;
+  to: string | null;
+  basis: ApplicabilityBasis;
+  is_temporary_rule?: boolean;
 }
 
 export interface LegalVersion {
@@ -218,7 +227,18 @@ export interface LegalVersion {
   work_id: string;
   version_label: string;
   legal_applicability: ApplicabilityInterval[];
+  /** Enactment / royal assent date ("ให้ไว้ ณ วันที่"), stored separately from Gazette publication & commencement. */
+  enactment_date?: string | null;
+  /** Official Royal Gazette publication date ("ราชกิจจานุเบกษา"). */
   publication_date: string | null;
+  /** Statutory commencement / effective date (e.g., "มาตรา 2 ให้ใช้บังคับตั้งแต่วันที่..."). */
+  commencement_date?: string | null;
+  /** Period of transactions/tax points covered by the operative rule (distinct from publication & commencement). */
+  covered_transaction_period?: CoveredTransactionPeriod | null;
+  /** Royal Gazette citation (เล่ม / ตอนที่ / หน้า). */
+  royal_gazette_ref?: string | null;
+  /** Prior version IDs superseded by this verified version within a newer candidate release (preserves rollback!). */
+  supersedes_version_ids?: string[];
   decision_date: string | null;
   raw_date_text?: string | null;
   temporal_evidence_ids: string[];
@@ -297,6 +317,14 @@ export interface Passage {
   critical_tokens_flagged: string[];
   contains_untrusted_instruction_like_text: boolean;
   access_scope: string;
+  /** Separate normalized search fields preserving original verbatim Thai text untouched. */
+  search_fields?: {
+    normalized_identifiers: string[];
+    composite_section_tokens: string[];
+    normalized_text_arabic: string;
+    preserved_negation_tokens: string[];
+    legal_field_role: string;
+  };
 }
 
 export interface Assertion {
@@ -343,6 +371,13 @@ export interface UnresolvedReferenceRecord {
   created_at: string;
 }
 
+export type VectorProjectionDiagnosticStatus =
+  | "deliberately_disabled"
+  | "enabled"
+  | "missing"
+  | "incompatible"
+  | "incomplete";
+
 export interface ProjectionReceipt {
   receipt_id: string;
   release_id: string;
@@ -350,10 +385,23 @@ export interface ProjectionReceipt {
   generation: string;
   item_count: number;
   manifest_checksum: string;
-  completion_state: "COMPLETED" | "INCOMPLETE" | "FAILED";
+  completion_state: "COMPLETED" | "DISABLED" | "INCOMPLETE" | "FAILED";
   adapter_mode: "durable_disk" | "live_neo4j_aura" | "memory_only";
   recorded_at: string;
   error: string | null;
+  /** Manifest & tokenizer/embedding provenance pinned to the immutable candidate manifest. */
+  manifest_id?: string | null;
+  manifest_hash?: string | null;
+  corpus_work_count?: number;
+  corpus_version_count?: number;
+  passage_count?: number;
+  tokenizer_engine?: string | null;
+  legal_dictionary_version?: string | null;
+  legal_dictionary_sha256?: string | null;
+  embedding_model?: string | null;
+  embedding_version?: string | null;
+  embedding_dimensions?: number | null;
+  vector_status?: VectorProjectionDiagnosticStatus;
 }
 
 export interface UATCase {

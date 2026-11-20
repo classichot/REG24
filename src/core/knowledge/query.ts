@@ -575,8 +575,12 @@ export async function queryKnowledge(
         b.updated_at.localeCompare(a.updated_at) ||
         b.release_id.localeCompare(a.release_id)
     )[0]?.release_id;
+  const pinnedEnvRel = (process.env.REG24_PINNED_RELEASE_ID || "").trim() || null;
+  if (pinnedEnvRel && !state.releases[pinnedEnvRel]) {
+    throw new Error(`PINNED_RELEASE_NOT_FOUND_500: REG24_PINNED_RELEASE_ID='${pinnedEnvRel}' does not exist in canonical store (no silent UAT fallback).`);
+  }
   const releaseId =
-    effectiveReq.release_id || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
+    effectiveReq.release_id || pinnedEnvRel || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
 
   // Check if directly onboarded citation_ledger sources or verified official attachments match
   const directOnboarded = tryAnswerFromOnboardedCitationSources(store, {
@@ -702,7 +706,11 @@ async function executeCoreKnowledgeQuery(
         b.release_id.localeCompare(a.release_id)
     )[0]?.release_id;
 
-  const releaseId = req.release_id || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
+  const pinnedEnvRel = (process.env.REG24_PINNED_RELEASE_ID || "").trim() || null;
+  if (pinnedEnvRel && !state.releases[pinnedEnvRel]) {
+    throw new Error(`PINNED_RELEASE_NOT_FOUND_500: REG24_PINNED_RELEASE_ID='${pinnedEnvRel}' does not exist in canonical store (no silent UAT fallback).`);
+  }
+  const releaseId = req.release_id || pinnedEnvRel || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
   const releaseRec = state.releases[releaseId];
   const snapshotAt = releaseRec?.updated_at || new Date().toISOString();
   const traceId = `trc.${sha256Bytes(`${releaseId}:${actor.actor_id}:${req.question}:${startedAt}`).slice(0, 14)}`;
@@ -1273,20 +1281,64 @@ async function executeCoreKnowledgeQuery(
       appendWorkPassages(ctrlWorkId);
     }
 
-    // 2. For VAT queries, ensure the core VAT provisions & decrees in the corpus are surfaced cleanly
+    // 2. For VAT queries, route governing provisions strictly by VAT regime & controlling tax-point date
+    //    (keeping ordinary domestic VAT distinct from zero-rating §80/1, exemptions §81, mixed-use §82/6, and cross-border!)
     if (
       /ภาษีมูลค่าเพิ่ม|\bVAT\b/i.test(mergedUserBlob) ||
       factLedger.material_facts.some((f) => f.fact_key === "vat_transaction_type")
     ) {
-      const vatCoreWorkIds = [
-        "prov.th.rc.80",
-        "prov.th.rc.78/1",
-        "prov.th.rc.80/1",
-        "subreg.th.rd.dg_vat.105",
-        "subreg.th.rc.royal_decree.799",
-        "subreg.th.rc.royal_decree.807",
-      ];
-      for (const vWid of vatCoreWorkIds) {
+      const ctrlDate = factLedger.temporal_facts.controlling_tax_point.iso_date;
+      const asksExportOrZeroRate =
+        /ส่งออก|อัตราร้อยละ\s*0|อัตราศูนย์|ใช้บริการในต่างประเทศ|นอกราชอาณาจักร|มาตรา\s*80\/1/i.test(
+          mergedUserBlob
+        );
+      const asksExempt = /ยกเว้นภาษีมูลค่าเพิ่ม|มาตรา\s*81|พืชผลทางการเกษตร|หนังสือพิมพ์|ตำราเรียน|สถานพยาบาล/i.test(
+        mergedUserBlob
+      );
+      const asksMixedUse = /เฉลี่ยภาษีซื้อ|มาตรา\s*82\/6|ทั้งกิจการที่ต้องเสีย.*และ.*ยกเว้น/i.test(
+        mergedUserBlob
+      );
+      const asksCrossBorderInbound =
+        /ภ\.พ\.36|มาตรา\s*83\/6|มาตรา\s*77\/2|ผู้ประกอบการ.*ต่างประเทศ|ชำระค่าบริการไปต่างประเทศ/i.test(
+          mergedUserBlob
+        );
+
+      const vatCoreWorkIds: string[] = [];
+      if (asksExportOrZeroRate) {
+        vatCoreWorkIds.push("prov.th.rc.80/1", "subreg.th.rd.dg_vat.105", "prov.th.rc.77/2");
+      }
+      if (asksExempt) {
+        vatCoreWorkIds.push("prov.th.rc.81");
+      }
+      if (asksMixedUse) {
+        vatCoreWorkIds.push("prov.th.rc.82/6", "prov.th.rc.82/3");
+      }
+      if (asksCrossBorderInbound) {
+        vatCoreWorkIds.push("prov.th.rc.77/2", "prov.th.rc.83/6");
+      }
+
+      // Ordinary domestic VAT rate & tax point routing (select ONLY governing decree for ctrlDate!)
+      if (!asksExempt || /ร้อยละ\s*7|อัตราภาษีมูลค่าเพิ่ม|มาตรา\s*80(?![/0-9])/.test(mergedUserBlob)) {
+        vatCoreWorkIds.push("prov.th.rc.80", "prov.th.rc.78", "prov.th.rc.78/1", "subreg.th.rd.vat_local_tax_guide");
+        if (!ctrlDate) {
+          vatCoreWorkIds.push(
+            "subreg.th.rc.royal_decree.790",
+            "subreg.th.rc.royal_decree.799",
+            "subreg.th.rc.royal_decree.807"
+          );
+        } else if (ctrlDate >= "2024-10-01" && ctrlDate <= "2025-09-30") {
+          vatCoreWorkIds.push("subreg.th.rc.royal_decree.790");
+        } else if (ctrlDate >= "2025-10-01" && ctrlDate <= "2026-09-30") {
+          vatCoreWorkIds.push("subreg.th.rc.royal_decree.799");
+        } else if (ctrlDate >= "2026-10-01" && ctrlDate <= "2027-09-30") {
+          vatCoreWorkIds.push("subreg.th.rc.royal_decree.807");
+        } else if (ctrlDate > "2027-09-30") {
+          vatCoreWorkIds.push("subreg.th.rc.royal_decree.807");
+        } else if (ctrlDate >= "2023-10-01" && ctrlDate <= "2024-09-30") {
+          vatCoreWorkIds.push("subreg.th.rc.royal_decree.780");
+        }
+      }
+      for (const vWid of Array.from(new Set(vatCoreWorkIds))) {
         appendWorkPassages(vWid);
       }
     }

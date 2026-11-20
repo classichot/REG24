@@ -892,17 +892,37 @@ export class DurableKnowledgeStore {
     if (hit) return hit;
 
     // Cumulative over ancestor chain, hiding earlier dependency stubs once authoritative passages arrive
+    // AND hiding any prior version explicitly superseded by a newer verified version in `allowedReleases`
+    // (preserves clean rollback when querying the older releaseId directly!).
     const allowedReleases = this.resolveAllowedReleaseChain(st, releaseId);
     const raw = Object.values(st.passages).filter((p) => allowedReleases.has(p.release_id));
     const upgradedWorkIds = new Set<string>();
+    const supersededVersionIds = new Set<string>();
     for (const p of raw) {
       if (!p.extraction_id.startsWith("ext.dep.")) {
         upgradedWorkIds.add(p.work_id);
       }
+      const ver = st.versions[p.version_id];
+      if (ver?.supersedes_version_ids) {
+        for (const supVerId of ver.supersedes_version_ids) {
+          supersededVersionIds.add(supVerId);
+        }
+      }
     }
-    const res = raw.filter(
-      (p) => !(p.extraction_id.startsWith("ext.dep.") && upgradedWorkIds.has(p.work_id))
-    );
+    const seenPassageIds = new Set<string>();
+    const res = raw.filter((p) => {
+      if (p.extraction_id.startsWith("ext.dep.") && upgradedWorkIds.has(p.work_id)) {
+        return false;
+      }
+      if (supersededVersionIds.has(p.version_id)) {
+        return false;
+      }
+      if (seenPassageIds.has(p.passage_id)) {
+        return false;
+      }
+      seenPassageIds.add(p.passage_id);
+      return true;
+    });
     this.releasePassagesCache.set(cacheKey, res);
     return res;
   }

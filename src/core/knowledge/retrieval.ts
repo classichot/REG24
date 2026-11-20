@@ -25,7 +25,13 @@ import {
   loadLexicalProjectionSnapshot,
   loadVectorProjectionSnapshot,
   tokenizeThaiLegalForIndex,
+  type FieldedBm25IndexSection,
 } from "./projections";
+import {
+  extractCompositeLegalTokens,
+  extractPreservedNegationTokens,
+  tokenizeThaiLegalWithDictionary,
+} from "./thai-legal-dictionary-v1";
 import type { Actor, Assertion, EvidenceCard, Passage } from "./contracts";
 import type { CanonicalPersistedState, DurableKnowledgeStore } from "./store";
 
@@ -120,11 +126,19 @@ function isVersionApplicableOnDate(
   }
 
   // Check applicability interval [valid_from, valid_to]
+  const isTemporaryDecree =
+    ver.covered_transaction_period?.is_temporary_rule === true ||
+    /^subreg\.th\.rc\.royal_decree\.(780|790|799|807)$/.test(passage.work_id);
+
   for (const interval of ver.legal_applicability) {
     if (interval.date_status === "unknown_restricted") {
       // Unknown dates cannot be silently asserted as governing a specific historical date unless it's the only general work
       if (work?.type === "ProvisionVersion") return false;
       continue;
+    }
+    // Temporary rules MUST NEVER infer that an unknown expiry (`valid_to: null`) means still in force!
+    if ((interval.is_temporary_rule || isTemporaryDecree) && !interval.valid_to) {
+      return false;
     }
     const afterStart = !interval.valid_from || applicableDate >= interval.valid_from;
     const beforeEnd = !interval.valid_to || applicableDate <= interval.valid_to;
@@ -206,6 +220,12 @@ export function retrieveAuthorizedKnowledge(
     strategy?: RetrievalStrategy;
     graph_source?: "graph_projection_snapshot" | "canonical_assertions";
     max_passages?: number;
+    /** Optional dense query vector (e.g., BGE-M3 1024-dim) for exact-cosine vector challenger scoring. */
+    query_vector?: number[] | null;
+    /** Legacy 64-dim char-hash vectors are OFF by default; opt-in only for explicit legacy diagnostics. */
+    allow_legacy_char_hash_vectors?: boolean;
+    /** When true, graph expansion uses verified legal links (AMENDS/MADE_UNDER/HAS_EXCEPTION/HAS_CONDITION/INTERPRETS) rather than generic CITES. */
+    strict_verified_graph_only?: boolean;
   }
 ): RetrievalBundle {
   const strategy = params.strategy || "hybrid_with_graph";
@@ -463,7 +483,9 @@ export function retrieveAuthorizedKnowledge(
         wrongInstrumentSectionWorkIds.add(w.work_id);
         continue;
       }
-      if (idMatchesExact) {
+      if (idMatchesExact || idMatchesBase) {
+        // Composite section match (e.g. `มาตรา 80/1 (2)` -> `มาตรา 80/1`, NEVER `มาตรา 80`)
+        // MUST enter `explicitWorkIds` directly so governing statutory text outranks TaxRulings!
         explicitWorkIds.add(w.work_id);
       } else {
         secondarySectionWorkIds.add(w.work_id);
@@ -550,7 +572,26 @@ export function retrieveAuthorizedKnowledge(
     "หนังสือตอบข้อหารือ",
     "ตอบข้อหารือ",
     "ข้อหารือ",
+    "หารือ",
+    "ตอบ",
     "เลขที่",
+    "เลข",
+    "ที่",
+    "ซึ่ง",
+    "อัน",
+    "ของ",
+    "และ",
+    "หรือ",
+    "กับ",
+    "จาก",
+    "เป็น",
+    "ได้",
+    "ให้",
+    "การ",
+    "ความ",
+    "วันที่",
+    "ลงวันที่",
+    "ฉบับ",
     "กรมสรรพากร",
     "แนววินิจฉัย",
     "วินิจฉัย",
@@ -565,7 +606,7 @@ export function retrieveAuthorizedKnowledge(
     (t) =>
       t.length >= 3 &&
       !genericLookupStopwords.has(t) &&
-      !/^(?:กค|[0-9]{2,6})$/.test(t)
+      !/^(?:ruling:|sec:|clause:|rd:|minreg:|order:|กค|[0-9]{2,6}$)/.test(t)
   );
   // Also check explicit non-tax-period year mention (e.g. "กค 0702/636 ... ปี 2555") when disambiguating homonyms
   const looseBeYears = new Set<string>(
@@ -607,7 +648,14 @@ export function retrieveAuthorizedKnowledge(
       const decYr = Number((ver?.decision_date || "").slice(0, 4)) || 2000;
       const recencyTieBreak =
         state.works[wid]?.type === "TaxRuling"
-          ? Math.max(0, Math.min(0.08, ((decYr - 1990) / 45) * 0.06))
+          ? Math.max(
+              0,
+              Math.min(
+                distinctiveHomonymTokens.length === 0 && unpinnedHomonymWorkIds.has(wid) ? 2.5 : 0.08,
+                ((decYr - 1990) / 45) *
+                  (distinctiveHomonymTokens.length === 0 && unpinnedHomonymWorkIds.has(wid) ? 2.2 : 0.06)
+              )
+            )
           : 0;
       const roleBoost = isIncidentalPremiseOnly
         ? 4.0
@@ -637,12 +685,75 @@ export function retrieveAuthorizedKnowledge(
     }
   }
 
-  // Stage 2: Scoped Lexical Candidate Generation (Top 40)
+  // Stage 2: Scoped Fielded BM25 Lexical Candidate Generation (Top 40)
+  // Uses v2 fielded BM25 (exact_ids, title_heading, phrases_roles, body) with PyThaiNLP-aligned legal dictionary,
+  // atomic composite identifiers (`มาตรา 80/1 (2)` != `มาตรา 80`), and preserved negations (`มิให้`, `เว้นแต่`).
   const lexicalScored: Array<{ passage_id: string; lexScore: number }> = [];
 
   if (qTokens.length > 0) {
     const lexSnap = loadLexicalProjectionSnapshot(store, params.release_id);
-    if (lexSnap && candidatePool.length > 800) {
+    if (lexSnap?.fielded_bm25 && lexSnap.passage_table) {
+      const fb = lexSnap.fielded_bm25;
+      const tbl = lexSnap.passage_table;
+      const totalDocs = Math.max(1, lexSnap.passage_count || tbl.length);
+      const k1 = fb.k1 || 1.2;
+      const b = fb.b || 0.75;
+
+      const qExactIdTokens = extractCompositeLegalTokens(params.question);
+      const qNegTokens = extractPreservedNegationTokens(params.question);
+      const qGeneralTokens = tokenizeThaiLegalWithDictionary(bilingualExpandedQuery, {
+        includeDuplicates: false,
+        expandAbbreviations: true,
+      });
+
+      const bm25Accum = new Map<string, number>();
+      const scoreField = (
+        section: FieldedBm25IndexSection,
+        queryTerms: string[],
+        fieldWeight: number
+      ) => {
+        const avgDl = Math.max(1, section.avg_doc_length);
+        for (const qt of queryTerms) {
+          if (!qt || qt.length < 2) continue;
+          const post = section.postings[qt];
+          if (!post || post.length === 0) continue;
+          const df = post.length / 2;
+          const idf = Math.log(1 + (totalDocs - df + 0.5) / (df + 0.5));
+          for (let j = 0; j < post.length; j += 2) {
+            const pIdx = post[j];
+            const tf = post[j + 1];
+            const pid = tbl[pIdx];
+            if (!pid || !passageById.has(pid)) continue;
+            const dl = section.doc_lengths[pIdx] || avgDl;
+            const tfNorm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + (b * dl) / avgDl));
+            bm25Accum.set(pid, (bm25Accum.get(pid) || 0) + idf * tfNorm * fieldWeight);
+          }
+        }
+      };
+
+      scoreField(fb.fields.exact_ids, qExactIdTokens, 4.5);
+      scoreField(fb.fields.title_heading, qGeneralTokens, 2.8);
+      scoreField(fb.fields.phrases_roles, [...qNegTokens, ...qExactIdTokens], 2.2);
+      scoreField(fb.fields.body, qGeneralTokens, 1.0);
+
+      // Preserve full TaxRuling subject title match bonus (never matching `มาตรา 80` inside `มาตรา 80/1`!)
+      const qClean = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").toLowerCase().trim();
+      for (const entry of getPrecomputedTaxRulingSubjects(state)) {
+        if (!qClean.includes(entry.subjPart)) continue;
+        const wPsgs = passagesByWorkId.get(entry.work_id);
+        if (!wPsgs) continue;
+        for (const p of wPsgs) {
+          bm25Accum.set(p.passage_id, (bm25Accum.get(p.passage_id) || 0) + 28.0);
+        }
+      }
+
+      const normDenom = Math.sqrt(Math.max(4, qGeneralTokens.length)) * 3.0;
+      for (const [pid, rawBm25] of bm25Accum.entries()) {
+        const scaled = rawBm25 / normDenom;
+        const compressed = scaled <= 5.0 ? scaled : 5.0 + Math.log1p(scaled - 5.0) * 1.8;
+        lexicalScored.push({ passage_id: pid, lexScore: compressed });
+      }
+    } else if (lexSnap && candidatePool.length > 800) {
       const totalDocs = Math.max(1, lexSnap.passage_count || candidatePool.length);
       const hitAccum = new Map<string, number>();
       const denom = Math.sqrt(Math.max(4, qTokens.length));
@@ -766,31 +877,54 @@ export function retrieveAuthorizedKnowledge(
     }
   }
 
-  // Stage 3: Scoped Vector Candidate Generation (Top 40) when strategy != exact_lexical
+  // Stage 3: Scoped Dense Vector Candidate Generation (Top 40)
+  // Legacy character-hash vectors stay OFF the default path!
+  // Only scores dense vectors when a non-legacy vector snapshot (e.g. BGE-M3 exact cosine) is loaded AND
+  // `params.query_vector` matches its dimensions — OR when caller explicitly sets `allow_legacy_char_hash_vectors: true`.
   if (strategy !== "exact_lexical") {
-    const qVec = computeDeterministicLegalEmbedding(bilingualExpandedQuery);
     const vecSnap = loadVectorProjectionSnapshot(store, params.release_id);
-    const vecScored: Array<{ passage_id: string; sim: number }> = [];
+    const isRealDenseSnap = Boolean(
+      vecSnap &&
+        vecSnap.dimensions > 0 &&
+        vecSnap.embedding_model &&
+        vecSnap.embedding_model !== "legacy-char-3gram-hash-64d"
+    );
+    const canUseRealDense =
+      isRealDenseSnap &&
+      Array.isArray(params.query_vector) &&
+      params.query_vector.length === vecSnap!.dimensions;
+    const canUseLegacyOptIn = Boolean(params.allow_legacy_char_hash_vectors);
 
-    for (const p of candidatePool) {
-      const storedVec = vecSnap?.vectors[`vec.${p.passage_id}`]?.values;
-      if (!storedVec && candidatePool.length > 1500) continue;
-      const pVec =
-        storedVec || computeDeterministicLegalEmbedding(`${p.contextualized_header} ${p.exact_text}`);
-      const sim = cosineSimilarity(qVec, pVec);
-      // Require meaningful similarity (>= 0.24) so unrelated private/random queries abstain cleanly
-      if (sim >= 0.24) {
-        vecScored.push({ passage_id: p.passage_id, sim });
+    if (canUseRealDense || canUseLegacyOptIn) {
+      const qVec = canUseRealDense
+        ? params.query_vector!
+        : computeDeterministicLegalEmbedding(bilingualExpandedQuery);
+      const vecScored: Array<{ passage_id: string; sim: number }> = [];
+
+      for (const p of candidatePool) {
+        const storedVec = vecSnap?.vectors[`vec.${p.passage_id}`]?.values;
+        if (canUseRealDense) {
+          if (!storedVec || storedVec.length !== qVec.length) continue;
+        } else if (!storedVec && candidatePool.length > 1500) {
+          continue;
+        }
+        const pVec =
+          storedVec || computeDeterministicLegalEmbedding(`${p.contextualized_header} ${p.exact_text}`);
+        const sim = cosineSimilarity(qVec, pVec);
+        const minThreshold = canUseRealDense ? 0.35 : 0.24;
+        if (sim >= minThreshold) {
+          vecScored.push({ passage_id: p.passage_id, sim });
+        }
       }
-    }
 
-    vecScored
-      .sort((a, b) => b.sim - a.sim)
-      .slice(0, 40)
-      .forEach((item, rank) => {
-        const rrf = 1 / (20 + rank);
-        addScore(item.passage_id, item.sim * 2.2 + rrf * 6, "vector");
-      });
+      vecScored
+        .sort((a, b) => b.sim - a.sim)
+        .slice(0, 40)
+        .forEach((item, rank) => {
+          const rrf = 1 / (20 + rank);
+          addScore(item.passage_id, item.sim * 2.6 + rrf * 7, "vector");
+        });
+    }
   }
 
   // Stage 4: Bounded <=2-hop Graph Expansion (`INTERPRETS`, `CITES`, `HAS_CONDITION`, `HAS_EXCEPTION`, co-interpreted provisions)
@@ -870,26 +1004,36 @@ export function retrieveAuthorizedKnowledge(
     const pureInterpretsCandidates: string[] = [];
     const pureCitesCandidates: string[] = [];
     const seenReverseObjects = new Map<string, boolean>();
+    const allowGenericCites = !params.strict_verified_graph_only;
     for (const asrt of acceptedAssertions) {
       if (
         seedWorkIds.has(asrt.subject) &&
         (asrt.predicate === "INTERPRETS" ||
-          asrt.predicate === "CITES" ||
+          (allowGenericCites && asrt.predicate === "CITES") ||
           asrt.predicate === "MADE_UNDER" ||
           asrt.predicate === "AMENDS" ||
           asrt.predicate === "REPEALS" ||
+          asrt.predicate === "HAS_EXCEPTION" ||
+          asrt.predicate === "HAS_CONDITION" ||
           asrt.predicate === "CONTAINS")
       ) {
         if (!wrongInstrumentSectionWorkIds.has(asrt.object)) {
           hop1ProvisionIds.add(asrt.object);
         }
       }
-      if (seedWorkIds.has(asrt.object) && asrt.predicate === "AMENDS") {
+      if (
+        seedWorkIds.has(asrt.object) &&
+        (asrt.predicate === "AMENDS" ||
+          asrt.predicate === "MADE_UNDER" ||
+          asrt.predicate === "HAS_EXCEPTION" ||
+          asrt.predicate === "HAS_CONDITION")
+      ) {
         hop1ProvisionIds.add(asrt.subject);
       }
       if (
         seedWorkIds.has(asrt.object) &&
-        (asrt.predicate === "INTERPRETS" || asrt.predicate === "CITES")
+        !explicitWorkIds.has(asrt.subject) &&
+        (asrt.predicate === "INTERPRETS" || (allowGenericCites && asrt.predicate === "CITES"))
       ) {
         const directInterp = explicitWorkIds.has(asrt.object) && asrt.predicate === "INTERPRETS";
         const prevDirect = seenReverseObjects.get(asrt.subject);
@@ -935,8 +1079,8 @@ export function retrieveAuthorizedKnowledge(
     for (const cand of reverseOverlapCandidates.slice(0, 15)) {
       const boost = isProvisionSurveyQuery
         ? cand.isDirectInterprets
-          ? 20.0
-          : 14.0
+          ? 12.0
+          : 8.5
         : cand.isDirectInterprets
           ? 3.5
           : 2.0;
@@ -1013,7 +1157,8 @@ export function retrieveAuthorizedKnowledge(
         psg.statement_role === "official_conclusion" &&
         entry.sources.has("graph_hop")
       ) {
-        roleMult *= 2.65;
+        // Boost interpreting rulings cleanly without allowing them to evict the explicitly queried statutory provision from Rank 1!
+        roleMult *= 1.15;
       }
       // Prevent same-numbered section from a DIFFERENT Act or year-excluded homonym ruling from contaminating lookup
       if (wrongInstrumentSectionWorkIds.has(psg.work_id) || excludedHomonymWorkIds.has(psg.work_id)) {
@@ -1055,10 +1200,13 @@ export function retrieveAuthorizedKnowledge(
     const hitWork = state.works[hit.passage.work_id];
     const perWorkCap =
       (hitWork?.type === "Provision" || hitWork?.type === "ProvisionVersion") &&
-      qTokens.length > 8 &&
-      rulingIds.length === 0
-        ? 2
-        : 4;
+      ((params.controlling_work_ids?.length || 0) >= 3 || (qTokens.length > 8 && rulingIds.length === 0))
+        ? 1
+        : (hitWork?.type === "Provision" || hitWork?.type === "ProvisionVersion") &&
+            qTokens.length > 8 &&
+            rulingIds.length === 0
+          ? 2
+          : 4;
     if (c < perWorkCap) {
       primarySelected.push(hit);
       countByWorkVer.set(key, c + 1);

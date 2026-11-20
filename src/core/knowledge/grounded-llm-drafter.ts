@@ -151,6 +151,8 @@ export interface ProviderInvocationAudit {
 }
 
 const KNOWN_DECREE_WINDOWS: Record<string, { valid_from: string; valid_to: string }> = {
+  "subreg.th.rc.royal_decree.780": { valid_from: "2023-10-01", valid_to: "2024-09-30" },
+  "subreg.th.rc.royal_decree.790": { valid_from: "2024-10-01", valid_to: "2025-09-30" },
   "subreg.th.rc.royal_decree.799": { valid_from: "2025-10-01", valid_to: "2026-09-30" },
   "subreg.th.rc.royal_decree.807": { valid_from: "2026-10-01", valid_to: "2027-09-30" },
 };

@@ -34,7 +34,12 @@ export type CitationDbTransport = <T = Record<string, unknown>>(
   params?: unknown[]
 ) => Promise<{ rows: T[]; rowCount: number }>;
 
+export type CitationTxTransport = (
+  statements: Array<{ query: string; params: unknown[] }>
+) => Promise<void>;
+
 let customCitationDbTransport: CitationDbTransport | null = null;
+let customCitationTxTransport: CitationTxTransport | null = null;
 
 const ONBOARDED_SOURCES_CACHE_TTL_MS = 30_000;
 let onboardedSourcesCache: {
@@ -55,9 +60,11 @@ export function invalidateCitationPostgresReadCaches(): void {
 }
 
 export function setCustomCitationDbTransportForTesting(
-  transport: CitationDbTransport | null
+  transport: CitationDbTransport | null,
+  txTransport?: CitationTxTransport | null
 ): void {
   customCitationDbTransport = transport;
+  customCitationTxTransport = txTransport ?? null;
   invalidateCitationPostgresReadCaches();
 }
 
@@ -111,6 +118,58 @@ export function resolveActiveCitationDbTransport(): CitationDbTransport | null {
 
 export function hasActiveCitationPostgresStore(): boolean {
   return resolveActiveCitationDbTransport() !== null;
+}
+
+/**
+ * Executes a batch of SQL statements inside ONE atomic Neon PostgreSQL transaction (`BEGIN ... COMMIT`).
+ * If ANY statement fails or the save is interrupted mid-flight, PostgreSQL rolls back the entire
+ * transaction so NO partial answer revision, claim, citation link, or audit event is ever visible.
+ */
+export async function executeCitationPostgresTransaction(
+  statements: Array<{ query: string; params: unknown[] }>
+): Promise<boolean> {
+  if (statements.length === 0) return true;
+  if (customCitationTxTransport) {
+    await customCitationTxTransport(statements);
+    return true;
+  }
+  if (customCitationDbTransport) {
+    // Legacy mock transport compatibility: execute sequentially when no tx mock is registered
+    for (const st of statements) {
+      await customCitationDbTransport(st.query, st.params);
+    }
+    return true;
+  }
+  if (process.env.VITEST && process.env.REG24_ALLOW_LIVE_DB_IN_VITEST !== "1") {
+    return false;
+  }
+  const dbUrl = (process.env.DATABASE_URL || "").trim();
+  if (!dbUrl) return false;
+  let host: string;
+  try {
+    const parsed = new URL(dbUrl);
+    if (!/^postgres(?:ql)?:$/i.test(parsed.protocol)) return false;
+    host = parsed.hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+  if (!host.endsWith(".neon.tech")) return false;
+
+  const resp = await fetch(`https://${host}/sql`, {
+    method: "POST",
+    headers: {
+      "Neon-Connection-String": dbUrl,
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      "Neon-Batch-Isolation-Level": "ReadCommitted",
+    },
+    body: JSON.stringify({ queries: statements }),
+  });
+  if (!resp.ok) {
+    const errBody = await resp.text().catch(() => "");
+    throw new Error(`NEON_CITATION_TX_HTTP_${resp.status}:${errBody.slice(0, 240)}`);
+  }
+  return true;
 }
 
 function getEnvScope(): "staging" | "trial" {
@@ -679,6 +738,170 @@ export async function persistAnswerRevisionToPostgres(params: {
   const validIsoDate = (d: string | null | undefined) =>
     d && /^\d{4}-\d{2}-\d{2}$/.test(d) ? d : null;
 
+  // Deterministic audit_id bound to `answer_revision` so retry is 100% idempotent (zero duplicate rows!)
+  const deterministicAuditId = `caud.pg.${sha256Bytes(`pub:${env.answer_revision}`).slice(0, 14)}`;
+
+  if (!customCitationDbTransport || customCitationTxTransport) {
+    // ATOMIC TRANSACTIONAL SAVE (Section 4):
+    // Saves `citation_published_answer` + `citation_atomic_claim` + `citation_claim_evidence_link`
+    // + `citation_audit_event` inside ONE atomic PostgreSQL transaction (`BEGIN ... COMMIT`) with
+    // `ON CONFLICT DO NOTHING` so interrupted saves leave ZERO partial revision visible and retries never duplicate!
+    const txStatements: Array<{ query: string; params: unknown[] }> = [];
+
+    txStatements.push({
+      query: `INSERT INTO citation_published_answer (
+         answer_revision_id, answer_id, revision_number, supersedes_revision_id,
+         channel, question_text, generated_at, as_of_date, as_of_date_raw,
+         status, rendered_answer_th, ordered_claim_ids, unresolved_issues,
+         user_supplied_facts, assumptions, legacy_warning_th, release_id,
+         verifier_version, ruleset_version, owner_actor_id, owner_tenant_id,
+         actor_id, tenant_id, revision_reason, environment_scope, execution_provenance
+       ) VALUES (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,
+         $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb
+       ) ON CONFLICT (answer_revision_id) DO NOTHING`,
+      params: [
+        env.answer_revision,
+        env.answer_id,
+        env.revision_number,
+        env.supersedes_answer_revision,
+        env.channel,
+        params.question_text,
+        env.generated_at,
+        validIsoDate(env.as_of_date),
+        env.as_of_date,
+        env.status,
+        env.rendered_answer_th,
+        JSON.stringify(env.claims.map((c) => c.claim_id)),
+        JSON.stringify(env.unresolved_issues || []),
+        JSON.stringify(env.user_supplied_facts || []),
+        JSON.stringify(env.assumptions || []),
+        env.legacy_warning_th,
+        env.verifier_metadata.release_id,
+        env.verifier_metadata.verifier_version,
+        env.verifier_metadata.ruleset_version,
+        params.owner_actor_id,
+        params.owner_tenant_id,
+        params.actor.actor_id,
+        params.actor.tenant_id,
+        params.revision_reason,
+        envScope,
+        env.execution_provenance ? JSON.stringify(env.execution_provenance) : null,
+      ],
+    });
+
+    if (env.claims.length > 0) {
+      const claimValuesSql: string[] = [];
+      const claimParams: unknown[] = [];
+      for (const clm of env.claims) {
+        const validLinkCount = clm.evidence_references.filter(
+          (r) => r.verification_status === "supported"
+        ).length;
+        const base = claimParams.length;
+        claimValuesSql.push(
+          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6}::jsonb,$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13}::jsonb)`
+        );
+        claimParams.push(
+          clm.claim_id,
+          env.answer_revision,
+          clm.claim_number,
+          clm.text,
+          clm.claim_type,
+          JSON.stringify(clm.premise_ids || []),
+          clm.verification_decision,
+          validLinkCount,
+          clm.published,
+          clm.withheld_explanation_th,
+          null,
+          null,
+          clm.bound_calculation ? JSON.stringify(clm.bound_calculation) : null
+        );
+      }
+      txStatements.push({
+        query: `INSERT INTO citation_atomic_claim (
+           claim_id, answer_revision_id, display_order, displayed_claim_text,
+           claim_type, premise_claim_ids, verification_decision, evidence_link_count,
+           published, withheld_reason_th, human_approved_by, human_approval_audit_id, bound_calculation
+         ) VALUES ${claimValuesSql.join(",")} ON CONFLICT (claim_id) DO NOTHING`,
+        params: claimParams,
+      });
+    }
+
+    const allLinks: Array<{ clmId: string; ref: ClaimEvidenceReferenceDto }> = [];
+    for (const clm of env.claims) {
+      for (const ref of clm.evidence_references) {
+        if (ref.verification_status === "legacy_unverified") continue;
+        allLinks.push({ clmId: clm.claim_id, ref });
+      }
+    }
+    const linkChunkSize = 100;
+    for (let offset = 0; offset < allLinks.length; offset += linkChunkSize) {
+      const chunk = allLinks.slice(offset, offset + linkChunkSize);
+      const linkValuesSql: string[] = [];
+      const linkParams: unknown[] = [];
+      for (const { clmId, ref } of chunk) {
+        const base = linkParams.length;
+        linkValuesSql.push(
+          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},'PASS','supported',$${base + 12},$${base + 13},$${base + 14})`
+        );
+        linkParams.push(
+          ref.link_id,
+          env.answer_revision,
+          clmId,
+          ref.evidence_id,
+          ref.version_id,
+          ref.support_role,
+          ref.required_group,
+          ref.citation_label_th,
+          ref.official_url,
+          ref.resolver_url,
+          ref.locator.human_pinpoint_th,
+          env.verifier_metadata.verifier_version,
+          env.verifier_metadata.ruleset_version,
+          env.generated_at
+        );
+      }
+      txStatements.push({
+        query: `INSERT INTO citation_claim_evidence_link (
+           link_id, answer_revision_id, claim_id, passage_id, version_id,
+           support_role, required_group, citation_label_th, official_url,
+           resolver_url, human_pinpoint_th, deterministic_check, substantive_check,
+           verifier_or_reviewer_id, ruleset_version, verified_at
+         ) VALUES ${linkValuesSql.join(",")} ON CONFLICT (link_id) DO NOTHING`,
+        params: linkParams,
+      });
+    }
+
+    txStatements.push({
+      query: `INSERT INTO citation_audit_event (
+         audit_id, actor_or_service, recorded_at, event_type, affected_ids,
+         before_status, after_status, reason, correlation_id, environment_scope
+       ) VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7::jsonb,$8,$9,$10)
+       ON CONFLICT (audit_id) DO NOTHING`,
+      params: [
+        deterministicAuditId,
+        params.actor.actor_id,
+        env.generated_at,
+        env.revision_number > 1 ? "ANSWER_REVISION_CREATED" : "ANSWER_PUBLISHED_ATOMIC",
+        JSON.stringify([env.answer_revision, ...env.claims.map((c) => c.claim_id)]),
+        env.supersedes_answer_revision
+          ? JSON.stringify({ supersedes: env.supersedes_answer_revision })
+          : null,
+        JSON.stringify({
+          status: env.status,
+          revision_number: env.revision_number,
+          owner_actor_id: params.owner_actor_id,
+        }),
+        params.revision_reason,
+        env.answer_revision,
+        envScope,
+      ],
+    });
+
+    await executeCitationPostgresTransaction(txStatements);
+    return { persisted: true };
+  }
+
   await db(
     `INSERT INTO citation_published_answer (
        answer_revision_id, answer_id, revision_number, supersedes_revision_id,
@@ -721,90 +944,7 @@ export async function persistAnswerRevisionToPostgres(params: {
     ]
   );
 
-  if (!customCitationDbTransport) {
-    if (env.claims.length > 0) {
-      const claimValuesSql: string[] = [];
-      const claimParams: unknown[] = [];
-      for (const clm of env.claims) {
-        const validLinkCount = clm.evidence_references.filter(
-          (r) => r.verification_status === "supported"
-        ).length;
-        const base = claimParams.length;
-        claimValuesSql.push(
-          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6}::jsonb,$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},$${base + 12},$${base + 13}::jsonb)`
-        );
-        claimParams.push(
-          clm.claim_id,
-          env.answer_revision,
-          clm.claim_number,
-          clm.text,
-          clm.claim_type,
-          JSON.stringify(clm.premise_ids || []),
-          clm.verification_decision,
-          validLinkCount,
-          clm.published,
-          clm.withheld_explanation_th,
-          null,
-          null,
-          clm.bound_calculation ? JSON.stringify(clm.bound_calculation) : null
-        );
-      }
-      await db(
-        `INSERT INTO citation_atomic_claim (
-           claim_id, answer_revision_id, display_order, displayed_claim_text,
-           claim_type, premise_claim_ids, verification_decision, evidence_link_count,
-           published, withheld_reason_th, human_approved_by, human_approval_audit_id, bound_calculation
-         ) VALUES ${claimValuesSql.join(",")}`,
-        claimParams
-      );
-    }
-
-    const allLinks: Array<{ clmId: string; ref: ClaimEvidenceReferenceDto }> = [];
-    for (const clm of env.claims) {
-      for (const ref of clm.evidence_references) {
-        if (ref.verification_status === "legacy_unverified") continue;
-        allLinks.push({ clmId: clm.claim_id, ref });
-      }
-    }
-    const linkChunkSize = 100;
-    for (let offset = 0; offset < allLinks.length; offset += linkChunkSize) {
-      const chunk = allLinks.slice(offset, offset + linkChunkSize);
-      const linkValuesSql: string[] = [];
-      const linkParams: unknown[] = [];
-      for (const { clmId, ref } of chunk) {
-        const base = linkParams.length;
-        linkValuesSql.push(
-          `($${base + 1},$${base + 2},$${base + 3},$${base + 4},$${base + 5},$${base + 6},$${base + 7},$${base + 8},$${base + 9},$${base + 10},$${base + 11},'PASS','supported',$${base + 12},$${base + 13},$${base + 14})`
-        );
-        linkParams.push(
-          ref.link_id,
-          env.answer_revision,
-          clmId,
-          ref.evidence_id,
-          ref.version_id,
-          ref.support_role,
-          ref.required_group,
-          ref.citation_label_th,
-          ref.official_url,
-          ref.resolver_url,
-          ref.locator.human_pinpoint_th,
-          env.verifier_metadata.verifier_version,
-          env.verifier_metadata.ruleset_version,
-          env.generated_at
-        );
-      }
-      await db(
-        `INSERT INTO citation_claim_evidence_link (
-           link_id, answer_revision_id, claim_id, passage_id, version_id,
-           support_role, required_group, citation_label_th, official_url,
-           resolver_url, human_pinpoint_th, deterministic_check, substantive_check,
-           verifier_or_reviewer_id, ruleset_version, verified_at
-         ) VALUES ${linkValuesSql.join(",")}`,
-        linkParams
-      );
-    }
-  } else {
-    for (const clm of env.claims) {
+  for (const clm of env.claims) {
       const validLinkCount = clm.evidence_references.filter(
         (r) => r.verification_status === "supported"
       ).length;
@@ -858,11 +998,10 @@ export async function persistAnswerRevisionToPostgres(params: {
           ]
         );
       }
-    }
   }
 
   await appendAuditEventToPostgres({
-    audit_id: `caud.pg.${sha256Bytes(`${env.answer_revision}:${Date.now()}`).slice(0, 14)}`,
+    audit_id: deterministicAuditId,
     actor_or_service: params.actor.actor_id,
     recorded_at: env.generated_at,
     event_type:

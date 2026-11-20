@@ -1067,14 +1067,17 @@ export function verifyVatRateAndAmountCalculation(params: {
       ? ["prov.th.rc.77/2"]
       : [];
 
-  // Statutory enacted VAT reduction timeline in verified corpus:
-  // - < 2025-10-01 (e.g. 2025-09-30): prior VAT reduction decree window (outside rel.B01.rc6 verbatim text; NOT RD 799 / NOT RD 807)
-  // - RD 799: 2025-10-01 .. 2026-09-30 -> 6.3% + 0.7% local = 7.0%
-  // - RD 807: 2026-10-01 .. 2027-09-30 -> 6.3% + 0.7% local = 7.0%
+  // Statutory enacted VAT reduction timeline in verified corpus (Gazette-verified):
+  // - < 2024-10-01: earlier VAT reduction decree window (e.g. RD 780 for 2023-10-01..2024-09-30; NOT RD 790/799/807)
+  // - RD 790 (พ.ศ. 2567): 2024-10-01 .. 2025-09-30 -> 6.3% + 0.7% local = 7.0%
+  // - RD 799 (พ.ศ. 2568): 2025-10-01 .. 2026-09-30 -> 6.3% + 0.7% local = 7.0%
+  // - RD 807 (พ.ศ. 2569): 2026-10-01 .. 2027-09-30 -> 6.3% + 0.7% local = 7.0%
   // - > 2027-09-30 (after 30 September B.E. 2570): RD 807 has expired; statutory ceiling under s.80 is 10.0% unless extended!
   const isAfterRd807Expiry = Boolean(dt && dt > "2027-09-30");
   const isInRd807Window = Boolean(dt && dt >= "2026-10-01" && dt <= "2027-09-30");
-  const isBeforeRd799Window = Boolean(dt && dt < "2025-10-01");
+  const isInRd799Window = Boolean(dt && dt >= "2025-10-01" && dt <= "2026-09-30");
+  const isInRd790Window = Boolean(dt && dt >= "2024-10-01" && dt <= "2025-09-30");
+  const isBeforeRd790Window = Boolean(dt && dt < "2024-10-01");
   const isDateMissing = !dt;
 
   if (isAfterRd807Expiry) {
@@ -1177,14 +1180,14 @@ export function verifyVatRateAndAmountCalculation(params: {
     };
   }
 
-  if (isBeforeRd799Window) {
+  if (isBeforeRd790Window) {
     const vatBaht = params.taxBaseBaht !== null ? Math.round(params.taxBaseBaht * 7) / 100 : null;
     return {
-      calculation_id: "calc.vat.pre_rd799_window",
+      calculation_id: "calc.vat.pre_rd790_window",
       verifier_version: "reg24-tax-calc-verifier-v1.0",
       regime: "VAT_RATE_AND_AMOUNT",
       formula_th:
-        "วันเกิดความรับผิดก่อน 1 ตุลาคม 2568 ไม่อยู่ภายใต้ พ.ร.ฎ. ฉบับที่ 799 หรือ 807; ต้องตรวจสอบพระราชกฤษฎีกาลดอัตราที่ใช้บังคับในช่วงเวลาก่อน 1 ตุลาคม 2568 ประกอบมาตรา 80",
+        "วันเกิดความรับผิดก่อน 1 ตุลาคม 2567 ไม่อยู่ภายใต้ พ.ร.ฎ. ฉบับที่ 790, 799 หรือ 807; ต้องตรวจสอบพระราชกฤษฎีกาลดอัตราที่ใช้บังคับในช่วงเวลาก่อน 1 ตุลาคม 2567 (เช่น พ.ร.ฎ. ฉบับที่ 780) ประกอบมาตรา 80",
       inputs: {
         is_used_in_thailand: params.isServiceUsedInThailand,
         tax_point_date_iso: dt,
@@ -1193,14 +1196,13 @@ export function verifyVatRateAndAmountCalculation(params: {
       steps_th: [
         ...(serviceContextPrefix ? [serviceContextPrefix.trim()] : []),
         ...(taxPointNote ? [taxPointNote.trim()] : []),
-        `ตรวจสอบวันเกิดความรับผิด \`${dt}\`: เกิดขึ้น **ก่อนวันที่ 1 ตุลาคม 2568** จึง **ไม่อยู่ในช่วงเวลาใช้บังคับของ พ.ร.ฎ. ฉบับที่ 799 พ.ศ. 2568 (1 ต.ค. 2568 – 30 ก.ย. 2569) หรือ พ.ร.ฎ. ฉบับที่ 807 พ.ศ. 2569 (1 ต.ค. 2569 – 30 ก.ย. 2570)**`,
-        `**ข้อจำกัดหลักฐานในคลังกฎหมายปัจจุบัน**: คลังข้อมูลที่รับรองแล้วชุดนี้มีตัวบทเต็มของประมวลรัษฎากร มาตรา 80 (เพดานร้อยละ 10.0) และคู่มืออัตราภาษีมูลค่าเพิ่มกับภาษีท้องถิ่น (ลดเหลือร้อยละ 6.3 + ภาษีท้องถิ่นร้อยละ 0.7 = ร้อยละ 7.0) แต่ยังไม่ได้บรรจุตัวบทเต็มของพระราชกฤษฎีกาลดอัตราฯ ฉบับก่อนวันที่ 1 ตุลาคม 2568 (สิ้นสุด 30 กันยายน 2568) จึงต้องตรวจสอบเลขที่และข้อความต้นฉบับของพระราชกฤษฎีกาที่ใช้บังคับในวันที่ \`${dt}\` จากราชกิจจานุเบกษาหรือเว็บไซต์กรมสรรพากรเพิ่มเติมโดยไม่นำ พ.ร.ฎ. ฉบับที่ 799 หรือ 807 มาอ้างแทน`,
+        `ตรวจสอบวันเกิดความรับผิด \`${dt}\`: เกิดขึ้น **ก่อนวันที่ 1 ตุลาคม 2567** จึง **ไม่อยู่ในช่วงเวลาใช้บังคับของ พ.ร.ฎ. ฉบับที่ 790 พ.ศ. 2567 (1 ต.ค. 2567 – 30 ก.ย. 2568), พ.ร.ฎ. ฉบับที่ 799 พ.ศ. 2568 (1 ต.ค. 2568 – 30 ก.ย. 2569) หรือ พ.ร.ฎ. ฉบับที่ 807 พ.ศ. 2569 (1 ต.ค. 2569 – 30 ก.ย. 2570)**`,
       ],
       outputs: {
-        tax_point_before_rd799: true,
+        tax_point_before_rd790: true,
+        rd790_applicable: false,
         rd799_applicable: false,
         rd807_applicable: false,
-        historical_decree_text_in_corpus: false,
         statutory_ceiling_rate_pct: 10,
         ...(vatBaht !== null ? { illustrative_7pct_vat_amount_baht: vatBaht } : {}),
       },
@@ -1210,9 +1212,13 @@ export function verifyVatRateAndAmountCalculation(params: {
         7,
         10,
         0,
+        780,
+        790,
         799,
         807,
         105,
+        2566,
+        2567,
         2568,
         2569,
         params.taxBaseBaht,
@@ -1221,20 +1227,27 @@ export function verifyVatRateAndAmountCalculation(params: {
       required_authority_work_ids: [
         "prov.th.rc.80",
         "subreg.th.rd.vat_local_tax_guide",
+        ...(dt && dt >= "2023-10-01" && dt <= "2024-09-30" ? ["subreg.th.rc.royal_decree.780"] : []),
         ...serviceAuthWorkIds,
         ...(hasTaxPointS78_1 ? ["prov.th.rc.78/1"] : []),
       ],
-      summary_statement_th: `${serviceContextPrefix}${taxPointNote}สำหรับวันเกิดความรับผิด \`${dt}\` ซึ่งอยู่ **ก่อนวันที่ 1 ตุลาคม 2568** จึง **ไม่ใช้ พ.ร.ฎ. ฉบับที่ 799 พ.ศ. 2568 (เริ่ม 1 ตุลาคม 2568) หรือ พ.ร.ฎ. ฉบับที่ 807 พ.ศ. 2569 เป็นกฎหมายใช้บังคับ** (ห้ามนำ พ.ร.ฎ. ทั้งสองฉบับดังกล่าวมาอ้างเป็นกฎหมายใช้บังคับ) ทั้งนี้ ภายใต้กรอบประมวลรัษฎากร **มาตรา 80** (เพดานร้อยละ 10.0) และคู่มืออัตราภาษีมูลค่าเพิ่ม/ภาษีท้องถิ่นของกรมสรรพากร การลดอัตราเหลือร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็น **ร้อยละ 7.0** สำหรับวันเกิดความรับผิดวันที่ \`${dt}\` ต้องอ้างอิงตาม **พระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มรอบก่อนหน้า (ใช้บังคับถึงวันที่ 30 กันยายน 2568)** ซึ่งยังไม่ได้บรรจุตัวบทเต็มไว้ในคลังกฎหมายชุดนี้ จึงขอให้ตรวจสอบเลขที่และตัวบทฉบับย้อนหลังดังกล่าวจากราชกิจจานุเบกษา/กรมสรรพากรเพิ่มเติม`,
+      summary_statement_th: `${serviceContextPrefix}${taxPointNote}สำหรับวันเกิดความรับผิด \`${dt}\` ซึ่งอยู่ **ก่อนวันที่ 1 ตุลาคม 2567** จึง **ไม่ใช้ พ.ร.ฎ. ฉบับที่ 790, 799 หรือ 807 เป็นกฎหมายใช้บังคับ** ทั้งนี้ ภายใต้กรอบประมวลรัษฎากร **มาตรา 80** และคู่มืออัตราภาษีมูลค่าเพิ่ม/ภาษีท้องถิ่นของกรมสรรพากร ต้องอ้างอิงตามพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่ใช้บังคับตรงตามช่วงเวลาในวันที่ \`${dt}\` (เช่น พ.ร.ฎ. ฉบับที่ 780 พ.ศ. 2566 สำหรับ 1 ตุลาคม 2566 – 30 กันยายน 2567)`,
       arithmetic_verified: true,
     };
   }
 
   const activeDecreeWorkId = isInRd807Window
     ? "subreg.th.rc.royal_decree.807"
-    : "subreg.th.rc.royal_decree.799";
+    : isInRd799Window
+      ? "subreg.th.rc.royal_decree.799"
+      : isInRd790Window
+        ? "subreg.th.rc.royal_decree.790"
+        : "subreg.th.rc.royal_decree.799";
   const activeDecreeTitle = isInRd807Window
     ? "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2569 ถึง 30 กันยายน 2570)"
-    : "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 799) พ.ศ. 2568 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2568 ถึง 30 กันยายน 2569)";
+    : isInRd799Window
+      ? "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 799) พ.ศ. 2568 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2568 ถึง 30 กันยายน 2569)"
+      : "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 790) พ.ศ. 2567 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2567 ถึง 30 กันยายน 2568)";
 
   const vatBaht = params.taxBaseBaht !== null ? Math.round(params.taxBaseBaht * 7) / 100 : null;
 

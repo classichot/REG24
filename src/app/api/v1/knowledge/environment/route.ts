@@ -2,9 +2,14 @@ import { NextResponse } from "next/server";
 import { computeBatchTraceabilityInventoryCounts } from "../../../../../core/knowledge/claim-traceability-engine";
 import { resolveActiveCitationDbTransport } from "../../../../../core/knowledge/citation-postgres-store";
 import {
+  resolveConfiguredProviderAndModel,
+  resolveThinkingLevelForModel,
+} from "../../../../../core/knowledge/grounded-llm-drafter";
+import {
   knowledgeApiErrorResponse,
   resolveServerActor,
 } from "../../../../../core/knowledge/http-auth";
+import { inspectReleaseProjectionDiagnostics } from "../../../../../core/knowledge/projections";
 import { getDefaultKnowledgeStore } from "../../../../../core/knowledge/store";
 
 export async function GET(req: Request) {
@@ -14,6 +19,8 @@ export async function GET(req: Request) {
     const state = store.getState();
     const topology = store.getStorageTopology();
 
+    // Honor explicit pinned release ID (`REG24_PINNED_RELEASE_ID` or `state.active_release_id`) — NO silent UAT fallback when pinned!
+    const pinnedEnvRelease = (process.env.REG24_PINNED_RELEASE_ID || "").trim() || null;
     const fallbackCandidateRel = Object.values(state.releases)
       .filter(
         (r) =>
@@ -27,10 +34,20 @@ export async function GET(req: Request) {
           b.release_id.localeCompare(a.release_id)
       )[0]?.release_id;
 
-    const activeReleaseId = state.active_release_id || fallbackCandidateRel || "rel.B01.rc6";
+    const activeReleaseId = pinnedEnvRelease || state.active_release_id || fallbackCandidateRel || "rel.B01.rc6";
     const relRec = state.releases[activeReleaseId];
     const counts = computeBatchTraceabilityInventoryCounts(store, "B01", activeReleaseId);
+    const projectionDiagnostics = inspectReleaseProjectionDiagnostics(store, activeReleaseId);
     const dbActive = Boolean(resolveActiveCitationDbTransport());
+    const groundedEnabled = process.env.REG24_GROUNDED_LLM_STAGING_ENABLED === "true";
+    const llmConfig = resolveConfiguredProviderAndModel();
+    const envThinking = (process.env.REG24_GROUNDED_LLM_THINKING_LEVEL || "").trim().toLowerCase();
+    const thinkingResolved = resolveThinkingLevelForModel(
+      llmConfig.requestedModel,
+      envThinking === "minimal" || envThinking === "low" || envThinking === "medium" || envThinking === "high"
+        ? envThinking
+        : null
+    );
 
     return NextResponse.json(
       {
@@ -39,7 +56,7 @@ export async function GET(req: Request) {
           vercel_env: process.env.VERCEL_ENV || "local_or_staging",
           environment_scope: process.env.REG24_TRIAL_ENV_SCOPE || "staging",
           git_branch:
-            process.env.VERCEL_GIT_COMMIT_REF || "review/b01-rc2-b02-rc1-staging",
+            process.env.VERCEL_GIT_COMMIT_REF || "feat/b01-thai-legal-index-retrieval-rc10",
           git_commit_sha: process.env.VERCEL_GIT_COMMIT_SHA || relRec?.code_commit || "local",
           deployment_url: process.env.VERCEL_URL || null,
           preview_url_vs_release_clarification:
@@ -47,6 +64,7 @@ export async function GET(req: Request) {
           invite_only_trial_gate_enabled: process.env.REG24_TRIAL_INVITE_ONLY === "1",
           shared_neon_postgres_connected: dbActive,
           neon_project_id_configured: Boolean(process.env.NEON_PROJECT_ID),
+          pinned_release_enforced: Boolean(pinnedEnvRelease || state.active_release_id),
         },
         data_version: {
           batch_id: "B01",
@@ -55,14 +73,23 @@ export async function GET(req: Request) {
           manifest_id: relRec?.manifest_id || null,
           manifest_hash: relRec?.manifest_hash || null,
           supersedes_release_id: relRec?.supersession_lineage?.supersedes_release_id || null,
+          rollback_target_release_id: relRec?.rollback_target_release_id || null,
           store_topology_mode: topology.topology_mode,
           eligible_official_documents: counts.documents.eligible,
           eligible_evidence_passages: counts.passages.eligible,
           updated_at: relRec?.updated_at || null,
         },
+        projections: projectionDiagnostics,
         model_and_verifiers: {
-          model_id: "reg24-deterministic-legal-graphrag-v2.0",
-          model_policy_version: "reg24-grounded-legal-v2.0",
+          generation_mode: groundedEnabled ? "llm_grounded" : "baseline_deterministic",
+          model_id: groundedEnabled
+            ? `${llmConfig.provider}:${llmConfig.requestedModel}`
+            : "reg24-deterministic-legal-graphrag-v2.0",
+          thinking_level: groundedEnabled ? thinkingResolved.thinking_level : null,
+          silent_fallback_disabled: groundedEnabled,
+          model_policy_version: groundedEnabled
+            ? "reg24-grounded-llm-legal-application-v1.1"
+            : "reg24-grounded-legal-v2.0",
           claim_verifier_version: "reg24-claim-verifier-v2.1",
           calculation_verifier_version: "reg24-tax-calc-verifier-v1.0",
           ruleset_version: "th-official-traceability-2026.11.2",

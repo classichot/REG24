@@ -762,6 +762,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // derived combined rate `7` / `0.7` / `6.3` when explaining the combined rate alongside local tax!
     const citesVatReductionDecree = citedPackItems.some(
       (p) =>
+        p.work_id === "subreg.th.rc.royal_decree.780" ||
+        p.work_id === "subreg.th.rc.royal_decree.790" ||
         p.work_id === "subreg.th.rc.royal_decree.799" ||
         p.work_id === "subreg.th.rc.royal_decree.807" ||
         p.work_id === "subreg.th.rd.vat_local_tax_guide"
