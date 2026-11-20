@@ -2210,14 +2210,20 @@ async function executeCoreKnowledgeQuery(
             verification_result: appVerCheck.verification_result,
             verified_calculation_numeric_tokens: calc.verified_numeric_tokens,
           });
+          calcBlocks.push(
+            `**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n${calc.summary_statement_th}\n\n` +
+              `**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (\`${calc.verifier_version}\`)**:\n` +
+              calc.steps_th.map((st) => `- ${st}`).join("\n")
+          );
+        } else {
+          coverageWarnings.push(
+            `ระงับการแสดงข้อสรุปการคำนวณ (${calc.calculation_id}) เนื่องจากไม่ผ่านการตรวจสอบหลักฐานอ้างอิงอย่างครบถ้วน (${appVerCheck.reason || "UNSUPPORTED"})`
+          );
         }
-        calcBlocks.push(
-          `**สรุปผลการวินิจฉัยและการปรับใช้กฎหมายกับข้อเท็จจริง**:\n${calc.summary_statement_th}\n\n` +
-            `**รายละเอียดขั้นตอนการคำนวณและเงื่อนไขกฎหมายที่ตรวจสอบแยกต่างหาก (\`${calc.verifier_version}\`)**:\n` +
-            calc.steps_th.map((st) => `- ${st}`).join("\n")
-        );
       }
-      answerSections.unshift(calcBlocks.join("\n\n"));
+      if (calcBlocks.length > 0) {
+        answerSections.unshift(calcBlocks.join("\n\n"));
+      }
     }
 
     if (extractedConditions.size > 0) {

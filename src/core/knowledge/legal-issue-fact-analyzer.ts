@@ -280,10 +280,17 @@ export function analyzeLegalIssuesAndFacts(params: {
   let demoteRulingsBeforeIso: string | null = null;
 
   const amounts = parseThaiMoneyAmountsWithContext(activeClean);
+  const temporalMerged = parseQueryTemporalAndIntentContext({
+    question: mergedContext,
+    applicableDate: params.applicableDate ?? null,
+  });
   const eventIso =
     temporalActive.point_in_time_date_iso ||
     temporalActive.transaction_date_iso ||
     temporalActive.accounting_period_start_iso ||
+    temporalMerged.point_in_time_date_iso ||
+    temporalMerged.transaction_date_iso ||
+    temporalMerged.accounting_period_start_iso ||
     null;
 
   // --- Regime A: Summons Time-Bar (`มาตรา 19` — two dates: return filing date + summons date) ---
@@ -503,10 +510,10 @@ export function analyzeLegalIssuesAndFacts(params: {
 
   // --- Regime F: Gift Tax / Gratuitous Property Transfer (`มาตรา 41 ทวิ`, `42 (26)-(28)`, `48`, `49 ทวิ`, `50 (5)-(6)`, `54`, `พ.ร.บ. 40`) ---
   const asksGiftTransfer =
-    /(?:โอนที่ดิน|ให้อสังหาริมทรัพย์|ให้ที่ดิน|ให้โดยเสน่หา|มอบเงินสด|ให้เงินสด|โอนเงินให้|ของขวัญงานสมรส|โอนกรรมสิทธิ์[^\n]{0,40}โดยไม่มีค่าตอบแทน)/.test(
+    /(?:โอนที่ดิน|ยกที่ดิน|ให้อสังหาริมทรัพย์|ยกอสังหาริมทรัพย์|ให้ที่ดิน|ยกห้องชุด|โอนห้องชุด|ให้ห้องชุด|ยกคอนโด|ยกบ้าน|ให้โดยเสน่หา|โดยเสน่หาไม่มีค่าตอบแทน|โดยไม่มีค่าตอบแทน|มอบเงินสด|ให้เงินสด|โอนเงินให้|ของขวัญงานสมรส|โอนกรรมสิทธิ์[^\n]{0,40}โดยไม่มีค่าตอบแทน)/.test(
       mergedContext
     ) &&
-    /(?:บุตร|หลาน|ผู้สืบสันดาน|ญาติ|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|เพื่อน|บุคคลภายนอก|งานสมรส|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา|ภาษีการรับให้)/.test(
+    /(?:บุตร|หลาน|ผู้สืบสันดาน|ญาติ|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|ปู่|ย่า|ตา|ยาย|เพื่อน|บุคคลภายนอก|งานสมรส|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา|โดยเสน่หา|โดยไม่มีค่าตอบแทน|ภาษีการรับให้)/.test(
       mergedContext
     );
   if (asksGiftTransfer) {
@@ -519,11 +526,13 @@ export function analyzeLegalIssuesAndFacts(params: {
     // Step 1: Classify asset FIRST — active follow-up overrides prior asset if it explicitly switches to cash/movable!
     const activeExplicitMovable =
       /(?:เงินสด|โอนเงิน|ทองคำ|หุ้น|สังหาริมทรัพย์)/.test(activeClean) &&
-      !/(?:ที่ดิน|บ้าน|คอนโด|อสังหาริมทรัพย์)/.test(activeClean);
-    const activeExplicitImmovable = /(?:ที่ดิน|บ้าน|คอนโด|อสังหาริมทรัพย์)/.test(activeClean);
+      !/(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อสังหาริมทรัพย์)/.test(activeClean);
+    const activeExplicitImmovable =
+      /(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อสังหาริมทรัพย์)/.test(activeClean);
     const isImmovable = activeExplicitMovable
       ? false
-      : activeExplicitImmovable || /(?:ที่ดิน|บ้าน|คอนโด|อสังหาริมทรัพย์)/.test(mergedContext);
+      : activeExplicitImmovable ||
+        /(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อสังหาริมทรัพย์)/.test(mergedContext);
 
     if (isImmovable) {
       controlling.add("prov.th.rc.41_ทวิ");
@@ -533,11 +542,11 @@ export function analyzeLegalIssuesAndFacts(params: {
 
     // Step 2: Detect whose tax the active prompt is asking about (Recipient vs Donor vs Both)
     const asksRecipientTax =
-      /(?:ภาษี(?:เงินได้)?ของ(?:ผู้รับโอน|ผู้รับ|หลานสาว|หลานชาย|หลาน|บุตรบุญธรรม|บุตร|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|เพื่อน)|ผู้รับโอน[^\n]{0,25}(?:เสียภาษี|รับภาระภาษี)|หลาน(?:สาว|ชาย)?[^\n]{0,25}(?:เสียภาษี|ยกเว้นภาษี|เปลี่ยนอย่างไร)|เงินได้ของ(?:บุตร|หลาน|ผู้รับ))/.test(
+      /(?:ภาษี(?:เงินได้)?ของ(?:ผู้รับโอน|ผู้รับ|หลานสาว|หลานชาย|หลาน|บุตรบุญธรรม|บุตร|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|เพื่อน|นาย[^\s]{1,20}|นางสาว[^\s]{1,20})|ผู้รับโอน[^\n]{0,25}(?:เสียภาษี|รับภาระภาษี)|หลาน(?:สาว|ชาย)?[^\n]{0,25}(?:เสียภาษี|ยกเว้นภาษี|เปลี่ยนอย่างไร|มีภาระภาษี)|เงินได้ของ(?:บุตร|หลาน|ผู้รับ)|ต้องเสียภาษีเงินได้อย่างไร)/.test(
         activeClean
       );
     const asksDonorTax =
-      /(?:ภาษี(?:เงินได้)?ของ(?:ผู้โอน|ผู้ให้|บิดา|มารดา|พ่อ|แม่|ลุง|ป้า|น้า|อา)|ผู้โอน[^\n]{0,25}(?:เสียภาษี|หักภาษี|ต้องหัก))/.test(
+      /(?:ภาษี(?:เงินได้)?ของ(?:ผู้โอน|ผู้ให้|บิดา|มารดา|พ่อ|แม่|ปู่|ย่า|ตา|ยาย|ลุง|ป้า|น้า|อา)|ผู้โอน[^\n]{0,25}(?:เสียภาษี|หักภาษี|ต้องหัก)|ต้องหักภาษี\s*ณ\s*ที่จ่าย)/.test(
         activeClean
       );
     const queriedPartyFocus: "RECIPIENT" | "DONOR" | "BOTH" =
@@ -549,31 +558,40 @@ export function analyzeLegalIssuesAndFacts(params: {
 
     const mergedAmounts = parseThaiMoneyAmountsWithContext(mergedContext);
     const valAmt =
-      amounts.find((a) => /มูลค่า|ที่ดิน|ราคา|เงินสด|จำนวน/.test(a.leftContext))?.amount ??
-      mergedAmounts.find((a) => /มูลค่า|ที่ดิน|ราคา|เงินสด|จำนวน/.test(a.leftContext))?.amount ??
-      null;
-    const officialAppraisalAmt =
-      amounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))?.amount ??
-      mergedAmounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))
+      amounts.find((a) => /มูลค่า|ที่ดิน|ห้องชุด|ราคา|เงินสด|จำนวน/.test(a.leftContext))?.amount ??
+      mergedAmounts.find((a) => /มูลค่า|ที่ดิน|ห้องชุด|ราคา|เงินสด|จำนวน/.test(a.leftContext))
         ?.amount ??
       null;
+    const officialAppraisalMatch = mergedContext.match(
+      /ราคาประเมินทุนทรัพย์(?:ของทางราชการ)?(?:ที่ใช้ในการจดทะเบียน|ในการจดทะเบียน)?\s*(?:คือ|เป็นจำนวนเงิน|เท่ากับ)?\s*([0-9,]+(?:\.[0-9]+)?)\s*บาท/
+    );
+    const officialAppraisalAmt = officialAppraisalMatch
+      ? Number(officialAppraisalMatch[1].replace(/,/g, ""))
+      : amounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))?.amount ??
+        mergedAmounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))
+          ?.amount ??
+        null;
+    const isMaritalCoOwned =
+      /สินสมรส|ซื้อที่ดิน[^\n]{0,30}ร่วมกันระหว่างสมรส|สามีภริยาที่จดทะเบียนสมรส/.test(
+        mergedContext
+      );
     const acquisitionMethod: "INHERITANCE_OR_GIFT" | "OTHER_PURCHASE" | null =
       /ได้มาโดยทางมรดก|รับมรดก|ได้มาจากการให้โดยเสน่หา/.test(mergedContext)
         ? "INHERITANCE_OR_GIFT"
-        : /ซื้อที่ดินมา|ได้มาโดยการซื้อ|ซื้อมาจาก/.test(mergedContext)
+        : /ซื้อที่ดิน(?:แปลงหนึ่ง)?(?:มา|ร่วมกัน)|ได้มาโดยการซื้อ|ซื้อมาจาก/.test(mergedContext)
           ? "OTHER_PURCHASE"
           : null;
     const holdingYearsMatch = mergedContext.match(/ถือครอง(?:มา|ไว้|นาน|เกิน)?\s*([0-9]+)\s*ปี/);
     const holdingYears = holdingYearsMatch ? Number(holdingYearsMatch[1]) : null;
 
-    // Step 3: Detect updated recipient relationship (active turn overrides prior turn's relationship!)
+    // Step 3: Detect updated recipient relationship — EXPLICIT kinship ALWAYS overrides generic `หลานสาว`/`หลานชาย`!
     const isExplicitGrandchild =
-      /บุตรของบุตร|หลานปู่|หลานตา|หลานย่า|หลานยาย|ผู้สืบสันดานสายตรง|ผู้สืบสันดานโดยตรง/.test(
+      /บุตร(?:สาว|ชาย)?ของ(?:บุตร(?:สาว|ชาย)?|ลูก(?:สาว|ชาย)?)|หลานปู่|หลานตา|หลานย่า|หลานยาย|ผู้สืบสันดานสายตรง|ผู้สืบสันดานโดยตรง/.test(
         activeClean
       );
     const isExplicitNiece =
       !isExplicitGrandchild &&
-      /บุตรของพี่|บุตรของน้อง|ลูกของพี่|ลูกของน้อง|หลานลุง|หลานอา|หลานน้า|หลานป้า/.test(
+      /บุตร(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?|ลูก(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?|หลานลุง|หลานอา|หลานน้า|หลานป้า/.test(
         activeClean
       );
     const isAmbiguousLan =
@@ -606,7 +624,9 @@ export function analyzeLegalIssuesAndFacts(params: {
       !isSpouse &&
       !isOtherCollateralOrThirdParty &&
       /บุตรชอบด้วยกฎหมาย/.test(activeClean);
-    const isCeremony = /งานสมรส|พิธี|ขนบธรรมเนียมประเพณี|หน้าที่ธรรมจรรยา/.test(mergedContext);
+    const isCeremony =
+      /งานสมรส|พิธี|ขนบธรรมเนียมประเพณี|หน้าที่ธรรมจรรยา/.test(mergedContext) &&
+      !/ไม่ได้เกี่ยวกับพิธี|มิได้เกี่ยวกับพิธี|ไม่ใช่(?:การให้ใน)?พิธี/.test(activeClean);
 
     if (isImmovable && !isLegitChild) {
       controlling.add("prov.th.rc.54");
@@ -625,6 +645,7 @@ export function analyzeLegalIssuesAndFacts(params: {
       calcs.push(
         verifyComprehensiveGiftTaxCalculation({
           isImmovableProperty: isImmovable,
+          isMaritalCoOwnedProperty: isMaritalCoOwned,
           queriedPartyFocus,
           recipientRole: isExplicitGrandchild
             ? "EXPLICIT_LINEAL_GRANDCHILD"
@@ -697,8 +718,14 @@ export function analyzeLegalIssuesAndFacts(params: {
       );
     } else if (isUsedInThailandNow || /ขายสินค้าในราชอาณาจักร|ส่งมอบสินค้าในราชอาณาจักร|ความรับผิดใน\s*VAT/i.test(mergedContext)) {
       controlling.add("prov.th.rc.80");
-      controlling.add("subreg.th.rc.royal_decree.807");
-      controlling.add("subreg.th.rc.royal_decree.799");
+      if (eventIso && eventIso >= "2025-10-01" && eventIso <= "2026-09-30") {
+        controlling.add("subreg.th.rc.royal_decree.799");
+      } else if (eventIso && eventIso >= "2026-10-01") {
+        controlling.add("subreg.th.rc.royal_decree.807");
+      } else {
+        controlling.add("subreg.th.rc.royal_decree.799");
+        controlling.add("subreg.th.rc.royal_decree.807");
+      }
       controlling.add("subreg.th.rd.vat_local_tax_guide");
       if (isUsedInThailandNow) {
         controlling.add("prov.th.rc.77/2");
@@ -718,13 +745,21 @@ export function analyzeLegalIssuesAndFacts(params: {
   }
 
   // --- Regime I: Withholding Tax (Domestic `มาตรา 3 เตรส` / `ท.ป. 4/2528` / `3 ปัณรส` e-WHT vs Cross-Border `มาตรา 70` vs Missing Recipient Fact!) ---
+  // NEVER hijack a gratuitous immovable property transfer (`มาตรา 50 (5)-(6)` in Regime F) into `ท.ป. 4/2528` service WHT!
+  const asksServiceOrCommercialWht =
+    !asksGiftTransfer ||
+    /(?:ค่าจ้างทำของ|ค่าบริการ|ค่าที่ปรึกษา|ค่าบริหารจัดการ|ค่าเช่า|ค่าโฆษณา|เงินปันผล|ค่าสิทธิ|e-Withholding|มาตรา\s*3\s*เตรส|มาตรา\s*70|ท\.ป\.\s*4\/2528)/i.test(
+      activeClean
+    );
   const asksWhtInActiveTurn =
+    asksServiceOrCommercialWht &&
     /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|อัตราหัก\s*ณ\s*ที่จ่าย|e-Withholding\s*Tax|withholding\s+tax)/i.test(
       activeClean
     );
   const asksWht =
     asksWhtInActiveTurn ||
-    (!asksGeneral65TerExpense &&
+    (asksServiceOrCommercialWht &&
+      !asksGeneral65TerExpense &&
       /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|อัตราหัก\s*ณ\s*ที่จ่าย|e-Withholding\s*Tax|withholding\s+tax)/i.test(
         mergedContext
       ));
