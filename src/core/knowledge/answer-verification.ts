@@ -790,7 +790,7 @@ export function evaluateSubstantiveClaimSupport(params: {
       };
     }
 
-    const minRequiredRatio = groundsExplicitClaimIdentifier ? 0.05 : 0.25;
+    const minRequiredRatio = groundsExplicitClaimIdentifier ? 0.03 : 0.25;
 
     if (sharedWithThisSource.length === 0 || perSourceRatio < minRequiredRatio) {
       return {

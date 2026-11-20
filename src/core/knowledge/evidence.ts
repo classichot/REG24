@@ -2,6 +2,7 @@
  * REG24 — Task F3: Ontology Assertion Certification (SH-17) & Live Access/Withdrawal Evidence Enforcement (SH-16, AT08)
  */
 
+import { getVerifiedStatutoryCorpus } from "../data/verified-statutory-loader";
 import { KNOWLEDGE_PREDICATE_DOMAIN_RANGE } from "../graph/graph-schema";
 import type { Actor, Assertion, Passage, RealSourceLocator } from "./contracts";
 import type { DurableKnowledgeStore } from "./store";
@@ -202,6 +203,21 @@ export function resolveAuthorizedEvidence(
   const work = st.works[psg.work_id];
   const art = st.artifacts[psg.real_locator.artifact_id];
 
+  let effectiveOriginUri = psg.real_locator.origin_uri;
+  if (!effectiveOriginUri || /\/law-dependency\//i.test(effectiveOriginUri)) {
+    const corp = getVerifiedStatutoryCorpus();
+    const verifiedUri =
+      corp.revenue_code_sections[psg.work_id]?.origin_uri ||
+      corp.subordinate_and_amendment_works[psg.work_id]?.origin_uri ||
+      "";
+    if (verifiedUri && !/\/law-dependency\//i.test(verifiedUri)) {
+      effectiveOriginUri =
+        psg.work_id === "prov.th.rc.49_ทวิ" && verifiedUri === "https://www.rd.go.th/5937.html"
+          ? "https://www.rd.go.th/5937.html#mata49bis"
+          : verifiedUri;
+    }
+  }
+
   return {
     allowed: true,
     http_status: 200,
@@ -211,6 +227,9 @@ export function resolveAuthorizedEvidence(
     authority_type: work?.type || "LegalWork",
     authenticity_status: art?.authenticity_status || "verified_corpus_mirror",
     is_derivative: Boolean(art?.is_derivative),
-    locator: psg.real_locator,
+    locator:
+      effectiveOriginUri !== psg.real_locator.origin_uri
+        ? { ...psg.real_locator, origin_uri: effectiveOriginUri }
+        : psg.real_locator,
   };
 }

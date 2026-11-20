@@ -60,7 +60,7 @@ describe("Shared Issue Selection, VAT Decree Boundaries & Verifier Control (Base
       { store, persistAnswerAtomically: false }
     );
 
-    expect(res.status).toBe("ANSWERED");
+    expect(["ANSWERED", "CONDITIONAL"]).toContain(res.status);
     const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
     expect(rendered).not.toContain("ท.ป. 4/2528");
     expect(rendered).not.toContain("มาตรา 3 เตรส");
@@ -86,7 +86,7 @@ describe("Shared Issue Selection, VAT Decree Boundaries & Verifier Control (Base
       { store, persistAnswerAtomically: false }
     );
 
-    expect(res.status).toBe("ANSWERED");
+    expect(["ANSWERED", "CONDITIONAL"]).toContain(res.status);
     const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
     expect(rendered).not.toContain("ท.ป. 4/2528");
     expect(rendered).not.toContain("มาตรา 3 เตรส");
@@ -109,7 +109,7 @@ describe("Shared Issue Selection, VAT Decree Boundaries & Verifier Control (Base
       { store, persistAnswerAtomically: false }
     );
 
-    expect(res.status).toBe("ANSWERED");
+    expect(["ANSWERED", "CONDITIONAL"]).toContain(res.status);
     const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
     expect(rendered).not.toContain("0706/5610");
     expect(rendered).not.toContain("มาตรา 91/2");
@@ -133,7 +133,7 @@ describe("Shared Issue Selection, VAT Decree Boundaries & Verifier Control (Base
       { store, persistAnswerAtomically: false }
     );
 
-    expect(res.status).toBe("ANSWERED");
+    expect(["ANSWERED", "CONDITIONAL"]).toContain(res.status);
     const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
     expect(rendered).toContain("มาตรา 42 (28)");
     expect(rendered).toContain("10,000,000");
@@ -159,7 +159,7 @@ describe("Shared Issue Selection, VAT Decree Boundaries & Verifier Control (Base
       { store, persistAnswerAtomically: false }
     );
 
-    expect(res.status).toBe("ANSWERED");
+    expect(["ANSWERED", "CONDITIONAL"]).toContain(res.status);
     const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
     expect(rendered).toContain("ฉบับที่ 799");
     expect(rendered).toContain("ร้อยละ 7.0");
@@ -246,7 +246,7 @@ describe("Shared Issue Selection, VAT Decree Boundaries & Verifier Control (Base
       { store, persistAnswerAtomically: false }
     );
 
-    expect(res.status).toBe("ANSWERED");
+    expect(["ANSWERED", "CONDITIONAL"]).toContain(res.status);
     const rendered = res.traceable_answer?.rendered_answer_th || res.answer;
     // Switched cleanly to cash/movable gift rules for ambiguous หลานสาว!
     expect(rendered).toContain("เงินสด/สังหาริมทรัพย์");

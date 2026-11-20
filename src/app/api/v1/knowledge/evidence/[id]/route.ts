@@ -23,11 +23,22 @@ export async function GET(
     const gate = await enforceTrialAccessAndRateLimit(req, actor, "citation_open");
     const store = getDefaultKnowledgeStore();
 
-    const pinned = await resolveTraceableEvidenceWithPostgres(store, decodedId, actor);
+    const activeReleaseId = store.getState().active_release_id || undefined;
+    const pinned = await resolveTraceableEvidenceWithPostgres(
+      store,
+      decodedId,
+      actor,
+      activeReleaseId
+    );
     const legacyResolved = resolveAuthorizedEvidence(store, decodedId, actor);
 
     const effectiveAllowed = pinned.ok || legacyResolved.allowed;
     const effectiveStatus = effectiveAllowed ? 200 : pinned.http_status;
+    const authoritativeOriginUri =
+      pinned.evidence?.official_location.official_url_with_anchor ||
+      pinned.evidence?.official_location.exact_official_url ||
+      legacyResolved.locator?.origin_uri ||
+      null;
 
     const auditStatus = await appendTrialAuditEvent(store, {
       audit_id: `aud.ev.${sha256Bytes(`${actor.actor_id}:${decodedId}:${Date.now()}`).slice(0, 14)}`,
@@ -40,10 +51,7 @@ export async function GET(
       work_id: pinned.evidence?.doc_id || legacyResolved.passage?.work_id || null,
       official_identifier:
         pinned.evidence?.source_native_id || legacyResolved.official_identifier || null,
-      origin_uri:
-        pinned.evidence?.official_location.exact_official_url ||
-        legacyResolved.locator?.origin_uri ||
-        null,
+      origin_uri: authoritativeOriginUri,
       http_status: effectiveStatus,
     });
 
@@ -73,8 +81,18 @@ export async function GET(
     }
 
     // Backwards-compatible `evidence` object enriched with full `pinned_evidence` contract (Section 6)
+    // Always synchronize `origin_uri` to the verified official URL from `pinned_evidence` so answer card,
+    // API `evidence.locator.origin_uri`, and `pinned_evidence.official_location` point to the exact same official URL.
     const compatEvidence = legacyResolved.allowed
-      ? legacyResolved
+      ? {
+          ...legacyResolved,
+          locator: legacyResolved.locator
+            ? {
+                ...legacyResolved.locator,
+                origin_uri: authoritativeOriginUri || legacyResolved.locator.origin_uri,
+              }
+            : legacyResolved.locator,
+        }
       : {
           allowed: true,
           http_status: 200 as const,

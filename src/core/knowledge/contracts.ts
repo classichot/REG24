@@ -901,6 +901,8 @@ export interface QueryRequest {
   attachment_doc_ids?: string[];
   /** Opt-in isolated staging flag for Separate Mission: Thai Tax Foundation A/B pilot (defaults to false). */
   enable_tax_foundation_pilot?: boolean;
+  /** Non-production staging-only QA fixture hook (e.g., RC1 deterministic rejected-calculation leak verification). */
+  qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
 }
 
 // ============================================================================

@@ -9,6 +9,7 @@
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import { getVerifiedStatutoryCorpus } from "../data/verified-statutory-loader";
 import { evaluateSubstantiveClaimSupport } from "./answer-verification";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { arabicDigitsToThai, sha256Bytes, thaiDigitsToArabic } from "./identity";
@@ -171,6 +172,114 @@ export function mutateCitationLedgerAtomically<T>(
     },
     { actorId }
   );
+}
+
+export function isSyntheticPlaceholderOfficialUrl(url: string | null | undefined): boolean {
+  const s = String(url || "").trim();
+  if (!s) return true;
+  if (/\/law-dependency\//i.test(s)) return true;
+  if (/^source:\/\//i.test(s)) return true;
+  if (!/^https?:\/\//i.test(s)) return true;
+  return false;
+}
+
+export function isNavigationOrBoilerplatePassageText(text: string | null | undefined): boolean {
+  const s = String(text || "").replace(/\s+/g, " ").trim();
+  if (!s) return true;
+  const hasRdSiteChrome =
+    /\|\s*กรมสรรพากร\s*-\s*The\s+Revenue\s+Department\s*\(rd\.go\.th\)/i.test(s) ||
+    /(?:แผนผังเว็บไซต์|นโยบายคุ้มครองข้อมูลส่วนบุคคล|RD\s+Intelligence\s+Center\s*1161|เข้าสู่ระบบ\s+e-Filing|สงวนลิขสิทธิ์.*กรมสรรพากร)/i.test(
+      s
+    );
+  if (!hasRdSiteChrome) return false;
+  const hasSubstantiveBody =
+    /(?:ข้อ\s*[1-9]\s|มาตรา\s*[1-9][0-9]*\s+ให้|แนววินิจฉัยกรมสรรพากร|ให้ลดอัตรา|ให้ยกเลิกประกาศ)/i.test(
+      s
+    );
+  return !hasSubstantiveBody || s.length < 280;
+}
+
+export function resolveVerifiedOfficialUrlForDoc(
+  docId: string,
+  candidateUrl?: string | null
+): string {
+  const trimmed = String(candidateUrl || "").trim();
+  if (trimmed && !isSyntheticPlaceholderOfficialUrl(trimmed)) {
+    if (docId === "prov.th.rc.49_ทวิ" && trimmed === "https://www.rd.go.th/5937.html") {
+      return "https://www.rd.go.th/5937.html#mata49bis";
+    }
+    return trimmed;
+  }
+  const corpus = getVerifiedStatutoryCorpus();
+  const rcEntry = corpus.revenue_code_sections[docId];
+  if (rcEntry?.origin_uri && !isSyntheticPlaceholderOfficialUrl(rcEntry.origin_uri)) {
+    if (docId === "prov.th.rc.49_ทวิ" && rcEntry.origin_uri === "https://www.rd.go.th/5937.html") {
+      return "https://www.rd.go.th/5937.html#mata49bis";
+    }
+    return rcEntry.origin_uri;
+  }
+  const subEntry = corpus.subordinate_and_amendment_works[docId];
+  if (subEntry?.origin_uri && !isSyntheticPlaceholderOfficialUrl(subEntry.origin_uri)) {
+    return subEntry.origin_uri;
+  }
+  return "";
+}
+
+export function selectBestOfficialLocation(
+  locations: Record<string, OfficialLocationRecord>,
+  docId: string,
+  versionId: string | null | undefined,
+  fallbackUrl?: string | null
+): OfficialLocationRecord | undefined {
+  const allForDoc = Object.values(locations).filter((l) => l.doc_id === docId);
+  const nonSynthetic = allForDoc.filter(
+    (l) => !isSyntheticPlaceholderOfficialUrl(l.exact_official_url)
+  );
+  const exactVer = (list: OfficialLocationRecord[]) =>
+    list.filter((l) => !versionId || !l.version_id || l.version_id === versionId);
+
+  const pick =
+    exactVer(nonSynthetic).find(
+      (l) =>
+        l.is_active_primary &&
+        (l.link_health === "verified_online" || l.link_health === "moved_verified")
+    ) ||
+    exactVer(nonSynthetic).find((l) => l.is_active_primary) ||
+    exactVer(nonSynthetic)[0] ||
+    nonSynthetic.find(
+      (l) =>
+        l.is_active_primary &&
+        (l.link_health === "verified_online" || l.link_health === "moved_verified")
+    ) ||
+    nonSynthetic[0];
+
+  if (pick) return pick;
+
+  const resolvedFallback = resolveVerifiedOfficialUrlForDoc(docId, fallbackUrl);
+  if (resolvedFallback) {
+    return {
+      location_id: `oloc.ver.${sha256Bytes(`${docId}|${versionId || ""}|${resolvedFallback}`).slice(0, 14)}`,
+      doc_id: docId,
+      version_id: versionId || null,
+      exact_official_url: resolvedFallback,
+      role: "primary_official",
+      parent_landing_location_id: null,
+      original_observed_url: resolvedFallback,
+      redirect_history: [],
+      prior_urls: [],
+      first_verified_at: null,
+      last_verified_at: null,
+      last_successful_verified_at: null,
+      verification_method: "verified_statutory_corpus_url_resolver",
+      identity_match_result: "VERIFIED_MATCH",
+      link_health: "verified_online",
+      last_http_status: 200,
+      failure_reason: null,
+      is_active_primary: true,
+    };
+  }
+
+  return exactVer(allForDoc)[0] || allForDoc[0];
 }
 
 function mapCanonicalWorkTypeToSourceFamily(
@@ -354,7 +463,12 @@ function buildCanonicalCitationProjection(
       };
     }
 
-    const originUri = psg.real_locator.origin_uri || art?.origin_uri || "";
+    const rawOriginUri = psg.real_locator.origin_uri || art?.origin_uri || "";
+    const resolvedOriginUri = isThirdParty
+      ? rawOriginUri
+      : resolveVerifiedOfficialUrlForDoc(docId, rawOriginUri);
+    const isSyntheticUnresolved = !isThirdParty && isSyntheticPlaceholderOfficialUrl(resolvedOriginUri);
+    const originUri = isSyntheticUnresolved ? rawOriginUri : resolvedOriginUri;
     const locId = `oloc.can.${sha256Bytes(`${docId}|${ver.version_id}|${originUri}`).slice(0, 14)}`;
     if (!locations[locId]) {
       locations[locId] = {
@@ -364,18 +478,30 @@ function buildCanonicalCitationProjection(
         exact_official_url: originUri,
         role: isThirdParty ? "third_party_discovery" : "primary_official",
         parent_landing_location_id: null,
-        original_observed_url: originUri,
+        original_observed_url: rawOriginUri,
         redirect_history: [],
         prior_urls: [],
-        first_verified_at: art?.fetched_at || ver.known_from,
-        last_verified_at: art?.fetched_at || ver.known_from,
-        last_successful_verified_at: isThirdParty ? null : art?.fetched_at || ver.known_from,
-        verification_method: "canonical_b01_verified_backfill_v1",
-        identity_match_result: isThirdParty ? "FAILED_UNTRUSTED_HOST" : "VERIFIED_MATCH",
-        link_health: isThirdParty ? "quarantined_identity_failure" : "verified_online",
-        last_http_status: 200,
-        failure_reason: null,
-        is_active_primary: true,
+        first_verified_at: isSyntheticUnresolved ? null : art?.fetched_at || ver.known_from,
+        last_verified_at: isSyntheticUnresolved ? null : art?.fetched_at || ver.known_from,
+        last_successful_verified_at:
+          isThirdParty || isSyntheticUnresolved ? null : art?.fetched_at || ver.known_from,
+        verification_method: isSyntheticUnresolved
+          ? "synthetic_placeholder_unverified"
+          : "canonical_b01_verified_backfill_v1",
+        identity_match_result: isThirdParty
+          ? "FAILED_UNTRUSTED_HOST"
+          : isSyntheticUnresolved
+            ? "FAILED_SOFT_404"
+            : "VERIFIED_MATCH",
+        link_health:
+          isThirdParty || isSyntheticUnresolved
+            ? "quarantined_identity_failure"
+            : "verified_online",
+        last_http_status: isSyntheticUnresolved ? null : 200,
+        failure_reason: isSyntheticUnresolved
+          ? "SYNTHETIC_INTERNAL_DEPENDENCY_URL_NOT_VERIFIED_ONLINE"
+          : null,
+        is_active_primary: !isSyntheticUnresolved,
       };
     }
 
@@ -1045,9 +1171,7 @@ export function validateAndBuildTraceableAnswer(
         const doc = view.documents[psg.doc_id];
         const ver = view.versions[psg.version_id];
         const ext = view.extraction_revisions[psg.extraction_revision_id];
-        const loc = Object.values(view.locations).find(
-          (l) => l.doc_id === psg.doc_id && (!l.version_id || l.version_id === psg.version_id) && l.is_active_primary
-        ) || Object.values(view.locations).find((l) => l.doc_id === psg.doc_id);
+        const loc = selectBestOfficialLocation(view.locations, psg.doc_id, psg.version_id);
 
         if (!doc || !ver || !ext || !loc) {
           claimDecision = "insufficient";
@@ -1410,9 +1534,16 @@ export function validateAndBuildTraceableAnswer(
   };
 
   if (input.persist_atomically) {
+    const trustedByClaimText: Record<string, string[]> = {};
+    for (const pc of input.proposed_claims) {
+      if (pc.verified_calculation_numeric_tokens && pc.verified_calculation_numeric_tokens.length > 0) {
+        trustedByClaimText[pc.text] = pc.verified_calculation_numeric_tokens;
+      }
+    }
     commitTraceableAnswerAtomically(store, envelope, allLinksToPersist, {
       actor: input.actor,
       question_text: input.question,
+      trusted_calculation_tokens_by_claim_text: trustedByClaimText,
     });
   }
 
@@ -2363,28 +2494,34 @@ export async function saveOrReviseAnswerServerVerified(
       const doc = freshView.documents[ref.doc_id];
       const ver = freshView.versions[ref.version_id];
       const ext = freshView.extraction_revisions[ref.extraction_revision_id];
+      const resolvedRefUrl = resolveVerifiedOfficialUrlForDoc(ref.doc_id, ref.official_url);
+      const isSynthFallback = isSyntheticPlaceholderOfficialUrl(resolvedRefUrl);
       const loc =
-        Object.values(freshView.locations).find(
-          (l) => l.doc_id === ref.doc_id && (!l.version_id || l.version_id === ref.version_id)
-        ) || {
+        selectBestOfficialLocation(freshView.locations, ref.doc_id, ref.version_id, ref.official_url) || {
           location_id: `oloc.pg.${sha256Bytes(ref.doc_id).slice(0, 12)}`,
           doc_id: ref.doc_id,
           version_id: ref.version_id,
-          exact_official_url: ref.official_url,
+          exact_official_url: isSynthFallback ? ref.official_url : resolvedRefUrl,
           role: "primary_official" as const,
           parent_landing_location_id: null,
           original_observed_url: ref.official_url,
           redirect_history: [],
           prior_urls: [],
-          first_verified_at: committed.generated_at,
-          last_verified_at: committed.generated_at,
-          last_successful_verified_at: committed.generated_at,
-          verification_method: "canonical_verified",
-          identity_match_result: "VERIFIED_MATCH" as const,
-          link_health: "verified_online" as const,
-          last_http_status: 200,
-          failure_reason: null,
-          is_active_primary: true,
+          first_verified_at: isSynthFallback ? null : committed.generated_at,
+          last_verified_at: isSynthFallback ? null : committed.generated_at,
+          last_successful_verified_at: isSynthFallback ? null : committed.generated_at,
+          verification_method: isSynthFallback ? "synthetic_placeholder_unverified" : "canonical_verified",
+          identity_match_result: isSynthFallback
+            ? ("FAILED_SOFT_404" as const)
+            : ("VERIFIED_MATCH" as const),
+          link_health: isSynthFallback
+            ? ("quarantined_identity_failure" as const)
+            : ("verified_online" as const),
+          last_http_status: isSynthFallback ? null : 200,
+          failure_reason: isSynthFallback
+            ? "SYNTHETIC_INTERNAL_DEPENDENCY_URL_NOT_VERIFIED_ONLINE"
+            : null,
+          is_active_primary: !isSynthFallback,
         };
       if (!psg || !doc || !ver || !ext) continue;
       const existingBundle = bundleMap.get(ver.version_id);
@@ -2664,7 +2801,8 @@ export function resolveTraceableEvidenceById(
   releaseId?: string
 ): ResolvedPinnedEvidenceResponse {
   const state = store.getState();
-  const view = getUnifiedCitationLedgerView(store, releaseId);
+  const effectiveReleaseId = releaseId || state.active_release_id || undefined;
+  const view = getUnifiedCitationLedgerView(store, effectiveReleaseId);
   const psg = view.passages[evidenceId];
 
   if (!psg) {
@@ -2707,10 +2845,7 @@ export function resolveTraceableEvidenceById(
   }
 
   const loc =
-    Object.values(view.locations).find(
-      (l) => l.doc_id === doc.doc_id && l.version_id === ver.version_id && l.is_active_primary
-    ) ||
-    Object.values(view.locations).find((l) => l.doc_id === doc.doc_id) || {
+    selectBestOfficialLocation(view.locations, doc.doc_id, ver.version_id) || {
       location_id: "oloc.fallback",
       doc_id: doc.doc_id,
       version_id: ver.version_id,
@@ -2723,12 +2858,12 @@ export function resolveTraceableEvidenceById(
       first_verified_at: null,
       last_verified_at: null,
       last_successful_verified_at: null,
-      verification_method: "canonical",
-      identity_match_result: "VERIFIED_MATCH" as const,
-      link_health: "verified_online" as const,
-      last_http_status: 200,
-      failure_reason: null,
-      is_active_primary: true,
+      verification_method: "unresolved_official_url",
+      identity_match_result: "FAILED_SOFT_404" as const,
+      link_health: "quarantined_identity_failure" as const,
+      last_http_status: null,
+      failure_reason: "NO_VERIFIED_OFFICIAL_URL",
+      is_active_primary: false,
     };
 
   const pubEntry = view.publishers[doc.issuer_id];
@@ -3043,10 +3178,7 @@ export function reopenSavedTraceableAnswer(
       const ver = view.versions[ref.version_id];
       const doc = view.documents[ref.doc_id];
       const psg = view.passages[ref.evidence_id];
-      const loc =
-        Object.values(view.locations).find(
-          (l) => l.doc_id === ref.doc_id && l.version_id === ref.version_id && l.is_active_primary
-        ) || Object.values(view.locations).find((l) => l.doc_id === ref.doc_id);
+      const loc = selectBestOfficialLocation(view.locations, ref.doc_id, ref.version_id, ref.official_url);
       const pub = doc ? view.publishers[doc.issuer_id] : undefined;
 
       if (ver && !seenVersionChecks.has(ver.version_id)) {
@@ -3184,6 +3316,64 @@ export async function reopenSavedTraceableAnswerWithPostgres(
         }
       }
     }
+    const refreshedPgClaims: PublishedAtomicClaimDto[] = pgLoaded.answer.claims.map((clm) => ({
+      ...clm,
+      evidence_references: clm.evidence_references.map((ref) => {
+        if (ref.verification_status === "legacy_unverified") return ref;
+        const bestLoc = selectBestOfficialLocation(
+          view.locations,
+          ref.doc_id,
+          ref.version_id,
+          ref.official_url
+        );
+        const resolvedUrl = resolveVerifiedOfficialUrlForDoc(
+          ref.doc_id,
+          bestLoc?.exact_official_url || ref.official_url
+        );
+        if (!resolvedUrl) {
+          return {
+            ...ref,
+            link_health: "quarantined_identity_failure" as const,
+            link_health_notice_th:
+              "ลิงก์ต้นฉบับทางการของเอกสารนี้ยังไม่สามารถยืนยันออนไลน์ได้ (Synthetic / Unverified URI)",
+          };
+        }
+        const psg = view.passages[ref.evidence_id];
+        const doc = view.documents[ref.doc_id];
+        const pub = doc ? view.publishers[doc.issuer_id] : undefined;
+        const effectiveLoc: OfficialLocationRecord = bestLoc
+          ? { ...bestLoc, exact_official_url: resolvedUrl }
+          : {
+              location_id: `oloc.reopen.${sha256Bytes(ref.doc_id).slice(0, 12)}`,
+              doc_id: ref.doc_id,
+              version_id: ref.version_id,
+              exact_official_url: resolvedUrl,
+              role: "primary_official",
+              parent_landing_location_id: null,
+              original_observed_url: resolvedUrl,
+              redirect_history: [],
+              prior_urls: [],
+              first_verified_at: null,
+              last_verified_at: null,
+              last_successful_verified_at: null,
+              verification_method: "verified_statutory_corpus_url_resolver",
+              identity_match_result: "VERIFIED_MATCH",
+              link_health: "verified_online",
+              last_http_status: 200,
+              failure_reason: null,
+              is_active_primary: true,
+            };
+        return {
+          ...ref,
+          official_url: resolvedUrl,
+          official_url_with_anchor: psg
+            ? buildOfficialUrlWithAnchor(effectiveLoc, psg, pub)
+            : resolvedUrl,
+          link_health: effectiveLoc.link_health,
+          link_health_notice_th: formatOfficialLinkStatusNoticeTh(effectiveLoc),
+        };
+      }),
+    }));
     return {
       found: true,
       http_status: 200,
@@ -3191,6 +3381,7 @@ export async function reopenSavedTraceableAnswerWithPostgres(
       audit_events: pgLoaded.audit_events || [],
       answer: {
         ...pgLoaded.answer,
+        claims: refreshedPgClaims,
         update_notices: updateNotices,
       },
     };
@@ -3220,7 +3411,8 @@ export async function resolveTraceableEvidenceWithPostgres(
   actor: Actor,
   releaseId?: string
 ): Promise<ResolvedPinnedEvidenceResponse> {
-  const local = resolveTraceableEvidenceById(store, evidenceId, actor, releaseId);
+  const effectiveReleaseId = releaseId || store.getState().active_release_id || undefined;
+  const local = resolveTraceableEvidenceById(store, evidenceId, actor, effectiveReleaseId);
   if (local.ok || local.unavailable_code === "WITHDRAWN") {
     return local;
   }
@@ -3230,12 +3422,24 @@ export async function resolveTraceableEvidenceWithPostgres(
       ledger.documents[pgPsg.doc!.doc_id] = pgPsg.doc!;
       ledger.versions[pgPsg.version!.version_id] = pgPsg.version!;
       if (pgPsg.location) {
-        ledger.locations[pgPsg.location.location_id] = pgPsg.location;
+        const resolvedUrl = resolveVerifiedOfficialUrlForDoc(
+          pgPsg.doc!.doc_id,
+          pgPsg.location.exact_official_url
+        );
+        const isSynth = isSyntheticPlaceholderOfficialUrl(resolvedUrl);
+        ledger.locations[pgPsg.location.location_id] = {
+          ...pgPsg.location,
+          exact_official_url: isSynth ? pgPsg.location.exact_official_url : resolvedUrl,
+          identity_match_result: isSynth ? "FAILED_SOFT_404" : pgPsg.location.identity_match_result,
+          link_health: isSynth ? "quarantined_identity_failure" : pgPsg.location.link_health,
+          last_http_status: isSynth ? null : pgPsg.location.last_http_status,
+          is_active_primary: !isSynth && pgPsg.location.is_active_primary,
+        };
       }
       ledger.extraction_revisions[pgPsg.extraction!.extraction_revision_id] = pgPsg.extraction!;
       ledger.passages[pgPsg.passage!.passage_id] = pgPsg.passage!;
     });
-    return resolveTraceableEvidenceById(store, evidenceId, actor, releaseId);
+    return resolveTraceableEvidenceById(store, evidenceId, actor, effectiveReleaseId);
   }
   return local;
 }

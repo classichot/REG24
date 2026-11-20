@@ -77,10 +77,10 @@ export function stripNegatedFactualClauses(rawText: string): string {
     /\b(?:not|instead\s+of|rather\s+than)\s+(?:starting(?:\s+on)?\s+|on\s+)?(?:[0-9]{1,2}[\s/\-.]+[a-zA-Z0-9.]+[\s/\-,]+[0-9]{2,4}|[a-zA-Z]{3,9}\s+[0-9]{1,2},?\s+[0-9]{4}|[0-9]{4}-[0-9]{2}-[0-9]{2})/gi,
     " "
   );
-  // Strip negated location/inheritance/channel clauses so positive extractors don't match the negated keyword
-  s = s.replace(/ไม่ได้ใช้ที่[^\s,.;)]+(?:\s+ใน[^\s,.;)]+)?/g, " ");
+  // Strip negated location/inheritance/relationship/channel clauses so positive extractors don't match negated keywords
+  s = s.replace(/ไม่ได้ใช้(?:บริการ(?:นั้น)?)?ที่[^\s,.;)]+(?:\s+ใน[^\s,.;)]+)?(?:\s+ของ[^\s,.;)]+)?/g, " ");
   s = s.replace(/ไม่ได้มาทางมรดก/g, " ");
-  s = s.replace(/ไม่ใช่บุตรชอบด้วยกฎหมาย/g, " ");
+  s = s.replace(/(?:ไม่ใช่|มิใช่)(?:ตัว)?(?:บุตร(?:ชาย|สาว)?ชอบด้วยกฎหมาย|บุตรชาย|บุตรสาว|บุตร|คนในครอบครัว)/g, " ");
   s = s.replace(
     /(?:ไม่ได้|มิได้|ไม่)\s*(?:ผ่าน|นำส่งผ่าน|ใช้)(?:ระบบ)?\s*e-Withholding(?:\s*Tax)?/gi,
     " "
@@ -207,7 +207,97 @@ export function buildMergedUserFactContext(
     .map((t) => stripNegatedFactualClauses(t.content));
   const currentActive = stripNegatedFactualClauses(question);
   if (priorUserTurns.length === 0) return currentActive;
-  return [...priorUserTurns.slice(-2), currentActive].join(" | ");
+  return [...priorUserTurns.slice(-6), currentActive].join(" | ");
+}
+
+interface DatedVatEvent {
+  iso: string;
+  raw: string;
+  kind: "PAYMENT" | "INVOICE" | "SERVICE_USE" | "QUESTION_DATE" | "GENERAL";
+}
+
+function extractDatedVatEventsFromText(text: string): DatedVatEvent[] {
+  const cleaned = stripNegatedFactualClauses(text);
+  const out: DatedVatEvent[] = [];
+  const thaiDateRe =
+    /(?:([0-9]{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.)\s*(?:พ\.ศ\.\s*)?([0-9]{4})|([0-9]{4}-[0-9]{2}-[0-9]{2})|([0-9]{1,2}\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+[0-9]{4}))/gi;
+  for (const m of cleaned.matchAll(thaiDateRe)) {
+    const raw = m[0];
+    const iso = parseFlexibleThaiOrEnglishDateToIso(raw);
+    if (!iso) continue;
+    const idx = m.index ?? 0;
+    const left = cleaned.slice(Math.max(0, idx - 85), idx);
+    let kind: DatedVatEvent["kind"] = "GENERAL";
+    if (/(?:วันนี้|ณ\s*วันที่ถาม|วันที่สอบถาม|สอบถามเมื่อ|ถามเมื่อ|วันที่ตั้งคำถาม)/i.test(left)) {
+      kind = "QUESTION_DATE";
+    } else if (
+      /(?:ออกใบกำกับภาษี|ใบกำกับภาษี)[^\n]{0,35}(?:และ|กับ)?[^\n]{0,25}(?:รับชำระ|ชำระ)/.test(left) ||
+      /(?:รับชำระ|ชำระค่าบริการ|จ่ายเงิน|รับเงิน|โอนเงิน)/.test(left)
+    ) {
+      kind = "PAYMENT";
+    } else if (/(?:ออกใบกำกับภาษี|ใบกำกับภาษี|ออกใบแจ้งหนี้|tax\s*invoice)/i.test(left)) {
+      kind = "INVOICE";
+    } else if (/(?:ใช้บริการ|ให้บริการเสร็จ|ส่งมอบงาน|เริ่มใช้บริการ|service\s+used)/i.test(left)) {
+      kind = "SERVICE_USE";
+    }
+    out.push({ iso, raw, kind });
+  }
+  return out;
+}
+
+function resolveServiceVatTaxPointFromTurns(
+  turnsCleaned: string[],
+  fallbackIso: string | null
+): { taxPointIso: string | null; explanationTh: string | null; usedSection78_1: boolean } {
+  // Replay chronological user turns: if a later turn explicitly states new event date(s), they override earlier turns!
+  let activeEvents: DatedVatEvent[] = [];
+  for (const t of turnsCleaned) {
+    const evs = extractDatedVatEventsFromText(t);
+    const statutoryEvs = evs.filter((e) => e.kind !== "QUESTION_DATE");
+    if (statutoryEvs.length > 0) {
+      activeEvents = evs;
+    } else if (evs.length > 0 && activeEvents.length === 0) {
+      activeEvents = evs;
+    }
+  }
+
+  const statutory = activeEvents.filter((e) => e.kind !== "QUESTION_DATE");
+  const questionDates = activeEvents.filter((e) => e.kind === "QUESTION_DATE");
+  if (statutory.length === 0) {
+    // Do NOT treat a pure "date asked" as a VAT tax point; fall back only if explicit non-question fallbackIso exists
+    if (questionDates.length > 0) {
+      return { taxPointIso: null, explanationTh: null, usedSection78_1: false };
+    }
+    return { taxPointIso: fallbackIso, explanationTh: null, usedSection78_1: false };
+  }
+
+  const distinctStatutoryIsos = Array.from(new Set(statutory.map((e) => e.iso))).sort();
+  const earliestIso = distinctStatutoryIsos[0];
+
+  if (distinctStatutoryIsos.length > 1 || questionDates.length > 0) {
+    const earliestEv = statutory.find((e) => e.iso === earliestIso)!;
+    const kindLabel: Record<DatedVatEvent["kind"], string> = {
+      PAYMENT: "วันที่ได้รับชำระราคาค่าบริการ",
+      INVOICE: "วันที่ออกใบกำกับภาษี",
+      SERVICE_USE: "วันที่ใช้บริการ",
+      GENERAL: "วันที่เกิดธุรกรรม",
+      QUESTION_DATE: "วันที่สอบถาม",
+    };
+    const eventSummary = statutory
+      .map((e) => `${kindLabel[e.kind]} (${e.iso})`)
+      .join(", ");
+    const qNote =
+      questionDates.length > 0
+        ? ` ส่วนวันที่สอบถาม (${questionDates.map((q) => q.iso).join(", ")}) ไม่ใช่วันเกิดความรับผิดทางภาษี`
+        : "";
+    return {
+      taxPointIso: earliestIso,
+      usedSection78_1: true,
+      explanationTh: `**การกำหนดวันเกิดความรับผิดในการเสียภาษีมูลค่าเพิ่มสำหรับบริการตามประมวลรัษฎากร มาตรา 78/1 (1)**: ความรับผิดสำหรับการให้บริการเกิดขึ้นเมื่อได้รับชำระราคาค่าบริการ เว้นแต่ได้มีการออกใบกำกับภาษีหรือได้ใช้บริการก่อนได้รับชำระราคา ให้ถือว่าความรับผิดเกิดขึ้นเมื่อมีการกระทำนั้น จากวันที่ที่ระบุในข้อเท็จจริง (${eventSummary}) เหตุการณ์ที่เกิดขึ้นก่อนสุดคือ **${kindLabel[earliestEv.kind]} วันที่ \`${earliestIso}\`** จึงเป็นวันเกิดความรับผิดที่ใช้กำหนดพระราชกฤษฎีกาและอัตราภาษีมูลค่าเพิ่ม${qNote}`,
+    };
+  }
+
+  return { taxPointIso: earliestIso, explanationTh: null, usedSection78_1: false };
 }
 
 /**
@@ -223,6 +313,11 @@ export function analyzeLegalIssuesAndFacts(params: {
 }): LegalIssueAndFactAnalysis {
   const rawNorm = thaiDigitsToArabic(params.question).replace(/\s+/g, " ").trim();
   const activeClean = stripNegatedFactualClauses(rawNorm);
+  const priorUserTurnsCleaned = (params.conversationHistory || [])
+    .filter((t) => t && t.role === "user" && typeof t.content === "string" && t.content.trim())
+    .map((t) => stripNegatedFactualClauses(t.content))
+    .slice(-6);
+  const userTurnsCleaned = [...priorUserTurnsCleaned, activeClean];
   const mergedContext = buildMergedUserFactContext(params.question, params.conversationHistory);
 
   const unverifiedGuard = detectUnverifiedExplicitExternalAuthorities(params.question, params.state);
@@ -510,10 +605,10 @@ export function analyzeLegalIssuesAndFacts(params: {
 
   // --- Regime F: Gift Tax / Gratuitous Property Transfer (`มาตรา 41 ทวิ`, `42 (26)-(28)`, `48`, `49 ทวิ`, `50 (5)-(6)`, `54`, `พ.ร.บ. 40`) ---
   const asksGiftTransfer =
-    /(?:โอนที่ดิน|ยกที่ดิน|ให้อสังหาริมทรัพย์|ยกอสังหาริมทรัพย์|ให้ที่ดิน|ยกห้องชุด|โอนห้องชุด|ให้ห้องชุด|ยกคอนโด|ยกบ้าน|ให้โดยเสน่หา|โดยเสน่หาไม่มีค่าตอบแทน|โดยไม่มีค่าตอบแทน|มอบเงินสด|ให้เงินสด|โอนเงินให้|ของขวัญงานสมรส|โอนกรรมสิทธิ์[^\n]{0,40}โดยไม่มีค่าตอบแทน)/.test(
+    /(?:โอนที่ดิน|ยกที่ดิน|ให้อสังหาริมทรัพย์|ยกอสังหาริมทรัพย์|ให้ที่ดิน|ยกห้องชุด|โอนห้องชุด|ให้ห้องชุด|ยกคอนโด|ยกบ้าน|ยกอาคาร[^\n]{0,25}|ให้โดยเสน่หา|โดยเสน่หาไม่มีค่าตอบแทน|โดยไม่มีค่าตอบแทน|มอบเงินสด|ให้เงินสด|โอนเงินสด|โอนเงินให้|ค่าอุปการะเลี้ยงดู|ของขวัญงานสมรส|ของขวัญเนื่องในพิธี|โอนกรรมสิทธิ์[^\n]{0,45}โดย(?:เสน่หา)?ไม่มีค่าตอบแทน)/.test(
       mergedContext
     ) &&
-    /(?:บุตร|หลาน|ผู้สืบสันดาน|ญาติ|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|ปู่|ย่า|ตา|ยาย|เพื่อน|บุคคลภายนอก|งานสมรส|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา|โดยเสน่หา|โดยไม่มีค่าตอบแทน|ภาษีการรับให้)/.test(
+    /(?:บุตร|หลาน|ผู้สืบสันดาน|บุพการี|มารดา|บิดา|พ่อ|แม่|ญาติ|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|ปู่|ย่า|ตา|ยาย|เพื่อน|บุคคลภายนอก|งานสมรส|พิธีอุปสมบท|ค่าอุปการะ|ยกเว้นภาษี|มาตรา\s*42|ให้โดยเสน่หา|โดยเสน่หา|โดยไม่มีค่าตอบแทน|ภาษีการรับให้)/.test(
       mergedContext
     );
   if (asksGiftTransfer) {
@@ -523,30 +618,219 @@ export function analyzeLegalIssuesAndFacts(params: {
     controlling.add("prov.th.rc.40");
     controlling.add("statute.th.rc_amendment_40_2558");
 
-    // Step 1: Classify asset FIRST — active follow-up overrides prior asset if it explicitly switches to cash/movable!
-    const activeExplicitMovable =
-      /(?:เงินสด|โอนเงิน|ทองคำ|หุ้น|สังหาริมทรัพย์)/.test(activeClean) &&
-      !/(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อสังหาริมทรัพย์)/.test(activeClean);
-    const activeExplicitImmovable =
-      /(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อสังหาริมทรัพย์)/.test(activeClean);
-    const isImmovable = activeExplicitMovable
-      ? false
-      : activeExplicitImmovable ||
-        /(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อสังหาริมทรัพย์)/.test(mergedContext);
+    // Turn-by-turn state reducer: each chronological user turn updates ONLY explicitly stated/changed facts
+    // and preserves all unchanged facts (guaranteeing 3rd-turn answers match fresh sessions with identical facts).
+    let isImmovable = false;
+    let assetLabelTh: string | null = null;
+    let recipientRole:
+      | "LEGITIMATE_CHILD"
+      | "ADOPTED_CHILD"
+      | "ASCENDANT"
+      | "SPOUSE"
+      | "AMBIGUOUS_LAN_OR_NIECE"
+      | "EXPLICIT_LINEAL_GRANDCHILD"
+      | "EXPLICIT_COLLATERAL_NIECE"
+      | "LINEAL_DESCENDANT"
+      | "NON_LINEAL_RELATIVE_OR_THIRD_PARTY"
+      | null = null;
+    let recipientDisplayTh: string | null = null;
+    let isCeremony = false;
+    let occasionLabelTh: string | null = null;
+    let valAmt: number | null = null;
+    let officialAppraisalAmt: number | null = null;
+    let isMaritalCoOwned = false;
+    let acquisitionMethod: "INHERITANCE_OR_GIFT" | "OTHER_PURCHASE" | null = null;
+    let holdingYears: number | null = null;
+
+    for (const turnText of userTurnsCleaned) {
+      // 1) Asset classification & exact asset label preservation (never overwrite condo/shophouse with land!)
+      const turnHasMovable =
+        /(?:เงินสด|โอนเงิน|ทองคำ|หุ้น|สังหาริมทรัพย์)/.test(turnText) &&
+        !/(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อาคารพาณิชย์|ตึกแถว|อสังหาริมทรัพย์)/.test(turnText);
+      const turnHasImmovable =
+        /(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อาคารพาณิชย์|ตึกแถว|อสังหาริมทรัพย์)/.test(turnText);
+
+      if (turnHasMovable) {
+        isImmovable = false;
+        assetLabelTh = /เงินสด/.test(turnText)
+          ? "เงินสด/สังหาริมทรัพย์"
+          : /ทองคำ/.test(turnText)
+            ? "ทองคำ (สังหาริมทรัพย์)"
+            : /หุ้น/.test(turnText)
+              ? "หุ้น (สังหาริมทรัพย์)"
+              : "เงินสด/สังหาริมทรัพย์";
+      } else if (turnHasImmovable) {
+        isImmovable = true;
+        if (/อาคารพาณิชย์พร้อมที่ดิน/.test(turnText)) assetLabelTh = "อาคารพาณิชย์พร้อมที่ดิน";
+        else if (/อาคารพาณิชย์/.test(turnText)) assetLabelTh = "อาคารพาณิชย์";
+        else if (/ห้องชุด|อาคารชุด|คอนโด/.test(turnText)) assetLabelTh = "ห้องชุด";
+        else if (/บ้านพร้อมที่ดิน/.test(turnText)) assetLabelTh = "บ้านพร้อมที่ดิน";
+        else if (/ที่ดินเปล่า/.test(turnText)) assetLabelTh = "ที่ดินเปล่า";
+        else if (/ที่ดิน/.test(turnText)) assetLabelTh = "ที่ดิน";
+        else assetLabelTh = "อสังหาริมทรัพย์";
+      }
+
+      // 2) Recipient kinship & gender-faithful display label (explicit kinship overrides generic หลาน)
+      const tExplicitGrandchild =
+        /บุตร(?:สาว|ชาย)?ของ(?:บุตร(?:สาว|ชาย)?|ลูก(?:สาว|ชาย)?)|หลานปู่|หลานตา|หลานย่า|หลานยาย|ผู้สืบสันดานสายตรง|ผู้สืบสันดานโดยตรง/.test(
+          turnText
+        );
+      const tExplicitCollateral =
+        !tExplicitGrandchild &&
+        /บุตร(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?|ลูก(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?|หลานลุง|หลานอา|หลานน้า|หลานป้า/.test(
+          turnText
+        );
+      const tAdopted =
+        /บุตรบุญธรรม/.test(turnText) &&
+        !/ไม่ใช่บุตรบุญธรรม|มิใช่บุตรบุญธรรม|ไม่รวม(?:ถึง)?บุตรบุญธรรม/.test(turnText);
+      const tAmbiguousLan =
+        !tExplicitGrandchild && !tExplicitCollateral && !tAdopted && /หลานสาว|หลานชาย|หลาน/.test(turnText);
+      const tAscendantMatch =
+        !tExplicitGrandchild && !tExplicitCollateral && !tAdopted && !tAmbiguousLan
+          ? turnText.match(
+              /(?:ให้(?:แก่)?[^\n]{0,25}?(?:ซึ่งเป็น|ที่เป็น|คือ)?\s*|(?:ผู้รับ(?:โอน|เงิน|ให้)?)[^\n]{0,25}?(?:เป็น|คือ)\s*)(มารดา(?:แท้ๆ)?|บิดา(?:แท้ๆ)?|พ่อ(?:แท้ๆ)?|แม่(?:แท้ๆ)?|บุพการี)/
+            )
+          : null;
+      const tSpouseMatch =
+        !tExplicitGrandchild && !tExplicitCollateral && !tAdopted && !tAmbiguousLan && !tAscendantMatch
+          ? turnText.match(
+              /(?:ให้(?:แก่)?[^\n]{0,25}?(?:ซึ่งเป็น|ที่เป็น|คือ)?\s*|(?:ผู้รับ(?:โอน|เงิน|ให้)?)[^\n]{0,25}?(?:เป็น|คือ)\s*)(คู่สมรส|สามี|ภริยา|ภรรยา)/
+            )
+          : null;
+      const tOtherCollateralMatch =
+        !tExplicitGrandchild &&
+        !tExplicitCollateral &&
+        !tAdopted &&
+        !tAmbiguousLan &&
+        !tAscendantMatch &&
+        !tSpouseMatch
+          ? turnText.match(
+              /(?:ให้(?:แก่)?[^\n]{0,35}?(?:ซึ่งเป็น|ที่เป็น|คือ)?\s*|(?:ผู้รับ(?:โอน|เงิน|ให้)?)[^\n]{0,35}?(?:เป็น|คือ)\s*)(พี่สาว(?:แท้ๆ)?|พี่ชาย(?:แท้ๆ)?|น้องสาว(?:แท้ๆ)?|น้องชาย(?:แท้ๆ)?|เพื่อน(?:สนิท)?|บุคคลภายนอก|บุคคลอื่น)/
+            )
+          : null;
+      const tLegitChild =
+        !tExplicitGrandchild &&
+        !tExplicitCollateral &&
+        !tAdopted &&
+        !tAmbiguousLan &&
+        !tAscendantMatch &&
+        !tSpouseMatch &&
+        !tOtherCollateralMatch &&
+        /บุตร(?:ชาย|สาว)?ชอบด้วยกฎหมาย/.test(turnText);
+
+      if (tExplicitGrandchild) {
+        recipientRole = "EXPLICIT_LINEAL_GRANDCHILD";
+        const genderWord = /หลานชาย|บุตรชายของบุตร/.test(turnText) ? "หลานชาย" : "หลานสาว";
+        recipientDisplayTh = `${genderWord}ที่เป็นบุตรของบุตร (หลานปู่/หลานตา — ผู้สืบสันดานสายตรง แต่มิใช่บุตรชอบด้วยกฎหมาย)`;
+      } else if (tExplicitCollateral) {
+        recipientRole = "EXPLICIT_COLLATERAL_NIECE";
+        const isNephew = /หลานชาย|บุตรชายของ(?:พี่|น้อง)/.test(turnText);
+        const relDetail =
+          turnText.match(/บุตร(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?(?:แท้ๆ)?/)?.[0] ||
+          "บุตรของพี่หรือน้อง";
+        recipientDisplayTh = isNephew
+          ? `หลานชาย (${relDetail} — บุตรของพี่หรือน้อง / ญาติสายข้าง มิใช่บุตรชอบด้วยกฎหมาย)`
+          : `หลานสาว (${relDetail} — บุตรของพี่หรือน้อง / ญาติสายข้าง มิใช่บุตรชอบด้วยกฎหมาย)`;
+      } else if (tAdopted) {
+        recipientRole = "ADOPTED_CHILD";
+        recipientDisplayTh = "บุตรบุญธรรม (มิใช่บุตรชอบด้วยกฎหมายตามข้อยกเว้นมาตรา 42 (26))";
+      } else if (tAmbiguousLan) {
+        recipientRole = "AMBIGUOUS_LAN_OR_NIECE";
+        const lanWord = /หลานชาย/.test(turnText) ? "หลานชาย" : /หลานสาว/.test(turnText) ? "หลานสาว" : "หลาน";
+        recipientDisplayTh = `ผู้รับโอนที่เป็น "${lanWord}" (ยังไม่ระบุชัดว่าเป็นบุตรของบุตรหรือบุตรของพี่หรือน้อง แต่ทั้งสองกรณีมิใช่บุตรชอบด้วยกฎหมาย)`;
+      } else if (tAscendantMatch) {
+        recipientRole = "ASCENDANT";
+        recipientDisplayTh = `${tAscendantMatch[1]} (บุพการี — ได้รับจากผู้สืบสันดาน)`;
+      } else if (tSpouseMatch) {
+        recipientRole = "SPOUSE";
+        recipientDisplayTh = `${tSpouseMatch[1]} (คู่สมรส)`;
+      } else if (tOtherCollateralMatch) {
+        recipientRole = "NON_LINEAL_RELATIVE_OR_THIRD_PARTY";
+        recipientDisplayTh = `${tOtherCollateralMatch[1]} (บุคคลซึ่งมิใช่บุพการี ผู้สืบสันดาน หรือคู่สมรส และมิใช่บุตรชอบด้วยกฎหมาย)`;
+      } else if (tLegitChild) {
+        recipientRole = "LEGITIMATE_CHILD";
+        recipientDisplayTh = "บุตรชอบด้วยกฎหมาย";
+      }
+
+      // 3) Occasion / ceremony / moral duty
+      if (/ไม่ได้เกี่ยวกับพิธี|มิได้เกี่ยวกับพิธี|ไม่ใช่(?:การให้ใน)?พิธี/.test(turnText)) {
+        isCeremony = false;
+        occasionLabelTh = null;
+      } else if (/พิธีอุปสมบท/.test(turnText)) {
+        isCeremony = true;
+        occasionLabelTh = "พิธีอุปสมบทตามประเพณี";
+      } else if (/งานสมรส|งานแต่งงาน/.test(turnText)) {
+        isCeremony = true;
+        occasionLabelTh = "งานสมรสตามประเพณี";
+      } else if (/ค่าอุปการะเลี้ยงดู|อุปการะเลี้ยงดู/.test(turnText)) {
+        isCeremony = true;
+        occasionLabelTh = "ค่าอุปการะเลี้ยงดู";
+      } else if (/พิธี|ขนบธรรมเนียมประเพณี|หน้าที่ธรรมจรรยา/.test(turnText)) {
+        isCeremony = true;
+        occasionLabelTh = "พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี";
+      }
+
+      // 4) Values, appraisal, co-ownership, acquisition, holding years
+      const tAmounts = parseThaiMoneyAmountsWithContext(turnText);
+      const tVal =
+        tAmounts.find((a) =>
+          /มูลค่า|ที่ดิน|ห้องชุด|อาคาร|ราคา|เงินสด|จำนวน|อุปการะเลี้ยงดู|ของขวัญ/.test(a.leftContext) &&
+          !/ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext)
+        )?.amount ??
+        (tAmounts.length === 1 && !/ราคาประเมิน/.test(tAmounts[0].leftContext)
+          ? tAmounts[0].amount
+          : null);
+      if (tVal !== null) valAmt = tVal;
+
+      const tAppraisalMatch = turnText.match(
+        /ราคาประเมินทุนทรัพย์(?:ของทางราชการ)?(?:ที่ใช้ในการจดทะเบียน|ในการจดทะเบียน)?\s*(?:คือ|เป็นจำนวนเงิน|เท่ากับ)?\s*([0-9,]+(?:\.[0-9]+)?)\s*บาท/
+      );
+      if (tAppraisalMatch) {
+        officialAppraisalAmt = Number(tAppraisalMatch[1].replace(/,/g, ""));
+      } else {
+        const tAppAmt = tAmounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))?.amount;
+        if (tAppAmt !== undefined) officialAppraisalAmt = tAppAmt;
+      }
+      if (/ยังไม่ทราบราคาประเมินทุนทรัพย์/.test(turnText)) {
+        officialAppraisalAmt = null;
+      }
+
+      if (/สินสมรส|ซื้อที่ดิน[^\n]{0,30}ร่วมกันระหว่างสมรส|สามีภริยาที่จดทะเบียนสมรส/.test(turnText)) {
+        isMaritalCoOwned = true;
+      }
+      if (/ได้มาโดยทางมรดก|รับมรดก|ได้มาจากการให้โดยเสน่หา/.test(turnText)) {
+        acquisitionMethod = "INHERITANCE_OR_GIFT";
+      } else if (/ซื้อที่ดิน(?:แปลงหนึ่ง)?(?:มา|ร่วมกัน)|ได้มาโดยการซื้อ|ซื้อมาจาก/.test(turnText)) {
+        acquisitionMethod = "OTHER_PURCHASE";
+      } else if (/ไม่ทราบว่า[^\n]{0,35}ได้(?:ที่ดิน|ห้องชุด|อาคาร|อสังหา)[^\n]{0,20}มา(?:อย่างไร|ด้วยวิธีใด)/.test(turnText)) {
+        acquisitionMethod = null;
+      }
+      const tHoldMatch = turnText.match(/ถือครอง(?:มา|ไว้|นาน|เกิน)?\s*([0-9]+)\s*ปี/);
+      if (tHoldMatch) holdingYears = Number(tHoldMatch[1]);
+    }
 
     if (isImmovable) {
       controlling.add("prov.th.rc.41_ทวิ");
       controlling.add("prov.th.rc.49_ทวิ");
       controlling.add("prov.th.rc.50");
+      if (recipientRole === "LEGITIMATE_CHILD") {
+        controlling.add("work.th.rd.gk_0702_3889_2022_0d0a6d5b");
+      } else {
+        controlling.add("prov.th.rc.54");
+        controlling.add("work.th.rd.0702_5958_2015_04f2b49f");
+        if (isMaritalCoOwned) {
+          controlling.add("work.th.rd.gk_0702_3889_2022_0d0a6d5b");
+        }
+      }
     }
 
-    // Step 2: Detect whose tax the active prompt is asking about (Recipient vs Donor vs Both)
+    // Detect whose tax the ACTIVE turn is asking about (Recipient vs Donor vs Both)
     const asksRecipientTax =
-      /(?:ภาษี(?:เงินได้)?ของ(?:ผู้รับโอน|ผู้รับ|หลานสาว|หลานชาย|หลาน|บุตรบุญธรรม|บุตร|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส|สามี|ภริยา|เพื่อน|นาย[^\s]{1,20}|นางสาว[^\s]{1,20})|ผู้รับโอน[^\n]{0,25}(?:เสียภาษี|รับภาระภาษี)|หลาน(?:สาว|ชาย)?[^\n]{0,25}(?:เสียภาษี|ยกเว้นภาษี|เปลี่ยนอย่างไร|มีภาระภาษี)|เงินได้ของ(?:บุตร|หลาน|ผู้รับ)|ต้องเสียภาษีเงินได้อย่างไร)/.test(
+      /(?:ภาษี(?:เงินได้)?(?:บุคคลธรรมดา)?ของ(?:ผู้รับโอน|ผู้รับเงิน|ผู้รับ|หลานสาว|หลานชาย|หลาน|บุตรบุญธรรม|บุตร|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|มารดา|บิดา|เพื่อน|คู่สมรส|สามี|ภริยา|นาย[^\s]{1,20}|นางสาว[^\s]{1,20})|ผู้รับ(?:โอน|เงิน)[^\n]{0,25}(?:เสียภาษี|รับภาระภาษี|ต้องเสียภาษี)|หลาน(?:สาว|ชาย)?[^\n]{0,25}(?:เสียภาษี|ยกเว้นภาษี|เปลี่ยนอย่างไร|มีภาระภาษี)|เงินได้ของ(?:บุตร|หลาน|ผู้รับ)|ต้องเสียภาษีเงินได้อย่างไร|ต้องเสียภาษีเงินได้บุคคลธรรมดาหรือไม่)/.test(
         activeClean
       );
     const asksDonorTax =
-      /(?:ภาษี(?:เงินได้)?ของ(?:ผู้โอน|ผู้ให้|บิดา|มารดา|พ่อ|แม่|ปู่|ย่า|ตา|ยาย|ลุง|ป้า|น้า|อา)|ผู้โอน[^\n]{0,25}(?:เสียภาษี|หักภาษี|ต้องหัก)|ต้องหักภาษี\s*ณ\s*ที่จ่าย)/.test(
+      /(?:ภาษี(?:เงินได้|หัก\s*ณ\s*ที่จ่าย)?ของ(?:ผู้โอน|ผู้ให้|บิดา|มารดา|พ่อ|แม่|ปู่|ย่า|ตา|ยาย|ลุง|ป้า|น้า|อา)|ผู้โอน[^\n]{0,30}(?:เสียภาษี|หักภาษี|ต้องหัก)|ต้องหักภาษี\s*ณ\s*ที่จ่าย|หักภาษี\s*ณ\s*ที่จ่าย\s*ณ\s*สำนักงานที่ดิน)/.test(
         activeClean
       );
     const queriedPartyFocus: "RECIPIENT" | "DONOR" | "BOTH" =
@@ -556,110 +840,16 @@ export function analyzeLegalIssuesAndFacts(params: {
           ? "DONOR"
           : "BOTH";
 
-    const mergedAmounts = parseThaiMoneyAmountsWithContext(mergedContext);
-    const valAmt =
-      amounts.find((a) => /มูลค่า|ที่ดิน|ห้องชุด|ราคา|เงินสด|จำนวน/.test(a.leftContext))?.amount ??
-      mergedAmounts.find((a) => /มูลค่า|ที่ดิน|ห้องชุด|ราคา|เงินสด|จำนวน/.test(a.leftContext))
-        ?.amount ??
-      null;
-    const officialAppraisalMatch = mergedContext.match(
-      /ราคาประเมินทุนทรัพย์(?:ของทางราชการ)?(?:ที่ใช้ในการจดทะเบียน|ในการจดทะเบียน)?\s*(?:คือ|เป็นจำนวนเงิน|เท่ากับ)?\s*([0-9,]+(?:\.[0-9]+)?)\s*บาท/
-    );
-    const officialAppraisalAmt = officialAppraisalMatch
-      ? Number(officialAppraisalMatch[1].replace(/,/g, ""))
-      : amounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))?.amount ??
-        mergedAmounts.find((a) => /ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext))
-          ?.amount ??
-        null;
-    const isMaritalCoOwned =
-      /สินสมรส|ซื้อที่ดิน[^\n]{0,30}ร่วมกันระหว่างสมรส|สามีภริยาที่จดทะเบียนสมรส/.test(
-        mergedContext
-      );
-    const acquisitionMethod: "INHERITANCE_OR_GIFT" | "OTHER_PURCHASE" | null =
-      /ได้มาโดยทางมรดก|รับมรดก|ได้มาจากการให้โดยเสน่หา/.test(mergedContext)
-        ? "INHERITANCE_OR_GIFT"
-        : /ซื้อที่ดิน(?:แปลงหนึ่ง)?(?:มา|ร่วมกัน)|ได้มาโดยการซื้อ|ซื้อมาจาก/.test(mergedContext)
-          ? "OTHER_PURCHASE"
-          : null;
-    const holdingYearsMatch = mergedContext.match(/ถือครอง(?:มา|ไว้|นาน|เกิน)?\s*([0-9]+)\s*ปี/);
-    const holdingYears = holdingYearsMatch ? Number(holdingYearsMatch[1]) : null;
-
-    // Step 3: Detect updated recipient relationship — EXPLICIT kinship ALWAYS overrides generic `หลานสาว`/`หลานชาย`!
-    const isExplicitGrandchild =
-      /บุตร(?:สาว|ชาย)?ของ(?:บุตร(?:สาว|ชาย)?|ลูก(?:สาว|ชาย)?)|หลานปู่|หลานตา|หลานย่า|หลานยาย|ผู้สืบสันดานสายตรง|ผู้สืบสันดานโดยตรง/.test(
-        activeClean
-      );
-    const isExplicitNiece =
-      !isExplicitGrandchild &&
-      /บุตร(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?|ลูก(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?|หลานลุง|หลานอา|หลานน้า|หลานป้า/.test(
-        activeClean
-      );
-    const isAmbiguousLan =
-      !isExplicitGrandchild && !isExplicitNiece && /หลานสาว|หลานชาย|หลาน/.test(activeClean);
-    const isAdopted =
-      /บุตรบุญธรรม/.test(activeClean) &&
-      !/ไม่ใช่บุตรบุญธรรม|มิใช่บุตรบุญธรรม|ไม่รวม(?:ถึง)?บุตรบุญธรรม/.test(activeClean);
-    const isSpouse =
-      !isExplicitGrandchild &&
-      !isExplicitNiece &&
-      !isAmbiguousLan &&
-      !isAdopted &&
-      /(?:ให้(?:แก่)?(?:คู่สมรส|สามี|ภริยา|ภรรยา)|ผู้รับโอน[^\n]{0,25}(?:เป็น|คือ)\s*(?:คู่สมรส|สามี|ภริยา|ภรรยา))/.test(
-        activeClean
-      );
-    const isOtherCollateralOrThirdParty =
-      !isExplicitGrandchild &&
-      !isExplicitNiece &&
-      !isAmbiguousLan &&
-      !isAdopted &&
-      !isSpouse &&
-      /(?:ให้(?:แก่)?(?:พี่สาว|พี่ชาย|น้องสาว|น้องชาย|เพื่อน|บุคคลภายนอก)|ผู้รับโอน[^\n]{0,25}(?:เป็น|คือ)\s*(?:พี่สาว|พี่ชาย|น้องสาว|น้องชาย|เพื่อน|บุคคลภายนอก))/.test(
-        activeClean
-      );
-    const isLegitChild =
-      !isExplicitGrandchild &&
-      !isExplicitNiece &&
-      !isAmbiguousLan &&
-      !isAdopted &&
-      !isSpouse &&
-      !isOtherCollateralOrThirdParty &&
-      /บุตรชอบด้วยกฎหมาย/.test(activeClean);
-    const isCeremony =
-      /งานสมรส|พิธี|ขนบธรรมเนียมประเพณี|หน้าที่ธรรมจรรยา/.test(mergedContext) &&
-      !/ไม่ได้เกี่ยวกับพิธี|มิได้เกี่ยวกับพิธี|ไม่ใช่(?:การให้ใน)?พิธี/.test(activeClean);
-
-    if (isImmovable && !isLegitChild) {
-      controlling.add("prov.th.rc.54");
-    }
-
-    if (
-      (isImmovable || valAmt !== null) &&
-      (isExplicitGrandchild ||
-        isExplicitNiece ||
-        isAmbiguousLan ||
-        isLegitChild ||
-        isAdopted ||
-        isSpouse ||
-        isOtherCollateralOrThirdParty)
-    ) {
+    if ((isImmovable || valAmt !== null) && recipientRole !== null) {
       calcs.push(
         verifyComprehensiveGiftTaxCalculation({
           isImmovableProperty: isImmovable,
+          assetLabelTh,
+          recipientDisplayTh,
+          occasionLabelTh,
           isMaritalCoOwnedProperty: isMaritalCoOwned,
           queriedPartyFocus,
-          recipientRole: isExplicitGrandchild
-            ? "EXPLICIT_LINEAL_GRANDCHILD"
-            : isExplicitNiece
-              ? "EXPLICIT_COLLATERAL_NIECE"
-              : isAmbiguousLan
-                ? "AMBIGUOUS_LAN_OR_NIECE"
-                : isAdopted
-                  ? "ADOPTED_CHILD"
-                  : isSpouse
-                    ? "SPOUSE"
-                    : isOtherCollateralOrThirdParty
-                      ? "NON_LINEAL_RELATIVE_OR_THIRD_PARTY"
-                      : "LEGITIMATE_CHILD",
+          recipientRole,
           isCeremonyOrCustomOrMoralDuty: isCeremony,
           transferValueBaht: valAmt,
           officialAppraisedValueBaht: officialAppraisalAmt,
@@ -686,58 +876,140 @@ export function analyzeLegalIssuesAndFacts(params: {
     }
   }
 
-  // --- Regime H: VAT Rate (`7%` domestic / `807` expiry / `0%` export of service vs used in Thailand) ---
+  // --- Regime H: VAT Rate (`7%` domestic / `807` expiry / `0%` export of service vs goods vs used in Thailand + §78/1 tax point) ---
   const asksVatRate =
     !asksVatRegistration &&
-    (/(?:คิด\s*VAT\s*กี่ร้อยละ|VAT\s*ร้อยละ\s*7\s*หรือ\s*ร้อยละ\s*0|อัตรา\s*VAT|ความรับผิดใน\s*VAT[\s\S]{0,80}อัตรา(?:ที่ต้องใช้เป็น)?เท่าใด|พระราชกฤษฎีกาฉบับที่\s*807|เสียภาษีมูลค่าเพิ่มอัตราร้อยละ)/i.test(
+    (/(?:คิด\s*VAT\s*กี่ร้อยละ|VAT\s*ร้อยละ\s*7\s*หรือ\s*ร้อยละ\s*0|อัตรา\s*VAT|อัตราภาษีมูลค่าเพิ่ม|เรียกเก็บภาษีมูลค่าเพิ่ม(?:ในอัตรา|อัตรา)?|คิดภาษีมูลค่าเพิ่ม(?:ในอัตรา|อัตรา)?|เสียภาษีมูลค่าเพิ่ม(?:ในอัตรา|อัตราร้อยละ)|ความรับผิดใน(?:ภาษีมูลค่าเพิ่ม|\s*VAT)[\s\S]{0,80}อัตรา(?:ที่ต้องใช้เป็น)?เท่าใด|พระราชกฤษฎีกา(?:ฉบับที่|\s*\(ฉบับที่)\s*(?:799|807)|ภาษีมูลค่าเพิ่ม[\s\S]{0,120}(?:อัตราเท่าใด|ร้อยละ\s*7|ร้อยละ\s*0|กฎหมายฉบับใด))/i.test(
       mergedContext
     ) && !/สำนักงานเศรษฐกิจและการค้าของต่างประเทศ/.test(activeClean));
 
   if (asksVatRate) {
     regimes.add("VAT_RATE");
-    const isUsedInThailandNow =
-      /(?:ใช้ที่สาขา(?:กรุงเทพ|ในไทย|ในประเทศไทย)|ใช้บริการ(?:นั้น)?ในประเทศไทย|ถูกใช้ในไทย|ถูกใช้ที่สาขากรุงเทพ)/.test(
-        activeClean
-      );
-    const isExportServiceAbroadNow =
-      !isUsedInThailandNow &&
-      /(?:ใช้บริการนั้นทั้งหมดที่สำนักงานใน(?:สิงคโปร์|ต่างประเทศ)|ใช้บริการในต่างประเทศทั้งหมด|ใช้ในต่างประเทศเพียงอย่างเดียว)/.test(
-        activeClean
-      );
 
-    if (isExportServiceAbroadNow) {
+    // Turn-by-turn VAT transaction classification & place-of-use reducer
+    let vatTxKind:
+      | "EXPORT_GOODS"
+      | "EXPORT_SERVICE_ABROAD"
+      | "CROSS_BORDER_SERVICE_USED_IN_THAILAND"
+      | "DOMESTIC_SERVICE"
+      | "DOMESTIC_SALE"
+      | null = null;
+    let hadForeignClient = false;
+
+    for (const turnText of userTurnsCleaned) {
+      const mentionsForeignClient =
+        /(?:บริษัท(?:ลูกค้า)?ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐ|จีน|ยุโรป|เยอรมนี|อังกฤษ|มาเลเซีย|เวียดนาม|เกาหลี)|ลูกค้า(?:ใน)?ต่างประเทศ|ลูกค้าญี่ปุ่น|ลูกค้าสิงคโปร์)/.test(
+          turnText
+        );
+      if (mentionsForeignClient) hadForeignClient = true;
+
+      const turnUsedInThailand =
+        /(?:ใช้(?:บริการ(?:นั้น|ดังกล่าว)?)?(?:ทั้งหมด)?(?:ที่สาขา[^\n]{0,30}(?:กรุงเทพ|ชลบุรี|ในไทย|ประเทศไทย)|ในประเทศไทย|ในไทย)|ถูกใช้(?:ที่สาขา|ในไทย|ในประเทศไทย)|บริษัทลูกค้าในกรุงเทพมหานคร|ลูกค้าในประเทศไทย)/.test(
+          turnText
+        );
+      const turnUsedEntirelyAbroad =
+        !turnUsedInThailand &&
+        /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?ทั้งหมดที่สำนักงานใน(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐ|อังกฤษ|มาเลเซีย|เวียดนาม)|ใช้บริการในต่างประเทศทั้งหมด|ใช้ในต่างประเทศเพียงอย่างเดียว|นำไปใช้ในต่างประเทศทั้งหมด)/.test(
+          turnText
+        );
+      const turnIsExportGoods =
+        /ส่งออกสินค้า|ส่งออก[^\n]{0,20}ไปต่างประเทศ/.test(turnText) &&
+        !/ให้บริการ|ค่าบริการ|ซอฟต์แวร์|ที่ปรึกษา|ออกแบบระบบ/.test(turnText);
+      const turnIsDomesticSale =
+        /ขายสินค้าในราชอาณาจักร|ส่งมอบสินค้าในราชอาณาจักร/.test(turnText) &&
+        !/ให้บริการ/.test(turnText);
+      const turnIsService = /ให้บริการ|ค่าบริการ|ซอฟต์แวร์|ที่ปรึกษา|ออกแบบระบบ|บำรุงรักษา/.test(turnText);
+
+      if (turnIsExportGoods) {
+        vatTxKind = "EXPORT_GOODS";
+      } else if (turnUsedEntirelyAbroad) {
+        vatTxKind = "EXPORT_SERVICE_ABROAD";
+      } else if (turnUsedInThailand) {
+        vatTxKind = hadForeignClient
+          ? "CROSS_BORDER_SERVICE_USED_IN_THAILAND"
+          : "DOMESTIC_SERVICE";
+      } else if (turnIsDomesticSale) {
+        vatTxKind = "DOMESTIC_SALE";
+      } else if (turnIsService && !vatTxKind) {
+        vatTxKind = hadForeignClient
+          ? "CROSS_BORDER_SERVICE_USED_IN_THAILAND"
+          : "DOMESTIC_SERVICE";
+      }
+    }
+
+    const { taxPointIso, explanationTh: vatTaxPointExpTh, usedSection78_1 } =
+      resolveServiceVatTaxPointFromTurns(userTurnsCleaned, eventIso);
+
+    if (usedSection78_1) {
+      controlling.add("prov.th.rc.78/1");
+    }
+
+    if (vatTxKind === "EXPORT_GOODS") {
+      controlling.add("prov.th.rc.80/1");
+      demoteRulingsBeforeIso = "2020-01-01";
+      calcs.push(
+        verifyVatRateAndAmountCalculation({
+          isExportOfGoodsOrServiceUsedEntirelyAbroad: true,
+          isExportOfGoods: true,
+          isServiceUsedInThailand: false,
+          taxPointDateIso: taxPointIso,
+          taxBaseBaht: null,
+        })
+      );
+    } else if (vatTxKind === "EXPORT_SERVICE_ABROAD") {
       controlling.add("prov.th.rc.80/1");
       controlling.add("subreg.th.rd.dg_vat.105");
+      demoteRulingsBeforeIso = "2020-01-01";
       calcs.push(
         verifyVatRateAndAmountCalculation({
           isExportOfGoodsOrServiceUsedEntirelyAbroad: true,
           isServiceUsedInThailand: false,
-          taxPointDateIso: eventIso,
+          taxPointDateIso: taxPointIso,
+          taxPointExplanationTh: vatTaxPointExpTh,
           taxBaseBaht: null,
         })
       );
-    } else if (isUsedInThailandNow || /ขายสินค้าในราชอาณาจักร|ส่งมอบสินค้าในราชอาณาจักร|ความรับผิดใน\s*VAT/i.test(mergedContext)) {
+    } else if (
+      vatTxKind === "CROSS_BORDER_SERVICE_USED_IN_THAILAND" ||
+      vatTxKind === "DOMESTIC_SERVICE" ||
+      vatTxKind === "DOMESTIC_SALE" ||
+      /ขายสินค้าในราชอาณาจักร|ส่งมอบสินค้าในราชอาณาจักร|ความรับผิดใน\s*VAT/i.test(mergedContext)
+    ) {
+      const isCrossBorderThai = vatTxKind === "CROSS_BORDER_SERVICE_USED_IN_THAILAND";
+      const isDomesticSvc = vatTxKind === "DOMESTIC_SERVICE";
       controlling.add("prov.th.rc.80");
-      if (eventIso && eventIso >= "2025-10-01" && eventIso <= "2026-09-30") {
-        controlling.add("subreg.th.rc.royal_decree.799");
-      } else if (eventIso && eventIso >= "2026-10-01") {
-        controlling.add("subreg.th.rc.royal_decree.807");
-      } else {
-        controlling.add("subreg.th.rc.royal_decree.799");
-        controlling.add("subreg.th.rc.royal_decree.807");
-      }
       controlling.add("subreg.th.rd.vat_local_tax_guide");
-      if (isUsedInThailandNow) {
+      if (isCrossBorderThai) {
         controlling.add("prov.th.rc.77/2");
         controlling.add("prov.th.rc.80/1");
         controlling.add("subreg.th.rd.dg_vat.105");
+      } else if (isDomesticSvc) {
+        controlling.add("prov.th.rc.77/2");
       }
+
+      if (!taxPointIso) {
+        controlling.add("prov.th.rc.78/1");
+        controlling.add("subreg.th.rc.royal_decree.799");
+        controlling.add("subreg.th.rc.royal_decree.807");
+        missingQuestions.push(
+          "กรุณาระบุวันเกิดความรับผิดในการเสียภาษีมูลค่าเพิ่ม (tax point ตามมาตรา 78/1 (1) ได้แก่ วันที่ได้รับชำระราคาค่าบริการ วันที่ออกใบกำกับภาษี หรือวันที่ใช้บริการ แล้วแต่วันใดเกิดก่อน) เพื่อระบุพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่ใช้บังคับตรงตามช่วงเวลาโดยไม่คาดเดา"
+        );
+      } else if (taxPointIso >= "2025-10-01" && taxPointIso <= "2026-09-30") {
+        controlling.add("subreg.th.rc.royal_decree.799");
+      } else if (taxPointIso >= "2026-10-01") {
+        controlling.add("subreg.th.rc.royal_decree.807");
+      }
+      // Note: For historical dates < 2025-10-01 (e.g., 2025-09-30), intentionally DO NOT add RD 799 or RD 807 as governing authority!
+
       demoteRulingsBeforeIso = "2020-01-01";
       calcs.push(
         verifyVatRateAndAmountCalculation({
           isExportOfGoodsOrServiceUsedEntirelyAbroad: false,
-          isServiceUsedInThailand: isUsedInThailandNow,
-          taxPointDateIso: eventIso,
+          isServiceUsedInThailand: isCrossBorderThai || isDomesticSvc,
+          isCrossBorderServiceUsedInThailand: isCrossBorderThai,
+          isDomesticService: isDomesticSvc,
+          taxPointDateIso: taxPointIso,
+          taxPointExplanationTh: vatTaxPointExpTh,
           taxBaseBaht: null,
         })
       );

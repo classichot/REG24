@@ -45,18 +45,13 @@ export default function LegalTeamReviewStudioPage() {
   const [spotcheckCases, setSpotcheckCases] = useState<SpotcheckCaseItem[]>([]);
   const [activeSpotcheckId, setActiveSpotcheckId] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<"all" | ChallengingScenarioCategory>("all");
-  const [activeScenario, setActiveScenario] = useState<ChallengingTaxScenario | null>(
-    CHALLENGING_THAI_TAX_SCENARIOS[0]
-  );
+  const [activeScenario, setActiveScenario] = useState<ChallengingTaxScenario | null>(null);
 
-  // Query & Multi-turn conversation state
-  const [question, setQuestion] = useState<string>(CHALLENGING_THAI_TAX_SCENARIOS[0].question_th);
-  const [asOfDate, setAsOfDate] = useState<string>(
-    CHALLENGING_THAI_TAX_SCENARIOS[0].as_of_date || ""
-  );
-  const [queryMode, setQueryMode] = useState<"standard" | "exact_lookup" | "comparison">(
-    CHALLENGING_THAI_TAX_SCENARIOS[0].mode || "standard"
-  );
+  // Query & Multi-turn conversation state — start clean (NEVER pre-seed a stale scenario or date like 2025-06-15!)
+  const [question, setQuestion] = useState<string>("");
+  const [asOfDate, setAsOfDate] = useState<string>("");
+  const [asOfDateSetByPreset, setAsOfDateSetByPreset] = useState<boolean>(false);
+  const [queryMode, setQueryMode] = useState<"standard" | "exact_lookup" | "comparison">("standard");
   const createFreshConversationId = () =>
     `conv.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 8)}`;
 
@@ -66,6 +61,10 @@ export default function LegalTeamReviewStudioPage() {
   const [conversationHistory, setConversationHistory] = useState<ConversationTurnInput[]>([]);
   const [attachedDocIds, setAttachedDocIds] = useState<string[]>([]);
   const [attachmentSummary, setAttachmentSummary] = useState<string | null>(null);
+
+  // CW2 Reopen Saved Revision State (works immediately on fresh page load / refresh without running a new query!)
+  const [reopenRevInput, setReopenRevInput] = useState<string>("");
+  const [reopenBusy, setReopenBusy] = useState<boolean>(false);
 
   // Official Law Attachment Form State
   const [showAttachmentForm, setShowAttachmentForm] = useState<boolean>(false);
@@ -162,9 +161,134 @@ export default function LegalTeamReviewStudioPage() {
     }
   }, [buildHeaders]);
 
+  const buildGroundedAnswerFromEnvelope = useCallback(
+    (env: TraceableAnswerEnvelope): GroundedAnswer => {
+      const seenEv = new Set<string>();
+      const evidenceCards: GroundedAnswer["evidence"] = [];
+      for (const clm of env.claims) {
+        for (const ref of clm.evidence_references) {
+          if (seenEv.has(ref.evidence_id)) continue;
+          seenEv.add(ref.evidence_id);
+          evidenceCards.push({
+            passage_id: ref.evidence_id,
+            work_id: ref.doc_id,
+            version_id: ref.version_id,
+            official_identifier: ref.citation_label_th,
+            title_th: ref.citation_label_th,
+            authority_type:
+              ref.source_family === "revenue_department_ruling"
+                ? "TaxRuling"
+                : ref.source_family === "supreme_court_decision"
+                  ? "CourtDecision"
+                  : ref.source_family === "council_of_state_opinion"
+                    ? "CouncilOfStateOpinion"
+                    : "Statute",
+            authenticity_status: "verified_corpus_mirror",
+            is_derivative: false,
+            statement_role: "statutory_text",
+            issue_or_effective_date: ref.date_relied_on,
+            raw_date_text: ref.date_relied_on,
+            exact_excerpt: ref.locator.human_pinpoint_th,
+            locator: {
+              kind: ref.locator.physical_page_start !== null ? "pdf_page" : "html_structural",
+              artifact_id: ref.version_id,
+              origin_uri: ref.official_url_with_anchor || ref.official_url,
+            },
+            related_provisions: [],
+          });
+        }
+      }
+      return {
+        release_id: env.verifier_metadata.release_id,
+        knowledge_snapshot_at: env.generated_at,
+        status:
+          env.status === "complete"
+            ? "ANSWERED"
+            : env.status === "partial"
+              ? "CONDITIONAL"
+              : "INSUFFICIENT_EVIDENCE",
+        answer: env.rendered_answer_th,
+        claims: [],
+        evidence: evidenceCards,
+        assumptions: env.assumptions,
+        clarification_questions: [],
+        coverage_warnings: [],
+        applicable_date: env.as_of_date,
+        model_policy_version: env.verifier_metadata.verifier_version,
+        trace_id: env.answer_revision,
+        latency_ms: 0,
+        traceable_answer: env,
+      };
+    },
+    []
+  );
+
+  const reopenSavedRevisionById = useCallback(
+    async (targetRevisionId?: string) => {
+      const target = (targetRevisionId ?? reopenRevInput).trim();
+      if (!target) {
+        setStatusBanner({
+          kind: "err",
+          text: "กรุณาระบุรหัสรุ่นคำตอบ (เช่น ans.trc.xxxxxxxxxxxxxx.r1) ก่อนกดเปิด",
+        });
+        return;
+      }
+      setReopenBusy(true);
+      setStatusBanner(null);
+      try {
+        const res = await fetch(`/api/v1/knowledge/answers/${encodeURIComponent(target)}`, {
+          method: "GET",
+          headers: buildHeaders(),
+        });
+        const json = await res.json();
+        if (!res.ok || !json.ok || !json.answer) {
+          setStatusBanner({
+            kind: "err",
+            text: json.error || `ไม่พบรุ่นคำตอบ ${target} (HTTP ${res.status})`,
+          });
+          return;
+        }
+        const env: TraceableAnswerEnvelope = json.answer;
+        setTraceableEnvelope(env);
+        setAnswerResult(buildGroundedAnswerFromEnvelope(env));
+        setQuestion(json.question_text || "");
+        setAsOfDate(env.as_of_date || "");
+        setAsOfDateSetByPreset(false);
+        setActiveScenario(null);
+        setActiveSpotcheckId(null);
+        setReopenRevInput(env.answer_revision);
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.set("rev", env.answer_revision);
+          window.history.replaceState({}, "", url.toString());
+        }
+        setStatusBanner({
+          kind: "ok",
+          text: `เปิดรุ่นคำตอบที่บันทึกไว้สำเร็จโดยไม่สร้างคำตอบใหม่: ${env.answer_revision} (พร้อมบันทึก/ตรวจทานผลการประเมินด้านล่าง)`,
+        });
+      } catch (err) {
+        setStatusBanner({
+          kind: "err",
+          text: err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการเปิดรุ่นคำตอบย้อนหลัง",
+        });
+      } finally {
+        setReopenBusy(false);
+      }
+    },
+    [buildHeaders, buildGroundedAnswerFromEnvelope, reopenRevInput]
+  );
+
   useEffect(() => {
     void loadFeedbackHistory();
-  }, [loadFeedbackHistory]);
+    if (typeof window !== "undefined") {
+      const revFromUrl = new URLSearchParams(window.location.search).get("rev");
+      if (revFromUrl && revFromUrl.trim()) {
+        setReopenRevInput(revFromUrl.trim());
+        void reopenSavedRevisionById(revFromUrl.trim());
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selectScenario = (sc: ChallengingTaxScenario) => {
     setReviewModeTab("challenging");
@@ -172,6 +296,7 @@ export default function LegalTeamReviewStudioPage() {
     setActiveScenario(sc);
     setQuestion(sc.question_th);
     setAsOfDate(sc.as_of_date || "");
+    setAsOfDateSetByPreset(Boolean(sc.as_of_date));
     setQueryMode(sc.mode || "standard");
     setConversationId(createFreshConversationId());
     setConversationHistory([]);
@@ -204,6 +329,7 @@ export default function LegalTeamReviewStudioPage() {
     setActiveScenario(null);
     setQuestion(sc.question);
     setAsOfDate(sc.applicable_date || "");
+    setAsOfDateSetByPreset(Boolean(sc.applicable_date));
     setQueryMode(sc.mode || "standard");
     setConversationId(createFreshConversationId());
     setConversationHistory([]);
@@ -223,6 +349,7 @@ export default function LegalTeamReviewStudioPage() {
     setActiveScenario(null);
     setQuestion("");
     setAsOfDate("");
+    setAsOfDateSetByPreset(false);
     setQueryMode("standard");
     setConversationId(createFreshConversationId());
     setConversationHistory([]);
@@ -233,9 +360,14 @@ export default function LegalTeamReviewStudioPage() {
     setTraceableEnvelope(null);
     setCheckedOriginalSource(false);
     setCommentsTh("");
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("rev");
+      window.history.replaceState({}, "", url.toString());
+    }
     setStatusBanner({
       kind: "info",
-      text: "โหมดตั้งคำถามใหม่นอกระบบ (Unseen Question): กรอกโจทย์ภาษีไทยหรืออังกฤษที่ซับซ้อนและไม่เคยอยู่ในระบบ เพื่อทดสอบการให้เหตุผล รุ่นกฎหมาย และการปฏิเสธเมื่อหลักฐานไม่พอ",
+      text: "เริ่มเคสใหม่สะอาด (Clean Session): ล้างโจทย์ วันที่ (As-of Date) และประวัติบทสนทนาเดิมเรียบร้อยแล้ว",
     });
   };
 
@@ -288,27 +420,52 @@ export default function LegalTeamReviewStudioPage() {
     }
   };
 
-  const runQuery = async (overrideQuestion?: string, overrideDate?: string | null, appendFollowUp?: boolean) => {
+  const runQuery = async (
+    overrideQuestion?: string,
+    overrideDate?: string | null,
+    appendFollowUp?: boolean,
+    syntheticFixture?: "RC1_REJECTED_CALC" | null
+  ) => {
     const qToRun = (overrideQuestion ?? question).trim();
     if (!qToRun) return;
 
-    const dateToRun =
-      overrideDate !== undefined ? overrideDate : asOfDate.trim() ? asOfDate.trim() : null;
+    // Prevent stale preset as_of_date contamination on fresh custom prompts (T03 fix):
+    // If a preset seeded asOfDate and the user replaced the prompt with a different case on a New Query,
+    // clear the stale preset date automatically unless manually entered!
+    const presetQuestionText =
+      activeScenario?.question_th ||
+      spotcheckCases.find((c) => c.spotcheck_id === activeSpotcheckId)?.question ||
+      null;
+    const promptChangedFromPreset =
+      Boolean(presetQuestionText) && qToRun !== presetQuestionText!.trim();
+    const effectiveRawDate =
+      overrideDate !== undefined
+        ? overrideDate
+        : !appendFollowUp && asOfDateSetByPreset && promptChangedFromPreset
+          ? null
+          : asOfDate.trim()
+            ? asOfDate.trim()
+            : null;
+    const dateToRun = effectiveRawDate;
 
     setQueryBusy(true);
     setStatusBanner(null);
     setCheckedOriginalSource(false);
 
-    const looksLikeExplicitFollowUp =
-      conversationHistory.length > 0 &&
-      /^(?:ข้อมูลเพิ่มเติม|ข้อเท็จจริงเปลี่ยน|คำถามต่อเนื่อง|ต่อจากข้อ|หากเปลี่ยน|ถ้าเปลี่ยน|สมมติเปลี่ยน|\bfollow[- ]?up\b|\badditional\s+facts?\b|\bchanged\s+facts?\b)/i.test(
-        qToRun
-      );
-    const isFollowUpCall = Boolean(appendFollowUp || looksLikeExplicitFollowUp);
+    // Clicking "▶ รันคำถามใหม่ (New Query)" (appendFollowUp === false) MUST ALWAYS start a fresh case with zero prior history!
+    const isFollowUpCall = Boolean(appendFollowUp);
     const historyForCall = isFollowUpCall ? conversationHistory : [];
     const activeConvId = isFollowUpCall ? conversationId : createFreshConversationId();
     if (!isFollowUpCall) {
       setConversationId(activeConvId);
+      if (promptChangedFromPreset) {
+        setActiveScenario(null);
+        setActiveSpotcheckId("UNSEEN-CUSTOM");
+        if (asOfDateSetByPreset) {
+          setAsOfDate("");
+          setAsOfDateSetByPreset(false);
+        }
+      }
     }
     const priorSavedTurn = isFollowUpCall
       ? [...historyForCall]
@@ -330,6 +487,7 @@ export default function LegalTeamReviewStudioPage() {
           prior_saved_answer_revision: priorSavedTurn?.saved_answer_revision ?? null,
           conversation_history: historyForCall,
           attachment_doc_ids: attachedDocIds,
+          qa_synthetic_fixture: syntheticFixture ?? null,
         }),
       });
       const json = await res.json();
@@ -356,6 +514,14 @@ export default function LegalTeamReviewStudioPage() {
           ? env.answer_revision
           : null;
       const savedAnsId = savedRev && env ? env.answer_id : null;
+      if (savedRev) {
+        setReopenRevInput(savedRev);
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.set("rev", savedRev);
+          window.history.replaceState({}, "", url.toString());
+        }
+      }
 
       setConversationHistory([
         ...historyForCall,
@@ -794,8 +960,73 @@ export default function LegalTeamReviewStudioPage() {
             )}
           </aside>
 
-          {/* Right Column: Query Runner, Attachment Verifier, Answer & Claim Traceability, Feedback Form */}
+          {/* Right Column: Reopen Saved Revision (CW2), Query Runner, Attachment Verifier, Answer & Traceability, Feedback Form */}
           <main style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            {/* CW2: Always-visible Reopen Saved Revision Bar (works immediately on fresh page load / refresh without generating a new answer) */}
+            <div
+              style={{
+                background: "#11151c",
+                border: "1px solid #2b3544",
+                padding: "10px 14px",
+                display: "flex",
+                flexWrap: "wrap",
+                gap: "8px",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div style={{ fontSize: "12px", fontWeight: 700, color: "#93c5fd" }}>
+                📂 เปิดรุ่นคำตอบที่บันทึกไว้เพื่อตรวจทาน/บันทึกผล (Reopen Saved Revision — ไม่สร้างคำตอบใหม่):
+              </div>
+              <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                <input
+                  type="text"
+                  value={reopenRevInput}
+                  onChange={(e) => setReopenRevInput(e.target.value)}
+                  placeholder="ระบุรหัสรุ่น เช่น ans.trc.xxxxxxxxxxxxxx.r1"
+                  style={{
+                    background: "#0b0d10",
+                    color: "#f9fafb",
+                    border: "1px solid #374151",
+                    padding: "5px 8px",
+                    fontSize: "12px",
+                    minWidth: "240px",
+                    fontFamily: "ui-monospace, monospace",
+                  }}
+                />
+                <button
+                  type="button"
+                  disabled={reopenBusy}
+                  onClick={() => void reopenSavedRevisionById()}
+                  style={{
+                    background: "#1d4ed8",
+                    color: "#fff",
+                    border: "none",
+                    padding: "6px 12px",
+                    fontSize: "12px",
+                    fontWeight: 700,
+                    cursor: "pointer",
+                  }}
+                >
+                  {reopenBusy ? "กำลังเปิดรุ่นคำตอบ..." : "เปิดรุ่นคำตอบเดิม (Reopen)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={startFreeFormUnseenQuestion}
+                  style={{
+                    background: "#1e293b",
+                    color: "#e2e8f0",
+                    border: "1px solid #475569",
+                    padding: "6px 10px",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  🧹 ล้างโจทย์และวันที่ (New Clean Case)
+                </button>
+              </div>
+            </div>
+
             {/* Scenario Context Box */}
             {activeScenario ? (
               <div
@@ -1025,7 +1256,10 @@ export default function LegalTeamReviewStudioPage() {
                     type="text"
                     placeholder="YYYY-MM-DD (ถ้ามี)"
                     value={asOfDate}
-                    onChange={(e) => setAsOfDate(e.target.value)}
+                    onChange={(e) => {
+                      setAsOfDate(e.target.value);
+                      setAsOfDateSetByPreset(false);
+                    }}
                     style={{
                       background: "#0b0d10",
                       color: "#f9fafb",
@@ -1088,6 +1322,33 @@ export default function LegalTeamReviewStudioPage() {
                     }}
                   >
                     ↪ ถามต่อเนื่องจากบทสนทนาเดิม ({conversationHistory.length / 2} รอบ)
+                  </button>
+                ) : null}
+
+                {envInfo?.environment_scope === "staging" ? (
+                  <button
+                    type="button"
+                    disabled={queryBusy}
+                    onClick={() =>
+                      void runQuery(
+                        "บริษัท นอร์ทสตาร์ โซลูชันส์ จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่มในประเทศไทย ให้บริการที่ปรึกษาด้านระบบสารสนเทศแก่บริษัทลูกค้าในกรุงเทพมหานคร ซึ่งใช้บริการทั้งหมดในประเทศไทย โดยออกใบกำกับภาษีและได้รับชำระค่าบริการครบถ้วนในวันที่ 15 มีนาคม 2569 ต้องเรียกเก็บภาษีมูลค่าเพิ่มในอัตราเท่าใด และตามกฎหมายฉบับใด",
+                        null,
+                        false,
+                        "RC1_REJECTED_CALC"
+                      )
+                    }
+                    title="QA Staging Fixture (RC1): ส่งการคำนวณจำลองที่ไม่ผ่านการตรวจสอบหลักฐานเข้าสู่ Verifier จริง เพื่อยืนยันว่าตัวเลขและขั้นตอนที่ถูกปฏิเสธจะไม่หลุดออกใน UI, API หรือรุ่นคำตอบที่บันทึก"
+                    style={{
+                      background: "#4c1d95",
+                      color: "#f5f3ff",
+                      border: "1px solid #7c3aed",
+                      padding: "8px 12px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: "pointer",
+                    }}
+                  >
+                    🧪 ทดสอบ RC1: จำลองการคำนวณที่ถูก Verifier ปฏิเสธ
                   </button>
                 ) : null}
               </div>
@@ -1223,7 +1484,14 @@ export default function LegalTeamReviewStudioPage() {
                     questionText={question}
                     onReopenedEnvelope={(reopened: TraceableAnswerEnvelope, qText: string) => {
                       setTraceableEnvelope(reopened);
+                      setAnswerResult(buildGroundedAnswerFromEnvelope(reopened));
+                      setReopenRevInput(reopened.answer_revision);
                       if (qText) setQuestion(qText);
+                      if (typeof window !== "undefined") {
+                        const url = new URL(window.location.href);
+                        url.searchParams.set("rev", reopened.answer_revision);
+                        window.history.replaceState({}, "", url.toString());
+                      }
                       setStatusBanner({
                         kind: "ok",
                         text: `เปิดรุ่นคำตอบที่บันทึกไว้สำเร็จ: ${reopened.answer_revision}`,
@@ -1351,8 +1619,27 @@ export default function LegalTeamReviewStudioPage() {
                       >
                         <strong>{fb.verdict}</strong> · ผู้ตรวจ: <strong>{fb.reviewer_name}</strong>{" "}
                         · โจทย์: <code>{fb.scenario_id || "Custom"}</code> · รุ่นคำตอบ:{" "}
-                        <code>{fb.answer_revision_id || "-"}</code> · เวลา:{" "}
-                        <span>{fb.recorded_at}</span>
+                        <code>{fb.answer_revision_id || "-"}</code>
+                        {fb.answer_revision_id ? (
+                          <>
+                            {" "}
+                            <button
+                              type="button"
+                              onClick={() => void reopenSavedRevisionById(fb.answer_revision_id!)}
+                              style={{
+                                background: "#1e293b",
+                                color: "#93c5fd",
+                                border: "1px solid #334155",
+                                padding: "2px 6px",
+                                fontSize: "11px",
+                                cursor: "pointer",
+                              }}
+                            >
+                              📂 เปิดรุ่นนี้
+                            </button>
+                          </>
+                        ) : null}{" "}
+                        · เวลา: <span>{fb.recorded_at}</span>
                         {fb.comments_th ? (
                           <div style={{ color: "#cbd5e1", marginTop: "3px" }}>{fb.comments_th}</div>
                         ) : null}

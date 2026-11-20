@@ -34,6 +34,7 @@ export async function POST(req: Request) {
       channel?: TraceablePublicationChannel;
       persist_answer?: boolean;
       stream?: boolean;
+      qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
     };
 
     if (!body.question || typeof body.question !== "string" || !body.question.trim()) {
@@ -59,6 +60,8 @@ export async function POST(req: Request) {
         prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
         attachment_doc_ids: body.attachment_doc_ids,
         enable_tax_foundation_pilot: false,
+        qa_synthetic_fixture:
+          process.env.VERCEL_ENV !== "production" ? body.qa_synthetic_fixture ?? null : null,
       },
       actor,
       {

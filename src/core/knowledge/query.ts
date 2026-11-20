@@ -15,6 +15,8 @@ import {
   CLAIM_VERIFIER_VERSION,
   getUnifiedCitationLedgerView,
   hydratePostgresSourcesIntoStore,
+  isNavigationOrBoilerplatePassageText,
+  resolveVerifiedOfficialUrlForDoc,
   tryAnswerFromOnboardedCitationSources,
 } from "./claim-traceability-engine";
 import type { TraceablePublicationChannel } from "./citation-contracts";
@@ -66,7 +68,7 @@ function reassembleOrderedSectionUnits(
   actor: Actor
 ): Passage[] {
   const sectionPrefix = seed.structural_path.slice(0, -1).join(" > ");
-  const units = releasePassages
+  const rawUnits = releasePassages
     .filter(
       (p) =>
         p.work_id === seed.work_id &&
@@ -81,7 +83,105 @@ function reassembleOrderedSectionUnits(
         extractPassageUnitIndex(a) - extractPassageUnitIndex(b) ||
         a.passage_id.localeCompare(b.passage_id)
     );
-  return units.length > 0 ? units : [seed];
+  const nonBoilerplate = rawUnits.filter((u) => !isNavigationOrBoilerplatePassageText(u.exact_text));
+  if (nonBoilerplate.length > 0) return nonBoilerplate;
+  return rawUnits.length > 0 ? rawUnits : [seed];
+}
+
+/**
+ * Narrows supporting passage chunks of large multi-chunk statutes/schedules (e.g., §42, §48, §50,
+ * Stamp Duty Schedule, RD 342, DG VAT 105) to ONLY the chunks relevant to the cited clauses in the
+ * claim, preventing unrelated subsections (e.g., travel allowances, rice farmers, land lease/guarantee)
+ * or website navigation chunks from polluting supporting evidence.
+ */
+function selectRelevantPassagesForClaimWork(
+  workId: string,
+  candidates: Passage[],
+  claimStatementTh: string
+): Passage[] {
+  const clean = candidates.filter((p) => !isNavigationOrBoilerplatePassageText(p.exact_text));
+  const pool = clean.length > 0 ? clean : candidates;
+  if (pool.length <= 1) return pool;
+
+  const patterns: RegExp[] = [];
+  if (workId === "prov.th.rc.42") {
+    if (/\(26\)|26/.test(claimStatementTh)) patterns.push(/\(26\)/);
+    if (/\(27\)|27/.test(claimStatementTh)) patterns.push(/\(27\)/);
+    if (/\(28\)|28/.test(claimStatementTh)) patterns.push(/\(28\)/);
+    if (/\(10\)|มรดก/.test(claimStatementTh)) patterns.push(/\(10\)/);
+  } else if (workId === "prov.th.rc.48") {
+    if (/\(4\/1\)|4\/1/.test(claimStatementTh)) patterns.push(/\(4\/1\)/);
+    if (/\(6\)/.test(claimStatementTh)) patterns.push(/\(6\)/);
+    if (/\(7\)/.test(claimStatementTh)) patterns.push(/\(7\)/);
+    if (/\(4\)/.test(claimStatementTh)) patterns.push(/\(4\)/);
+  } else if (workId === "prov.th.rc.50") {
+    if (/\(6\)/.test(claimStatementTh)) patterns.push(/\(6\)/);
+    if (/\(5\)/.test(claimStatementTh)) patterns.push(/\(5\)/);
+    if (/\(1\)/.test(claimStatementTh)) patterns.push(/\(1\)/);
+  } else if (workId === "prov.th.rc.40") {
+    if (/\(8\)/.test(claimStatementTh)) patterns.push(/\(8\)/);
+    if (/\(1\)|\(2\)/.test(claimStatementTh)) patterns.push(/\(1\)|\(2\)/);
+    if (/\(4\)/.test(claimStatementTh)) patterns.push(/\(4\)/);
+  } else if (workId === "sched.th.rc.stamp_duty") {
+    if (/ใบรับ|28|ขายอสังหาริมทรัพย์|โอน/.test(claimStatementTh)) patterns.push(/28\.|ใบรับ/);
+    if (/จ้างทำของ|ลักษณะแห่งตราสาร\s*4/.test(claimStatementTh)) patterns.push(/4\.\s*จ้างทำของ/);
+    if (/กู้ยืมเงิน|ลักษณะแห่งตราสาร\s*5/.test(claimStatementTh)) patterns.push(/5\.\s*กู้ยืมเงิน/);
+    if (/เช่าที่ดิน|ลักษณะแห่งตราสาร\s*1/.test(claimStatementTh)) patterns.push(/1\.\s*เช่าที่ดิน/);
+  } else if (workId === "subreg.th.rc.royal_decree.342") {
+    patterns.push(/มาตรา\s*4|\(6\)|\(ข\)|\(ค\)/);
+  } else if (workId === "subreg.th.rd.dg_vat.105") {
+    patterns.push(/ข้อ\s*2|ต่างประเทศ|ร้อยละ\s*0/);
+  }
+
+  if (patterns.length === 0) return pool;
+  const narrowed = pool.filter((p) => patterns.some((re) => re.test(p.exact_text)));
+  if (narrowed.length === 0) return pool;
+  // For multi-chunk Revenue Code sections (§40, §42, §48, §50), always retain the section-header chunk
+  // (`pool[0]`) alongside the matching subsection chunk(s) so statutory section identifiers (`มาตรา XX`)
+  // remain verifiable in the cited passages while excluding unrelated middle chunks!
+  if (workId.startsWith("prov.th.rc.")) {
+    const withHeader = [pool[0], ...narrowed.filter((p) => p.passage_id !== pool[0].passage_id)];
+    return withHeader;
+  }
+  return narrowed;
+}
+
+/**
+ * Generalized Unrelated-Ruling Rejection Guard:
+ * Prevents an unrelated TaxRuling (e.g., export of shoes for a service query, severance pay §48(5)
+ * for a family gift query, SBT ruling for a gratuitous gift, or export VAT ruling for a domestic
+ * service) from being promoted as the sole primary authority merely due to lexical keyword overlap.
+ */
+function isTaxRulingDomainIncompatibleWithQuery(
+  questionText: string,
+  rulingWorkTitle: string,
+  rulingText: string
+): boolean {
+  const q = thaiDigitsToArabic(questionText);
+  const r = `${rulingWorkTitle} ${rulingText}`;
+
+  // 1. Service query must NEVER be answered by an export-of-goods ruling (e.g. shoes/merchandise)
+  const qIsService = /ให้บริการ|ค่าบริการ|ซอฟต์แวร์|ที่ปรึกษา|ออกแบบระบบ/.test(q) && !/ส่งออกสินค้า|ส่งออกรองเท้า/.test(q);
+  const rIsGoodsExportOnly = /ส่งออกรองเท้า|ส่งออกสินค้า|ตัวอย่างสินค้า/.test(r) && !/ประกาศอธิบดี[^\n]{0,30}105|มาตรา\s*80\/1\s*\(2\)/.test(r);
+  if (qIsService && rIsGoodsExportOnly) return true;
+
+  // 2. Purely domestic service VAT query must NEVER be answered solely by a cross-border/export-service ruling
+  const qIsDomesticServiceVat =
+    /ภาษีมูลค่าเพิ่ม|VAT/i.test(q) &&
+    /ใช้บริการทั้งหมดในประเทศไทย|ลูกค้าในกรุงเทพมหานคร|ลูกค้าในประเทศไทย/.test(q) &&
+    !/ต่างประเทศ|ส่งออก|สิงคโปร์|ญี่ปุ่น|ร้อยละ\s*0/.test(q);
+  const rIsExportServiceRuling = /มาตรา\s*80\/1\s*\(2\)|ประกาศอธิบดี[^\n]{0,30}105/.test(r);
+  if (qIsDomesticServiceVat && rIsExportServiceRuling) return true;
+
+  // 3. Family gift / support transfer query must NEVER be answered by an employment severance (§48(5)) or SBT ruling
+  const qIsGiftOrSupport =
+    /(?:ให้โดยเสน่หา|โดยไม่มีค่าตอบแทน|ค่าอุปการะเลี้ยงดู|ของขวัญ|ยกที่ดิน|ยกห้องชุด|ยกอาคาร|โอนที่ดิน|โอนเงินสดให้)/.test(q) &&
+    !/ออกจากงาน|เลิกจ้าง|ค่าชดเชย|ภาษีธุรกิจเฉพาะ/.test(q);
+  const rIsSeveranceOrSbt =
+    /มาตรา\s*48\s*\(5\)|เลิกสัญญาจ้าง|เงินชดเชยตามกฎหมายแรงงาน|เพราะเหตุออกจากงาน|มาตรา\s*91\/2|ภาษีธุรกิจเฉพาะ/.test(r);
+  if (qIsGiftOrSupport && rIsSeveranceOrSbt) return true;
+
+  return false;
 }
 
 function findOrderedRequesterUnitsForWork(
@@ -139,6 +239,14 @@ function ensureEvidenceCardsForPassages(
           resolved: Boolean(targetWork || a.object_type === "Agency"),
         };
       });
+    const resolvedCardOrigin = resolveVerifiedOfficialUrlForDoc(
+      p.work_id,
+      p.real_locator.origin_uri
+    );
+    const normalizedLocator =
+      resolvedCardOrigin && resolvedCardOrigin !== p.real_locator.origin_uri
+        ? { ...p.real_locator, origin_uri: resolvedCardOrigin }
+        : p.real_locator;
     liveEvidenceCards.push({
       passage_id: p.passage_id,
       work_id: p.work_id,
@@ -154,7 +262,7 @@ function ensureEvidenceCardsForPassages(
         ver?.decision_date || ver?.publication_date || ver?.legal_applicability?.[0]?.valid_from || null,
       raw_date_text: ver?.raw_date_text || null,
       exact_excerpt: p.exact_text,
-      locator: p.real_locator,
+      locator: normalizedLocator,
       related_provisions: relatedProvisions,
     });
   }
@@ -1353,6 +1461,79 @@ async function executeCoreKnowledgeQuery(
 
     let primaryOfficial =
       singleExplicitRulingPassage || officialPassages[0] || availablePassages[0];
+    // Generalized Unrelated-Ruling Rejection Guard:
+    // If the user did NOT ask for an explicit ruling ID and the top lexical hit is a TaxRuling
+    // whose domain/transaction contradicts the user's question (e.g., export of shoes for a service,
+    // severance §48(5) for a family gift, export ruling for a purely domestic service), NEVER promote
+    // that unrelated ruling as primary authority; fall back to the controlling statutory provision instead!
+    if (!singleExplicitRulingPassage && primaryOfficial) {
+      const primWorkCheck = freshState.works[primaryOfficial.work_id];
+      if (
+        primWorkCheck?.type === "TaxRuling" &&
+        isTaxRulingDomainIncompatibleWithQuery(
+          issueAnalysis.mergedUserFactContextText || req.question,
+          primWorkCheck.title_th || "",
+          primaryOfficial.exact_text || ""
+        )
+      ) {
+        const compatibleFallback =
+          officialPassages.find((p) => {
+            const w = freshState.works[p.work_id];
+            if (p.statement_role === "statutory_text" && !p.extraction_id.startsWith("ext.dep.")) {
+              return true;
+            }
+            if (w?.type === "TaxRuling") {
+              return !isTaxRulingDomainIncompatibleWithQuery(
+                issueAnalysis.mergedUserFactContextText || req.question,
+                w.title_th || "",
+                p.exact_text || ""
+              );
+            }
+            return false;
+          }) ||
+          (issueAnalysis.controllingWorkIds.length > 0
+            ? allReleasePassages.find(
+                (p) =>
+                  issueAnalysis.controllingWorkIds.includes(p.work_id) &&
+                  (p.statement_role === "statutory_text" || p.statement_role === "official_conclusion") &&
+                  !p.extraction_id.startsWith("ext.dep.") &&
+                  !isNavigationOrBoilerplatePassageText(p.exact_text) &&
+                  isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+              )
+            : undefined);
+        if (compatibleFallback) {
+          primaryOfficial = compatibleFallback;
+        }
+      }
+    }
+    // Hierarchy of Authority: When a verified statutory calculation/application exists and the user did NOT
+    // ask for a specific ruling number, prefer the primary statutory provision (`statutory_text`) over a
+    // case-specific `TaxRuling` as `primaryOfficial` (the ruling remains attached as supporting co-authority).
+    if (
+      !singleExplicitRulingPassage &&
+      issueAnalysis.verifiedCalculations.length > 0 &&
+      primaryOfficial &&
+      freshState.works[primaryOfficial.work_id]?.type === "TaxRuling"
+    ) {
+      const statutoryPrimary =
+        officialPassages.find(
+          (p) =>
+            p.statement_role === "statutory_text" &&
+            !p.extraction_id.startsWith("ext.dep.") &&
+            issueAnalysis.controllingWorkIds.includes(p.work_id)
+        ) ||
+        allReleasePassages.find(
+          (p) =>
+            p.statement_role === "statutory_text" &&
+            !p.extraction_id.startsWith("ext.dep.") &&
+            issueAnalysis.controllingWorkIds.includes(p.work_id) &&
+            !isNavigationOrBoilerplatePassageText(p.exact_text) &&
+            isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+        );
+      if (statutoryPrimary) {
+        primaryOfficial = statutoryPrimary;
+      }
+    }
     let activeStatutoryEval: StatutoryVersionEvaluationResult | null = null;
 
     const hasVerifiedEnactedAmendmentPre2018Calc = issueAnalysis.verifiedCalculations.some(
@@ -1800,8 +1981,10 @@ async function executeCoreKnowledgeQuery(
       );
     }
 
-    const primaryOriginUri =
-      officialUnits[0]?.real_locator?.origin_uri || primaryOfficial.real_locator?.origin_uri || "";
+    const primaryOriginUri = resolveVerifiedOfficialUrlForDoc(
+      primaryOfficial.work_id,
+      officialUnits[0]?.real_locator?.origin_uri || primaryOfficial.real_locator?.origin_uri || ""
+    );
     const isConsolidatedRcHeader =
       primaryOfficial.work_id.startsWith("prov.th.rc.") ||
       primaryOfficial.work_id.startsWith("sched.th.rc.");
@@ -1937,7 +2120,10 @@ async function executeCoreKnowledgeQuery(
         );
         const fullLinkedStatText = linkedStatUnits.map((u) => u.exact_text).join("\n");
         const statWork = freshState.works[linkedStatPsg.work_id];
-        const statOriginUri = linkedStatUnits[0]?.real_locator?.origin_uri || linkedStatPsg.real_locator?.origin_uri || "";
+        const statOriginUri = resolveVerifiedOfficialUrlForDoc(
+          linkedStatPsg.work_id,
+          linkedStatUnits[0]?.real_locator?.origin_uri || linkedStatPsg.real_locator?.origin_uri || ""
+        );
         const statLabel = statWork?.official_identifiers[0]?.normalized || statWork?.title_th || linkedStatPsg.work_id;
         const statStmt = `[บทบัญญัติกฎหมายอ้างอิง B02: ${statWork?.title_th || statLabel}] ${fullLinkedStatText}`;
         claims.push({
@@ -2120,12 +2306,23 @@ async function executeCoreKnowledgeQuery(
               isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
           );
         if (!ctrlSeed) continue;
-        const ctrlUnits = reassembleOrderedSectionUnits(
+        const allCtrlUnits = reassembleOrderedSectionUnits(
           ctrlSeed,
           allReleasePassages,
           freshState,
           actor
         );
+        const combinedCalcSummaryForNarrowing = issueAnalysis.verifiedCalculations
+          .map((c) => c.summary_statement_th)
+          .join(" ");
+        const ctrlUnits =
+          combinedCalcSummaryForNarrowing.length > 0
+            ? selectRelevantPassagesForClaimWork(
+                ctrlWorkId,
+                allCtrlUnits,
+                combinedCalcSummaryForNarrowing
+              )
+            : allCtrlUnits;
         for (const cu of ctrlUnits) {
           verificationPassageMap.set(cu.passage_id, cu);
         }
@@ -2138,8 +2335,10 @@ async function executeCoreKnowledgeQuery(
         const ctrlWork = freshState.works[ctrlWorkId];
         const ctrlLabel =
           ctrlWork?.official_identifiers[0]?.normalized || ctrlWork?.title_th || ctrlWorkId;
-        const ctrlOriginUri =
-          ctrlUnits[0]?.real_locator?.origin_uri || ctrlSeed.real_locator?.origin_uri || "";
+        const ctrlOriginUri = resolveVerifiedOfficialUrlForDoc(
+          ctrlWorkId,
+          ctrlUnits[0]?.real_locator?.origin_uri || ctrlSeed.real_locator?.origin_uri || ""
+        );
         const fullCtrlText = ctrlUnits.map((u) => u.exact_text).join("\n");
         coAuthIdx++;
         citedWorkSet.add(ctrlWorkId);
@@ -2171,18 +2370,51 @@ async function executeCoreKnowledgeQuery(
     if (issueAnalysis.conditionalFrameworkSummaryTh) {
       answerSections.unshift(issueAnalysis.conditionalFrameworkSummaryTh);
     }
-    if (issueAnalysis.verifiedCalculations.length > 0) {
+    // Staging-only RC1 synthetic rejected-calculation fixture:
+    // Injects an intentionally ungrounded proposed calculation directly into the REAL
+    // `verifyClaimAgainstPassages` gate below so QA can verify live across UI, API, and
+    // reopened saved revision that rejected figures (`999,888` / `88.5%`) and steps NEVER leak!
+    const calcsToEvaluate = [...issueAnalysis.verifiedCalculations];
+    if (
+      req.qa_synthetic_fixture === "RC1_REJECTED_CALC" &&
+      process.env.VERCEL_ENV !== "production"
+    ) {
+      calcsToEvaluate.push({
+        calculation_id: "calc.qa.rc1_synthetic_ungrounded_fixture",
+        verifier_version: "reg24-tax-calc-verifier-v1.0",
+        regime: "VAT_RATE_AND_AMOUNT",
+        formula_th: "RC1 synthetic ungrounded test fixture (expected to be rejected by verifier)",
+        inputs: { synthetic_fixture: "RC1_REJECTED_CALC" },
+        steps_th: [
+          "RC1_LEAK_SENTINEL_STEP: คำนวณอัตราสมมติร้อยละ 88.5 เป็นภาษี 999,888 บาท (ต้องถูกระงับไม่ให้ปรากฏในผลลัพธ์)",
+        ],
+        outputs: { synthetic_rejected_tax_baht: 999_888, synthetic_rejected_rate_pct: 88.5 },
+        verified_numeric_tokens: [],
+        required_authority_work_ids: ["prov.th.rc.80"],
+        summary_statement_th:
+          "RC1_LEAK_SENTINEL_CONCLUSION: ต้องเสียภาษีในอัตราพิเศษร้อยละ 88.5 คิดเป็นภาษีจำนวน 999,888 บาท ตามมาตรา 999 แห่งประมวลรัษฎากร",
+        arithmetic_verified: true,
+      });
+    }
+
+    if (calcsToEvaluate.length > 0) {
       const calcBlocks: string[] = [];
-      for (const [cIdx, calc] of issueAnalysis.verifiedCalculations.entries()) {
+      for (const [cIdx, calc] of calcsToEvaluate.entries()) {
         const calcSupportPassageIds: string[] = [];
         for (const reqWid of calc.required_authority_work_ids) {
-          for (const p of verificationPassageMap.values()) {
-            if (
+          const workCandidates = Array.from(verificationPassageMap.values()).filter(
+            (p) =>
               p.work_id === reqWid &&
-              (p.statement_role === "statutory_text" || p.statement_role === "official_conclusion")
-            ) {
-              calcSupportPassageIds.push(p.passage_id);
-            }
+              (p.statement_role === "statutory_text" || p.statement_role === "official_conclusion") &&
+              !isNavigationOrBoilerplatePassageText(p.exact_text)
+          );
+          const narrowed = selectRelevantPassagesForClaimWork(
+            reqWid,
+            workCandidates,
+            calc.summary_statement_th
+          );
+          for (const np of narrowed) {
+            calcSupportPassageIds.push(np.passage_id);
           }
         }
         const dedupCalcPids = Array.from(
