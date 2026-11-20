@@ -808,9 +808,22 @@ export function analyzeLegalIssuesAndFacts(params: {
     }
 
     if (isImmovable) {
-      // Prioritize core donor/WHT/shortfall provisions (`50`, `54`) right after `42` & `48` so all 4 land in Top 5!
+      // Derive required property-transfer authorities strictly from asset + relationship + withholding relevance (NO blanket §54!).
       controlling.add("prov.th.rc.50");
-      if (recipientRole !== "LEGITIMATE_CHILD") {
+      const effectiveTransferVal = officialAppraisalAmt ?? valAmt;
+      const exceedsChildExemptionCap =
+        recipientRole === "LEGITIMATE_CHILD" &&
+        effectiveTransferVal !== null &&
+        effectiveTransferVal > 20_000_000;
+      const explicitWhtOrShortfallIssue =
+        /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|ภาษีหัก\s*ณ\s*ที่จ่าย|รับผิดร่วม|หักไว้ไม่ครบ|หักภาษีไว้ไม่ครบ|มาตรา\s*54|withholding\s+tax)/i.test(
+          mergedContext
+        );
+      if (
+        recipientRole !== "LEGITIMATE_CHILD" ||
+        exceedsChildExemptionCap ||
+        explicitWhtOrShortfallIssue
+      ) {
         controlling.add("prov.th.rc.54");
       }
       controlling.add("prov.th.rc.41_ทวิ");
@@ -918,19 +931,43 @@ export function analyzeLegalIssuesAndFacts(params: {
   }
 
   // --- Regime H: VAT Rate (`7%` domestic / `790`/`799`/`807` exact dates / post-807 expiry / `0%` export of service vs goods) ---
+  // 1. Preserve the difference between an explicit statutory citation lookup (e.g. `มาตรา 80/1 (1)` or `(2)`)
+  //    and a legal fact-application question asking which VAT rate/decree applies!
+  const isExplicitSection80_1Lookup =
+    /มาตรา\s*80\/1(?:\s*\([0-9ก-ฮ]+\))?/.test(activeClean) &&
+    /(?:บัญญัติ|กำหนดหลักเกณฑ์|สาระสำคัญ|มีหลักเกณฑ์|หนังสือตอบข้อหารือใด|ข้อหารือใดที่ตีความ)/.test(
+      activeClean
+    ) &&
+    !/(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.|ร้อยละ\s*7|7%|อัตราภาษีมูลค่าเพิ่มสำหรับ(?:การขาย|การให้บริการ)ในประเทศ)/.test(
+      activeClean
+    );
+
+  // 2. Prevent incidental VAT wording (e.g. "ไม่รวมภาษีมูลค่าเพิ่ม", "จดทะเบียน VAT", "ออกใบกำกับภาษี")
+  //    in a primary withholding-tax or income-tax narrative from displacing the primary WHT/PIT issue!
+  const asksExplicitVatRateOrDecreeQuestion =
+    /(?:คิด\s*VAT\s*กี่(?:ร้อยละ|เปอร์เซ็นต์)|VAT\s*ร้อยละ\s*7\s*หรือ\s*ร้อยละ\s*0|อัตรา\s*VAT|VAT\s+rate|อัตราภาษีมูลค่าเพิ่ม|ภาษีมูลค่าเพิ่ม[^\n]{0,60}(?:กี่เปอร์เซ็นต์|กี่ร้อยละ|ร้อยละเท่าใด|อัตราใด|อัตราเท่าใด|ร้อยละ\s*7|ร้อยละ\s*0|พระราชกฤษฎีกา|พ\.ร\.ฎ\.|กฎหมายใด|กฎหมายฉบับใด)|(?:เรียกเก็บ|เก็บ|คิด|เสีย|ใช้)ภาษีมูลค่าเพิ่ม[^\n]{0,40}(?:อัตรา|ร้อยละ|กี่เปอร์เซ็นต์|พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|พระราชกฤษฎีกา(?:ฉบับที่|\s*\(ฉบับที่)\s*(?:780|790|799|807)|พ\.ร\.ฎ\.\s*(?:ฉบับที่\s*)?(?:780|790|799|807)|ความรับผิดใน(?:ภาษีมูลค่าเพิ่ม|\s*VAT)[\s\S]{0,80}อัตรา(?:ที่ต้องใช้เป็น)?เท่าใด|ส่งมอบผลของบริการ[^\n]{0,60}(?:ต่างประเทศ|ญี่ปุ่น|สิงคโปร์)[^\n]{0,60}ภาษีมูลค่าเพิ่ม)/i.test(
+      mergedContext
+    );
+
+  const hasPrimaryWhtFocusOnly =
+    /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|อัตราหัก\s*ณ\s*ที่จ่าย|ภาษีเงินได้หัก\s*ณ\s*ที่จ่าย|ภ\.ง\.ด\.\s*(?:1|2|3|53|54)|มาตรา\s*69\s*ทวิ|มาตรา\s*3\s*เตรส|มาตรา\s*70|withholding\s+tax)/i.test(
+      activeClean
+    ) && !asksExplicitVatRateOrDecreeQuestion;
+
   const asksVatRate =
     !asksVatRegistration &&
     !asksVatExemption81 &&
     !asksVatMixedUse82_6 &&
     !asksVatCrossBorderInboundPP36 &&
-    (/(?:คิด\s*VAT\s*กี่ร้อยละ|VAT\s*ร้อยละ\s*7\s*หรือ\s*ร้อยละ\s*0|อัตรา\s*VAT|VAT\s+rate|อัตราภาษีมูลค่าเพิ่ม|เรียกเก็บภาษีมูลค่าเพิ่ม(?:ในอัตรา|อัตรา)?|คิดภาษีมูลค่าเพิ่ม(?:ในอัตรา|อัตรา)?|เสียภาษีมูลค่าเพิ่ม(?:ในอัตรา|อัตราร้อยละ)|ความรับผิดใน(?:ภาษีมูลค่าเพิ่ม|\s*VAT)[\s\S]{0,80}อัตรา(?:ที่ต้องใช้เป็น)?เท่าใด|พระราชกฤษฎีกา(?:ฉบับที่|\s*\(ฉบับที่)\s*(?:780|790|799|807)|พ\.ร\.ฎ\.\s*(?:ฉบับที่\s*)?(?:780|790|799|807)|ภาษีมูลค่าเพิ่ม[\s\S]{0,120}(?:อัตราเท่าใด|ร้อยละเท่าใด|ร้อยละ\s*7|ร้อยละ\s*0|กฎหมายฉบับใด|กฎหมายใด))/i.test(
-      mergedContext
-    ) && !/สำนักงานเศรษฐกิจและการค้าของต่างประเทศ/.test(activeClean));
+    !isExplicitSection80_1Lookup &&
+    !hasPrimaryWhtFocusOnly &&
+    asksExplicitVatRateOrDecreeQuestion &&
+    !/สำนักงานเศรษฐกิจและการค้าของต่างประเทศ/.test(activeClean);
 
   if (asksVatRate) {
     regimes.add("VAT_RATE");
 
-    // Turn-by-turn VAT transaction classification & place-of-use reducer
+    // Turn-by-turn VAT transaction classification & place-of-use reducer (generalized on transaction + parties + place of use)
     let vatTxKind:
       | "EXPORT_GOODS"
       | "EXPORT_SERVICE_ABROAD"
@@ -942,40 +979,52 @@ export function analyzeLegalIssuesAndFacts(params: {
 
     for (const turnText of userTurnsCleaned) {
       const mentionsForeignClient =
-        /(?:บริษัท(?:ลูกค้า)?ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐ|จีน|ยุโรป|เยอรมนี|อังกฤษ|มาเลเซีย|เวียดนาม|เกาหลี)|ลูกค้า(?:ใน)?ต่างประเทศ|ลูกค้าญี่ปุ่น|ลูกค้าสิงคโปร์|foreign\s+(?:client|customer|company))/i.test(
+        /(?:(?:บริษัท|ลูกค้า|ผู้ว่าจ้าง|ผู้รับบริการ)(?:[^\n]{0,12})ใน(?:ต่างประเทศ|ประเทศ(?!ไทย)[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐ|จีน|ยุโรป|เยอรมนี|อังกฤษ|มาเลเซีย|เวียดนาม|เกาหลี[ก-๙]*)|ลูกค้า(?:ใน)?ต่างประเทศ|ลูกค้าญี่ปุ่น|ลูกค้าสิงคโปร์|foreign\s+(?:client|customer|company))/i.test(
           turnText
         );
       if (mentionsForeignClient) hadForeignClient = true;
 
-      const turnUsedInThailand =
-        /(?:ใช้(?:บริการ(?:นั้น|ดังกล่าว)?)?(?:ทั้งหมด)?(?:ที่สาขา[^\n]{0,30}(?:กรุงเทพ|ชลบุรี|ในไทย|ประเทศไทย)|ในประเทศไทย|ในไทย)|ถูกใช้(?:ที่สาขา|ในไทย|ในประเทศไทย)|บริษัทลูกค้าในกรุงเทพมหานคร|ลูกค้าในประเทศไทย|ลูกค้าในประเทศ)/i.test(
+      const turnExplicitDomesticUse =
+        /(?:(?:นำ[^\n]{0,20}ไป)?ใช้(?:บริการ|งาน|ซอฟต์แวร์|ระบบ)?(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?(?:ที่สาขา[^\n]{0,30}(?:กรุงเทพ|ชลบุรี|ในไทย|ประเทศไทย)|ในประเทศไทย|ในไทย|ในราชอาณาจักร)|ถูกใช้(?:ที่สาขา|ในไทย|ในประเทศไทย)|ลูกค้า(?:ใน|หน้าร้าน|ที่)(?:กรุงเทพ|ประเทศไทย|ประเทศ(?![ก-๙])|จังหวัด[ก-๙]+)|(?:ขาย|จำหน่าย|ส่งมอบ|รับเหมา|ก่อสร้าง|ซ่อมบำรุง)[^\n]{0,40}(?:ในไทย|ในประเทศไทย|ในประเทศ(?![ก-๙])|ในกรุงเทพ|จังหวัด[ก-๙]+|หน้าร้าน)|ให้บริการ[^\n]{0,45}ใน(?:ไทย|ประเทศไทย|ประเทศ(?![ก-๙])|ราชอาณาจักร)(?!.*(?:ต่างประเทศ|ประเทศ(?!ไทย)[ก-๙]+|เกาหลี|ญี่ปุ่น|สิงคโปร์)))/i.test(
           turnText
         );
       const turnUsedEntirelyAbroad =
-        !turnUsedInThailand &&
-        /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?ทั้งหมดที่สำนักงานใน(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐ|อังกฤษ|มาเลเซีย|เวียดนาม)|ใช้บริการในต่างประเทศทั้งหมด|ใช้ในต่างประเทศเพียงอย่างเดียว|นำไปใช้ในต่างประเทศทั้งหมด|used\s+(?:entirely\s+)?(?:abroad|outside\s+thailand))/i.test(
+        !/(?:(?:นำ[^\n]{0,20}ไป)?ใช้(?:บริการ|งาน|ซอฟต์แวร์)?(?:นั้น|ดังกล่าว)?[^\n]{0,25}(?:ที่สาขา[^\n]{0,25}(?:กรุงเทพ|ชลบุรี|ในไทย|ประเทศไทย)|ในประเทศไทย|ในไทย)|ถูกใช้(?:ที่สาขา|ในไทย|ในประเทศไทย))/.test(
+          turnText
+        ) &&
+        (/(?:ใช้บริการ(?:นั้น|ดังกล่าว)?ทั้งหมดที่สำนักงานใน(?:ต่างประเทศ|ประเทศ(?!ไทย)[ก-๙]+|สิงคโปร์|ญี่ปุ่น|เกาหลี[ก-๙]*|ฮ่องกง|สหรัฐ|อังกฤษ|มาเลเซีย|เวียดนาม)|ใช้บริการในต่างประเทศทั้งหมด|ใช้ในต่างประเทศเพียงอย่างเดียว|นำไป(?:ใช้|ก่อสร้าง|ผลิต|ติดตั้ง|ดำเนินการ|ปฏิบัติ)[^\n]{0,25}(?:ในต่างประเทศ|นอกราชอาณาจักร|ใน(?:ประเทศ)?(?!ไทย)(?:เกาหลี[ก-๙]*|ญี่ปุ่น|สิงคโปร์|ฮ่องกง|สหรัฐ|จีน|ยุโรป|เยอรมนี|อังกฤษ|มาเลเซีย|เวียดนาม|[ก-๙]+))[^\n]{0,15}ทั้งหมด|used\s+(?:entirely\s+)?(?:abroad|outside\s+thailand))/i.test(
+          turnText
+        ) ||
+          (hadForeignClient &&
+            /(?:ร้อยละ\s*0|อัตราศูนย์|0%)/.test(turnText) &&
+            !turnExplicitDomesticUse));
+      const turnIsExportGoods =
+        /ส่งออกสินค้า|ส่งออก[^\n]{0,25}ไปต่างประเทศ|export\s+of\s+goods/i.test(turnText) &&
+        !/ให้บริการ|ค่าบริการ|ซอฟต์แวร์|ที่ปรึกษา|ออกแบบระบบ|แบบแปลน/.test(turnText);
+      const turnIsService =
+        /ให้บริการ|ค่าบริการ|ซอฟต์แวร์|ที่ปรึกษา|ออกแบบ|จัดทำแบบแปลน|ซ่อมบำรุง|บำรุงรักษา|รับเหมา|ก่อสร้าง|ให้เช่า|service/i.test(
           turnText
         );
-      const turnIsExportGoods =
-        /ส่งออกสินค้า|ส่งออก[^\n]{0,20}ไปต่างประเทศ|export\s+of\s+goods/i.test(turnText) &&
-        !/ให้บริการ|ค่าบริการ|ซอฟต์แวร์|ที่ปรึกษา|ออกแบบระบบ/.test(turnText);
       const turnIsDomesticSale =
-        /(?:ขายสินค้า(?:ในราชอาณาจักร|ในประเทศ)?|ส่งมอบสินค้า(?:ในราชอาณาจักร|ในประเทศ)?|domestic\s+sale(?:\s+of\s+goods)?|sale\s+of\s+goods\s+in\s+thailand)/i.test(
+        (/(?:ขาย(?:สินค้า|อุปกรณ์|เครื่องจักร|ผลิตภัณฑ์|วัสดุ|อะไหล่|เครื่องใช้ไฟฟ้า|[ก-๙]{2,20})|จำหน่าย|ส่งมอบ(?:สินค้า|อุปกรณ์|[ก-๙]{2,20})|domestic\s+sale(?:\s+of\s+goods)?|sale\s+of\s+goods\s+in\s+thailand)/i.test(
           turnText
-        ) && !/ให้บริการ|ส่งออกสินค้า/.test(turnText);
-      const turnIsService = /ให้บริการ|ค่าบริการ|ซอฟต์แวร์|ที่ปรึกษา|ออกแบบระบบ|บำรุงรักษา|service/i.test(turnText);
+        ) &&
+          !turnIsService &&
+          !turnIsExportGoods);
 
       if (turnIsExportGoods) {
         vatTxKind = "EXPORT_GOODS";
       } else if (turnUsedEntirelyAbroad) {
         vatTxKind = "EXPORT_SERVICE_ABROAD";
-      } else if (turnUsedInThailand) {
+      } else if (turnExplicitDomesticUse) {
         vatTxKind = hadForeignClient
           ? "CROSS_BORDER_SERVICE_USED_IN_THAILAND"
-          : "DOMESTIC_SERVICE";
+          : turnIsDomesticSale
+            ? "DOMESTIC_SALE"
+            : "DOMESTIC_SERVICE";
       } else if (turnIsDomesticSale) {
         vatTxKind = "DOMESTIC_SALE";
-      } else if (turnIsService && !vatTxKind) {
+      } else if (turnIsService) {
         vatTxKind = hadForeignClient
           ? "CROSS_BORDER_SERVICE_USED_IN_THAILAND"
           : "DOMESTIC_SERVICE";
@@ -1018,7 +1067,9 @@ export function analyzeLegalIssuesAndFacts(params: {
       vatTxKind === "CROSS_BORDER_SERVICE_USED_IN_THAILAND" ||
       vatTxKind === "DOMESTIC_SERVICE" ||
       vatTxKind === "DOMESTIC_SALE" ||
-      /ขายสินค้าในราชอาณาจักร|ส่งมอบสินค้าในราชอาณาจักร|ความรับผิดใน\s*VAT/i.test(mergedContext)
+      /ขายสินค้าในราชอาณาจักร|ส่งมอบสินค้าในราชอาณาจักร|ความรับผิดใน\s*VAT|พระราชกฤษฎีกา(?:ฉบับที่|\s*\(ฉบับที่)\s*(?:780|790|799|807)/i.test(
+        mergedContext
+      )
     ) {
       const isCrossBorderThai = vatTxKind === "CROSS_BORDER_SERVICE_USED_IN_THAILAND";
       const isDomesticSvc = vatTxKind === "DOMESTIC_SERVICE";
@@ -1048,8 +1099,7 @@ export function analyzeLegalIssuesAndFacts(params: {
       } else if (taxPointIso >= "2026-10-01" && taxPointIso <= "2027-09-30") {
         controlling.add("subreg.th.rc.royal_decree.807");
       } else if (taxPointIso > "2027-09-30") {
-        // Post-2027-09-30: temporary RD 807 expires; surface §80 + RD 807 to show explicit expiry without assuming extension
-        controlling.add("subreg.th.rc.royal_decree.807");
+        // Post-2027-09-30: temporary RD 807 EXPIRED! NEVER add RD 807 to controllingWorkIds; only §80 governs (query.ts attaches RD 807 strictly as historical_or_excluded_context).
       } else if (taxPointIso >= "2023-10-01" && taxPointIso <= "2024-09-30") {
         controlling.add("subreg.th.rc.royal_decree.780");
       }
@@ -1121,7 +1171,17 @@ export function analyzeLegalIssuesAndFacts(params: {
       !/บุคคลธรรมดา|มูลนิธิ|สมาคม/.test(activeClean) &&
       /(?:จ่าย\s*['"“”]?ค่าที่ปรึกษา|จ่ายค่าบริการ|จ่ายค่าจ้าง)/.test(activeClean);
 
-    if (isForeignNoPe) {
+    const isGovernmentPayerWht =
+      !isForeignNoPe &&
+      /(?:รัฐบาล|ส่วนราชการ|องค์การของรัฐบาล|เทศบาล|สุขาภิบาล|องค์การบริหาร(?:ส่วนจังหวัด|ส่วนตำบล|ราชการส่วนท้องถิ่น)|กระทรวง|หน่วยงานราชการ|หน่วยงานของรัฐ|รัฐวิสาหกิจ|มหาวิทยาลัยของรัฐ|โรงพยาบาลของรัฐ|มาตรา\s*69\s*ทวิ)/i.test(
+        mergedContext
+      );
+
+    if (isGovernmentPayerWht) {
+      regimes.add("WHT_GOVERNMENT_PAYER_S69_BIS");
+      controlling.add("prov.th.rc.69_ทวิ");
+      controlling.add("prov.th.rc.50");
+    } else if (isForeignNoPe) {
       regimes.add("WHT_CROSS_BORDER_S70");
       controlling.add("prov.th.rc.70");
       controlling.add("sched.th.rc.income_tax_rate");

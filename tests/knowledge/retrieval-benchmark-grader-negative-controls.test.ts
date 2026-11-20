@@ -220,4 +220,39 @@ describe("REG24 Batch 1 Hardened Grader — Mandatory Negative Controls & Versio
     expect(passAbstain.passed).toBe(true);
     expect(passAbstain.scoring_bucket).toBe("NEGATIVE_OR_ABSTENTION");
   });
+
+  it("Explicitly reports RANKING_MISS_PACKET_RECOVERED and separates ranking vs packet vs final_answer_qa_status", () => {
+    const posCase: HardenedEvalCase = {
+      case_id: "NC-06-RANKING-VS-PACKET-SEPARATION",
+      suite: "LEGAL_HOLDOUT",
+      case_kind: "POSITIVE_COVERED",
+      category: "ranking_separation",
+      question: "ขายสินค้าในไทยวันที่ 30 กันยายน 2568 เสียภาษีมูลค่าเพิ่มกี่เปอร์เซ็นต์",
+      applicable_date: "2025-09-30",
+      expected_evidence: [
+        {
+          work_id: "subreg.th.rc.royal_decree.790",
+          expected_version_id: "ver.th.rc.royal_decree.790.v1",
+          required_passage_ids: ["psg.rc7.rd790.sec_3_4"],
+        },
+      ],
+    };
+
+    const recovered = gradeHardenedCase(posCase, {
+      ranked_passages: [
+        { rank: 1, passage_id: "psg.unrelated.1", work_id: "prov.th.rc.80", version_id: "ver.th.rc.80.v1" },
+      ],
+      actual_packet: [
+        { position: 1, passage_id: "psg.rc7.rd790.sec_3_4", work_id: "subreg.th.rc.royal_decree.790", version_id: "ver.th.rc.royal_decree.790.v1", evidence_role: "governing" },
+      ],
+      unresolved_ruling_ids: [],
+      response_status: "ANSWERED",
+    });
+
+    expect(recovered.ranking_passed).toBe(false);
+    expect(recovered.actual_packet_passed).toBe(true);
+    expect(recovered.ranking_miss_packet_recovered).toBe(true);
+    expect(recovered.first_failing_step).toBe("RANKING_MISS_PACKET_RECOVERED");
+    expect(recovered.final_answer_qa_status).toBe("NOT_RUN_PRE_LLM_CAPTURE");
+  });
 });

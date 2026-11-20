@@ -3361,10 +3361,12 @@ export function reopenSavedTraceableAnswer(
 export async function reopenSavedTraceableAnswerWithPostgres(
   store: DurableKnowledgeStore,
   answerRevisionOrId: string,
-  actor: Actor
+  actor: Actor,
+  options?: { requireDatabaseRead?: boolean }
 ): Promise<{
   found: boolean;
   http_status: 200 | 404;
+  persistence_source?: "neon_postgres" | "local_store" | "none";
   answer?: TraceableAnswerEnvelope;
   question_text?: string;
   audit_events?: import("./citation-contracts").TraceabilityAuditEventRecord[];
@@ -3475,6 +3477,7 @@ export async function reopenSavedTraceableAnswerWithPostgres(
     return {
       found: true,
       http_status: 200,
+      persistence_source: "neon_postgres",
       question_text: pgLoaded.question_text,
       audit_events: pgLoaded.audit_events || [],
       answer: {
@@ -3485,8 +3488,18 @@ export async function reopenSavedTraceableAnswerWithPostgres(
     };
   }
 
+  if (options?.requireDatabaseRead) {
+    return {
+      found: false,
+      http_status: 404,
+      persistence_source: "none",
+      error_th:
+        "ไม่พบคำตอบรุ่นที่ระบุในฐานข้อมูล Neon PostgreSQL (require_db=1 ไม่อนุญาตให้อ่านจากหน่วยความจำชั่วคราว)",
+    };
+  }
+
   const localRes = reopenSavedTraceableAnswer(store, answerRevisionOrId, actor);
-  if (!localRes.found) return localRes;
+  if (!localRes.found) return { ...localRes, persistence_source: "none" };
   const view = getUnifiedCitationLedgerView(store);
   const revIds = new Set(
     (localRes.answer?.revision_history || []).map((r) => r.answer_revision)
@@ -3495,6 +3508,7 @@ export async function reopenSavedTraceableAnswerWithPostgres(
   const auditEvents = view.audit_events.filter((ev) => revIds.has(ev.correlation_id));
   return {
     ...localRes,
+    persistence_source: "local_store",
     audit_events: auditEvents,
   };
 }

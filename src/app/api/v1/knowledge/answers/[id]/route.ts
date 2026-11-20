@@ -21,13 +21,24 @@ export async function GET(
     await enforceTrialAccessAndRateLimit(req, actor, "citation_open");
     const store = getDefaultKnowledgeStore();
 
-    const res = await reopenSavedTraceableAnswerWithPostgres(store, decodeURIComponent(id), actor);
+    const reqUrl = new URL(req.url);
+    const requireDb = reqUrl.searchParams.get("require_db") === "1";
+    const res = await reopenSavedTraceableAnswerWithPostgres(store, decodeURIComponent(id), actor, {
+      requireDatabaseRead: requireDb,
+    });
     if (!res.found || !res.answer) {
       return NextResponse.json(
-        { ok: false, error: res.error_th || "Saved answer not found or restricted" },
+        {
+          ok: false,
+          persistence_source: res.persistence_source || "none",
+          error: res.error_th || "Saved answer not found or restricted",
+        },
         {
           status: res.http_status,
-          headers: { "Cache-Control": "private, no-store" },
+          headers: {
+            "Cache-Control": "private, no-store",
+            "x-reg24-persistence-source": res.persistence_source || "none",
+          },
         }
       );
     }
@@ -35,6 +46,7 @@ export async function GET(
     return NextResponse.json(
       {
         ok: true,
+        persistence_source: res.persistence_source || "local_store",
         question_text: res.question_text || "",
         answer: res.answer,
         revision_history: res.answer.revision_history || [],
@@ -42,7 +54,10 @@ export async function GET(
       },
       {
         status: 200,
-        headers: { "Cache-Control": "private, no-store" },
+        headers: {
+          "Cache-Control": "private, no-store",
+          "x-reg24-persistence-source": res.persistence_source || "local_store",
+        },
       }
     );
   } catch (err) {

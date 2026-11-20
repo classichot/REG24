@@ -667,11 +667,15 @@ export function retrieveAuthorizedKnowledge(
   }
 
   // Hierarchy-of-Authority Controlling Law Boost (`LEGAL_FACT_APPLICATION` mode):
-  // Ensures controlling Revenue Code provisions, schedules, amending Acts, and governing subordinate laws
-  // rank deterministically ahead of random lexical TaxRulings!
+  // Ensures primary Revenue Code provisions/statutes and controlling subordinate laws
+  // rank deterministically ahead of secondary TaxRulings!
   for (const [ctrlIdx, ctrlWid] of (params.controlling_work_ids || []).entries()) {
     const ctrlPassages = passagesByWorkId.get(ctrlWid) || [];
-    const priorityBoost = Math.max(28.0, 44.0 - ctrlIdx * 1.2);
+    const ctrlWorkType = state.works[ctrlWid]?.type;
+    const isSecondaryRuling = ctrlWorkType === "TaxRuling";
+    const priorityBoost = isSecondaryRuling
+      ? Math.max(18.0, 26.0 - ctrlIdx * 0.8)
+      : Math.max(30.0, 44.0 - ctrlIdx * 1.2);
     for (const cp of ctrlPassages) {
       if (cp.statement_role === "statutory_text" || cp.statement_role === "official_conclusion") {
         addScore(cp.passage_id, priorityBoost, "exact_id");

@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0-live-neon-tx-proof",
+  "executed_at": "2026-11-20T21:05:27.254Z",
+  "transport": "neon_http_sql_batch_transaction (ReadCommitted)",
+  "real_database_tested": true,
+  "mock_used": false,
+  "probe_revision_id": "ans.rc10_2_neon_tx_mwpgx83c.r1",
+  "probe_isolation_note": "Synthetic fictional probe isolated under owner_actor_id=qa.neon.tx.probe@reg24.th and prefix ans.rc10_2_neon_tx_*; retained because Neon enforces append-only immutability triggers.",
+  "step1_interrupted_save_rollback": {
+    "error_caught": true,
+    "error_summary": "NEON_CITATION_TX_HTTP_400:{\"message\":\"new row for relation \\\"citation_claim_evidence_link\\\" violates check constraint \\\"citation_claim_evidence_link_support_role_check\\\"\",\"code\":\"23514\",\"detail\":\"Failing row contains (ln",
+    "live_neon_row_counts_after_abort": {
+      "citation_published_answer": 0,
+      "citation_atomic_claim": 0,
+      "citation_claim_evidence_link": 0,
+      "citation_audit_event": 0
+    },
+    "reopen_found_after_abort": false,
+    "zero_partial_rows_visible": true
+  },
+  "step2_clean_retry_and_db_reopen": {
+    "persisted": true,
+    "live_neon_row_counts_after_commit": {
+      "citation_published_answer": 1,
+      "citation_atomic_claim": 1,
+      "citation_claim_evidence_link": 1,
+      "citation_audit_event": 1
+    },
+    "fresh_db_reopen_found": true,
+    "reopen_revision_matches": true,
+    "reopen_claim_count": 1,
+    "reopen_provenance_preserved": true
+  },
+  "step3_idempotent_second_retry": {
+    "persisted": true,
+    "live_neon_row_counts_after_second_retry": {
+      "citation_published_answer": 1,
+      "citation_atomic_claim": 1,
+      "citation_claim_evidence_link": 1,
+      "citation_audit_event": 1
+    },
+    "zero_duplicates": true
+  },
+  "step4_append_only_immutability_guard": {
+    "delete_blocked_by_db_trigger": true,
+    "trigger_error_summary": "NEON_CITATION_SQL_HTTP_400:{\"message\":\"CITATION_RECORD_IMMUTABLE: Table citation_claim_evidence_link is append-only; UPDATE and DELETE are prohibited to protect answer ownership and audit history\",\"code\":\"42501\",\"detail\"",
+    "live_neon_row_counts_retained": {
+      "citation_published_answer": 1,
+      "citation_atomic_claim": 1,
+      "citation_claim_evidence_link": 1,
+      "citation_audit_event": 1
+    }
+  },
+  "overall_passed": true
+}

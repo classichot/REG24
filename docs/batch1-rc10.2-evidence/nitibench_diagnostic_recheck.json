@@ -1,0 +1,743 @@
+{
+  "evaluated_cases": 25,
+  "rc10_baseline_reference": {
+    "all_required_hit_at_5": "4/25 (16.0%)",
+    "any_required_hit_at_5": "15/25 (60.0%)"
+  },
+  "rc10_2_current": {
+    "all_required_hit_at_5": "4/25 (16.0%)",
+    "any_required_hit_at_5": "13/25 (52.0%)",
+    "all_required_in_actual_packet": "5/25 (20.0%)",
+    "any_required_in_actual_packet": "16/25 (64.0%)",
+    "p95_retrieval_latency_ms": 244.34
+  },
+  "per_case_trace": [
+    {
+      "case_id": "NITI-TAX-01",
+      "expected_work_ids": [
+        "prov.th.rc.77/1",
+        "prov.th.rc.82/5",
+        "prov.th.rc.80/1",
+        "prov.th.rc.82/4",
+        "prov.th.rc.65",
+        "prov.th.rc.82/3"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.80/1",
+        "subreg.th.rd.dg_vat.105"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.80/1",
+        "subreg.th.rd.dg_vat.105",
+        "prov.th.rc.77/2",
+        "prov.th.rc.83/6",
+        "prov.th.rc.82/3",
+        "prov.th.rc.65",
+        "work.th.rd.gk_0702_พ_1601_2020_ed417735",
+        "prov.th.rc.3_โสฬส",
+        "statute.th.rc_amendment_48_2562"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 218.04
+    },
+    {
+      "case_id": "NITI-TAX-02",
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/5",
+        "prov.th.rc.65"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/5",
+        "prov.th.rc.91/6",
+        "subreg.th.rd.sbt_local_tax_guide"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.91/2",
+        "prov.th.rc.91/5",
+        "prov.th.rc.91/6",
+        "subreg.th.rd.sbt_local_tax_guide",
+        "work.th.rd.gk_0706_3393_2005_52edd551",
+        "work.th.rd.gk_0706_416_2005_6d446247",
+        "work.th.rd.gk_0706_11526_2004_0f52107a",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 156.61
+    },
+    {
+      "case_id": "NITI-TAX-03",
+      "expected_work_ids": [
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rd.vat_local_tax_guide",
+        "prov.th.rc.77/2"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.80",
+        "subreg.th.rd.vat_local_tax_guide",
+        "prov.th.rc.77/2",
+        "prov.th.rc.78/1",
+        "prov.th.rc.78",
+        "subreg.th.rc.royal_decree.790",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rc.royal_decree.807",
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50",
+        "prov.th.rc.80/1"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": true,
+      "any_required_in_packet": true,
+      "elapsed_ms": 152.75
+    },
+    {
+      "case_id": "NITI-TAX-04",
+      "expected_work_ids": [
+        "prov.th.rc.69_ทวิ"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_392_2005_b416d669",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 148.53
+    },
+    {
+      "case_id": "NITI-TAX-05",
+      "expected_work_ids": [
+        "prov.th.rc.77/1"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "prov.th.rc.3_โสฬส",
+        "statute.th.rc_amendment_48_2562",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 192.51
+    },
+    {
+      "case_id": "NITI-TAX-06",
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.50_ทวิ",
+        "prov.th.rc.50"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.50",
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.40",
+        "prov.th.rc.50_ทวิ",
+        "work.th.rd.gk_0702_704_2022_c2f33678"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50",
+        "prov.th.rc.40",
+        "prov.th.rc.50_ทวิ",
+        "work.th.rd.gk_0702_704_2022_c2f33678",
+        "work.th.rd.gk_0706_3367_2005_a1cade88",
+        "work.th.rd.gk_0706_พ_3071_2005_4e696ac8",
+        "work.th.rd.gk_0706_2604_2005_cd5d9b2c",
+        "work.th.rd.gk_0706_3050_2005_1fc03075",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "all_required_in_top5": true,
+      "any_required_in_top5": true,
+      "all_required_in_packet": true,
+      "any_required_in_packet": true,
+      "elapsed_ms": 145.88
+    },
+    {
+      "case_id": "NITI-TAX-07",
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.39",
+        "prov.th.rc.50"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "prov.th.rc.50",
+        "work.th.rd.gk_0706_3367_2005_a1cade88",
+        "work.th.rd.gk_0702_710_2022_1819bfb0",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_5069_2005_717c440c",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 161.17
+    },
+    {
+      "case_id": "NITI-TAX-08",
+      "expected_work_ids": [
+        "prov.th.rc.71_ทวิ"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.71_ทวิ",
+        "work.th.rd.gk_0702_217_2022_5d5f4661",
+        "work.th.rd.gk_0702_3356_2022_4c8e9051",
+        "work.th.rd.gk_0702_3858_2024_9f827c6b",
+        "work.th.rd.gk_0702_1978_2024_903caaf2"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.71_ทวิ",
+        "work.th.rd.gk_0702_217_2022_5d5f4661",
+        "work.th.rd.gk_0702_3356_2022_4c8e9051",
+        "work.th.rd.gk_0702_3858_2024_9f827c6b",
+        "work.th.rd.gk_0702_1978_2024_903caaf2",
+        "work.th.rd.gk_0702_34_2023_b9c130c4",
+        "work.th.rd.gk_0702_237_2023_e8f2d49f",
+        "work.th.rd.0706_กม_5_875_2004_4bfc3449"
+      ],
+      "all_required_in_top5": true,
+      "any_required_in_top5": true,
+      "all_required_in_packet": true,
+      "any_required_in_packet": true,
+      "elapsed_ms": 135.86
+    },
+    {
+      "case_id": "NITI-TAX-09",
+      "expected_work_ids": [
+        "prov.th.rc.65"
+      ],
+      "top5_work_ids": [
+        "work.th.rd.gk_0706_415_2005_7648c19b",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc",
+        "work.th.rd.gk_0706_3337_2005_7068a19a"
+      ],
+      "packet_work_ids": [
+        "work.th.rd.gk_0706_415_2005_7648c19b",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc",
+        "work.th.rd.gk_0706_3337_2005_7068a19a",
+        "work.th.rd.gk_0706_392_2005_b416d669",
+        "work.th.rd.gk_0706_พ_3068_2005_941b5a10",
+        "work.th.rd.gk_0706_กม_08_พ_1075_2004_68c26c6c",
+        "work.th.rd.gk_0706_พ_513_2005_f45570d7"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 244.34
+    },
+    {
+      "case_id": "NITI-TAX-10",
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.77/1",
+        "prov.th.rc.113",
+        "prov.th.rc.39",
+        "prov.th.rc.121",
+        "prov.th.rc.77/2",
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50",
+        "prov.th.rc.104"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.104",
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50",
+        "prov.th.rc.40",
+        "prov.th.rc.103"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50",
+        "prov.th.rc.103",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty",
+        "prov.th.rc.40",
+        "work.th.rd.gk_0702_3753_2022_7bbab8b2",
+        "work.th.rd.gk_0706_พ_3071_2005_4e696ac8",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 202.16
+    },
+    {
+      "case_id": "NITI-TAX-11",
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.39",
+        "prov.th.rc.42",
+        "prov.th.rc.56",
+        "prov.th.rc.57_ฉ",
+        "prov.th.rc.41_ทวิ",
+        "prov.th.rc.52",
+        "prov.th.rc.50"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.42",
+        "prov.th.rc.40",
+        "work.th.rd.gk_0702_3889_2022_0d0a6d5b",
+        "prov.th.rc.48",
+        "prov.th.rc.50"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.42",
+        "prov.th.rc.48",
+        "prov.th.rc.50",
+        "prov.th.rc.41_ทวิ",
+        "prov.th.rc.49_ทวิ",
+        "statute.th.rc_amendment_40_2558",
+        "prov.th.rc.40",
+        "work.th.rd.gk_0702_3889_2022_0d0a6d5b",
+        "prov.th.rc.103",
+        "prov.th.rc.104"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 228.37
+    },
+    {
+      "case_id": "NITI-TAX-12",
+      "expected_work_ids": [
+        "prov.th.rc.104"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.103",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty",
+        "work.th.rd.gk_0702_4854_2022_7cb43e84"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.103",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty",
+        "prov.th.rc.80",
+        "prov.th.rc.78",
+        "prov.th.rc.78/1",
+        "subreg.th.rd.vat_local_tax_guide",
+        "subreg.th.rc.royal_decree.790",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rc.royal_decree.807",
+        "work.th.rd.gk_0702_4854_2022_7cb43e84"
+      ],
+      "all_required_in_top5": true,
+      "any_required_in_top5": true,
+      "all_required_in_packet": true,
+      "any_required_in_packet": true,
+      "elapsed_ms": 166.43
+    },
+    {
+      "case_id": "NITI-TAX-13",
+      "expected_work_ids": [
+        "prov.th.rc.7"
+      ],
+      "top5_work_ids": [
+        "work.th.rd.gk_0702_พ_013_2022_ff44d7ec",
+        "work.th.rd.gk_0706_พ_3071_2005_4e696ac8",
+        "work.th.rd.gk_0706_พ_513_2005_f45570d7",
+        "work.th.rd.gk_0706_พ_11232_2004_07a4e334",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.80",
+        "prov.th.rc.78",
+        "prov.th.rc.78/1",
+        "subreg.th.rd.vat_local_tax_guide",
+        "subreg.th.rc.royal_decree.790",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rc.royal_decree.807",
+        "work.th.rd.gk_0702_พ_013_2022_ff44d7ec",
+        "work.th.rd.gk_0706_พ_3071_2005_4e696ac8",
+        "work.th.rd.gk_0706_พ_513_2005_f45570d7",
+        "work.th.rd.gk_0706_พ_11232_2004_07a4e334",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1",
+        "work.th.rd.gk_0702_4292_2010_aea6f4e2",
+        "work.th.rd.gk_0706_กม_08_504_2005_671ec491"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 164.28
+    },
+    {
+      "case_id": "NITI-TAX-14",
+      "expected_work_ids": [
+        "prov.th.rc.39",
+        "prov.th.rc.71_ทวิ"
+      ],
+      "top5_work_ids": [
+        "work.th.rd.gk_0702_34_2023_b9c130c4",
+        "work.th.rd.gk_0702_237_2023_e8f2d49f",
+        "work.th.rd.gk_0706_5302_2005_05b5edd6"
+      ],
+      "packet_work_ids": [
+        "work.th.rd.gk_0702_34_2023_b9c130c4",
+        "work.th.rd.gk_0702_237_2023_e8f2d49f",
+        "work.th.rd.gk_0706_5302_2005_05b5edd6",
+        "work.th.rd.gk_0811_ก_705_2000_1c05cf4a",
+        "work.th.rd.gk_0702_3356_2022_4c8e9051",
+        "work.th.rd.gk_0706_2531_2005_1dd2ede4"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 108.97
+    },
+    {
+      "case_id": "NITI-TAX-15",
+      "expected_work_ids": [
+        "prov.th.rc.81"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.81",
+        "work.th.rd.gk_0702_7198_2020_9d35b871",
+        "work.th.rd.gk_0811_พ_10245_1999_9f9c79d6",
+        "work.th.rd.gk_0706_พ_3070_2005_68fb7a78",
+        "prov.th.rc.3_โสฬส"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.81",
+        "work.th.rd.gk_0702_7198_2020_9d35b871",
+        "work.th.rd.gk_0811_พ_10245_1999_9f9c79d6",
+        "work.th.rd.gk_0706_พ_3070_2005_68fb7a78",
+        "prov.th.rc.3_โสฬส",
+        "work.th.rd.gk_0702_6075_2023_fa52de73",
+        "work.th.rd.gk_0706_พ_3340_2005_bc77c290",
+        "work.th.rd.gk_0706_3441_2005_45a3ed2e",
+        "statute.th.rc_amendment_48_2562"
+      ],
+      "all_required_in_top5": true,
+      "any_required_in_top5": true,
+      "all_required_in_packet": true,
+      "any_required_in_packet": true,
+      "elapsed_ms": 176.79
+    },
+    {
+      "case_id": "NITI-TAX-16",
+      "expected_work_ids": [
+        "prov.th.rc.39",
+        "prov.th.rc.47"
+      ],
+      "top5_work_ids": [
+        "work.th.rd.gk_0811_ก_1366_2000_9258aeb0",
+        "work.th.rd.gk_0706_6068_2005_ed6e3260",
+        "work.th.rd.gk_0702_399_2023_d374c6a4",
+        "work.th.rd.gk_0702_3439_2009_6c9a6801",
+        "work.th.rd.gk_0706_5092_2005_b1c012e5"
+      ],
+      "packet_work_ids": [
+        "work.th.rd.gk_0811_ก_1366_2000_9258aeb0",
+        "work.th.rd.gk_0706_6068_2005_ed6e3260",
+        "work.th.rd.gk_0702_399_2023_d374c6a4",
+        "work.th.rd.gk_0702_3439_2009_6c9a6801",
+        "work.th.rd.gk_0706_5092_2005_b1c012e5",
+        "work.th.rd.gk_0811_05371_1999_2c016b5d",
+        "work.th.rd.gk_0706_1275_2005_8e2e5d28",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_5091_2005_9cde688c"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 163.83
+    },
+    {
+      "case_id": "NITI-TAX-17",
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.42"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.42",
+        "work.th.rd.gk_0706_5352_2005_abe70773",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.42",
+        "work.th.rd.gk_0706_5352_2005_abe70773",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_1627_2005_52652341",
+        "work.th.rd.gk_0706_770_2005_e1a1e18e",
+        "work.th.rd.gk_0706_352_2005_09cbe748",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 255.24
+    },
+    {
+      "case_id": "NITI-TAX-18",
+      "expected_work_ids": [
+        "prov.th.rc.65_ทวิ",
+        "prov.th.rc.65",
+        "prov.th.rc.70_ตรี"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.70_ตรี",
+        "work.th.rd.gk_0702_538_2023_361dc575",
+        "work.th.rd.gk_0706_พ_3340_2005_bc77c290",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.70_ตรี",
+        "work.th.rd.gk_0702_538_2023_361dc575",
+        "work.th.rd.gk_0706_พ_3340_2005_bc77c290",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_392_2005_b416d669",
+        "work.th.rd.gk_0706_6068_2005_ed6e3260",
+        "work.th.rd.gk_0706_770_2005_e1a1e18e"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 174.38
+    },
+    {
+      "case_id": "NITI-TAX-19",
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.56"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.3_เตรส",
+        "subreg.th.rd.order_tp.4_2528",
+        "prov.th.rc.56",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_392_2005_b416d669"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 195.5
+    },
+    {
+      "case_id": "NITI-TAX-20",
+      "expected_work_ids": [
+        "prov.th.rc.81"
+      ],
+      "top5_work_ids": [
+        "work.th.rd.gk_0702_พ_7338_2020_e5972c85",
+        "work.th.rd.gk_0706_392_2005_b416d669"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.80",
+        "prov.th.rc.78",
+        "prov.th.rc.78/1",
+        "subreg.th.rd.vat_local_tax_guide",
+        "subreg.th.rc.royal_decree.790",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rc.royal_decree.807",
+        "work.th.rd.gk_0702_พ_7338_2020_e5972c85",
+        "work.th.rd.gk_0706_392_2005_b416d669",
+        "work.th.rd.gk_0706_3337_2005_7068a19a",
+        "work.th.rd.gk_0706_พ_3070_2005_68fb7a78",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 228.98
+    },
+    {
+      "case_id": "NITI-TAX-21",
+      "expected_work_ids": [
+        "prov.th.rc.77/1",
+        "prov.th.rc.77/2",
+        "prov.th.rc.78"
+      ],
+      "top5_work_ids": [
+        "work.th.rd.gk_0702_พ_1361_2023_f9aaae9e",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "packet_work_ids": [
+        "work.th.rd.gk_0702_พ_1361_2023_f9aaae9e",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_11414_2004_5ff0e5dc",
+        "work.th.rd.gk_0706_5302_2005_05b5edd6",
+        "work.th.rd.gk_0706_392_2005_b416d669"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 186.18
+    },
+    {
+      "case_id": "NITI-TAX-22",
+      "expected_work_ids": [
+        "prov.th.rc.40",
+        "prov.th.rc.42",
+        "prov.th.rc.50"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50",
+        "prov.th.rc.42",
+        "work.th.rd.gk_0706_3050_2005_1fc03075",
+        "work.th.rd.gk_0702_1389_2023_9ee05633"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.69_ทวิ",
+        "prov.th.rc.50",
+        "prov.th.rc.42",
+        "work.th.rd.gk_0706_3050_2005_1fc03075",
+        "work.th.rd.gk_0702_1389_2023_9ee05633",
+        "work.th.rd.gk_0706_1627_2005_52652341",
+        "work.th.rd.gk_0811_4332_2000_a537a4c6",
+        "work.th.rd.gk_0706_5352_2005_abe70773",
+        "work.th.rd.gk_0706_3367_2005_a1cade88",
+        "work.th.rd.gk_0706_512_2005_5b99fa48",
+        "work.th.rd.gk_0702_1285_2008_5248fc16"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 183.29
+    },
+    {
+      "case_id": "NITI-TAX-23",
+      "expected_work_ids": [
+        "prov.th.rc.2",
+        "prov.th.rc.121"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.103",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty",
+        "work.th.rd.gk_0702_1394_2023_93eb253f",
+        "prov.th.rc.3_อัฏฐารส"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.103",
+        "prov.th.rc.104",
+        "sched.th.rc.stamp_duty",
+        "prov.th.rc.3_อัฏฐารส",
+        "statute.th.rc_amendment_48_2562",
+        "work.th.rd.gk_0706_พ_3340_2005_bc77c290",
+        "work.th.rd.gk_0706_3337_2005_7068a19a",
+        "work.th.rd.gk_0811_16321_1998_56b237a2"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": false,
+      "all_required_in_packet": false,
+      "any_required_in_packet": false,
+      "elapsed_ms": 175.39
+    },
+    {
+      "case_id": "NITI-TAX-24",
+      "expected_work_ids": [
+        "prov.th.rc.47_ทวิ",
+        "prov.th.rc.65_ทวิ",
+        "prov.th.rc.65"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.65_ทวิ",
+        "prov.th.rc.47_ทวิ",
+        "work.th.rd.gk_0706_415_2005_7648c19b",
+        "work.th.rd.gk_0706_352_2005_09cbe748",
+        "work.th.rd.gk_0706_6068_2005_ed6e3260"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.65_ทวิ",
+        "prov.th.rc.47_ทวิ",
+        "work.th.rd.gk_0706_415_2005_7648c19b",
+        "work.th.rd.gk_0706_352_2005_09cbe748",
+        "work.th.rd.gk_0706_6068_2005_ed6e3260",
+        "work.th.rd.0706_กม_5_875_2004_4bfc3449",
+        "work.th.rd.gk_0706_พ_3068_2005_941b5a10",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 194.59
+    },
+    {
+      "case_id": "NITI-TAX-25",
+      "expected_work_ids": [
+        "prov.th.rc.41",
+        "prov.th.rc.56",
+        "prov.th.rc.50",
+        "prov.th.rc.48"
+      ],
+      "top5_work_ids": [
+        "prov.th.rc.50",
+        "prov.th.rc.41",
+        "work.th.rd.gk_0706_3367_2005_a1cade88",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c"
+      ],
+      "packet_work_ids": [
+        "prov.th.rc.50",
+        "prov.th.rc.41",
+        "work.th.rd.gk_0706_3367_2005_a1cade88",
+        "work.th.rd.gk_0706_กม_03_111_2005_dbeea6c1",
+        "work.th.rd.gk_0706_กม_05_1022_2004_8795856c",
+        "work.th.rd.gk_0706_3090_2005_13f9a6e1",
+        "work.th.rd.gk_0706_1108_2005_facd86d9"
+      ],
+      "all_required_in_top5": false,
+      "any_required_in_top5": true,
+      "all_required_in_packet": false,
+      "any_required_in_packet": true,
+      "elapsed_ms": 205.48
+    }
+  ]
+}

@@ -105,6 +105,11 @@ export interface HardenedGradeResult {
   passed: boolean;
   /** Separate scoring bucket: positive covered hit@5 vs negative/clarification/abstention pass. */
   scoring_bucket: "POSITIVE_RETRIEVAL" | "NEGATIVE_OR_ABSTENTION";
+  ranking_passed: boolean;
+  actual_packet_passed: boolean;
+  /** Explicitly surfaces when retrieval Top-5 missed an authority that app packet assembly later recovered! */
+  ranking_miss_packet_recovered: boolean;
+  final_answer_qa_status: "NOT_RUN_PRE_LLM_CAPTURE" | "PASS" | "FAIL";
   all_required_in_top5: boolean;
   any_required_in_top5: boolean;
   all_required_in_actual_packet: boolean;
@@ -131,6 +136,7 @@ export interface HardenedGradeResult {
     | "SILENT_LATEST_VERSION_MISSING_DATE"
     | "MISSING_UNRESOLVED_ABSTENTION"
     | "RANKING_TOP5_MISS"
+    | "RANKING_MISS_PACKET_RECOVERED"
     | "EXACT_TOP1_MISMATCH"
     | "ACTUAL_PACKET_ASSEMBLY_MISS";
   failure_reasons: string[];
@@ -405,7 +411,7 @@ export function gradeHardenedCase(
   } else if (exactTop1Mismatch) {
     firstFailingStep = "EXACT_TOP1_MISMATCH";
   } else if (c.expected_evidence.length > 0 && !allRequiredInTop5) {
-    firstFailingStep = "RANKING_TOP5_MISS";
+    firstFailingStep = allRequiredInPacket ? "RANKING_MISS_PACKET_RECOVERED" : "RANKING_TOP5_MISS";
   } else if (c.expected_evidence.length > 0 && !allRequiredInPacket) {
     firstFailingStep = "ACTUAL_PACKET_ASSEMBLY_MISS";
   } else if (wrongVersionSubstitution) {
@@ -415,12 +421,29 @@ export function gradeHardenedCase(
   const passed = firstFailingStep === "NONE" && reasons.length === 0;
   const scoringBucket: HardenedGradeResult["scoring_bucket"] =
     c.case_kind === "POSITIVE_COVERED" ? "POSITIVE_RETRIEVAL" : "NEGATIVE_OR_ABSTENTION";
+  const rankingPassed =
+    !wrongVersionFirst &&
+    !wrongVersionSubstitution &&
+    !expiredGoverningLeak &&
+    !exactTop1Mismatch &&
+    (c.expected_evidence.length > 0 ? allRequiredInTop5 : passed);
+  const actualPacketPassed =
+    !wrongVersionSubstitution &&
+    !expiredGoverningLeak &&
+    !falseSubstitution &&
+    !silentLatestVersionOnMissingDate &&
+    (c.expected_evidence.length > 0 ? allRequiredInPacket : passed);
+  const rankingMissPacketRecovered = !rankingPassed && actualPacketPassed;
 
   return {
     case_id: c.case_id,
     case_kind: c.case_kind,
     passed,
     scoring_bucket: scoringBucket,
+    ranking_passed: rankingPassed,
+    actual_packet_passed: actualPacketPassed,
+    ranking_miss_packet_recovered: rankingMissPacketRecovered,
+    final_answer_qa_status: "NOT_RUN_PRE_LLM_CAPTURE",
     all_required_in_top5: c.expected_evidence.length > 0 ? allRequiredInTop5 : passed,
     any_required_in_top5: c.expected_evidence.length > 0 ? anyRequiredInTop5 : passed,
     all_required_in_actual_packet: c.expected_evidence.length > 0 ? allRequiredInPacket : passed,

@@ -554,6 +554,19 @@ export function buildStructuredCaseFactLedger(input: {
   let isAmbiguous = false;
   let ambiguityReasonTh: string | null = null;
 
+  const explicitUnknownDateInPrompt =
+    /ยังไม่ทราบวันที่|ยังไม่ได้กำหนดวัน|ไม่ระบุวันที่|date\s+(?:is\s+)?unknown/i.test(
+      allUserTurns.map((t) => t.raw_text).join(" ")
+    );
+  const vatWindowBucket = (iso: string): string => {
+    if (iso >= "2024-10-01" && iso <= "2025-09-30") return "RD_790";
+    if (iso >= "2025-10-01" && iso <= "2026-09-30") return "RD_799";
+    if (iso >= "2026-10-01" && iso <= "2027-09-30") return "RD_807";
+    if (iso > "2027-09-30") return "POST_807";
+    if (iso >= "2023-10-01" && iso <= "2024-09-30") return "RD_780";
+    return "PRE_780";
+  };
+
   if (isVatCase && factsMap.get("vat_transaction_type")?.normalized_category === "VAT_PROVISION_OF_SERVICE") {
     // Under Revenue Code §78/1(1), service VAT tax point is the EARLIEST of:
     // payment received, tax invoice issued, or use of service.
@@ -573,17 +586,27 @@ export function buildStructuredCaseFactLedger(input: {
       controllingEvent = `${earliest.event_type} (${earliest.raw_text}, Turn ${earliest.source_turn})`;
       statutoryRuleHint =
         "ประมวลรัษฎากร มาตรา 78/1 (1): ความรับผิดในการเสียภาษีมูลค่าเพิ่มสำหรับการให้บริการเกิดขึ้นเมื่อได้รับชำระราคาค่าบริการ เว้นแต่ได้ออกใบกำกับภาษีหรือได้ใช้บริการก่อนได้รับชำระราคา (ถือเหตุการณ์ที่เกิดขึ้นก่อน)";
-    } else if (legalAsOfDate) {
-      isAmbiguous = true;
-      ambiguityReasonTh =
-        "มีเพียงวันที่อ้างอิงกฎหมาย (legal as-of date) แต่ไม่ปรากฏวันที่เกิดความรับผิดทางภาษี (วันรับชำระราคา/ออกใบกำกับภาษี/ใช้บริการ) ตามมาตรา 78/1 (1) จึงไม่สมมติวันที่เกิดความรับผิดทางภาษีโดยพลการ";
+      if (
+        legalAsOfDate &&
+        legalAsOfDate !== earliest.iso_date &&
+        vatWindowBucket(legalAsOfDate) !== vatWindowBucket(earliest.iso_date)
+      ) {
+        isAmbiguous = true;
+        ambiguityReasonTh = `วันที่ในคำถาม (${earliest.iso_date}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
+      }
+    } else if (legalAsOfDate && !explicitUnknownDateInPrompt) {
+      // Request-supplied applicable_date is usable just like a date extracted from the question when no conflicting prompt date exists
+      controllingIso = legalAsOfDate;
+      controllingEvent = `REQUEST_APPLICABLE_DATE (${legalAsOfDate})`;
+      statutoryRuleHint =
+        "ใช้ตามวันที่อ้างอิงที่ระบุในคำขอ (applicable_date) เป็นวันเกิดความรับผิดทางภาษีเพื่อตรวจสอบกฎหมายที่ใช้บังคับ";
     } else {
       isAmbiguous = true;
       ambiguityReasonTh =
         "ไม่ปรากฏวันที่เกิดความรับผิดทางภาษี (วันรับชำระราคา วันออกใบกำกับภาษี หรือวันใช้บริการ) ตามมาตรา 78/1 (1) ในข้อเท็จจริง";
     }
   } else if (nonQuestionDates.length > 0) {
-    // Prefer latest turn's registration/transfer/stated date; if multiple distinct dates on same turn, flag distinction
+    // Prefer latest turn's registration/transfer/stated date; if request applicable_date conflicts across VAT decree windows, resolve ambiguity explicitly!
     const pool = latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates;
     const regOrTransfer = pool.filter((e) => e.event_type === "REGISTRATION" || e.event_type === "TRANSFER");
     const chosen = regOrTransfer[regOrTransfer.length - 1] || pool[pool.length - 1];
@@ -592,12 +615,22 @@ export function buildStructuredCaseFactLedger(input: {
     if (factsMap.get("asset")?.normalized_category.startsWith("IMMOVABLE_PROPERTY")) {
       statutoryRuleHint = "การโอนกรรมสิทธิ์อสังหาริมทรัพย์พิจารณาตามวันจดทะเบียนสิทธิและนิติกรรม";
     }
-  } else if (legalAsOfDate) {
-    // Do NOT silently equate legal_as_of_date with transaction date if transaction date is absent!
-    controllingIso = null;
-    controllingEvent = null;
+    if (
+      isVatCase &&
+      legalAsOfDate &&
+      legalAsOfDate !== chosen.iso_date &&
+      vatWindowBucket(legalAsOfDate) !== vatWindowBucket(chosen.iso_date)
+    ) {
+      isAmbiguous = true;
+      ambiguityReasonTh = `วันที่ในคำถาม (${chosen.iso_date}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
+    }
+  } else if (legalAsOfDate && !explicitUnknownDateInPrompt) {
+    // Request-supplied applicable_date is usable just like a date extracted from the question
+    controllingIso = legalAsOfDate;
+    controllingEvent = `REQUEST_APPLICABLE_DATE (${legalAsOfDate})`;
+  } else if (isVatCase) {
     isAmbiguous = true;
-    ambiguityReasonTh = `มีเฉพาะวันที่อ้างอิงกฎหมาย (legal_as_of_date = ${legalAsOfDate}) แต่ไม่ปรากฏวันที่เกิดธุรกรรมหรือวันเกิดความรับผิดทางภาษีในคำถาม`;
+    ambiguityReasonTh = "ไม่ปรากฏวันที่เกิดความรับผิดทางภาษีในคำถามหรือคำขอ";
   }
 
   return {
