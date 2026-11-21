@@ -185,3 +185,57 @@ Zero new routes were added between RC10.2 (`316cdad`, deployed cleanly on Hobby)
 
 Full 129-entry route-to-function inventory marked `required_for_batch1: true/false` is recorded in [rc10_3_vercel_packaging_before_after_inventory.json](rc10_3_vercel_packaging_before_after_inventory.json).
 
+---
+
+## 8. Hosted Verification Readiness, P0-1 RC8-Only Guard Fix, P0-3 Historical VAT Audit & Parallel Security Track
+
+- **Prior Ready Deployment Baseline Preserved**: `0b7cad44c0f6900d04b5e14117338fbdda4f19d5` (`https://vercel.com/7-l-advisory/reg24/Fso9WmCZ7UeReM4quFMronGhH3RV`, tag `archive/b01-rc10.3-0b7cad4`)
+- **Corpus & Manifest Still Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (Manifest SHA-256 `1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`, `0` changes under `data/`)
+
+### 8.1 P0-1 Finding on `0b7cad4` & Surgical Remediation (New Pin Required Per P0-1)
+
+Code audit of `0b7cad4` confirmed that the scored path **could** accept a request `release_id` override (e.g., `rel.B01.rc7`, `rel.B01.rc6`, `rel.B01.rc5`) via `POST /api/v1/knowledge/query`, and because those older projection files are excluded from this RC8-only Preview, `retrieveAuthorizedKnowledge` (`src/core/knowledge/retrieval.ts`) **silently fell back** to a brute-force substring scan (`retrieval.ts:818`) and live canonical assertions (`retrieval.ts:953`).
+
+Per P0-1 (*"If it can, reject the override on the protected QA path and retest on a new pin if a code change is required"*), the smallest targeted fix was applied:
+- `src/app/api/v1/knowledge/query/route.ts` & `src/app/api/v1/knowledge/attachments/route.ts`: Reject any `release_id` override differing from the pinned active release (`rel.B01.rc8`) on Preview (`VERCEL_ENV === "preview"` or `REG24_STRICT_PINNED_RELEASE_ONLY=1`) with HTTP `400` (`RELEASE_OVERRIDE_REJECTED_400`), and reject any unbundled release override missing packaged lexical/graph projections (`UNBUNDLED_RELEASE_OVERRIDE_REJECTED_400`).
+- `src/core/knowledge/projections.ts` & `src/core/knowledge/retrieval.ts`: Added `assertReleaseProjectionArtifactsReady`; on Preview (`require_pinned_projections`), missing or incompatible lexical (v2 fielded BM25) or graph projection artifacts fail hard with HTTP `503` (`PROJECTION_ARTIFACT_MISSING_OR_INCOMPATIBLE_503`) — ZERO silent fallback.
+- `src/app/api/v1/knowledge/environment/route.ts`: Added `deployment_id`, `runtime_platform`, `runtime_arch`, `node_version`, `strict_single_release_preview`, `release_override_rejected_on_preview`, and `silent_retrieval_fallback_disabled` so `GET /api/v1/knowledge/environment?probe_tokenizer=1` returns all P0-1 preflight fields in one response.
+- Regression proof: `tests/knowledge/rc10-3-p0-remediation-gates.test.ts` Test #6 (all 9 suites `49/49` PASS, raw log [rc10_3_rc8_guard_vitest.log](rc10_3_rc8_guard_vitest.log)).
+
+### 8.2 P0-2 Read-Only Neon Audit Helper for QA's Locked Two-Session Run
+
+- Engineering live Neon distinct-edit receipt (separate from same-key retry): [rc10_3_distinct_edit_concurrency_live_neon_receipt.json](rc10_3_distinct_edit_concurrency_live_neon_receipt.json).
+- Read-only Neon audit script (`SELECT`-only, zero writes) ready to produce the run-tied receipt when QA executes its locked two-session case: `scripts/audit-rc10-3-qa-two-session-readonly.ts` (smoke-verified read-only against live staging Neon).
+
+### 8.3 P0-3 Historical VAT Cutoff Audit (For Dated Legal Scope Decision Before Scoring)
+
+Receipt: [rc10_3_p03_historical_vat_cutoff_audit.json](rc10_3_p03_historical_vat_cutoff_audit.json)
+
+- **2018-10-01 .. 2023-09-30** (including the missing RD 724 window and day-before-cutoff `2023-09-30`): `rel.B01.rc8` returns `INSUFFICIENT_EVIDENCE` (abstains cleanly rather than guessing a rate).
+- **2017-10-01 .. 2018-09-30** (e.g. `2018-06-15`): `rel.B01.rc8` **currently still returns** `subreg.th.rc.royal_decree.646@ver.th.rc.royal_decree.646.v2` (backed by the current consolidated RD 646 PDF) as `governing`. **Corpus left untouched pending Legal's dated P0-3 decision** (if Legal adopts the recommended `1 October 2566 (2023-10-01)` cutoff so pre-cutoff dates must never cite today's consolidated RD 646 as historical proof, a targeted corpus/guard update for pre-`2023-10-01` RD 646 dates will be needed before scoring pre-cutoff cases).
+- **2023-10-01 .. 2027-09-30** & post-807 (`2027-10-01`): Exact official Gazette originals for RD 780 (`2023-10-01..2024-09-30`), RD 790 (`2024-10-01..2025-09-30`), RD 799 (`2025-10-01..2026-09-30`), RD 807 (`2026-10-01..2027-09-30`), and post-807 historical-only behavior (`2027-10-01`).
+
+### 8.4 Parallel Security Track — Next.js `16.4.2` Advisories & Isolated `16.4.5` Worktree Patch
+
+Receipt: [rc10_3_nextjs_security_advisory_assessment.json](rc10_3_nextjs_security_advisory_assessment.json)
+
+- **7 Advisories Affecting `next@16.4.2` (All Patched in `next@16.4.5`)**:
+  - `GHSA-mfr8-8qww-v76h`, `GHSA-vc7v-qv4w-wrv8`, `GHSA-rhh4-g77r-r9qj`, `GHSA-vvgp-ww4w-46vf` (`'use cache'`, `unstable_cache()`, `rootParams`, `cacheComponents`) → **NOT_APPLICABLE** (`0` usages in REG24).
+  - `GHSA-f3mh-rxg3-f5g2` (`CVE-2026-119346`, Edge runtime routes setting cookies) → **NOT_APPLICABLE** (`0` Edge runtime routes, `0` middleware/proxy files).
+  - `GHSA-pc58-hwjq-p385` (`CVE-2026-119348`, self-hosted HTTP/1.1 proxy fetch response forwarding) → **NOT_APPLICABLE** (hosted on Vercel; `0` raw fetch-forwarding routes).
+  - `GHSA-7qx7-33qx-rqx2` (`CVE-2026-119347`, self-hosted `/_next/image` SVG bypass) → **NOT_APPLICABLE** (hosted on Vercel managed hosting behind Deployment Protection; `0` `next/image` imports; no `images.remotePatterns`).
+- **Verdict**: Protected Preview is **not affected** (`stop_tester_access_required: false`). QA pin kept on `next@16.4.2` untouched in place.
+- **Smallest Supported Patch Prepared in Separate Worktree**: Branch `chore/security-next-16.4.5-patch` (commit `ea43d2f1bdc91caeebac3eb65697b002a80968c5`, branched from `0b7cad4`, NOT pushed/deployed): `next` `16.4.2 -> 16.4.5`, verified with `0` Next.js `npm audit` vulnerabilities, `tsc --noEmit` exit `0`, clean Preview `next build` exit `0`, and `2` simulated Vercel Serverless Functions (`105.14 MiB` max).
+
+### 8.5 Go/No-Go Status Matrix (`PASS / STOP / BLOCKED`)
+
+| Gate / Item | Owner | Status | Reason / Next Action |
+| --- | --- | --- | --- |
+| **P0-1a \| RC8-only override rejection & no silent retrieval fallback** | Engineering | **PASS** *(code + 49/49 Vitest + clean Preview build; re-confirm on new hosted pin)* | Fixed override hole found on `0b7cad4`: `release_id` overrides now reject HTTP `400` on Preview and missing/incompatible artifacts fail hard HTTP `503` (zero silent fallback). |
+| **P0-1b \| Named QA tester access & live Linux `/environment?probe_tokenizer=1`** | Platform + QA | **BLOCKED** | Local Vercel CLI is logged out (`Logged out.`). Platform must grant one named QA tester access via their own Vercel account on the commit-specific protected Preview URL and run `GET /api/v1/knowledge/environment?probe_tokenizer=1`. |
+| **P0-2a \| Normal `/legal-review` UI smoke, citation open & `?require_db=1` Neon reopen** | Platform + QA | **BLOCKED** | Pending named QA tester access on the protected Preview URL. |
+| **P0-2b \| Live Neon distinct-edit proof & read-only QA two-session audit script** | Engineering | **PASS** *(engineering evidence ready; QA two-session audit script ready)* | Attached live Neon distinct-edit receipt (`[200,409]`, zero orphans, exact readback) + verified read-only audit script `scripts/audit-rc10-3-qa-two-session-readonly.ts`. |
+| **P0-3 \| Dated Legal scope decision on historical VAT (`1 Oct 2566` cutoff vs full pre-cutoff reconstruction)** | Legal + Data Eng + QA | **BLOCKED** *(awaiting dated Legal addendum)* | Audit confirms `rel.B01.rc8` abstains on `2018-10-01..2023-09-30` (missing RD 724) and currently cites consolidated RD 646 on `2017-10-01..2018-09-30`. Record dated Legal decision before any scored run. |
+| **Parallel Security Track \| Next.js `16.4.2` advisory assessment & isolated `16.4.5` patch** | Platform + Security | **PASS** *(Preview unaffected; isolated patch ready)* | All 7 GHSAs confirmed `NOT_APPLICABLE` to Vercel Preview; `next@16.4.5` verified in separate local worktree branch `chore/security-next-16.4.5-patch` (`ea43d2f`) without altering QA pin. |
+
+

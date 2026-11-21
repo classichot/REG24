@@ -11,6 +11,7 @@ import {
 } from "../../../../../core/knowledge/http-auth";
 import {
   inspectReleaseProjectionDiagnostics,
+  isStrictSingleReleasePreviewMode,
   runTokenizerParityProbe,
 } from "../../../../../core/knowledge/projections";
 import { getDefaultKnowledgeStore } from "../../../../../core/knowledge/store";
@@ -66,7 +67,14 @@ export async function GET(req: Request) {
           git_branch:
             process.env.VERCEL_GIT_COMMIT_REF || "feat/b01-thai-legal-index-retrieval-rc10.3",
           git_commit_sha: process.env.VERCEL_GIT_COMMIT_SHA || relRec?.code_commit || "local",
+          deployment_id: process.env.VERCEL_DEPLOYMENT_ID || null,
           deployment_url: process.env.VERCEL_URL || null,
+          runtime_platform: process.platform,
+          runtime_arch: process.arch,
+          node_version: process.version,
+          strict_single_release_preview: isStrictSingleReleasePreviewMode(),
+          release_override_rejected_on_preview: isStrictSingleReleasePreviewMode(),
+          silent_retrieval_fallback_disabled: isStrictSingleReleasePreviewMode(),
           preview_url_vs_release_clarification:
             "Vercel preview URL slugs/aliases (e.g. a custom alias or deployment subdomain created during RC3) are routing labels on Vercel and are not renamed when new commits or data manifests are pushed; the authoritative runtime corpus version is `data_version.release_id` + `data_version.manifest_hash`.",
           invite_only_trial_gate_enabled: process.env.REG24_TRIAL_INVITE_ONLY === "1",

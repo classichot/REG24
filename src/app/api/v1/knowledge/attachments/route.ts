@@ -9,6 +9,7 @@ import {
   resolveServerActor,
 } from "../../../../../core/knowledge/http-auth";
 import { onboardVerifiedOfficialAttachment } from "../../../../../core/knowledge/source-onboarding";
+import { isStrictSingleReleasePreviewMode } from "../../../../../core/knowledge/projections";
 import { getDefaultKnowledgeStore } from "../../../../../core/knowledge/store";
 import { enforceTrialAccessAndRateLimit } from "../../../../../core/knowledge/trial-gate";
 import type { OfficialSourceFamily } from "../../../../../core/knowledge/citation-contracts";
@@ -45,8 +46,23 @@ export async function POST(req: Request) {
     }
 
     const store = getDefaultKnowledgeStore();
+    const pinnedActiveRelease =
+      (process.env.REG24_PINNED_RELEASE_ID || "").trim() ||
+      store.getState().active_release_id ||
+      "rel.B01.rc8";
+    const requestedRelease =
+      typeof body.release_id === "string" && body.release_id.trim() ? body.release_id.trim() : null;
+    if (
+      isStrictSingleReleasePreviewMode() &&
+      requestedRelease &&
+      requestedRelease !== pinnedActiveRelease
+    ) {
+      throw new Error(
+        `RELEASE_OVERRIDE_REJECTED_400: This protected Preview is pinned strictly to '${pinnedActiveRelease}'; attachment release_id override '${requestedRelease}' is rejected.`
+      );
+    }
     const onboarded = onboardVerifiedOfficialAttachment(store, {
-      release_id: body.release_id || "rel.B01.rc5",
+      release_id: requestedRelease || pinnedActiveRelease,
       issuer_id: body.issuer_id || "reg.th.soc_ratchakitcha",
       source_family: body.source_family || "gazette_enactment",
       source_native_id: body.source_native_id,

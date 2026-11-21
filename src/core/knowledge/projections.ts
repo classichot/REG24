@@ -1149,3 +1149,48 @@ export function runTokenizerParityProbe(
     probes,
   };
 }
+
+/**
+ * True when running as an RC8-only single-release Vercel Preview (or when explicitly enabled
+ * via `REG24_STRICT_PINNED_RELEASE_ONLY=1`). In this mode:
+ *  - Request-level `release_id` overrides selecting any other/unbundled release are REJECTED (HTTP 400).
+ *  - Missing or incompatible lexical/graph projection artifacts FAIL HARD (HTTP 503) with ZERO silent fallback.
+ */
+export function isStrictSingleReleasePreviewMode(): boolean {
+  return (
+    process.env.VERCEL_ENV === "preview" ||
+    process.env.REG24_STRICT_PINNED_RELEASE_ONLY === "1"
+  );
+}
+
+/**
+ * Verifies that BOTH the lexical (v2 fielded BM25) and graph projection snapshots for `releaseId`
+ * are present on disk and compatible with the release manifest hash and runtime tokenizer contract.
+ * Throws `PROJECTION_ARTIFACT_MISSING_OR_INCOMPATIBLE_503` (STOP — never silently falls back).
+ */
+export function assertReleaseProjectionArtifactsReady(
+  store: DurableKnowledgeStore,
+  releaseId: string
+): {
+  lexical: LexicalProjectionSnapshot;
+  graph: GraphProjectionSnapshot;
+} {
+  const lexSnap = loadLexicalProjectionSnapshot(store, releaseId);
+  const graphSnap = loadGraphProjectionSnapshot(store, releaseId);
+  if (!lexSnap || !lexSnap.fielded_bm25 || !lexSnap.passage_table || !graphSnap) {
+    const diag = inspectReleaseProjectionDiagnostics(store, releaseId);
+    const reasons: string[] = [];
+    if (!lexSnap) {
+      reasons.push(`lexical=${diag.lexical.status}${diag.lexical.reason ? ` (${diag.lexical.reason})` : ""}`);
+    } else if (!lexSnap.fielded_bm25 || !lexSnap.passage_table) {
+      reasons.push(`lexical=missing_fielded_bm25_v2`);
+    }
+    if (!graphSnap) {
+      reasons.push(`graph=${diag.graph.status}${diag.graph.reason ? ` (${diag.graph.reason})` : ""}`);
+    }
+    throw new Error(
+      `PROJECTION_ARTIFACT_MISSING_OR_INCOMPATIBLE_503: Required packaged projection artifacts for release '${releaseId}' are unavailable or incompatible [${reasons.join("; ")}]. Silent retrieval fallback is disabled on this protected Preview.`
+    );
+  }
+  return { lexical: lexSnap, graph: graphSnap };
+}

@@ -19,8 +19,10 @@ import {
   parseFlexibleThaiOrEnglishDateToIso,
 } from "./temporal-versioning";
 import {
+  assertReleaseProjectionArtifactsReady,
   computeDeterministicLegalEmbedding,
   cosineSimilarity,
+  isStrictSingleReleasePreviewMode,
   loadGraphProjectionSnapshot,
   loadLexicalProjectionSnapshot,
   loadVectorProjectionSnapshot,
@@ -227,11 +229,18 @@ export function retrieveAuthorizedKnowledge(
     allow_legacy_char_hash_vectors?: boolean;
     /** When true, graph expansion uses verified legal links (AMENDS/MADE_UNDER/HAS_EXCEPTION/HAS_CONDITION/INTERPRETS) rather than generic CITES. */
     strict_verified_graph_only?: boolean;
+    /** When true (default on Vercel Preview), missing/incompatible lexical or graph projection artifacts FAIL HARD (503) instead of silently falling back. */
+    require_pinned_projections?: boolean;
   }
 ): RetrievalBundle {
   const strategy = params.strategy || "hybrid_with_graph";
   const maxPassages = params.max_passages ?? 12;
   const state = store.getState();
+  const requirePinnedProjections =
+    params.require_pinned_projections ?? isStrictSingleReleasePreviewMode();
+  const validatedStrictProjections = requirePinnedProjections
+    ? assertReleaseProjectionArtifactsReady(store, params.release_id)
+    : null;
 
   const { normalizedQuestionForIdentifiers, bilingualExpandedQuery } =
     normalizeBilingualQueryForRetrieval(params.question);
@@ -696,7 +705,14 @@ export function retrieveAuthorizedKnowledge(
   const lexicalScored: Array<{ passage_id: string; lexScore: number }> = [];
 
   if (qTokens.length > 0) {
-    const lexSnap = loadLexicalProjectionSnapshot(store, params.release_id);
+    const lexSnap =
+      validatedStrictProjections?.lexical ??
+      loadLexicalProjectionSnapshot(store, params.release_id);
+    if (requirePinnedProjections && (!lexSnap || !lexSnap.fielded_bm25 || !lexSnap.passage_table)) {
+      throw new Error(
+        `PROJECTION_ARTIFACT_MISSING_OR_INCOMPATIBLE_503: Lexical fielded BM25 snapshot missing for '${params.release_id}'; silent substring fallback is disabled.`
+      );
+    }
     if (lexSnap?.fielded_bm25 && lexSnap.passage_table) {
       const fb = lexSnap.fielded_bm25;
       const tbl = lexSnap.passage_table;
@@ -936,8 +952,14 @@ export function retrieveAuthorizedKnowledge(
   const graphSource = params.graph_source ?? "graph_projection_snapshot";
   const diskGraphSnap =
     graphSource === "graph_projection_snapshot"
-      ? loadGraphProjectionSnapshot(store, params.release_id)
+      ? validatedStrictProjections?.graph ??
+        loadGraphProjectionSnapshot(store, params.release_id)
       : null;
+  if (requirePinnedProjections && graphSource === "graph_projection_snapshot" && !diskGraphSnap) {
+    throw new Error(
+      `PROJECTION_ARTIFACT_MISSING_OR_INCOMPATIBLE_503: Graph projection snapshot missing for '${params.release_id}'; silent canonical-assertion fallback is disabled.`
+    );
+  }
 
   const acceptedAssertions: Assertion[] = diskGraphSnap
     ? diskGraphSnap.edges

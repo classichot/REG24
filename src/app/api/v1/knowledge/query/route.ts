@@ -13,6 +13,10 @@ import {
 import type { TraceablePublicationChannel } from "../../../../../core/knowledge/citation-contracts";
 import type { ConversationTurnInput } from "../../../../../core/knowledge/contracts";
 import { saveOrReviseAnswerServerVerified } from "../../../../../core/knowledge/claim-traceability-engine";
+import {
+  assertReleaseProjectionArtifactsReady,
+  isStrictSingleReleasePreviewMode,
+} from "../../../../../core/knowledge/projections";
 
 // Allow up to 300s on Vercel Fluid Compute / Serverless so live Gemini 4 Neon @ low (30–90s)
 // + cold-start hydration + Neon Postgres persistence never hit a 60s timeout cutoff.
@@ -51,6 +55,54 @@ export async function POST(req: Request) {
     }
 
     const store = getDefaultKnowledgeStore();
+    const state = store.getState();
+    const pinnedActiveRelease =
+      (process.env.REG24_PINNED_RELEASE_ID || "").trim() || state.active_release_id || null;
+    const requestedReleaseOverride =
+      typeof body.release_id === "string" && body.release_id.trim() ? body.release_id.trim() : null;
+
+    if (requestedReleaseOverride) {
+      // RC8-only protected Preview guard: reject any request release_id override that selects
+      // another or unbundled release, and never silently fall back to an alternate retrieval path.
+      if (isStrictSingleReleasePreviewMode()) {
+        if (!pinnedActiveRelease || requestedReleaseOverride !== pinnedActiveRelease) {
+          throw new Error(
+            `RELEASE_OVERRIDE_REJECTED_400: This protected Preview is pinned strictly to '${pinnedActiveRelease || "rel.B01.rc8"}' and does not ship older comparison indexes; request release_id override '${requestedReleaseOverride}' is rejected. Use a separately verified deployment for comparison or rollback.`
+          );
+        }
+      } else {
+        if (!state.releases[requestedReleaseOverride]) {
+          throw new Error(
+            `UNKNOWN_RELEASE_ID_400: Requested release_id '${requestedReleaseOverride}' does not exist in canonical store.`
+          );
+        }
+        if (pinnedActiveRelease && requestedReleaseOverride !== pinnedActiveRelease) {
+          // Even outside Preview, if the active release uses packaged projections and the requested
+          // override release is missing its lexical/graph projection artifacts, reject cleanly instead of silent fallback!
+          let activeHasProjections = false;
+          try {
+            assertReleaseProjectionArtifactsReady(store, pinnedActiveRelease);
+            activeHasProjections = true;
+          } catch {
+            activeHasProjections = false;
+          }
+          if (activeHasProjections) {
+            try {
+              assertReleaseProjectionArtifactsReady(store, requestedReleaseOverride);
+            } catch {
+              throw new Error(
+                `UNBUNDLED_RELEASE_OVERRIDE_REJECTED_400: Requested release_id '${requestedReleaseOverride}' does not have packaged lexical/graph projection artifacts in this build. Silent retrieval fallback is prohibited.`
+              );
+            }
+          }
+        }
+      }
+    }
+
+    if (isStrictSingleReleasePreviewMode() && pinnedActiveRelease) {
+      assertReleaseProjectionArtifactsReady(store, pinnedActiveRelease);
+    }
+
     const qClean = body.question.trim();
     const effectiveAsOf = body.applicable_date ?? body.as_of_date ?? null;
     // IMPORTANT: Keep `persistAnswerAtomically: false` during `queryKnowledge` so unpersisted in-memory
@@ -60,7 +112,9 @@ export async function POST(req: Request) {
     const answer = await queryKnowledge(
       {
         question: qClean,
-        release_id: body.release_id,
+        release_id: isStrictSingleReleasePreviewMode()
+          ? pinnedActiveRelease ?? undefined
+          : requestedReleaseOverride ?? undefined,
         applicable_date: effectiveAsOf,
         mode: body.mode,
         comparison_work_ids: body.comparison_work_ids,

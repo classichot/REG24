@@ -40,6 +40,8 @@ import {
 } from "../../src/core/knowledge/claim-traceability-engine";
 import { setCustomCitationDbTransportForTesting } from "../../src/core/knowledge/citation-postgres-store";
 import { GET as getEnvironment } from "../../src/app/api/v1/knowledge/environment/route";
+import { POST as postQuery } from "../../src/app/api/v1/knowledge/query/route";
+import { retrieveAuthorizedKnowledge } from "../../src/core/knowledge/retrieval";
 import type { Actor } from "../../src/core/knowledge/contracts";
 
 const STORE_DIR = path.resolve(process.cwd(), "data/knowledge-store-b01-rc2-staging");
@@ -681,5 +683,59 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
     // ZERO orphaned child rows: exactly r1 + winning r2!
     expect(storedAnswers.size).toBe(2);
     expect(storedClaims.length).toBe(2);
+  });
+
+  it("6. P0-1 RC8-only Preview Guard: Rejects request release_id overrides (400) and fails hard (503) instead of silently falling back when lexical/graph artifacts are missing", async () => {
+    const prevVercelEnv = process.env.VERCEL_ENV;
+    process.env.VERCEL_ENV = "preview";
+    const store = new DurableKnowledgeStore(STORE_DIR);
+    setDefaultKnowledgeStoreForTesting(store);
+    try {
+      // 1) Request override to unbundled/older release (rc7 / rc6) is REJECTED with HTTP 400!
+      for (const forbiddenRel of ["rel.B01.rc7", "rel.B01.rc6", "rel.B01.rc5"]) {
+        const req = new Request("http://localhost/api/v1/knowledge/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: "อัตรา VAT เดือนพฤษภาคม 2568",
+            release_id: forbiddenRel,
+            applicable_date: "2025-05-01",
+          }),
+        });
+        const res = await postQuery(req);
+        expect(res.status, `override=${forbiddenRel}`).toBe(400);
+        const body = await res.json();
+        expect(String(body.error || "")).toContain("RELEASE_OVERRIDE_REJECTED_400");
+      }
+
+      // 2) Missing lexical/graph artifact fails HARD (503) — ZERO silent fallback to substring scan or live assertions!
+      expect(() =>
+        retrieveAuthorizedKnowledge(store, {
+          question: "อัตรา VAT เดือนพฤษภาคม 2568",
+          release_id: "rel.B01.unbundled_missing",
+          actor: QA_ACTOR,
+          applicable_date: "2025-05-01",
+          require_pinned_projections: true,
+        })
+      ).toThrow("PROJECTION_ARTIFACT_MISSING_OR_INCOMPATIBLE_503");
+
+      // 3) Environment endpoint attests strict RC8-only preview protections & runtime OS fields
+      const envRes = await getEnvironment(
+        new Request("http://localhost/api/v1/knowledge/environment?probe_tokenizer=1")
+      );
+      expect(envRes.status).toBe(200);
+      const envBody = await envRes.json();
+      expect(envBody.data_version.release_id).toBe("rel.B01.rc8");
+      expect(envBody.environment.strict_single_release_preview).toBe(true);
+      expect(envBody.environment.release_override_rejected_on_preview).toBe(true);
+      expect(envBody.environment.silent_retrieval_fallback_disabled).toBe(true);
+      expect(envBody.environment.runtime_platform).toBe(process.platform);
+      expect(envBody.environment.node_version).toBe(process.version);
+      expect(envBody.projections.lexical.status).toBe("ready");
+      expect(envBody.projections.graph.status).toBe("ready");
+    } finally {
+      if (prevVercelEnv !== undefined) process.env.VERCEL_ENV = prevVercelEnv;
+      else delete process.env.VERCEL_ENV;
+    }
   });
 });

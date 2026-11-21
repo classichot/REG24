@@ -1,0 +1,146 @@
+{
+  "schema_version": "reg24.rc10_3.p03_historical_vat_cutoff_audit.v1",
+  "generated_at": "2026-11-21T04:40:40.636Z",
+  "release_id": "rel.B01.rc8",
+  "manifest_hash": "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3",
+  "recommended_cutoff_date": "2023-10-01",
+  "material_findings_confirmed_in_rc8": {
+    "finding_1_pre_cutoff_gap_including_rd724": "For 2018-10-01 .. 2023-09-30 (including the missing RD 724 window), rel.B01.rc8 has no intervening VAT reduction decrees and returns pre_llm_status = INSUFFICIENT_EVIDENCE (abstains rather than guessing a rate).",
+    "finding_2_consolidated_rd646_in_2017_2018_window": "IMPORTANT FOR LEGAL P0-3 DECISION: For 2017-10-01 .. 2018-09-30 (e.g. 2018-06-15), rel.B01.rc8 CURRENTLY still returns subreg.th.rc.royal_decree.646@ver.th.rc.royal_decree.646.v2 (backed by the current consolidated RD 646 PDF) as governing! If Legal approves the recommended 1 Oct 2566 (2023-10-01) cutoff so pre-cutoff questions must NOT cite today's consolidated RD 646 as historical proof, a follow-up corpus/guard update will be required for pre-2023-10-01 RD 646 dates once Legal signs the dated decision.",
+    "post_cutoff_2023_10_01_to_2027_09_30": "All verified official Gazette originals (RD 780: 2023-10-01..2024-09-30; RD 790: 2024-10-01..2025-09-30; RD 799: 2025-10-01..2026-09-30; RD 807: 2026-10-01..2027-09-30) and post-807 expiry (2027-10-01) match exact boundaries."
+  },
+  "date_sweep": [
+    {
+      "tax_point_date": "2018-06-15",
+      "bucket": "pre_cutoff_rd646_window",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.646@ver.th.rc.royal_decree.646.v2"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": true
+    },
+    {
+      "tax_point_date": "2019-06-15",
+      "bucket": "pre_cutoff_missing_gap",
+      "pre_llm_status": "INSUFFICIENT_EVIDENCE",
+      "governing_royal_decrees": [],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2021-10-15",
+      "bucket": "pre_cutoff_missing_rd724_window",
+      "pre_llm_status": "INSUFFICIENT_EVIDENCE",
+      "governing_royal_decrees": [],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2022-05-01",
+      "bucket": "pre_cutoff_missing_rd724_window",
+      "pre_llm_status": "INSUFFICIENT_EVIDENCE",
+      "governing_royal_decrees": [],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2023-09-30",
+      "bucket": "pre_cutoff_day_before_cutoff",
+      "pre_llm_status": "INSUFFICIENT_EVIDENCE",
+      "governing_royal_decrees": [],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2023-10-01",
+      "bucket": "post_cutoff_rd780_start",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.780@ver.th.rc.royal_decree.780.v2"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2024-09-30",
+      "bucket": "post_cutoff_rd780_end",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.780@ver.th.rc.royal_decree.780.v2"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2024-10-01",
+      "bucket": "post_cutoff_rd790_start",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.790@ver.th.rc.royal_decree.790.v2"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2025-09-30",
+      "bucket": "post_cutoff_rd790_end",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.790@ver.th.rc.royal_decree.790.v2"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2025-10-01",
+      "bucket": "post_cutoff_rd799_start",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.799@ver.th.rc.royal_decree.799.v3"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2026-09-30",
+      "bucket": "post_cutoff_rd799_end",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.799@ver.th.rc.royal_decree.799.v3"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2026-10-01",
+      "bucket": "post_cutoff_rd807_start",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.807@ver.th.rc.royal_decree.807.v3"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2027-09-30",
+      "bucket": "post_cutoff_rd807_end",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.807@ver.th.rc.royal_decree.807.v3"
+      ],
+      "historical_context_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false
+    },
+    {
+      "tax_point_date": "2027-10-01",
+      "bucket": "post_807_expiry",
+      "pre_llm_status": "ANSWERED",
+      "governing_royal_decrees": [],
+      "historical_context_royal_decrees": [
+        "subreg.th.rc.royal_decree.807@ver.th.rc.royal_decree.807.v3"
+      ],
+      "cites_consolidated_rd646_as_governing": false
+    }
+  ]
+}
