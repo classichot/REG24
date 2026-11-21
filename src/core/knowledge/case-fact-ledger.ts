@@ -50,11 +50,14 @@ export interface PreservedTemporalEvent {
 export const VAT_RATE_VERIFIED_COVERAGE_START_ISO = "2023-10-01";
 
 export interface SplitPaymentTaxPointItem {
+  portion_index: number;
   iso_date: string;
   raw_text: string;
   event_type: TemporalEventKind;
   decree_window: string;
   within_verified_coverage: boolean;
+  governing_decree_work_id: string | null;
+  expired_or_non_governing_work_ids: string[];
 }
 
 export interface StructuredCaseFactLedger {
@@ -126,7 +129,7 @@ function extractDatesWithEventKinds(
 
     const matchedKinds: TemporalEventKind[] = [];
     if (/จดทะเบียน|โอนกรรมสิทธิ์/.test(leftCtx)) matchedKinds.push("REGISTRATION");
-    if (/(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|จ่ายเงิน|มัดจำ|งวดแรก|งวดที่\s*[0-9]|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน)/.test(leftCtx)) {
+    if (/(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|จ่ายเงิน|จ่ายงวด|มัดจำ|งวดแรก|งวดที่\s*[0-9]|งวดที่(?:หนึ่ง|สอง|สาม)|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน)/.test(leftCtx)) {
       matchedKinds.push("PAYMENT");
     }
     if (/(?:ออกใบกำกับภาษี|ออกใบกำกับ|ใบกำกับภาษี|ออกใบแจ้งหนี้|ใบแจ้งหนี้)/.test(leftCtx)) {
@@ -574,7 +577,11 @@ export function buildStructuredCaseFactLedger(input: {
       mergedAllUserText
     );
   const hasSplitPaymentWording =
-    /(?:มัดจำ|งวดแรก|งวดที่\s*1|งวดที่\s*2|แบ่งชำระ|แบ่งจ่าย|ส่วนที่เหลือ|ชำระบางส่วน|2\s*งวด|สองงวด|หลายงวด|split[\s-]?payment|installment|deposit|milestone)/i.test(
+    /(?:มัดจำ|งวดแรก|งวดที่\s*1|งวดที่\s*2|งวดที่สอง|แบ่งชำระ|แบ่งจ่าย|ส่วนที่เหลือ|ชำระบางส่วน|2\s*งวด|สองงวด|หลายงวด|split[\s-]?payment|installment|deposit|milestone)/i.test(
+      thaiDigitsToArabic(mergedAllUserText)
+    );
+  const hasSeparateInvoicePerInstallmentWording =
+    /(?:ออกใบกำกับภาษี(?:แยก)?(?:ตาม|แต่ละ)งวด|ออกใบกำกับภาษีเมื่อรับชำระแต่ละงวด|separate\s+invoice(?:s)?\s+per\s+installment)/i.test(
       thaiDigitsToArabic(mergedAllUserText)
     );
   const vatWindowBucket = (iso: string): string => {
@@ -585,9 +592,20 @@ export function buildStructuredCaseFactLedger(input: {
     if (iso >= "2023-10-01" && iso <= "2024-09-30") return "RD_780";
     return "PRE_CUTOFF_BEFORE_2023_10_01";
   };
+  const governingDecreeWorkIdForIso = (iso: string): string | null => {
+    if (iso >= "2023-10-01" && iso <= "2024-09-30") return "subreg.th.rc.royal_decree.780";
+    if (iso >= "2024-10-01" && iso <= "2025-09-30") return "subreg.th.rc.royal_decree.790";
+    if (iso >= "2025-10-01" && iso <= "2026-09-30") return "subreg.th.rc.royal_decree.799";
+    if (iso >= "2026-10-01" && iso <= "2027-09-30") return "subreg.th.rc.royal_decree.807";
+    return null;
+  };
 
   // Detect split-payment / multi-installment VAT transactions BEFORE single-tax-point selection:
-  // NEVER collapse split-payment portions to the earlier date for the whole transaction!
+  // 1) Under Revenue Code §78/1(1), if a PRIOR full tax invoice was issued BEFORE the earliest payment
+  //    (and not separate per-installment invoicing), that prior invoice ALREADY FIXES the tax point for
+  //    the whole transaction — do NOT treat it as split-payment multi-tax-point!
+  // 2) Otherwise, when >= 2 distinct payment/portion dates exist, NEVER collapse to the earlier date
+  //    for the whole transaction: assign authority and validity per tax point!
   const activeTurnVatDates = (
     latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates
   ).filter(
@@ -598,37 +616,69 @@ export function buildStructuredCaseFactLedger(input: {
       e.event_type === "TRANSFER" ||
       e.event_type === "STATED_TRANSACTION_DATE"
   );
+  const activeInvoicesSorted = activeTurnVatDates
+    .filter((e) => e.event_type === "INVOICE")
+    .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
+  const activePaymentsSorted = activeTurnVatDates
+    .filter((e) => e.event_type === "PAYMENT")
+    .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
+  const priorInvoiceFixesWholeTaxPoint = Boolean(
+    isVatCase &&
+      !hasSeparateInvoicePerInstallmentWording &&
+      activeInvoicesSorted.length === 1 &&
+      activePaymentsSorted.length >= 1 &&
+      activeInvoicesSorted[0].iso_date < activePaymentsSorted[0].iso_date
+  );
+
   const distinctActiveVatDatesByIso = new Map<string, PreservedTemporalEvent>();
   for (const ev of [...activeTurnVatDates].sort((a, b) => a.iso_date.localeCompare(b.iso_date))) {
     if (!distinctActiveVatDatesByIso.has(ev.iso_date)) {
       distinctActiveVatDatesByIso.set(ev.iso_date, ev);
     }
   }
-  const distinctPaymentDateCount = new Set(
-    activeTurnVatDates.filter((e) => e.event_type === "PAYMENT").map((e) => e.iso_date)
-  ).size;
+  const distinctPaymentDateCount = new Set(activePaymentsSorted.map((e) => e.iso_date)).size;
   const detectedSplitPayment =
     isVatCase &&
+    !priorInvoiceFixesWholeTaxPoint &&
     distinctActiveVatDatesByIso.size >= 2 &&
     (hasSplitPaymentWording || distinctPaymentDateCount >= 2);
 
-  if (detectedSplitPayment) {
+  if (priorInvoiceFixesWholeTaxPoint) {
+    const inv = activeInvoicesSorted[0];
+    controllingIso = inv.iso_date;
+    controllingEvent = `PRIOR_INVOICE_FIXED_TAX_POINT (${inv.raw_text}, Turn ${inv.source_turn})`;
+    statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78/1 (1): เมื่อมีการออกใบกำกับภาษีเต็มจำนวนก่อนได้รับชำระราคาค่าบริการ (วันที่ ${inv.iso_date}) ความรับผิดในการเสียภาษีมูลค่าเพิ่มสำหรับทั้งธุรกรรมเกิดขึ้นแล้ว ณ วันออกใบกำกับภาษีดังกล่าว ไม่ใช่แยกตามวันรับชำระเงินงวดภายหลัง`;
+  } else if (detectedSplitPayment) {
     isSplitPaymentMultiTaxPoint = true;
-    splitPaymentTaxPoints = Array.from(distinctActiveVatDatesByIso.values()).map((ev) => ({
-      iso_date: ev.iso_date,
-      raw_text: ev.raw_text,
-      event_type: ev.event_type,
-      decree_window: vatWindowBucket(ev.iso_date),
-      within_verified_coverage: ev.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
-    }));
+    splitPaymentTaxPoints = Array.from(distinctActiveVatDatesByIso.values()).map((ev, idx) => {
+      const govWid = governingDecreeWorkIdForIso(ev.iso_date);
+      const expiredWids =
+        ev.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [];
+      return {
+        portion_index: idx + 1,
+        iso_date: ev.iso_date,
+        raw_text: ev.raw_text,
+        event_type: ev.event_type,
+        decree_window: vatWindowBucket(ev.iso_date),
+        within_verified_coverage: ev.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+        governing_decree_work_id: govWid,
+        expired_or_non_governing_work_ids: expiredWids,
+      };
+    });
     controllingIso = null;
     controllingEvent = `SPLIT_PAYMENT_MULTI_TAX_POINT (${splitPaymentTaxPoints.map((p) => `${p.iso_date}:${p.decree_window}`).join(" + ")})`;
     statutoryRuleHint =
-      "กรณีแบ่งรับชำระ/มัดจำหลายงวด (split payment): ห้ามนำวันที่ของงวดแรกมาใช้บังคับกับทั้งธุรกรรม — แต่ละงวดมีวันเกิดความรับผิดทางภาษี (tax point) และพระราชกฤษฎีกาที่ใช้บังคับแยกตามวันที่ของแต่ละงวดตามประมวลรัษฎากร มาตรา 78 / 78/1 (1): " +
+      "กรณีแบ่งรับชำระ/มัดจำหลายงวดโดยไม่มีการออกใบกำกับภาษีหรือใช้บริการก่อนรับชำระ (split payment): ห้ามนำวันที่หรือพระราชกฤษฎีกาของงวดหนึ่งไปใช้เหมารวมกับงวดอื่น — แต่ละงวดมีวันเกิดความรับผิดทางภาษี (tax point) และกฎหมายที่ใช้บังคับแยกตามวันที่ของแต่ละงวดตามประมวลรัษฎากร มาตรา 78 / 78/1 (1): " +
       splitPaymentTaxPoints
         .map(
-          (p, idx) =>
-            `งวดที่ ${idx + 1} วันที่ ${p.iso_date} (${p.within_verified_coverage ? p.decree_window : "ก่อน 2023-10-01 — อยู่นอกขอบเขตต้นฉบับที่ตรวจสอบแล้ว"})`
+          (p) =>
+            `งวดที่ ${p.portion_index} วันที่ ${p.iso_date} (${
+              !p.within_verified_coverage
+                ? "ก่อน 2023-10-01 — อยู่นอกขอบเขตต้นฉบับที่ตรวจสอบแล้ว"
+                : p.governing_decree_work_id
+                  ? `กฎหมายลดอัตราที่ใช้บังคับเฉพาะงวดนี้: ${p.decree_window} (${p.governing_decree_work_id})`
+                  : "หลังวันสิ้นสุด พ.ร.ฎ. ฉบับที่ 807 (30 ก.ย. 2570) — พ.ร.ฎ. 807 ไม่ครอบคลุมงวดนี้และห้ามสมมติอัตราลดในอนาคต ให้พิจารณาตามเพดานมาตรา 80 เว้นแต่จะมีพระราชกฤษฎีกาฉบับใหม่"
+            })`
         )
         .join("; ");
   } else if (isVatCase && factsMap.get("vat_transaction_type")?.normalized_category === "VAT_PROVISION_OF_SERVICE") {

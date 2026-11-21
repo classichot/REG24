@@ -62,6 +62,10 @@ export interface GroundedPassagePackItem {
   source_type: string;
   authority_tier: AuthorityHierarchyTier;
   evidence_role: GroundedEvidenceRole;
+  /** Per-tax-point validity: exact tax-point ISO dates for which this passage is in force (governing). */
+  applicable_tax_point_dates?: string[];
+  /** Per-tax-point validity: exact tax-point ISO dates for which this passage is OUT_OF_WINDOW / expired. */
+  excluded_tax_point_dates?: string[];
   effective_dates: {
     valid_from: string | null;
     valid_to: string | null;
@@ -384,22 +388,43 @@ export function buildGroundedPassagePack(params: {
       EXCLUDED_CONSOLIDATED_HISTORICAL_VAT_WORK_IDS.has(p.work_id) &&
       ver?.draft_or_enacted_status !== "ENACTED_ORIGINAL";
     const splitDates = params.splitPaymentTaxPointDates || [];
-    const matchesAnySplitPortion =
-      splitDates.length >= 2 &&
-      splitDates.some((d) => evaluateTemporalHint(validFrom, validTo, d) === "IN_WINDOW");
+    const evaluatedTaxPoints =
+      splitDates.length >= 2
+        ? splitDates
+        : params.controllingDateIso
+          ? [params.controllingDateIso]
+          : [];
+    const applicableTaxPointDates: string[] = [];
+    const excludedTaxPointDates: string[] = [];
+    for (const tpDate of evaluatedTaxPoints) {
+      const h = evaluateTemporalHint(validFrom, validTo, tpDate);
+      if (h === "OUT_OF_WINDOW") {
+        excludedTaxPointDates.push(tpDate);
+      } else if (h === "IN_WINDOW" || h === "NO_FIXED_END_DATE") {
+        applicableTaxPointDates.push(tpDate);
+      }
+    }
+    const isInWindowForAnyTaxPoint =
+      evaluatedTaxPoints.length > 0 && applicableTaxPointDates.length > 0;
     const temporalHint =
       splitDates.length >= 2
-        ? matchesAnySplitPortion
-          ? "IN_WINDOW"
+        ? applicableTaxPointDates.length > 0
+          ? isTemporaryDecree
+            ? "IN_WINDOW"
+            : "NO_FIXED_END_DATE"
           : isTemporaryDecree
             ? "OUT_OF_WINDOW"
             : "NO_FIXED_END_DATE"
         : evaluateTemporalHint(validFrom, validTo, params.controllingDateIso);
+    // Assign authority and validity PER TAX POINT: never allow a later expired portion's
+    // `historicalContextWorkIds` to override an earlier portion's active `governing` authority!
+    const isHistoricalOnlyForAllTaxPoints =
+      Boolean(params.historicalContextWorkIds?.has(p.work_id)) && !isInWindowForAnyTaxPoint;
     const isSupersededOrHistory =
       isConsolidatedHistoricalVatExcluded ||
       temporalHint === "OUT_OF_WINDOW" ||
-      params.historicalContextWorkIds?.has(p.work_id) ||
-      supersededOrAmendedHistoricalWorkIds.has(p.work_id);
+      isHistoricalOnlyForAllTaxPoints ||
+      (supersededOrAmendedHistoricalWorkIds.has(p.work_id) && !isInWindowForAnyTaxPoint);
 
     let evidenceRole: GroundedEvidenceRole;
     if (isSupersededOrHistory) {
@@ -422,6 +447,12 @@ export function buildGroundedPassagePack(params: {
       source_type: work?.type || "Statute",
       authority_tier: classifyAuthorityTier(work?.type, p.work_id),
       evidence_role: evidenceRole,
+      ...(evaluatedTaxPoints.length > 0
+        ? {
+            applicable_tax_point_dates: applicableTaxPointDates,
+            excluded_tax_point_dates: excludedTaxPointDates,
+          }
+        : {}),
       effective_dates: {
         valid_from: validFrom,
         valid_to: validTo,
@@ -628,6 +659,7 @@ const GROUNDED_SYSTEM_INSTRUCTION = `คุณคือทนายความ�
    - ห้ามเปลี่ยนชื่อทรัพย์สินหรือคู่กรณีให้เพี้ยนจากคำถาม เช่น หากผู้ใช้ถามเรื่อง "ห้องชุด" ให้ระบุว่าเป็น "ห้องชุด (ซึ่งจัดเป็นอสังหาริมทรัพย์)" ห้ามเปลี่ยนเป็น "ที่ดิน" โดยพลการ หากผู้ใช้ระบุ "หลานชาย (บุตรชายของน้องสาว)" ห้ามเปลี่ยนเป็น "หลานสาว"
    - หากมีหลายเทิร์น ให้ยึดข้อเท็จจริงที่อัปเดตล่าสุดจากเทิร์นหลังทับค่าที่เปลี่ยนไป และคงข้อเท็จจริงเดิมที่ไม่ได้เปลี่ยนไว้
    - แยกแยะวันทำธุรกรรม (transaction date), วันที่อ้างอิงกฎหมาย (legal as-of date) และวันเกิดความรับผิดทางภาษี (controlling tax point เช่น มาตรา 78/1 (1) สำหรับบริการ) ให้ชัดเจน ห้ามสมมติวันที่เองเมื่อวันที่ขาดหายหรือคลุมเครือ
+   - กรณีแบ่งรับชำระหลายงวด (split_payment_tax_points มีหลายงวด): ต้องแยกวิเคราะห์แต่ละงวดเป็นประเด็นแยกกันโดยระบุวันเกิดความรับผิด จำนวนเงิน และกฎหมายที่ใช้บังคับเฉพาะงวดนั้นตาม applicable_tax_point_dates ของแต่ละหลักฐาน ห้ามนำวันที่หรือพระราชกฤษฎีกาของงวดก่อนหน้ามาใช้กับงวดที่อยู่นอกช่วงวันใช้บังคับ (excluded_tax_point_dates) และสำหรับงวดที่เกิดหลังวันสิ้นสุดพระราชกฤษฎีกาชั่วคราว (เช่น หลัง 30 กันยายน 2570) ห้ามอ้างพระราชกฤษฎีกาที่สิ้นสุดแล้วเป็นกฎหมายควบคุมและห้ามสมมติว่าจะมีพระราชกฤษฎีกาขยายเวลาลดอัตราในอนาคต ให้ระบุตามเพดานประมวลรัษฎากร มาตรา 80 เว้นแต่จะมีการตราพระราชกฤษฎีกาฉบับใหม่ก่อนวันเกิดความรับผิดของงวดนั้น
 2. อ้างอิงเฉพาะ passage_id ที่มีอยู่จริงใน PASSAGE_PACK ที่ส่งให้เท่านั้น:
    - ห้ามประดิษฐ์เลขมาตรา อนุมาตรา เลขพระราชกฤษฎีกา หรือเลขหนังสือตอบข้อหารือ กค ที่ไม่ปรากฏตรงตัวในข้อความของ PASSAGE_PACK (ตรวจสอบเลขอนุมาตราให้ตรงกับ verbatim_text ของ passage ที่อ้างอิงทุกครั้ง และหากกล่าวถึงอัตรารวมภาษีท้องถิ่นร้อยละ 7 ให้ระบุ passage_id ของคู่มือ/คำแนะนำทางการเรื่องภาษีท้องถิ่นใน governing_passage_ids ด้วย)
    - ตรวจสอบช่วงเวลาใช้บังคับ (valid_from / valid_to) ของทุกกฎหมายลำดับรองและพระราชกฤษฎีกาเทียบกับวันเกิดความรับผิดทางภาษี ห้ามนำพระราชกฤษฎีกาที่อยู่นอกช่วงวันใช้บังคับ (temporal_applicability_hint = "OUT_OF_WINDOW") มาใช้เป็นกฎหมายควบคุมสำหรับธุรกรรมนั้น และห้ามเหมารวมใช้ฉบับล่าสุดเมื่อไม่มีวันที่หรือวันที่อยู่นอกช่วง
@@ -727,6 +759,13 @@ export function buildGroundedLlmUserPrompt(params: {
       official_identifier: p.official_identifier,
       title_th: p.title_th,
       authority_tier: p.authority_tier,
+      evidence_role: p.evidence_role,
+      ...(p.applicable_tax_point_dates
+        ? {
+            applicable_tax_point_dates: p.applicable_tax_point_dates,
+            excluded_tax_point_dates: p.excluded_tax_point_dates || [],
+          }
+        : {}),
       source_type: p.source_type,
       version_id: p.version_id,
       effective_dates: p.effective_dates,

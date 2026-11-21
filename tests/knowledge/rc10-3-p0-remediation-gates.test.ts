@@ -29,6 +29,8 @@ import {
   buildGroundedPassagePack,
   resolveThinkingLevelForModel,
 } from "../../src/core/knowledge/grounded-llm-drafter";
+import { verifyAndRenderGroundedLlmDraft } from "../../src/core/knowledge/grounded-llm-verifier";
+import { buildStructuredCaseFactLedger } from "../../src/core/knowledge/case-fact-ledger";
 import {
   queryKnowledge,
   type RealAppEvidenceAssemblyCapture,
@@ -921,5 +923,224 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
     expect(splitCutoff.answer).toContain("ห้ามใช้วันที่ของงวดแรกบังคับกับทั้งธุรกรรม");
     expect(splitCutoff.evidence.length).toBe(0);
     expect(splitCutoff.answer).not.toMatch(/(?:ร้อยละ\s*(?:6\.3|7|10)|(?:6\.3|7|10)\s*%)/);
+  });
+
+  it("8. Per-Tax-Point Authority & Validity Regressions: RD 807 expiry split (30 Sep / 1 Oct 2570), normal decree handover split, cutoff-straddling split, prior-invoice fixation, and verifier negative control", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+    const state = store.getState();
+
+    // 1) RD 807 expiry split (฿40,000 paid 30 Sep 2570 + ฿60,000 paid 1 Oct 2570, no earlier invoice/use)
+    const expiryQ =
+      "บริษัท เอเพ็กซ์ คอนซัลติ้ง จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยแก่ลูกค้าในกรุงเทพมหานครซึ่งใช้บริการทั้งหมดในประเทศไทย โดยไม่มีการออกใบกำกับภาษีหรือใช้บริการก่อนวันรับชำระเงิน ลูกค้าแบ่งชำระค่าบริการ 2 งวด คือ ชำระงวดแรก 40,000 บาท เมื่อวันที่ 30 กันยายน 2570 และชำระงวดที่สอง 60,000 บาท เมื่อวันที่ 1 ตุลาคม 2570 แต่ละงวดต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละเท่าใดและตามกฎหมายฉบับใด";
+    const expiryCap = await capturePacket(store, "rel.B01.rc8", expiryQ, null);
+    expect(expiryCap.controlling_date_iso).toBeNull();
+    const rd807Entries = expiryCap.actual_model_packet.filter(
+      (p) => p.work_id === "subreg.th.rc.royal_decree.807"
+    );
+    expect(rd807Entries.length).toBeGreaterThan(0);
+    // Portion 1 (2027-09-30) MUST retain RD 807 as governing; Portion 2 (2027-10-01) MUST be marked excluded!
+    for (const entry of rd807Entries) {
+      expect(entry.evidence_role).toBe("governing");
+      expect(entry.applicable_tax_point_dates).toEqual(["2027-09-30"]);
+      expect(entry.excluded_tax_point_dates).toEqual(["2027-10-01"]);
+    }
+
+    // Verify through real grounded-LLM verifier (final answer + citations, not just pre-model packet!):
+    const ledgerExpiry = buildStructuredCaseFactLedger({ question: expiryQ, applicableDate: null });
+    expect(ledgerExpiry.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point).toBe(true);
+    expect(ledgerExpiry.temporal_facts.split_payment_tax_points?.map((p) => p.iso_date)).toEqual([
+      "2027-09-30",
+      "2027-10-01",
+    ]);
+    const rc80Psg = expiryCap.actual_model_packet.find((p) => p.work_id === "prov.th.rc.80")!;
+    const rd807Psg = expiryCap.actual_model_packet.find(
+      (p) => p.passage_id === "psg.rc8.rd807.sec_3_quoted_rd646_sec_4"
+    )!;
+    const rawPassagesById = new Map(
+      store.getPassagesForRelease("rel.B01.rc8").map((p) => [p.passage_id, p])
+    );
+    const packForVerify = buildGroundedPassagePack({
+      passages: [rawPassagesById.get(rc80Psg.passage_id)!, rawPassagesById.get(rd807Psg.passage_id)!],
+      state,
+      controllingDateIso: null,
+      splitPaymentTaxPointDates: ["2027-09-30", "2027-10-01"],
+    });
+    const dummyAudit = {
+      provider: "google-gemini" as const,
+      api_surface: "interactions-v1beta" as const,
+      requested_model: "gemini-4-neon",
+      resolved_model: "gemini-4-neon",
+      actual_model_invoked: "gemini-4-neon",
+      pinned_settings: {
+        thinking_level: "low" as const,
+        thinking_level_note: null,
+        temperature: 0,
+        max_output_tokens: 16384,
+        timeout_ms: 120000,
+        store: false as const,
+      },
+      prompt_version: "reg24-grounded-llm-legal-application-v1.1",
+      live_provider_called: true,
+      silent_fallback_disabled: true as const,
+      provider_interaction_id: "test-expiry-verify",
+      provider_response_status: "completed",
+      failure_classification: "NONE" as const,
+      latency_ms: 10,
+      input_tokens: 100,
+      output_tokens: 100,
+      thought_tokens: 0,
+      total_tokens: 200,
+      estimated_cost_usd: 0,
+      attempts: [],
+      error_summary: null,
+    };
+
+    // Valid 2-portion draft: Portion 1 cites RD 807, Portion 2 cites §80 + explicitly notes RD 807 expired!
+    // PLUS negative-control Portion 3: erroneously tries to apply RD 807 as governing to 2027-10-01 -> MUST BE REJECTED!
+    const verified = verifyAndRenderGroundedLlmDraft({
+      traceId: "trc.test.expiry_split",
+      factLedger: ledgerExpiry,
+      passagePack: packForVerify,
+      rawPassagesById,
+      state,
+      llmOk: true,
+      stagingFlagActive: true,
+      invocationAudit: dummyAudit,
+      draft: {
+        answer_status: "CONDITIONAL",
+        overall_summary_th: "แยกพิจารณาตามวันรับชำระแต่ละงวด",
+        case_facts_used: [
+          {
+            fact_label_th: "งวดที่ 1",
+            original_fact_th: "30 กันยายน 2570 (40,000 บาท)",
+            source_turn: 1,
+            legal_significance_th: "วันเกิดความรับผิดงวดที่ 1",
+          },
+          {
+            fact_label_th: "งวดที่ 2",
+            original_fact_th: "1 ตุลาคม 2570 (60,000 บาท)",
+            source_turn: 1,
+            legal_significance_th: "วันเกิดความรับผิดงวดที่ 2",
+          },
+        ],
+        issues: [
+          {
+            issue_id: "iss.portion1",
+            issue_title_th: "งวดที่ 1 วันที่ 30 กันยายน 2570 (40,000 บาท)",
+            party_or_scope_th: "งวดที่ 1 (2027-09-30)",
+            conclusion_th: "ลดอัตราภาษีมูลค่าเพิ่มคงจัดเก็บในอัตราร้อยละ 6.3 ตาม พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569",
+            material_facts_relied_on: ["รับชำระวันที่ 30 กันยายน 2570"],
+            governing_passage_ids: [rc80Psg.passage_id, rd807Psg.passage_id],
+            application_explanation_th: "ความรับผิดเกิดขึ้นวันที่ 30 กันยายน 2570 อยู่ในช่วงเวลาของ พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569",
+            authority_distinction_note_th: "ประมวลรัษฎากร มาตรา 80 และ พ.ร.ฎ. ฉบับที่ 807",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: null,
+          },
+          {
+            issue_id: "iss.portion2_valid",
+            issue_title_th: "งวดที่ 2 วันที่ 1 ตุลาคม 2570 (60,000 บาท)",
+            party_or_scope_th: "งวดที่ 2 (2027-10-01)",
+            conclusion_th:
+              "การให้บริการสำหรับงวดที่ 2 อยู่นอกช่วงเวลาใช้บังคับของพระราชกฤษฎีกา (ฉบับที่ 807) พ.ศ. 2569 ซึ่งสิ้นสุดในวันที่ 30 กันยายน 2570 จึงไม่อาจนำอัตราลดมาใช้บังคับได้ ต้องเสียภาษีมูลค่าเพิ่มตามอัตราร้อยละ 10.0 แห่งประมวลรัษฎากร มาตรา 80 เว้นแต่จะมีการตราพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มฉบับใหม่",
+            material_facts_relied_on: ["รับชำระวันที่ 1 ตุลาคม 2570"],
+            governing_passage_ids: [rc80Psg.passage_id],
+            application_explanation_th:
+              "ประมวลรัษฎากร มาตรา 80 กำหนดให้ใช้อัตราภาษีมูลค่าเพิ่มร้อยละ 10.0 สำหรับการขายสินค้าหรือการให้บริการทุกกรณี เมื่อพระราชกฤษฎีกา (ฉบับที่ 807) สิ้นสุดระยะเวลาลดอัตราในวันที่ 30 กันยายน 2570 และไม่ครอบคลุมวันที่ 1 ตุลาคม 2570 จึงไม่อาจนำมาลดอัตราภาษีมูลค่าเพิ่มสำหรับงวดที่ 2 ได้",
+            authority_distinction_note_th: "มาตรา 80 แห่งประมวลรัษฎากร (กฎหมายแม่บท)",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: null,
+          },
+          {
+            issue_id: "iss.portion2_bad_inherit",
+            issue_title_th: "งวดที่ 2 วันที่ 1 ตุลาคม 2570 (ทดสอบรับช่วง RD 807 ผิดพลาด)",
+            party_or_scope_th: "งวดที่ 2 (2027-10-01)",
+            conclusion_th: "วันที่ 1 ตุลาคม 2570 ยังคงใช้อัตราลดร้อยละ 6.3 ตาม พ.ร.ฎ. ฉบับที่ 807",
+            material_facts_relied_on: ["รับชำระวันที่ 1 ตุลาคม 2570"],
+            governing_passage_ids: [rd807Psg.passage_id],
+            application_explanation_th: "ใช้อัตราลดตาม พ.ร.ฎ. ฉบับที่ 807 กับงวดที่ 2",
+            authority_distinction_note_th: "พ.ร.ฎ. ฉบับที่ 807",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: null,
+          },
+          {
+            issue_id: "iss.portion2_bad_uncited_apply",
+            issue_title_th: "งวดที่ 2 วันที่ 1 ตุลาคม 2570 (ทดสอบอ้างใช้ RD 807 โดยไม่แนบและไม่ปฏิเสธ)",
+            party_or_scope_th: "งวดที่ 2 (2027-10-01)",
+            conclusion_th: "การให้บริการงวดที่ 2 วันที่ 1 ตุลาคม 2570 เสียภาษีมูลค่าเพิ่มตามมาตรา 80 และพระราชกฤษฎีกา (ฉบับที่ 807) ร้อยละ 10.0",
+            material_facts_relied_on: ["รับชำระวันที่ 1 ตุลาคม 2570"],
+            governing_passage_ids: [rc80Psg.passage_id],
+            application_explanation_th: "ใช้พระราชกฤษฎีกา (ฉบับที่ 807) ควบคู่มาตรา 80 สำหรับการให้บริการงวดที่ 2",
+            authority_distinction_note_th: "มาตรา 80",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: null,
+          },
+          {
+            issue_id: "iss.portion2_bad_hallucinated_decree",
+            issue_title_th: "งวดที่ 2 วันที่ 1 ตุลาคม 2570 (ทดสอบประดิษฐ์เลข พ.ร.ฎ. 999)",
+            party_or_scope_th: "งวดที่ 2 (2027-10-01)",
+            conclusion_th: "พระราชกฤษฎีกา (ฉบับที่ 999) ไม่ครอบคลุมวันที่ 1 ตุลาคม 2570 จึงเสียภาษีมูลค่าเพิ่มร้อยละ 10.0 ตามมาตรา 80",
+            material_facts_relied_on: ["รับชำระวันที่ 1 ตุลาคม 2570"],
+            governing_passage_ids: [rc80Psg.passage_id],
+            application_explanation_th: "พระราชกฤษฎีกา (ฉบับที่ 999) สิ้นสุดแล้วจึงใช้มาตรา 80 สำหรับการให้บริการงวดที่ 2",
+            authority_distinction_note_th: "มาตรา 80",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: null,
+          },
+        ],
+        assumptions_th: [],
+        clarification_questions_th: [],
+        evidence_gaps_th: [],
+      },
+    });
+    expect(verified.verified_issues.map((v) => v.issue_id)).toContain("iss.portion1");
+    expect(verified.verified_issues.map((v) => v.issue_id)).toContain("iss.portion2_valid");
+    expect(
+      verified.verified_issues.find((v) => v.issue_id === "iss.portion2_valid")?.governing_passage_ids
+    ).toEqual([rc80Psg.passage_id]);
+    expect(verified.verified_issues.map((v) => v.issue_id)).not.toContain("iss.portion2_bad_inherit");
+    expect(verified.verified_issues.map((v) => v.issue_id)).not.toContain("iss.portion2_bad_uncited_apply");
+    expect(verified.verified_issues.map((v) => v.issue_id)).not.toContain("iss.portion2_bad_hallucinated_decree");
+    expect(
+      verified.audit_trace.rejected_claims.some(
+        (r) => r.issue_id === "iss.portion2_bad_inherit" && r.rejection_code === "OUT_OF_EFFECTIVE_DATE_WINDOW"
+      )
+    ).toBe(true);
+    expect(
+      verified.audit_trace.rejected_claims.some(
+        (r) => r.issue_id === "iss.portion2_bad_uncited_apply" && r.rejection_code === "UNGROUNDED_OR_CONTRADICTED_CLAIM"
+      )
+    ).toBe(true);
+    expect(
+      verified.audit_trace.rejected_claims.some(
+        (r) => r.issue_id === "iss.portion2_bad_hallucinated_decree" && r.rejection_code === "UNGROUNDED_OR_CONTRADICTED_CLAIM"
+      )
+    ).toBe(true);
+
+    // 2) Normal decree handover split (25 Sep 2568 RD 790 + 5 Oct 2568 RD 799) -> per-tax-point validity!
+    const handoverSplit = await capturePacket(
+      store,
+      "rel.B01.rc8",
+      "บริษัทให้บริการที่ปรึกษาในประเทศไทย โดยไม่มีการออกใบกำกับภาษีหรือใช้บริการก่อนวันรับชำระเงิน ลูกค้าแบ่งชำระ 2 งวด คือ 40,000 บาท วันที่ 25 กันยายน 2568 และ 60,000 บาท วันที่ 5 ตุลาคม 2568 ต้องเสียภาษีมูลค่าเพิ่มตามกฎหมายใด",
+      null
+    );
+    const rd790Entry = handoverSplit.actual_model_packet.find((p) => p.work_id === "subreg.th.rc.royal_decree.790");
+    const rd799Entry = handoverSplit.actual_model_packet.find((p) => p.work_id === "subreg.th.rc.royal_decree.799");
+    expect(rd790Entry?.evidence_role).toBe("governing");
+    expect(rd790Entry?.applicable_tax_point_dates).toEqual(["2025-09-25"]);
+    expect(rd790Entry?.excluded_tax_point_dates).toEqual(["2025-10-05"]);
+    expect(rd799Entry?.evidence_role).toBe("governing");
+    expect(rd799Entry?.applicable_tax_point_dates).toEqual(["2025-10-05"]);
+    expect(rd799Entry?.excluded_tax_point_dates).toEqual(["2025-09-25"]);
+
+    // 3) Prior invoice that already fixes the tax point under §78/1(1) (invoice 25 Sep 2568 BEFORE 2 split payments 30 Sep + 5 Oct 2568!)
+    const priorInvQ =
+      "บริษัทให้บริการที่ปรึกษาในประเทศไทยแก่ลูกค้าในกรุงเทพมหานคร โดยออกใบกำกับภาษีเต็มจำนวน 100,000 บาท เมื่อวันที่ 25 กันยายน 2568 แต่ลูกค้าแบ่งชำระค่าบริการ 2 งวด คือ งวดแรก 40,000 บาท วันที่ 30 กันยายน 2568 และงวดที่สอง 60,000 บาท วันที่ 5 ตุลาคม 2568 ต้องเสียภาษีมูลค่าเพิ่มตามพระราชกฤษฎีกาฉบับใด";
+    const priorInvCap = await capturePacket(store, "rel.B01.rc8", priorInvQ, null);
+    expect(priorInvCap.controlling_date_iso).toBe("2025-09-25");
+    const priorInvGovWorks = priorInvCap.actual_model_packet
+      .filter((p) => p.evidence_role === "governing")
+      .map((p) => p.work_id);
+    expect(priorInvGovWorks).toContain("subreg.th.rc.royal_decree.790");
+    expect(priorInvGovWorks).not.toContain("subreg.th.rc.royal_decree.799");
   });
 });

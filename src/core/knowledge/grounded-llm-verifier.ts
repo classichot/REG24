@@ -13,7 +13,10 @@
  *    explicit inability/clarification/partial-verified result, NEVER a prewritten legal conclusion.
  */
 
-import { verifyClaimAgainstPassages } from "./answer-verification";
+import {
+  extractCanonicalInstrumentNumbers,
+  verifyClaimAgainstPassages,
+} from "./answer-verification";
 import type { StructuredCaseFactLedger } from "./case-fact-ledger";
 import type { ClaimBoundCalculationRecord } from "./citation-contracts";
 import type { ClaimLedgerItem, EvidenceCard, Passage } from "./contracts";
@@ -225,13 +228,159 @@ function checkCaseFactPreservation(
   return { ok: true };
 }
 
+const EXPLICIT_EXCLUSION_RE =
+  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|สิ้นสุดการบังคับใช้|สิ้นสุดระยะเวลา|สิ้นสุดในวันที่|สิ้นสุดเมื่อวันที่|สิ้นสุดลง|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|OUT_OF_WINDOW)/;
+
+function resolveIssueTargetSplitPortionIso(
+  issue: LlmDraftedIssue,
+  splitPoints: NonNullable<StructuredCaseFactLedger["temporal_facts"]["split_payment_tax_points"]>
+): string | null {
+  if (splitPoints.length < 2) return null;
+  const headerText = thaiDigitsToArabic(`${issue.issue_title_th} ${issue.party_or_scope_th}`).replace(
+    /\s+/g,
+    " "
+  );
+  const matchIn = (haystack: string) =>
+    splitPoints.filter((sp) => {
+      const rawNorm = thaiDigitsToArabic(sp.raw_text).replace(/\s+/g, " ").trim();
+      return haystack.includes(sp.iso_date) || (rawNorm.length >= 6 && haystack.includes(rawNorm));
+    });
+
+  // 1. Prefer exact date match in issue title / party_or_scope (never fooled by expiry date cited in explanation!)
+  const headerMatches = matchIn(headerText);
+  if (headerMatches.length === 1) return headerMatches[0].iso_date;
+
+  // 2. Ordinal portion match in header (e.g. "งวดแรก" / "งวดที่ 1" vs "งวดที่สอง" / "งวดที่ 2")
+  const ordMatches = splitPoints.filter((sp, idx) => {
+    const num = sp.portion_index ?? idx + 1;
+    const ordRe =
+      num === 1
+        ? /(?:งวดแรก|งวดที่\s*1(?!\d))/
+        : num === 2
+          ? /(?:งวดที่สอง|งวดที่\s*2(?!\d))/
+          : new RegExp(`งวดที่\\s*${num}(?!\\d)`);
+    return ordRe.test(headerText);
+  });
+  if (ordMatches.length === 1) return ordMatches[0].iso_date;
+
+  // 3. Fallback to conclusion text
+  const concText = thaiDigitsToArabic(issue.conclusion_th).replace(/\s+/g, " ");
+  const concMatches = matchIn(concText);
+  if (concMatches.length === 1) return concMatches[0].iso_date;
+
+  return null;
+}
+
+function extractExplicitlyExcludedContextInstruments(params: {
+  issue: LlmDraftedIssue;
+  validPassageIds: string[];
+  passagePack: GroundedPassagePackItem[];
+  factLedger: StructuredCaseFactLedger;
+}): string[] {
+  const normClaim = thaiDigitsToArabic(
+    `${params.issue.issue_title_th} ${params.issue.party_or_scope_th} ${params.issue.conclusion_th} ${params.issue.application_explanation_th}`
+  ).replace(/\s+/g, " ");
+  if (!EXPLICIT_EXCLUSION_RE.test(normClaim)) {
+    return [];
+  }
+
+  const citedSet = new Set(params.validPassageIds);
+  const splitPoints = params.factLedger.temporal_facts.split_payment_tax_points || [];
+  const isSplitMultiTaxPoint = Boolean(
+    params.factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+      splitPoints.length >= 2
+  );
+  const singleTargetIso = isSplitMultiTaxPoint
+    ? resolveIssueTargetSplitPortionIso(params.issue, splitPoints)
+    : null;
+
+  const excludedPackPassages = params.passagePack.filter((p) => {
+    if (citedSet.has(p.passage_id)) return false;
+    if (singleTargetIso && (p.excluded_tax_point_dates || []).includes(singleTargetIso)) {
+      return true;
+    }
+    return (
+      p.effective_dates.temporal_applicability_hint === "OUT_OF_WINDOW" ||
+      p.evidence_role === "historical_or_excluded_context"
+    );
+  });
+  if (excludedPackPassages.length === 0) return [];
+
+  const candidateInstruments = new Set<string>();
+  for (const p of excludedPackPassages) {
+    const blob = thaiDigitsToArabic(
+      `${p.official_identifier} ${p.title_th} ${p.pinpoint} ${p.verbatim_text}`
+    ).replace(/\s+/g, " ");
+    for (const inst of extractCanonicalInstrumentNumbers(blob)) {
+      candidateInstruments.add(inst);
+    }
+  }
+
+  const verifiedExcluded: string[] = [];
+  for (const inst of candidateInstruments) {
+    const numPart = inst.replace(/^(?:พรฎ\.|ทป\.|ฎีกา\.)/, "");
+    const esc = numPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const mentionRe = new RegExp(`(?:ฉบับที่\\s*${esc}|ท\\.ป\\.\\s*${esc}|ฎีกาที่\\s*${esc})`, "g");
+    const matches = Array.from(normClaim.matchAll(mentionRe));
+    if (matches.length === 0) continue;
+    // Require EVERY mention of this uncited instrument to appear within an explicit exclusion context!
+    const allMentionsExcluded = matches.every((m) => {
+      const idx = m.index ?? 0;
+      const win = normClaim.slice(Math.max(0, idx - 180), Math.min(normClaim.length, idx + 200));
+      return EXPLICIT_EXCLUSION_RE.test(win);
+    });
+    if (allMentionsExcluded) {
+      verifiedExcluded.push(inst);
+    }
+  }
+  return verifiedExcluded;
+}
+
 function checkTemporalApplicabilityOfCitedPassages(
   issue: LlmDraftedIssue,
   citedItems: GroundedPassagePackItem[],
   factLedger: StructuredCaseFactLedger
 ): { ok: boolean; code?: RejectedClaimAuditEntry["rejection_code"]; reason_th?: string } {
   const controllingIso = factLedger.temporal_facts.controlling_tax_point.iso_date;
+  const splitPoints = factLedger.temporal_facts.split_payment_tax_points || [];
+  const isSplitMultiTaxPoint = Boolean(
+    factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+      splitPoints.length >= 2
+  );
   const combinedText = thaiDigitsToArabic(`${issue.conclusion_th} ${issue.application_explanation_th}`);
+  const explicitlyExcludes = EXPLICIT_EXCLUSION_RE.test(combinedText);
+
+  // Per-tax-point temporal verification for multi-tax-point (split-payment) transactions:
+  if (isSplitMultiTaxPoint) {
+    const targetIso = resolveIssueTargetSplitPortionIso(issue, splitPoints);
+    // If this issue targets strictly ONE portion date (e.g. Portion 2 on 2027-10-01), verify that
+    // any cited time-limited decree excluded for THAT portion date is ONLY cited with explicit exclusion
+    // AND alongside an in-window/timeless statute (e.g. §80) — NEVER as governing authority for that portion!
+    if (targetIso) {
+      const excludedForPortion = citedItems.filter((p) =>
+        (p.excluded_tax_point_dates || []).includes(targetIso)
+      );
+      if (excludedForPortion.length > 0) {
+        const hasValidAuthorityForPortion = citedItems.some(
+          (p) => !(p.excluded_tax_point_dates || []).includes(targetIso)
+        );
+        if (!explicitlyExcludes || !hasValidAuthorityForPortion) {
+          const labels = excludedForPortion
+            .map(
+              (p) =>
+                `${p.official_identifier} (${p.effective_dates.valid_from || "?"} ถึง ${p.effective_dates.valid_to || "?"})`
+            )
+            .join(", ");
+          return {
+            ok: false,
+            code: "OUT_OF_EFFECTIVE_DATE_WINDOW",
+            reason_th: `งวดวันที่ ${targetIso} อยู่นอกช่วงวันใช้บังคับของกฎหมายลำดับรองที่อ้างถึง (${labels}) และข้อความร่างไม่ได้ระบุการสิ้นสุด/ไม่ครอบคลุมควบคู่หลักฐานที่ใช้บังคับได้`,
+          };
+        }
+      }
+    }
+    return { ok: true };
+  }
 
   const outOfWindowItems = citedItems.filter(
     (p) => p.effective_dates.temporal_applicability_hint === "OUT_OF_WINDOW"
@@ -239,10 +388,6 @@ function checkTemporalApplicabilityOfCitedPassages(
   if (outOfWindowItems.length > 0 && controllingIso) {
     // Allow citing an out-of-window decree ONLY if the conclusion explicitly states it does NOT apply
     // AND another in-window governing passage supports the claim.
-    const explicitlyExcludes =
-      /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|สิ้นสุดการบังคับใช้|อยู่นอกช่วง|ไม่อยู่ในช่วง|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|มิใช่ฉบับที่ใช้บังคับ|OUT_OF_WINDOW)/.test(
-        combinedText
-      );
     const hasOtherInWindowPassage = citedItems.some(
       (p) => p.effective_dates.temporal_applicability_hint !== "OUT_OF_WINDOW"
     );
@@ -779,11 +924,18 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       ? `[${iss.issue_title_th} — ${iss.party_or_scope_th}] ${iss.conclusion_th} (${iss.application_explanation_th})`
       : `[${iss.issue_title_th} — ${iss.party_or_scope_th}] ${iss.conclusion_th}`;
     let finalPassageIds = [...validPassageIds];
+    const excludedContextInstruments = extractExplicitlyExcludedContextInstruments({
+      issue: iss,
+      validPassageIds: finalPassageIds,
+      passagePack: params.passagePack,
+      factLedger: params.factLedger,
+    });
     let entailmentCheck = verifyClaimAgainstPassages(
       {
         statement: fullIssueClaimStatement,
         supporting_passage_ids: finalPassageIds,
         verified_calculation_numeric_tokens: trustedTokensArr,
+        excluded_context_instruments: excludedContextInstruments,
       },
       allRawPassages
     );
@@ -807,6 +959,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           statement: fullIssueClaimStatement,
           supporting_passage_ids: finalPassageIds,
           verified_calculation_numeric_tokens: trustedTokensArr,
+          excluded_context_instruments: excludedContextInstruments,
         },
         allRawPassages
       );

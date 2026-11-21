@@ -178,7 +178,7 @@ function normalizeForEntailment(raw: string): string {
 
 function stripProvenanceHeaderPrefix(claimText: string): string {
   return claimText
-    .replace(/^\[[^\]]{2,140}\]\s*/u, "")
+    .replace(/^\[[^\]]{2,320}\]\s*/u, "")
     .replace(/^【[^】]{2,80}】\s*/u, "")
     .replace(
       /^สรุปผลการปรับใช้บทบัญญัติ[^:]{0,160}:\s*/u,
@@ -218,9 +218,9 @@ function extractCanonicalRulingIds(rawText: string): string[] {
   return Array.from(out);
 }
 
-function extractCanonicalInstrumentNumbers(normText: string): string[] {
+export function extractCanonicalInstrumentNumbers(normText: string): string[] {
   const out = new Set<string>();
-  for (const m of normText.matchAll(/พระราชกฤษฎีกา[^0-9\n]{0,115}ฉบับที่\s*([0-9]+)/g)) {
+  for (const m of normText.matchAll(/(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^0-9\n]{0,115}ฉบับที่\s*([0-9]+)/g)) {
     out.add(`พรฎ.${m[1]}`);
   }
   for (const m of normText.matchAll(/ท\.ป\.\s*([0-9]+\/[0-9]+)/g)) {
@@ -387,6 +387,7 @@ export function evaluateSubstantiveClaimSupport(params: {
   claim_text: string;
   passages: SubstantiveSupportPassageInput[];
   verified_calculation_numeric_tokens?: string[];
+  excluded_context_instruments?: string[];
 }): SubstantiveClaimSupportOutcome {
   const strippedClaim = stripProvenanceHeaderPrefix(params.claim_text || "");
   if (!strippedClaim || params.passages.length === 0) {
@@ -655,8 +656,9 @@ export function evaluateSubstantiveClaimSupport(params: {
   }
 
   const sourceInstruments = new Set(extractCanonicalInstrumentNumbers(combinedNormWithMeta));
+  const excludedContextInstrumentSet = new Set(params.excluded_context_instruments || []);
   for (const inst of claimInstruments) {
-    if (!sourceInstruments.has(inst)) {
+    if (!sourceInstruments.has(inst) && !excludedContextInstrumentSet.has(inst)) {
       return {
         supported: false,
         reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
@@ -829,9 +831,23 @@ export function evaluateSubstantiveClaimSupport(params: {
   const matchedShingles = claimShingles.filter((sh) => unionShingleSet.has(sh));
   const overlapRatio = matchedShingles.length / claimShingles.length;
 
-  // Require meaningful substantive concept/shingle coverage (>= 0.30, and >= 2 matched substantive features when claim has >= 3 features)
-  const minMatchedCount = claimShingles.length >= 3 ? 2 : 1;
-  if (overlapRatio < 0.3 || matchedShingles.length < minMatchedCount) {
+  // Require meaningful substantive concept/shingle coverage:
+  // - Standard claims: >= 0.30 overlap (and >= 2 matched features when claim has >= 3 features).
+  // - Long case-fact-rich legal applications (>= 15 shingles) that have ALREADY verified explicit
+  //   statutory/ruling/instrument identifiers, numeric grounding, exclusive domain match, and per-source
+  //   relevance (e.g. applying short statutory sections like §80 or §78/1 to rich multi-date facts):
+  //   require >= 0.10 overlap AND >= 4 distinct matched substantive legal features!
+  const hasExplicitGroundedIdentifier =
+    claimSections.length > 0 || claimInstruments.length > 0 || claimRulings.length > 0;
+  const isLongIdentifierGroundedApplication =
+    hasExplicitGroundedIdentifier && claimShingles.length >= 15;
+  const minOverlapRatio = isLongIdentifierGroundedApplication ? 0.1 : 0.3;
+  const minMatchedCount = isLongIdentifierGroundedApplication
+    ? 4
+    : claimShingles.length >= 3
+      ? 2
+      : 1;
+  if (overlapRatio < minOverlapRatio || matchedShingles.length < minMatchedCount) {
     return {
       supported: false,
       reason_code: "INSUFFICIENT_SUBSTANTIVE_OVERLAP",
@@ -905,6 +921,7 @@ export function verifyClaimAgainstPassages(
     statement: string;
     supporting_passage_ids: string[];
     verified_calculation_numeric_tokens?: string[];
+    excluded_context_instruments?: string[];
   },
   availablePassages: Passage[]
 ): ClaimVerificationOutcome {
@@ -1003,6 +1020,7 @@ export function verifyClaimAgainstPassages(
   const substantive = evaluateSubstantiveClaimSupport({
     claim_text: claim.statement,
     verified_calculation_numeric_tokens: claim.verified_calculation_numeric_tokens,
+    excluded_context_instruments: claim.excluded_context_instruments,
     passages: cited.map((p) => ({
       passage_id: p.passage_id,
       doc_id: p.work_id,

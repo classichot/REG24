@@ -580,6 +580,8 @@ export interface RealAppEvidenceAssemblyCapture {
       | "conditional_branch_authority"
       | "historical_or_excluded_context"
       | "contextual_ruling_or_guidance";
+    applicable_tax_point_dates?: string[];
+    excluded_tax_point_dates?: string[];
     temporal_applicability_hint: string;
     pinpoint: string;
     official_url: string | null;
@@ -1622,17 +1624,22 @@ async function executeCoreKnowledgeQuery(
         factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
           splitPointsForVat.length >= 2
       );
+      const activeGoverningDecreeWorkIds = new Set<string>();
       const addDecreeForIso = (iso: string) => {
         if (iso >= "2024-10-01" && iso <= "2025-09-30") {
+          activeGoverningDecreeWorkIds.add("subreg.th.rc.royal_decree.790");
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.790");
         } else if (iso >= "2025-10-01" && iso <= "2026-09-30") {
+          activeGoverningDecreeWorkIds.add("subreg.th.rc.royal_decree.799");
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.799");
         } else if (iso >= "2026-10-01" && iso <= "2027-09-30") {
+          activeGoverningDecreeWorkIds.add("subreg.th.rc.royal_decree.807");
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.807");
         } else if (iso > "2027-09-30") {
           historicalContextWorkIds.add("subreg.th.rc.royal_decree.807");
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.807");
         } else if (iso >= "2023-10-01" && iso <= "2024-09-30") {
+          activeGoverningDecreeWorkIds.add("subreg.th.rc.royal_decree.780");
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.780");
         }
         // Pre-2023-10-01 dates NEVER add consolidated RD 646 as governing!
@@ -1642,6 +1649,11 @@ async function executeCoreKnowledgeQuery(
         if (isSplitPaymentForVat) {
           for (const sp of splitPointsForVat) {
             addDecreeForIso(sp.iso_date);
+          }
+          // Per-tax-point rule: never let a later expired portion's `historicalContextWorkIds`
+          // globally demote an instrument that actively governs an earlier portion!
+          for (const activeWid of activeGoverningDecreeWorkIds) {
+            historicalContextWorkIds.delete(activeWid);
           }
         } else if (!ctrlDate) {
           vatCoreWorkIds.push(
@@ -1746,6 +1758,12 @@ async function executeCoreKnowledgeQuery(
         official_identifier: item.official_identifier,
         authority_tier: item.authority_tier,
         evidence_role: item.evidence_role,
+        ...(item.applicable_tax_point_dates
+          ? {
+              applicable_tax_point_dates: item.applicable_tax_point_dates,
+              excluded_tax_point_dates: item.excluded_tax_point_dates || [],
+            }
+          : {}),
         temporal_applicability_hint: item.effective_dates.temporal_applicability_hint,
         pinpoint: item.pinpoint,
         official_url: item.official_url,

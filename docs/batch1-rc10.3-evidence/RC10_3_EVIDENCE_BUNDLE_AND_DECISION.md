@@ -266,5 +266,46 @@ Receipt: [rc10_3_nextjs_security_advisory_assessment.json](rc10_3_nextjs_securit
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
+---
+
+## 10. Per-Tax-Point Authority & Validity Fix (RD 807 Expiry Split, Handover Split, Prior-Invoice Fixation & Uploaded-PDF Neon Readback)
+
+- **Frozen Diagnosis Baseline Preserved**: `b6f726ee9531aa79e72bf9d7fd7205c637a9297d` (Vercel deployment `96ULi9iw5c5RmUaNkfnD8GvZhqcx`, tag `archive/b01-rc10.3-b6f726e`)
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TS BM25+Graph, `gemini-4-neon @ low`, `0` changes under `data/`.
+
+### 10.1 BEFORE Reproduction on Frozen `b6f726e` (No Date Override)
+
+Receipt: [rc10_3_rd807_split_expiry_before_diagnostic.json](rc10_3_rd807_split_expiry_before_diagnostic.json)
+
+- Fictional domestic service split: **฿40,000 paid on 30 September 2570 (`2027-09-30`)** + **฿60,000 paid on 1 October 2570 (`2027-10-01`)**, no earlier invoice or use (`applicable_date: null`).
+- **Defect 1 (Packet-level global demotion)**: All 3 `subreg.th.rc.royal_decree.807` passages were wrongly marked `evidence_role: "historical_or_excluded_context"` (despite `temporal_applicability_hint: "IN_WINDOW"` for Portion 1) because Portion 2 (`2027-10-01`) globally added `RD 807` to `historicalContextWorkIds`.
+- **Defect 2 (Final-answer suppression of Portion 2)**: In the live `gemini-4-neon @ low` output (`trc.b483d70342e9e7`), **Portion 2 (`2027-10-01`, ฿60,000) was completely suppressed before publication** (`ระบบระงับข้อความร่าง 1 ประเด็น`).
+
+### 10.2 Generalized Per-Tax-Point Engineering Fix
+
+1. **Per-Tax-Point Metadata & §78/1(1) Prior-Invoice Fixation** (`src/core/knowledge/case-fact-ledger.ts`):
+   - Assigned `portion_index`, `governing_decree_work_id`, and `expired_or_non_governing_work_ids` per tax point on split-payment transactions.
+   - Added §78/1(1) prior full-invoice fixation: when a single full `INVOICE` strictly precedes the earliest `PAYMENT` (without per-installment invoicing wording), `controlling_tax_point.iso_date` resolves to the invoice date rather than splitting by payment dates.
+2. **Per-Tax-Point Evidence Role & Validity Packing** (`src/core/knowledge/query.ts`, `src/core/knowledge/grounded-llm-drafter.ts`):
+   - Prevented `historicalContextWorkIds` from demoting any instrument that actively governs an earlier tax point.
+   - Computed `applicable_tax_point_dates` and `excluded_tax_point_dates` per passage in `buildGroundedPassagePack` and exposed them in `PASSAGE_PACK` and `RealAppEvidenceAssemblyCapture`.
+3. **Per-Tax-Point Verifier & Explicit-Exclusion Context Grounding** (`src/core/knowledge/grounded-llm-verifier.ts`, `src/core/knowledge/answer-verification.ts`):
+   - Resolved target portion date per issue (preferring issue title/scope before explanation text so referencing an expiry date does not blur target portion identity).
+   - Blocked any issue attempting to inherit an excluded decree as governing (`OUT_OF_EFFECTIVE_DATE_WINDOW`) or cite an uncited/hallucinated decree without explicit exclusion (`UNGROUNDED_OR_CONTRADICTED_CLAIM`), while allowing a post-expiry claim citing `มาตรา 80` to explicitly name a supplied-but-excluded decree (`RD 807`) strictly in an exclusion context without false suppression.
+4. **Uploaded Official PDF Durable Neon Readback Check** (`src/app/api/v1/knowledge/attachments/route.ts`):
+   - On protected Preview, verifies `SELECT COUNT(*) FROM citation_evidence_passage WHERE version_id = $1` matches inserted passages after `persistCitationSourceBundleToPostgres` (`503` if readback fails).
+
+### 10.3 AFTER Live `gemini-4-neon @ low` & Regression Verification Receipts
+
+- **Live 4-Scenario `gemini-4-neon @ low` Final-Answer Receipt (`applicable_date: null`, `0` rejected claims, `0` fallbacks)**: [rc10_3_per_tax_point_live_after_verification.json](rc10_3_per_tax_point_live_after_verification.json)
+  - `LIVE-SPLIT-RD807-EXPIRY` (`trc.36a66c1010dbad`): `CONDITIONAL`, `3/3` claims `VERIFIED`, `rejected=0` — `RD 807` packed as `governing` with `applicable_tax_point_dates: ["2027-09-30"]`, `excluded_tax_point_dates: ["2027-10-01"]`; Portion 1 (`2027-09-30`, ฿40,000) cites `RD 807` (`7.0% = ฿2,800`); Portion 2 (`2027-10-01`, ฿60,000) cites ONLY `มาตรา 80` + `มาตรา 78/1`, explicitly excludes expired `RD 807`, assumes no future reduction decree, and states the statutory `10.0%` (`฿6,000`) ceiling unless a new Royal Decree is enacted.
+  - `LIVE-SPLIT-HANDOVER-790-799` (`trc.16e035c05a2c59`): `ANSWERED`, `2/2` claims `VERIFIED`, `rejected=0` — Portion 1 (`2025-09-25`, ฿40,000) cites `RD 790` (`7.0% = ฿2,800`), Portion 2 (`2025-10-05`, ฿60,000) cites `RD 799` (`7.0% = ฿4,200`).
+  - `LIVE-SPLIT-CUTOFF-STRADDLE-2566` (`trc.23204b2e5589b6`): `INSUFFICIENT_EVIDENCE`, per-portion limitation naming `2023-09-25` and `2023-10-05`, zero rate/calc/consolidated RD 646.
+  - `LIVE-PRIOR-INVOICE-FIXED-790` (`trc.da091c7a979eec`): `ANSWERED`, `2/2` claims `VERIFIED`, `rejected=0` — §78/1(1) prior invoice (`2025-09-25`) fixes whole transaction under `RD 790` (`7.0% = ฿7,000`), excluding `RD 799`.
+- **Full 9-Suite Vitest Regression (`51/51` PASS, exit `0`, including Test #8 + 3 negative controls)**: [rc10_3_per_tax_point_vitest.log](rc10_3_per_tax_point_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
+
+
 
 

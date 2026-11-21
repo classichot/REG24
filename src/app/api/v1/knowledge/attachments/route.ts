@@ -3,6 +3,7 @@ import { sha256Bytes } from "../../../../../core/knowledge/identity";
 import {
   appendAuditEventToPostgres,
   persistCitationSourceBundleToPostgres,
+  resolveActiveCitationDbTransport,
 } from "../../../../../core/knowledge/citation-postgres-store";
 import {
   knowledgeApiErrorResponse,
@@ -99,10 +100,25 @@ export async function POST(req: Request) {
       extraction: onboarded.extraction_revision,
       passages: onboarded.passages,
     });
-    if (isStrictSingleReleasePreviewMode() && !pgPersisted.persisted) {
-      throw new Error(
-        "ATTACHMENT_NEON_PERSISTENCE_REQUIRED_503: Newly uploaded official PDF could not be durably persisted to Neon PostgreSQL; withheld from governing evidence."
-      );
+    if (isStrictSingleReleasePreviewMode()) {
+      if (!pgPersisted.persisted) {
+        throw new Error(
+          "ATTACHMENT_NEON_PERSISTENCE_REQUIRED_503: Newly uploaded official PDF could not be durably persisted to Neon PostgreSQL; withheld from governing evidence."
+        );
+      }
+      const db = resolveActiveCitationDbTransport();
+      const rb = db
+        ? await db<{ c: string }>(
+            `SELECT COUNT(*)::text AS c FROM citation_evidence_passage WHERE version_id = $1`,
+            [onboarded.version.version_id]
+          )
+        : null;
+      const persistedPassageCount = Number(rb?.rows?.[0]?.c || 0);
+      if (persistedPassageCount < onboarded.passages.length) {
+        throw new Error(
+          `ATTACHMENT_NEON_READBACK_FAILED_503: Durable Neon readback for newly uploaded PDF version '${onboarded.version.version_id}' returned ${persistedPassageCount}/${onboarded.passages.length} passages; withheld from governing evidence.`
+        );
+      }
     }
 
     await appendAuditEventToPostgres({
