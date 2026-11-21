@@ -172,7 +172,7 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
     );
   });
 
-  it("2. P0-1 Boundaries: Day-before & day-of every VAT decree boundary plus valid historical transactions (RD 646 & RD 780) and post-807 expiry", async () => {
+  it("2. P0-1 Boundaries: Pre-cutoff abstention (2018-06-15, 2022-05-15, 2023-09-30) + day-before & day-of every verified VAT decree boundary (RD 780..807) and post-807 expiry", async () => {
     const store = new DurableKnowledgeStore(STORE_DIR);
     const q = (thaiDate: string) =>
       `บริษัทขายสินค้าในประเทศและออกใบกำกับภาษีวันที่ ${thaiDate} ต้องเสียภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด ตามพระราชกฤษฎีกาฉบับใด`;
@@ -182,14 +182,41 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       thaiDate: string;
       expectedGoverningDecree: string | null;
       forbiddenGoverningDecrees: string[];
+      expectPreCutoffAbstention?: boolean;
       expectHistorical807?: boolean;
     }> = [
       {
         dateIso: "2018-06-15",
         thaiDate: "15 มิถุนายน 2561",
-        expectedGoverningDecree: "subreg.th.rc.royal_decree.646",
+        expectedGoverningDecree: null,
         forbiddenGoverningDecrees: [
+          "subreg.th.rc.royal_decree.646",
           "subreg.th.rc.royal_decree.780",
+          "subreg.th.rc.royal_decree.790",
+          "subreg.th.rc.royal_decree.799",
+          "subreg.th.rc.royal_decree.807",
+        ],
+        expectPreCutoffAbstention: true,
+      },
+      {
+        dateIso: "2023-09-30",
+        thaiDate: "30 กันยายน 2566",
+        expectedGoverningDecree: null,
+        forbiddenGoverningDecrees: [
+          "subreg.th.rc.royal_decree.646",
+          "subreg.th.rc.royal_decree.780",
+          "subreg.th.rc.royal_decree.790",
+          "subreg.th.rc.royal_decree.799",
+          "subreg.th.rc.royal_decree.807",
+        ],
+        expectPreCutoffAbstention: true,
+      },
+      {
+        dateIso: "2023-10-01",
+        thaiDate: "1 ตุลาคม 2566",
+        expectedGoverningDecree: "subreg.th.rc.royal_decree.780",
+        forbiddenGoverningDecrees: [
+          "subreg.th.rc.royal_decree.646",
           "subreg.th.rc.royal_decree.790",
           "subreg.th.rc.royal_decree.799",
           "subreg.th.rc.royal_decree.807",
@@ -292,6 +319,10 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       }
       for (const fWid of c.forbiddenGoverningDecrees) {
         expect(govWorks, `date=${c.dateIso} forbidden=${fWid}`).not.toContain(fWid);
+      }
+      if (c.expectPreCutoffAbstention) {
+        expect(cap.pre_llm_response_status, `date=${c.dateIso}`).toBe("INSUFFICIENT_EVIDENCE");
+        expect(cap.actual_model_packet.length, `date=${c.dateIso}`).toBe(0);
       }
       if (c.expectHistorical807) {
         expect(
@@ -737,5 +768,158 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       if (prevVercelEnv !== undefined) process.env.VERCEL_ENV = prevVercelEnv;
       else delete process.env.VERCEL_ENV;
     }
+  });
+
+  it("7. Track 2 VAT Coverage Acceptance (Thai free text, NO applicable_date override): 15 Jun 2018, interior 2565, 30 Sep / 1 Oct 2566 boundary, decree handover, missing/ambiguous date, and split-payment diagnostic", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+
+    // A) Pre-cutoff unsupported dates (NO rate, NO calculation, NO consolidated RD 646 citation!)
+    const preCutoffQuestions = [
+      {
+        label: "2018-06-15 (15 มิถุนายน 2561)",
+        q: "บริษัทขายสินค้าในประเทศและส่งมอบวันที่ 15 มิถุนายน 2561 มูลค่า 100,000 บาท ต้องคิดภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใดและเป็นเงินกี่บาท",
+      },
+      {
+        label: "2022-05-15 (interior 2565)",
+        q: "บริษัทให้บริการในประเทศไทยและได้รับชำระค่าบริการวันที่ 15 พฤษภาคม 2565 มูลค่า 500,000 บาท ต้องเรียกเก็บภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+      },
+      {
+        label: "2023-09-30 (day before 1 Oct 2566 cutoff)",
+        q: "บริษัทขายสินค้าในประเทศเมื่อวันที่ 30 กันยายน 2566 ต้องเสียภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+      },
+    ];
+    for (const item of preCutoffQuestions) {
+      // Test BOTH grounded-LLM path AND deterministic path with NO applicable_date override!
+      for (const mode of ["llm_grounded", "baseline_deterministic"] as const) {
+        const res = await queryKnowledge(
+          {
+            question: item.q,
+            release_id: "rel.B01.rc8",
+            applicable_date: null,
+            answer_generation_mode: mode,
+          },
+          QA_ACTOR,
+          { store, persistAnswerAtomically: false }
+        );
+        expect(res.status, `${item.label} [${mode}]`).toBe("INSUFFICIENT_EVIDENCE");
+        expect(res.evidence.length, `${item.label} [${mode}] zero citations`).toBe(0);
+        // Must NOT leak any rate (6.3%, 7%, 10%) or calculated VAT amount!
+        expect(res.answer, `${item.label} [${mode}] no rate leak`).not.toMatch(
+          /(?:ร้อยละ\s*(?:6\.3|7|10)|(?:6\.3|7|10)\s*%|7,000|35,000)/
+        );
+        expect(res.answer, `${item.label} [${mode}] mentions 1 ตุลาคม 2566 cutoff`).toContain(
+          "1 ตุลาคม 2566"
+        );
+      }
+    }
+
+    // B) Post-cutoff boundary (1 October 2566 -> RD 780) & supported decree handover (30 Sep 2568 RD 790 -> 1 Oct 2568 RD 799), Thai free text with NO date override!
+    const oct1_2566 = await capturePacket(
+      store,
+      "rel.B01.rc8",
+      "บริษัทขายสินค้าในประเทศเมื่อวันที่ 1 ตุลาคม 2566 ต้องเสียภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+      null
+    );
+    expect(oct1_2566.pre_llm_response_status).toBe("READY_FOR_LLM_GROUNDED");
+    expect(oct1_2566.controlling_date_iso).toBe("2023-10-01");
+    expect(
+      oct1_2566.actual_model_packet
+        .filter((p) => p.evidence_role === "governing")
+        .map((p) => p.work_id)
+    ).toContain("subreg.th.rc.royal_decree.780");
+    expect(
+      oct1_2566.actual_model_packet
+        .filter((p) => p.evidence_role === "governing")
+        .map((p) => p.work_id)
+    ).not.toContain("subreg.th.rc.royal_decree.646");
+
+    const sep30_2568 = await capturePacket(
+      store,
+      "rel.B01.rc8",
+      "บริษัทขายสินค้าในประเทศเมื่อวันที่ 30 กันยายน 2568 ต้องเสียภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+      null
+    );
+    expect(
+      sep30_2568.actual_model_packet
+        .filter((p) => p.evidence_role === "governing")
+        .map((p) => p.work_id)
+    ).toContain("subreg.th.rc.royal_decree.790");
+    expect(
+      sep30_2568.actual_model_packet
+        .filter((p) => p.evidence_role === "governing")
+        .map((p) => p.work_id)
+    ).not.toContain("subreg.th.rc.royal_decree.799");
+
+    const oct1_2568 = await capturePacket(
+      store,
+      "rel.B01.rc8",
+      "บริษัทขายสินค้าในประเทศเมื่อวันที่ 1 ตุลาคม 2568 ต้องเสียภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+      null
+    );
+    expect(
+      oct1_2568.actual_model_packet
+        .filter((p) => p.evidence_role === "governing")
+        .map((p) => p.work_id)
+    ).toContain("subreg.th.rc.royal_decree.799");
+    expect(
+      oct1_2568.actual_model_packet
+        .filter((p) => p.evidence_role === "governing")
+        .map((p) => p.work_id)
+    ).not.toContain("subreg.th.rc.royal_decree.790");
+
+    // C) Missing or ambiguous date -> prompts for clarification (NEEDS_CLARIFICATION), ZERO rate/calculation!
+    for (const qMissing of [
+      "บริษัทขายสินค้าในประเทศต้องคิดภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+      "บริษัทขายสินค้าในประเทศในปี 2568 ต้องคิดภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+    ]) {
+      const resClarify = await queryKnowledge(
+        {
+          question: qMissing,
+          release_id: "rel.B01.rc8",
+          applicable_date: null,
+          answer_generation_mode: "llm_grounded",
+        },
+        QA_ACTOR,
+        { store, persistAnswerAtomically: false }
+      );
+      expect(resClarify.status, qMissing).toBe("NEEDS_CLARIFICATION");
+      expect(resClarify.clarification_questions.length, qMissing).toBeGreaterThan(0);
+      expect(resClarify.answer, qMissing).not.toMatch(/(?:ร้อยละ\s*(?:6\.3|7|10)|(?:6\.3|7|10)\s*%)/);
+    }
+
+    // D) Split-payment diagnostic (NEVER collapses whole transaction to earlier date!)
+    // D1: Supported handover split (deposit 25 Sep 2568 RD 790 + balance 5 Oct 2568 RD 799)
+    const splitSupported = await capturePacket(
+      store,
+      "rel.B01.rc8",
+      "บริษัทให้บริการที่ปรึกษาในประเทศไทย โดยแบ่งรับชำระค่าบริการ 2 งวด: รับเงินมัดจำงวดแรกวันที่ 25 กันยายน 2568 และรับชำระส่วนที่เหลืองวดที่ 2 วันที่ 5 ตุลาคม 2568 ต้องเสียภาษีมูลค่าเพิ่มตามกฎหมายใด",
+      null
+    );
+    expect(splitSupported.controlling_date_iso).toBeNull();
+    const splitGovWorks = splitSupported.actual_model_packet
+      .filter((p) => p.evidence_role === "governing")
+      .map((p) => p.work_id);
+    expect(splitGovWorks).toContain("subreg.th.rc.royal_decree.790");
+    expect(splitGovWorks).toContain("subreg.th.rc.royal_decree.799");
+    expect(splitGovWorks).not.toContain("subreg.th.rc.royal_decree.646");
+
+    // D2: Cutoff-straddling split (deposit 25 Sep 2566 pre-cutoff + balance 5 Oct 2566 RD 780)
+    const splitCutoff = await queryKnowledge(
+      {
+        question:
+          "บริษัทให้บริการในประเทศไทย โดยแบ่งรับชำระ 2 งวด: รับเงินมัดจำงวดแรกวันที่ 25 กันยายน 2566 และรับส่วนที่เหลืองวดที่ 2 วันที่ 5 ตุลาคม 2566 ต้องคิดภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+        release_id: "rel.B01.rc8",
+        applicable_date: null,
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      { store, persistAnswerAtomically: false }
+    );
+    expect(splitCutoff.status).toBe("INSUFFICIENT_EVIDENCE");
+    expect(splitCutoff.answer).toContain("2023-09-25");
+    expect(splitCutoff.answer).toContain("2023-10-05");
+    expect(splitCutoff.answer).toContain("ห้ามใช้วันที่ของงวดแรกบังคับกับทั้งธุรกรรม");
+    expect(splitCutoff.evidence.length).toBe(0);
+    expect(splitCutoff.answer).not.toMatch(/(?:ร้อยละ\s*(?:6\.3|7|10)|(?:6\.3|7|10)\s*%)/);
   });
 });

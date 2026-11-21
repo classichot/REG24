@@ -1083,7 +1083,12 @@ export function analyzeLegalIssuesAndFacts(params: {
         controlling.add("prov.th.rc.77/2");
       }
 
-      if (!taxPointIso) {
+      const isPreCutoffVatDate = Boolean(taxPointIso && taxPointIso < "2023-10-01");
+      if (isPreCutoffVatDate) {
+        // Pre-1 Oct 2566 (2023-10-01) VAT-rate cutoff: NEVER route consolidated RD 646 as governing
+        // and NEVER run a VAT rate calculation! (query.ts enforces clean INSUFFICIENT_EVIDENCE abstention.)
+        controlling.delete("subreg.th.rc.royal_decree.646");
+      } else if (!taxPointIso) {
         controlling.add("prov.th.rc.78/1");
         controlling.add("prov.th.rc.78");
         controlling.add("subreg.th.rc.royal_decree.790");
@@ -1102,23 +1107,24 @@ export function analyzeLegalIssuesAndFacts(params: {
         // Post-2027-09-30: temporary RD 807 EXPIRED! NEVER add RD 807 to controllingWorkIds; only §80 governs (query.ts attaches RD 807 strictly as historical_or_excluded_context).
       } else if (taxPointIso >= "2023-10-01" && taxPointIso <= "2024-09-30") {
         controlling.add("subreg.th.rc.royal_decree.780");
-      } else if (taxPointIso >= "2017-10-01" && taxPointIso <= "2018-09-30") {
-        controlling.add("subreg.th.rc.royal_decree.646");
       }
-      // Note: Strict endpoint matching! Never route RD 790/799/807 outside their enacted transaction windows.
+      // Note: Strict endpoint matching! Never route RD 780/790/799/807 outside their enacted transaction windows,
+      // and never route consolidated RD 646 as governing historical proof.
 
       demoteRulingsBeforeIso = "2020-01-01";
-      calcs.push(
-        verifyVatRateAndAmountCalculation({
-          isExportOfGoodsOrServiceUsedEntirelyAbroad: false,
-          isServiceUsedInThailand: isCrossBorderThai || isDomesticSvc,
-          isCrossBorderServiceUsedInThailand: isCrossBorderThai,
-          isDomesticService: isDomesticSvc,
-          taxPointDateIso: taxPointIso,
-          taxPointExplanationTh: vatTaxPointExpTh,
-          taxBaseBaht: null,
-        })
-      );
+      if (!isPreCutoffVatDate) {
+        calcs.push(
+          verifyVatRateAndAmountCalculation({
+            isExportOfGoodsOrServiceUsedEntirelyAbroad: false,
+            isServiceUsedInThailand: isCrossBorderThai || isDomesticSvc,
+            isCrossBorderServiceUsedInThailand: isCrossBorderThai,
+            isDomesticService: isDomesticSvc,
+            taxPointDateIso: taxPointIso,
+            taxPointExplanationTh: vatTaxPointExpTh,
+            taxBaseBaht: null,
+          })
+        );
+      }
     }
   }
 

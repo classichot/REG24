@@ -238,4 +238,33 @@ Receipt: [rc10_3_nextjs_security_advisory_assessment.json](rc10_3_nextjs_securit
 | **P0-3 \| Dated Legal scope decision on historical VAT (`1 Oct 2566` cutoff vs full pre-cutoff reconstruction)** | Legal + Data Eng + QA | **BLOCKED** *(awaiting dated Legal addendum)* | Audit confirms `rel.B01.rc8` abstains on `2018-10-01..2023-09-30` (missing RD 724) and currently cites consolidated RD 646 on `2017-10-01..2018-09-30`. Record dated Legal decision before any scored run. |
 | **Parallel Security Track \| Next.js `16.4.2` advisory assessment & isolated `16.4.5` patch** | Platform + Security | **PASS** *(Preview unaffected; isolated patch ready)* | All 7 GHSAs confirmed `NOT_APPLICABLE` to Vercel Preview; `next@16.4.5` verified in separate local worktree branch `chore/security-next-16.4.5-patch` (`ea43d2f`) without altering QA pin. |
 
+---
+
+## 9. Track 2 Final Build Fix: Pre-Cutoff VAT Coverage Gate (`>= 1 Oct 2566`), Split-Payment Diagnostic & Newly-Uploaded PDF Guard
+
+- **Access/Diagnostics Baseline Preserved**: `2a1dbc05c37a1d006737c6827f139392673eca7a` (`https://reg24-obvvaen0q-7-l-advisory.vercel.app/legal-review`, tag `archive/b01-rc10.3-2a1dbc0`)
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TS BM25+Graph, `gemini-4-neon @ low`, `0` changes under `data/`.
+
+### 9.1 Engineering Changes Applied Before Selection, Generation & Calculation
+
+1. **Universal Pre-Cutoff Domestic VAT-Rate Gate (`VAT_RATE_VERIFIED_COVERAGE_START_ISO = "2023-10-01"`)** in `src/core/knowledge/query.ts`, `src/core/knowledge/legal-issue-fact-analyzer.ts`, `src/core/knowledge/grounded-llm-drafter.ts`, and `src/core/knowledge/tax-calculation-verifier.ts`:
+   - Enforced **before governing-source selection, LLM generation, and tax calculation** on both grounded-LLM and deterministic paths.
+   - Any domestic VAT-rate tax point `< 2023-10-01` (including `2018-06-15`, `2022-05-15`, `2023-09-30`) short-circuits with `status: "INSUFFICIENT_EVIDENCE"`, a clear Thai limitation notice referencing the `1 ตุลาคม 2566` cutoff and incomplete pre-cutoff amendment chain (including original Gazette RD 646 and RD 724), **zero rate**, **zero calculation**, and **zero consolidated RD 646 citation**.
+   - Consolidated-derived `subreg.th.rc.royal_decree.646` (`CONSOLIDATED_DERIVED`) is permanently blocked from entering `actual_model_packet` as `governing` on any date until original Gazette RD 646 is verified.
+   - Missing or ambiguous dates (including partial year-only dates like `"ในปี 2568"`) return `status: "NEEDS_CLARIFICATION"` with zero guessed rate or calculation.
+2. **Split-Payment Multi-Tax-Point Handling** in `src/core/knowledge/case-fact-ledger.ts`, `src/core/knowledge/query.ts`, and `src/core/knowledge/grounded-llm-drafter.ts`:
+   - Detects split-payment / deposit / installment VAT transactions and **never collapses the whole transaction to the earlier date**.
+   - Supported handover split (`25 กันยายน 2568` + `5 ตุลาคม 2568`): preserves separate portion dates and attaches both `subreg.th.rc.royal_decree.790` and `subreg.th.rc.royal_decree.799` as governing.
+   - Cutoff-straddling split (`25 กันยายน 2566` + `5 ตุลาคม 2566`): emits a per-portion limitation naming both dates without applying either date to the whole transaction, with zero rate, calculation, or consolidated RD 646 citation.
+3. **Newly Uploaded Official PDF Guard** in `src/app/api/v1/knowledge/attachments/route.ts`:
+   - On protected Preview, requires both separate `publication_date` and `effective_from` fields (`422` if either missing) and confirmed Neon persistence (`503` if not persisted) before entering governing evidence.
+
+### 9.2 Acceptance Verification Receipts (Thai Free Text, Zero Date Overrides)
+
+- **VAT Cutoff & Split-Payment Acceptance Sweep (`11/11` PASS, `applicable_date: null`)**: [rc10_3_vat_cutoff_and_split_payment_acceptance.json](rc10_3_vat_cutoff_and_split_payment_acceptance.json)
+- **Full 9-Suite Vitest Regression (`50/50` PASS, exit `0`, including Test #7)**: [rc10_3_final_vat_cutoff_vitest.log](rc10_3_final_vat_cutoff_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
+
+
 

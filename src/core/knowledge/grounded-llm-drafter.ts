@@ -158,12 +158,20 @@ export interface ProviderInvocationAudit {
 }
 
 const KNOWN_DECREE_WINDOWS: Record<string, { valid_from: string; valid_to: string }> = {
-  "subreg.th.rc.royal_decree.646": { valid_from: "2017-10-01", valid_to: "2018-09-30" },
   "subreg.th.rc.royal_decree.780": { valid_from: "2023-10-01", valid_to: "2024-09-30" },
   "subreg.th.rc.royal_decree.790": { valid_from: "2024-10-01", valid_to: "2025-09-30" },
   "subreg.th.rc.royal_decree.799": { valid_from: "2025-10-01", valid_to: "2026-09-30" },
   "subreg.th.rc.royal_decree.807": { valid_from: "2026-10-01", valid_to: "2027-09-30" },
 };
+
+/**
+ * Consolidated-derived historical VAT decrees (e.g. current consolidated RD 646 PDF) must NEVER
+ * enter the model evidence packet as `governing` historical proof until their original Gazette
+ * text and complete intervening amendment chain are independently verified.
+ */
+const EXCLUDED_CONSOLIDATED_HISTORICAL_VAT_WORK_IDS = new Set<string>([
+  "subreg.th.rc.royal_decree.646",
+]);
 
 const MODEL_PRICING_USD_PER_1M: Record<string, { input: number; output: number }> = {
   "gemini-4-neon": { input: 1.25, output: 10.0 },
@@ -294,6 +302,7 @@ export function buildGroundedPassagePack(params: {
   maxPassages?: number;
   explicitWorkIds?: Set<string>;
   historicalContextWorkIds?: Set<string>;
+  splitPaymentTaxPointDates?: string[];
 }): GroundedPassagePackItem[] {
   const maxPassages = params.maxPassages ?? 28;
   const seen = new Set<string>();
@@ -367,12 +376,27 @@ export function buildGroundedPassagePack(params: {
     const isPdf =
       Boolean(resolvedUrl && /\.pdf(?:$|\?)/i.test(resolvedUrl)) ||
       art?.MIME === "application/pdf";
-    const temporalHint = evaluateTemporalHint(validFrom, validTo, params.controllingDateIso);
     const isTemporaryDecree = Boolean(
       ver?.legal_applicability?.[0]?.is_temporary_rule ||
         p.work_id.startsWith("subreg.th.rc.royal_decree.")
     );
+    const isConsolidatedHistoricalVatExcluded =
+      EXCLUDED_CONSOLIDATED_HISTORICAL_VAT_WORK_IDS.has(p.work_id) &&
+      ver?.draft_or_enacted_status !== "ENACTED_ORIGINAL";
+    const splitDates = params.splitPaymentTaxPointDates || [];
+    const matchesAnySplitPortion =
+      splitDates.length >= 2 &&
+      splitDates.some((d) => evaluateTemporalHint(validFrom, validTo, d) === "IN_WINDOW");
+    const temporalHint =
+      splitDates.length >= 2
+        ? matchesAnySplitPortion
+          ? "IN_WINDOW"
+          : isTemporaryDecree
+            ? "OUT_OF_WINDOW"
+            : "NO_FIXED_END_DATE"
+        : evaluateTemporalHint(validFrom, validTo, params.controllingDateIso);
     const isSupersededOrHistory =
+      isConsolidatedHistoricalVatExcluded ||
       temporalHint === "OUT_OF_WINDOW" ||
       params.historicalContextWorkIds?.has(p.work_id) ||
       supersededOrAmendedHistoricalWorkIds.has(p.work_id);

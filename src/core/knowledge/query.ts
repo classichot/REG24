@@ -9,7 +9,10 @@
 
 import { verifyClaimAgainstPassages } from "./answer-verification";
 import { getDeployedGitCommit } from "./baseline";
-import { buildStructuredCaseFactLedger } from "./case-fact-ledger";
+import {
+  buildStructuredCaseFactLedger,
+  VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+} from "./case-fact-ledger";
 import {
   attachTraceableEnvelopeToGroundedAnswer,
   CLAIM_RULESET_VERSION,
@@ -850,9 +853,9 @@ async function executeCoreKnowledgeQuery(
     };
   }
 
-  // Resolve effective retrieval date from structured fact ledger (so multi-turn & prompt-extracted dates filter out expired decrees at retrieval time, while date conflicts keep null so both branches remain inspectable!)
+  // Resolve effective retrieval date from structured fact ledger (so multi-turn & prompt-extracted dates filter out expired decrees at retrieval time, while date conflicts & split-payment multi-tax-point cases keep null so all relevant decrees remain inspectable!)
   const preRetrievalFactLedger = buildStructuredCaseFactLedger({
-    question: req.question,
+    question: options?.rawOriginalQuestion || req.question,
     applicableDate: req.applicable_date ?? null,
     conversationHistory: req.conversation_history,
   });
@@ -860,11 +863,140 @@ async function executeCoreKnowledgeQuery(
     preRetrievalFactLedger.temporal_facts.controlling_tax_point.is_ambiguous &&
       preRetrievalFactLedger.temporal_facts.controlling_tax_point.ambiguity_reason_th?.includes("ขัดแย้ง")
   );
-  const retrievalEffectiveDateIso = preRetrievalHasDateConflict
-    ? null
-    : (preRetrievalFactLedger.temporal_facts.controlling_tax_point.iso_date ??
-      req.applicable_date ??
-      null);
+  const preRetrievalIsSplitPayment = Boolean(
+    preRetrievalFactLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+      (preRetrievalFactLedger.temporal_facts.split_payment_tax_points?.length || 0) >= 2
+  );
+  const retrievalEffectiveDateIso =
+    preRetrievalHasDateConflict || preRetrievalIsSplitPayment
+      ? null
+      : (preRetrievalFactLedger.temporal_facts.controlling_tax_point.iso_date ??
+        req.applicable_date ??
+        null);
+
+  // UNIVERSAL VERIFIED VAT-RATE COVERAGE GATE (applied BEFORE governing-source selection,
+  // generation, and tax calculation on BOTH grounded-LLM and deterministic paths!):
+  // Limit substantive domestic VAT-rate answers strictly to verified Gazette coverage starting
+  // 2023-10-01 (1 ตุลาคม 2566). Pre-cutoff dates (including 2018-06-15, 2565, 2023-09-30) return
+  // a clear limitation with NO rate, NO calculation, and NO consolidated RD 646 citation!
+  const preMergedUserBlob = [
+    ...preRetrievalFactLedger.user_turns.map((t) => t.cleaned_active_text),
+    ...preRetrievalFactLedger.material_facts.map((f) => `${f.original_text_th} ${f.normalized_category}`),
+  ].join(" ");
+  const preIsVatQuery =
+    /ภาษีมูลค่าเพิ่ม|\bVAT\b/i.test(preMergedUserBlob) ||
+    preRetrievalFactLedger.material_facts.some((f) => f.fact_key === "vat_transaction_type");
+  const preAnalyzerRoutedExportOnly =
+    issueAnalysis.controllingWorkIds.includes("prov.th.rc.80/1") &&
+    !issueAnalysis.controllingWorkIds.includes("prov.th.rc.80");
+  const preAsksExportOrZeroRate =
+    preAnalyzerRoutedExportOnly ||
+    /ส่งออก|อัตราร้อยละ\s*0|ร้อยละ\s*0|อัตราศูนย์|นำไป(?:ใช้|ก่อสร้าง|ดำเนินการ)[^\n]{0,25}(?:ในต่างประเทศ|นอกราชอาณาจักร)|ใช้บริการในต่างประเทศ|นอกราชอาณาจักร|มาตรา\s*80\/1/i.test(
+      preMergedUserBlob
+    );
+  const preAsksExempt =
+    /ยกเว้นภาษีมูลค่าเพิ่ม|มาตรา\s*81|พืชผลทางการเกษตร|หนังสือพิมพ์|ตำราเรียน|สถานพยาบาล/i.test(
+      preMergedUserBlob
+    );
+  const preAsksMixedUse =
+    /เฉลี่ยภาษีซื้อ|มาตรา\s*82\/6|ทั้งกิจการที่ต้องเสีย.*และ.*ยกเว้น/i.test(preMergedUserBlob);
+  const preAsksCrossBorderInbound =
+    /ภ\.พ\.36|มาตรา\s*83\/6|มาตรา\s*77\/2|ผู้ประกอบการ.*ต่างประเทศ|ชำระค่าบริการไปต่างประเทศ/i.test(
+      preMergedUserBlob
+    );
+  const preIsExplicitSec80_1Lookup =
+    /มาตรา\s*80\/1(?:\s*\([0-9ก-ฮ]+\))?/.test(preMergedUserBlob) &&
+    !/(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.|ร้อยละ\s*7|7%|มาตรา\s*80(?![/0-9]))/.test(preMergedUserBlob);
+  const preIsIncidentalVatInWhtOnly =
+    !issueAnalysis.implicatedRegimes.includes("VAT_RATE") &&
+    issueAnalysis.implicatedRegimes.some((r) => r.startsWith("WHT_"));
+  const preExplicitlyAsksDomesticRate =
+    /(?:ร้อยละ\s*7|7%|พระราชกฤษฎีกา(?:ฉบับที่|\s*\(ฉบับที่)\s*(?:646|780|790|799|807)|พ\.ร\.ฎ\.\s*(?:ฉบับที่\s*)?(?:646|780|790|799|807)|มาตรา\s*80(?![/0-9])|อัตราร้อยละเท่าใด|อัตราเท่าใด|อัตราภาษีมูลค่าเพิ่ม)/i.test(
+      preMergedUserBlob
+    );
+  const preIsDomesticVatRateQuery =
+    preIsVatQuery &&
+    req.mode !== "exact_lookup" &&
+    preIds.rulingIds.length === 0 &&
+    !preIsIncidentalVatInWhtOnly &&
+    !preIsExplicitSec80_1Lookup &&
+    !preAsksExportOrZeroRate &&
+    !preAsksExempt &&
+    !preAsksMixedUse &&
+    !preAsksCrossBorderInbound &&
+    (preExplicitlyAsksDomesticRate || issueAnalysis.implicatedRegimes.includes("VAT_RATE"));
+
+  const splitPointsPre = preRetrievalFactLedger.temporal_facts.split_payment_tax_points || [];
+  const splitHasPreCutoff =
+    preRetrievalIsSplitPayment &&
+    splitPointsPre.some((p) => p.iso_date < VAT_RATE_VERIFIED_COVERAGE_START_ISO);
+  const singlePreCutoffDate =
+    !preRetrievalIsSplitPayment &&
+    !preRetrievalHasDateConflict &&
+    retrievalEffectiveDateIso &&
+    retrievalEffectiveDateIso < VAT_RATE_VERIFIED_COVERAGE_START_ISO
+      ? retrievalEffectiveDateIso
+      : null;
+
+  if (preIsDomesticVatRateQuery && (singlePreCutoffDate || splitHasPreCutoff)) {
+    const gapMsg = splitHasPreCutoff
+      ? `ข้อจำกัดขอบเขตข้อมูล (กรณีแบ่งชำระหลายงวดที่มีวันเกิดความรับผิดก่อน 1 ตุลาคม 2566): ห้ามใช้วันที่ของงวดแรกบังคับกับทั้งธุรกรรม โดยแต่ละงวดต้องพิจารณาแยกตามวันเกิดความรับผิด ได้แก่ ${splitPointsPre
+          .map(
+            (p, idx) =>
+              `งวดที่ ${idx + 1} วันที่ ${p.iso_date} (${
+                p.within_verified_coverage
+                  ? `อยู่ในขอบเขตต้นฉบับราชกิจจานุเบกษาที่ตรวจสอบแล้ว: ${p.decree_window}`
+                  : "อยู่ก่อนวันที่ 1 ตุลาคม 2566 / 2023-10-01 — อยู่นอกขอบเขตต้นฉบับราชกิจจานุเบกษาที่ตรวจสอบแล้ว"
+              })`
+          )
+          .join(" ; ")} สำหรับงวดที่เกิดขึ้นก่อนวันที่ 1 ตุลาคม 2566 คลังข้อมูล ${releaseId} ยังไม่มีต้นฉบับราชกิจจานุเบกษา พ.ร.ฎ. ฉบับที่ 646 ฉบับแรกและกฎหมายแก้ไขเพิ่มเติมระหว่างช่วง (รวมถึง พ.ร.ฎ. ฉบับที่ 724) ครบถ้วน ระบบจึงระงับการระบุอัตราภาษี การคำนวณภาษี และการอ้างฉบับรวมกฎหมาย พ.ร.ฎ. 646 ปัจจุบันเป็นหลักฐานย้อนหลัง`
+      : `ข้อจำกัดขอบเขตข้อมูลสำหรับวันเกิดความรับผิด ${singlePreCutoffDate} — ขอบเขตการตอบอัตราภาษีมูลค่าเพิ่มที่มีหลักฐานต้นฉบับราชกิจจานุเบกษาตรวจสอบครบถ้วนในคลังข้อมูล ${releaseId} เริ่มตั้งแต่วันที่ 1 ตุลาคม 2566 (2023-10-01) เป็นต้นไป (พ.ร.ฎ. ฉบับที่ 780, 790, 799 และ 807) สำหรับวันเกิดความรับผิดก่อนวันที่ 1 ตุลาคม 2566 สายการแก้ไขเพิ่มเติมยังไม่ครบถ้วน (รวมถึง พ.ร.ฎ. ฉบับที่ 724 และต้นฉบับราชกิจจานุเบกษา พ.ร.ฎ. ฉบับที่ 646) ระบบจึงระงับการระบุอัตราภาษี ไม่คำนวณจำนวนภาษี และไม่อ้างเอกสารฉบับรวมกฎหมาย พ.ร.ฎ. 646 ปัจจุบันเป็นหลักฐานย้อนหลัง`;
+    const preCutoffClarification = [
+      "กรุณาตรวจสอบต้นฉบับราชกิจจานุเบกษาของพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่ใช้บังคับสำหรับวันเกิดความรับผิดก่อนวันที่ 1 ตุลาคม 2566 โดยตรง หรือยืนยันวันเกิดความรับผิดที่อยู่ในช่วงที่ตรวจสอบต้นฉบับแล้ว (ตั้งแต่วันที่ 1 ตุลาคม 2566 เป็นต้นไป)",
+    ];
+    options?.onRealAppEvidenceAssembly?.({
+      release_id: releaseId,
+      controlling_date_iso: singlePreCutoffDate,
+      retrieval_elapsed_ms: 0,
+      retrieval_top_hits: [],
+      unresolved_explicit_ruling_ids: [],
+      pre_llm_response_status: "INSUFFICIENT_EVIDENCE",
+      clarification_questions_th: preCutoffClarification,
+      coverage_warnings_th: [...(releaseRec?.coverage_gaps || []), gapMsg],
+      actual_model_packet: [],
+    });
+    return {
+      release_id: releaseId,
+      knowledge_snapshot_at: snapshotAt,
+      status: "INSUFFICIENT_EVIDENCE",
+      answer: gapMsg,
+      claims: [
+        {
+          claim_id: `clm.${traceId}.abstain_vat_pre_cutoff`,
+          statement: gapMsg,
+          claim_type: "abstention_notice",
+          statement_role: "reg24_inference",
+          supporting_passage_ids: [],
+          applicable_version_id: null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "UNSUPPORTED",
+        },
+      ],
+      evidence: [],
+      assumptions: [],
+      clarification_questions: preCutoffClarification,
+      coverage_warnings: [...(releaseRec?.coverage_gaps || []), gapMsg],
+      applicable_date: req.applicable_date ?? null,
+      model_policy_version: isGroundedLlmStagingModeEnabled(req)
+        ? GROUNDED_LLM_PROMPT_VERSION
+        : "reg24-grounded-legal-v2.0",
+      trace_id: traceId,
+      latency_ms: Math.max(1, Date.now() - startedAt),
+      execution_provenance: buildProvenance(),
+    };
+  }
 
   const tRetrieve0 = performance.now();
   const bundle = retrieveAuthorizedKnowledge(store, {
@@ -1485,6 +1617,11 @@ async function executeCoreKnowledgeQuery(
         factLedger.temporal_facts.controlling_tax_point.is_ambiguous &&
           factLedger.temporal_facts.controlling_tax_point.ambiguity_reason_th?.includes("ขัดแย้ง")
       );
+      const splitPointsForVat = factLedger.temporal_facts.split_payment_tax_points || [];
+      const isSplitPaymentForVat = Boolean(
+        factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+          splitPointsForVat.length >= 2
+      );
       const addDecreeForIso = (iso: string) => {
         if (iso >= "2024-10-01" && iso <= "2025-09-30") {
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.790");
@@ -1497,14 +1634,18 @@ async function executeCoreKnowledgeQuery(
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.807");
         } else if (iso >= "2023-10-01" && iso <= "2024-09-30") {
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.780");
-        } else if (iso >= "2017-10-01" && iso <= "2018-09-30") {
-          vatCoreWorkIds.push("subreg.th.rc.royal_decree.646");
         }
+        // Pre-2023-10-01 dates NEVER add consolidated RD 646 as governing!
       };
       if (isDomesticVatRateQuery) {
         vatCoreWorkIds.push("prov.th.rc.80", "prov.th.rc.78", "prov.th.rc.78/1", "subreg.th.rd.vat_local_tax_guide");
-        if (!ctrlDate) {
+        if (isSplitPaymentForVat) {
+          for (const sp of splitPointsForVat) {
+            addDecreeForIso(sp.iso_date);
+          }
+        } else if (!ctrlDate) {
           vatCoreWorkIds.push(
+            "subreg.th.rc.royal_decree.780",
             "subreg.th.rc.royal_decree.790",
             "subreg.th.rc.royal_decree.799",
             "subreg.th.rc.royal_decree.807"
@@ -1546,6 +1687,13 @@ async function executeCoreKnowledgeQuery(
     }
 
     const controllingDateIso = factLedger.temporal_facts.controlling_tax_point.iso_date;
+    const isSplitPaymentMultiTaxPoint = Boolean(
+      factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+        (factLedger.temporal_facts.split_payment_tax_points?.length || 0) >= 2
+    );
+    const splitPaymentDatesForPack = isSplitPaymentMultiTaxPoint
+      ? (factLedger.temporal_facts.split_payment_tax_points || []).map((p) => p.iso_date)
+      : undefined;
     const hasDateConflictAmbiguity = Boolean(
       factLedger.temporal_facts.controlling_tax_point.is_ambiguous &&
         factLedger.temporal_facts.controlling_tax_point.ambiguity_reason_th?.includes("ขัดแย้ง")
@@ -1559,16 +1707,19 @@ async function executeCoreKnowledgeQuery(
     const passagePack = buildGroundedPassagePack({
       passages: candidatePassages,
       state: freshState,
-      controllingDateIso: hasDateConflictAmbiguity ? null : controllingDateIso,
+      controllingDateIso:
+        hasDateConflictAmbiguity || isSplitPaymentMultiTaxPoint ? null : controllingDateIso,
       maxPassages: 24,
       explicitWorkIds: explicitRulingWorkIds,
       historicalContextWorkIds,
+      splitPaymentTaxPointDates: splitPaymentDatesForPack,
     });
 
     const needsDateClarification =
-      hasDateConflictAmbiguity ||
-      (!controllingDateIso &&
-        passagePack.some((item) => item.evidence_role === "conditional_branch_authority"));
+      !isSplitPaymentMultiTaxPoint &&
+      (hasDateConflictAmbiguity ||
+        (!controllingDateIso &&
+          passagePack.some((item) => item.evidence_role === "conditional_branch_authority")));
     const preLlmStatus: RealAppEvidenceAssemblyCapture["pre_llm_response_status"] =
       needsDateClarification ? "CLARIFICATION_OR_CONDITIONAL_NEEDED" : "READY_FOR_LLM_GROUNDED";
     const dateClarificationQuestions = hasDateConflictAmbiguity
@@ -1600,14 +1751,16 @@ async function executeCoreKnowledgeQuery(
         official_url: item.official_url,
       })),
     });
-    if (options?.captureRealAppEvidenceAssemblyOnly) {
+    if (options?.captureRealAppEvidenceAssemblyOnly || needsDateClarification) {
+      const clarifyAnswer =
+        dateClarificationQuestions[0] ||
+        "กรุณาระบุวันที่เกิดความรับผิดในการเสียภาษีมูลค่าเพิ่ม (tax point ตามมาตรา 78 หรือมาตรา 78/1 (1)) ให้ชัดเจน ระบบยังไม่ระบุอัตราภาษีหรือคำนวณภาษี และไม่เลือกอ้างพระราชกฤษฎีกาฉบับใดโดยอัตโนมัติจนกว่าจะยืนยันวันที่";
       return {
         release_id: releaseId,
         knowledge_snapshot_at: snapshotAt,
         status: needsDateClarification ? "NEEDS_CLARIFICATION" : "ANSWERED",
         answer: needsDateClarification
-          ? dateClarificationQuestions[0] ||
-            "ต้องระบุวันที่เกิดความรับผิดทางภาษี (หรือใช้คำตอบแบบมีเงื่อนไขตามช่วงวันใช้บังคับของ พ.ร.ฎ. 790/799/807)"
+          ? clarifyAnswer
           : "[DRY_RUN_EVIDENCE_ASSEMBLY_CAPTURED]",
         claims: [],
         evidence: [],

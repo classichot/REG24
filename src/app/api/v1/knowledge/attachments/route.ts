@@ -61,6 +61,15 @@ export async function POST(req: Request) {
         `RELEASE_OVERRIDE_REJECTED_400: This protected Preview is pinned strictly to '${pinnedActiveRelease}'; attachment release_id override '${requestedRelease}' is rejected.`
       );
     }
+    if (isStrictSingleReleasePreviewMode()) {
+      // Newly uploaded official PDFs stay out of governing evidence on protected Preview until
+      // separate publication_date, effective_from, and Neon persistence checks all pass!
+      if (!body.publication_date?.trim() || !body.effective_from?.trim()) {
+        throw new Error(
+          "UNVERIFIED_ATTACHMENT_DATES_422: Newly uploaded official PDFs require BOTH separate publication_date and effective_from (YYYY-MM-DD) before entering governing evidence."
+        );
+      }
+    }
     const onboarded = onboardVerifiedOfficialAttachment(store, {
       release_id: requestedRelease || pinnedActiveRelease,
       issuer_id: body.issuer_id || "reg.th.soc_ratchakitcha",
@@ -83,13 +92,18 @@ export async function POST(req: Request) {
       actor,
     });
 
-    await persistCitationSourceBundleToPostgres({
+    const pgPersisted = await persistCitationSourceBundleToPostgres({
       doc: onboarded.doc,
       version: onboarded.version,
       location: onboarded.location,
       extraction: onboarded.extraction_revision,
       passages: onboarded.passages,
     });
+    if (isStrictSingleReleasePreviewMode() && !pgPersisted.persisted) {
+      throw new Error(
+        "ATTACHMENT_NEON_PERSISTENCE_REQUIRED_503: Newly uploaded official PDF could not be durably persisted to Neon PostgreSQL; withheld from governing evidence."
+      );
+    }
 
     await appendAuditEventToPostgres({
       audit_id: `caud.att.${sha256Bytes(`${onboarded.doc.doc_id}:${Date.now()}`).slice(0, 14)}`,

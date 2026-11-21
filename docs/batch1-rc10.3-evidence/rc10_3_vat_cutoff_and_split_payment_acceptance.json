@@ -1,0 +1,177 @@
+{
+  "schema_version": "reg24.rc10_3.vat_cutoff_and_split_payment_acceptance.v1",
+  "generated_at": "2026-11-21T16:02:54.649Z",
+  "release_id": "rel.B01.rc8",
+  "manifest_hash": "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3",
+  "verified_vat_coverage_start_iso": "2023-10-01",
+  "thai_free_text_no_date_override": true,
+  "all_checks_passed": true,
+  "passed_count": "11/11",
+  "results": [
+    {
+      "id": "ACC-PRE-2018-06-15",
+      "category": "pre_cutoff_consolidated_rd646_blocked",
+      "applicable_date_override": null,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "expected_status": "INSUFFICIENT_EVIDENCE",
+      "controlling_date_iso": "2018-06-15",
+      "governing_royal_decrees": [],
+      "expected_governing_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "ACC-PRE-2022-05-15",
+      "category": "pre_cutoff_interior_2565_rd724_gap",
+      "applicable_date_override": null,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "expected_status": "INSUFFICIENT_EVIDENCE",
+      "controlling_date_iso": "2022-05-15",
+      "governing_royal_decrees": [],
+      "expected_governing_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "ACC-PRE-2023-09-30",
+      "category": "pre_cutoff_day_before_boundary",
+      "applicable_date_override": null,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "expected_status": "INSUFFICIENT_EVIDENCE",
+      "controlling_date_iso": "2023-09-30",
+      "governing_royal_decrees": [],
+      "expected_governing_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "ACC-POST-2023-10-01",
+      "category": "post_cutoff_rd780_start",
+      "applicable_date_override": null,
+      "status": "ANSWERED",
+      "expected_status": "ANSWERED",
+      "controlling_date_iso": "2023-10-01",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.780@ver.th.rc.royal_decree.780.v2"
+      ],
+      "expected_governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.780@ver.th.rc.royal_decree.780.v2"
+      ],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "ACC-HANDOVER-2025-09-30",
+      "category": "supported_handover_rd790_end",
+      "applicable_date_override": null,
+      "status": "ANSWERED",
+      "expected_status": "ANSWERED",
+      "controlling_date_iso": "2025-09-30",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.790@ver.th.rc.royal_decree.790.v2"
+      ],
+      "expected_governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.790@ver.th.rc.royal_decree.790.v2"
+      ],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "ACC-HANDOVER-2025-10-01",
+      "category": "supported_handover_rd799_start",
+      "applicable_date_override": null,
+      "status": "ANSWERED",
+      "expected_status": "ANSWERED",
+      "controlling_date_iso": "2025-10-01",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.799@ver.th.rc.royal_decree.799.v3"
+      ],
+      "expected_governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.799@ver.th.rc.royal_decree.799.v3"
+      ],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "ACC-HANDOVER-2026-10-01",
+      "category": "supported_handover_rd807_start",
+      "applicable_date_override": null,
+      "status": "ANSWERED",
+      "expected_status": "ANSWERED",
+      "controlling_date_iso": "2026-10-01",
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.807@ver.th.rc.royal_decree.807.v3"
+      ],
+      "expected_governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.807@ver.th.rc.royal_decree.807.v3"
+      ],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "ACC-MISSING-DATE",
+      "category": "missing_date_clarification",
+      "applicable_date_override": null,
+      "status": "NEEDS_CLARIFICATION",
+      "expected_status": "NEEDS_CLARIFICATION",
+      "controlling_date_iso": null,
+      "governing_royal_decrees": [],
+      "expected_governing_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "ACC-AMBIGUOUS-YEAR-2568",
+      "category": "ambiguous_partial_year_clarification",
+      "applicable_date_override": null,
+      "status": "NEEDS_CLARIFICATION",
+      "expected_status": "NEEDS_CLARIFICATION",
+      "controlling_date_iso": null,
+      "governing_royal_decrees": [],
+      "expected_governing_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "DIAG-SPLIT-HANDOVER-790-799",
+      "category": "split_payment_supported_multi_tax_point",
+      "applicable_date_override": null,
+      "status": "ANSWERED",
+      "expected_status": "ANSWERED",
+      "controlling_date_iso": null,
+      "governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.790@ver.th.rc.royal_decree.790.v2",
+        "subreg.th.rc.royal_decree.799@ver.th.rc.royal_decree.799.v3"
+      ],
+      "expected_governing_royal_decrees": [
+        "subreg.th.rc.royal_decree.790@ver.th.rc.royal_decree.790.v2",
+        "subreg.th.rc.royal_decree.799@ver.th.rc.royal_decree.799.v3"
+      ],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    },
+    {
+      "id": "DIAG-SPLIT-CUTOFF-STRADDLE-2566",
+      "category": "split_payment_straddling_cutoff_limitation",
+      "applicable_date_override": null,
+      "status": "INSUFFICIENT_EVIDENCE",
+      "expected_status": "INSUFFICIENT_EVIDENCE",
+      "controlling_date_iso": null,
+      "governing_royal_decrees": [],
+      "expected_governing_royal_decrees": [],
+      "cites_consolidated_rd646_as_governing": false,
+      "rate_or_calc_leak_on_non_answered": false,
+      "passed": true
+    }
+  ]
+}

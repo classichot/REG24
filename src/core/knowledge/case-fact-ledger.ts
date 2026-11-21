@@ -47,6 +47,16 @@ export interface PreservedTemporalEvent {
   source_turn: number;
 }
 
+export const VAT_RATE_VERIFIED_COVERAGE_START_ISO = "2023-10-01";
+
+export interface SplitPaymentTaxPointItem {
+  iso_date: string;
+  raw_text: string;
+  event_type: TemporalEventKind;
+  decree_window: string;
+  within_verified_coverage: boolean;
+}
+
 export interface StructuredCaseFactLedger {
   turn_count: number;
   is_new_conversation: boolean;
@@ -67,12 +77,14 @@ export interface StructuredCaseFactLedger {
   temporal_facts: {
     transaction_or_event_dates: PreservedTemporalEvent[];
     legal_as_of_date: string | null;
+    split_payment_tax_points?: SplitPaymentTaxPointItem[];
     controlling_tax_point: {
       iso_date: string | null;
       controlling_event: string | null;
       statutory_rule_hint: string | null;
       is_ambiguous: boolean;
       ambiguity_reason_th: string | null;
+      is_split_payment_multi_tax_point?: boolean;
     };
   };
   explicitly_unknown_facts_th: string[];
@@ -99,7 +111,7 @@ function extractDatesWithEventKinds(
   const seen = new Set<string>();
 
   const datePattern = new RegExp(
-    `(\\d{1,2}\\s*${THAI_MONTH_REGEX_SRC}\\s*\\d{4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\\.?\\s+\\d{4})`,
+    `(\\d{1,2}\\s*${THAI_MONTH_REGEX_SRC}\\s*(?:พ\\.ศ\\.\\s*)?\\d{4}|\\d{4}-\\d{2}-\\d{2}|\\d{1,2}\\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\\.?\\s+\\d{4})`,
     "gi"
   );
 
@@ -114,7 +126,7 @@ function extractDatesWithEventKinds(
 
     const matchedKinds: TemporalEventKind[] = [];
     if (/จดทะเบียน|โอนกรรมสิทธิ์/.test(leftCtx)) matchedKinds.push("REGISTRATION");
-    if (/(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|จ่ายเงิน)/.test(leftCtx)) {
+    if (/(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|จ่ายเงิน|มัดจำ|งวดแรก|งวดที่\s*[0-9]|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน)/.test(leftCtx)) {
       matchedKinds.push("PAYMENT");
     }
     if (/(?:ออกใบกำกับภาษี|ออกใบกำกับ|ใบกำกับภาษี|ออกใบแจ้งหนี้|ใบแจ้งหนี้)/.test(leftCtx)) {
@@ -553,10 +565,17 @@ export function buildStructuredCaseFactLedger(input: {
   let statutoryRuleHint: string | null = null;
   let isAmbiguous = false;
   let ambiguityReasonTh: string | null = null;
+  let isSplitPaymentMultiTaxPoint = false;
+  let splitPaymentTaxPoints: SplitPaymentTaxPointItem[] | undefined = undefined;
 
+  const mergedAllUserText = allUserTurns.map((t) => t.raw_text).join(" ");
   const explicitUnknownDateInPrompt =
     /ยังไม่ทราบวันที่|ยังไม่ได้กำหนดวัน|ไม่ระบุวันที่|date\s+(?:is\s+)?unknown/i.test(
-      allUserTurns.map((t) => t.raw_text).join(" ")
+      mergedAllUserText
+    );
+  const hasSplitPaymentWording =
+    /(?:มัดจำ|งวดแรก|งวดที่\s*1|งวดที่\s*2|แบ่งชำระ|แบ่งจ่าย|ส่วนที่เหลือ|ชำระบางส่วน|2\s*งวด|สองงวด|หลายงวด|split[\s-]?payment|installment|deposit|milestone)/i.test(
+      thaiDigitsToArabic(mergedAllUserText)
     );
   const vatWindowBucket = (iso: string): string => {
     if (iso >= "2024-10-01" && iso <= "2025-09-30") return "RD_790";
@@ -564,10 +583,55 @@ export function buildStructuredCaseFactLedger(input: {
     if (iso >= "2026-10-01" && iso <= "2027-09-30") return "RD_807";
     if (iso > "2027-09-30") return "POST_807";
     if (iso >= "2023-10-01" && iso <= "2024-09-30") return "RD_780";
-    return "PRE_780";
+    return "PRE_CUTOFF_BEFORE_2023_10_01";
   };
 
-  if (isVatCase && factsMap.get("vat_transaction_type")?.normalized_category === "VAT_PROVISION_OF_SERVICE") {
+  // Detect split-payment / multi-installment VAT transactions BEFORE single-tax-point selection:
+  // NEVER collapse split-payment portions to the earlier date for the whole transaction!
+  const activeTurnVatDates = (
+    latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates
+  ).filter(
+    (e) =>
+      e.event_type === "PAYMENT" ||
+      e.event_type === "INVOICE" ||
+      e.event_type === "SERVICE_USE" ||
+      e.event_type === "TRANSFER" ||
+      e.event_type === "STATED_TRANSACTION_DATE"
+  );
+  const distinctActiveVatDatesByIso = new Map<string, PreservedTemporalEvent>();
+  for (const ev of [...activeTurnVatDates].sort((a, b) => a.iso_date.localeCompare(b.iso_date))) {
+    if (!distinctActiveVatDatesByIso.has(ev.iso_date)) {
+      distinctActiveVatDatesByIso.set(ev.iso_date, ev);
+    }
+  }
+  const distinctPaymentDateCount = new Set(
+    activeTurnVatDates.filter((e) => e.event_type === "PAYMENT").map((e) => e.iso_date)
+  ).size;
+  const detectedSplitPayment =
+    isVatCase &&
+    distinctActiveVatDatesByIso.size >= 2 &&
+    (hasSplitPaymentWording || distinctPaymentDateCount >= 2);
+
+  if (detectedSplitPayment) {
+    isSplitPaymentMultiTaxPoint = true;
+    splitPaymentTaxPoints = Array.from(distinctActiveVatDatesByIso.values()).map((ev) => ({
+      iso_date: ev.iso_date,
+      raw_text: ev.raw_text,
+      event_type: ev.event_type,
+      decree_window: vatWindowBucket(ev.iso_date),
+      within_verified_coverage: ev.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+    }));
+    controllingIso = null;
+    controllingEvent = `SPLIT_PAYMENT_MULTI_TAX_POINT (${splitPaymentTaxPoints.map((p) => `${p.iso_date}:${p.decree_window}`).join(" + ")})`;
+    statutoryRuleHint =
+      "กรณีแบ่งรับชำระ/มัดจำหลายงวด (split payment): ห้ามนำวันที่ของงวดแรกมาใช้บังคับกับทั้งธุรกรรม — แต่ละงวดมีวันเกิดความรับผิดทางภาษี (tax point) และพระราชกฤษฎีกาที่ใช้บังคับแยกตามวันที่ของแต่ละงวดตามประมวลรัษฎากร มาตรา 78 / 78/1 (1): " +
+      splitPaymentTaxPoints
+        .map(
+          (p, idx) =>
+            `งวดที่ ${idx + 1} วันที่ ${p.iso_date} (${p.within_verified_coverage ? p.decree_window : "ก่อน 2023-10-01 — อยู่นอกขอบเขตต้นฉบับที่ตรวจสอบแล้ว"})`
+        )
+        .join("; ");
+  } else if (isVatCase && factsMap.get("vat_transaction_type")?.normalized_category === "VAT_PROVISION_OF_SERVICE") {
     // Under Revenue Code §78/1(1), service VAT tax point is the EARLIEST of:
     // payment received, tax invoice issued, or use of service.
     const activeServiceEvents =
@@ -642,12 +706,14 @@ export function buildStructuredCaseFactLedger(input: {
     temporal_facts: {
       transaction_or_event_dates: allTemporalEvents,
       legal_as_of_date: legalAsOfDate,
+      ...(splitPaymentTaxPoints ? { split_payment_tax_points: splitPaymentTaxPoints } : {}),
       controlling_tax_point: {
         iso_date: controllingIso,
         controlling_event: controllingEvent,
         statutory_rule_hint: statutoryRuleHint,
         is_ambiguous: isAmbiguous,
         ambiguity_reason_th: ambiguityReasonTh,
+        ...(isSplitPaymentMultiTaxPoint ? { is_split_payment_multi_tax_point: true } : {}),
       },
     },
     explicitly_unknown_facts_th: Array.from(unknownFacts),
