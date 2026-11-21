@@ -1,0 +1,405 @@
+{
+  "schema_version": "1.0-rc8-legal-source-and-graph-map",
+  "generated_at": "2026-11-21T02:33:53.617Z",
+  "release_id": "rel.B01.rc8",
+  "manifest_id": "mfst.b01.rc8_thai_legal_index",
+  "manifest_hash": "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3",
+  "preserved_comparison_baseline": {
+    "release_id": "rel.B01.rc7",
+    "manifest_id": "mfst.b01.rc7_thai_legal_index",
+    "manifest_hash": "e01101062bd07c4dee79f44f39940024ad2f16c2bf9557d609aae23837119781",
+    "rc7_has_rd790_v1": true,
+    "rc7_has_rd807_v2": true,
+    "rc7_has_rd646_v1": true,
+    "rc7_has_old_amends_prev_edges": true
+  },
+  "rc8_projections": {
+    "receipts": [
+      {
+        "receipt_id": "rcpt.rel.B01.rc8.lexical",
+        "release_id": "rel.B01.rc8",
+        "projection_kind": "LEXICAL",
+        "generation": "gen.rel.B01.rc8.r8.1366d1dcd562",
+        "item_count": 11791,
+        "manifest_checksum": "c6deb82bb588a6cd06f4387d0b77bc8c6ed566d042549385bd8f2ef218398408",
+        "completion_state": "COMPLETED",
+        "adapter_mode": "durable_disk",
+        "recorded_at": "2026-11-21T02:33:58.974Z",
+        "error": null,
+        "manifest_id": "mfst.b01.rc8_thai_legal_index",
+        "manifest_hash": "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3",
+        "corpus_work_count": 5071,
+        "corpus_version_count": 5071,
+        "passage_count": 11791,
+        "tokenizer_engine": "ts_legal_dict_intl_v1.0+reg24-th-legal-dict-v1.0",
+        "legal_dictionary_version": "reg24-th-legal-dict-v1.0",
+        "legal_dictionary_sha256": "4af2531db0861dbe64abbbef502b71d9292282f661094a38afec5f80768540f8"
+      },
+      {
+        "receipt_id": "rcpt.rel.B01.rc8.vector",
+        "release_id": "rel.B01.rc8",
+        "projection_kind": "VECTOR",
+        "generation": "gen.rel.B01.rc8.r8.1366d1dcd562",
+        "item_count": 0,
+        "manifest_checksum": "7dcb891c6265796cf40fbac96285ae95de2c2194a75039cccad707bcd89e5db5",
+        "completion_state": "DISABLED",
+        "adapter_mode": "durable_disk",
+        "recorded_at": "2026-11-21T02:33:58.974Z",
+        "error": null,
+        "manifest_id": "mfst.b01.rc8_thai_legal_index",
+        "manifest_hash": "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3",
+        "corpus_work_count": 5071,
+        "corpus_version_count": 5071,
+        "passage_count": 11791,
+        "embedding_model": null,
+        "embedding_version": null,
+        "embedding_dimensions": 0,
+        "vector_status": "deliberately_disabled"
+      },
+      {
+        "receipt_id": "rcpt.rel.B01.rc8.graph",
+        "release_id": "rel.B01.rc8",
+        "projection_kind": "GRAPH_LOCAL_DURABLE",
+        "generation": "gen.rel.B01.rc8.r8.1366d1dcd562",
+        "item_count": 43166,
+        "manifest_checksum": "dbeac036c8754ddc94d37380363c47663b421c2fc8ae65f0b464baef5dceb056",
+        "completion_state": "COMPLETED",
+        "adapter_mode": "durable_disk",
+        "recorded_at": "2026-11-21T02:33:58.974Z",
+        "error": null,
+        "manifest_id": "mfst.b01.rc8_thai_legal_index",
+        "manifest_hash": "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3",
+        "corpus_work_count": 5071,
+        "corpus_version_count": 5071,
+        "passage_count": 11791
+      }
+    ],
+    "lexical_index_sha256": "e4dd4ddbf12b44fd9d7d3e18a3adbe0d80661e2ad147fcdd3bea245391455605",
+    "tokenizer_engine": "ts_legal_dict_intl_v1.0+reg24-th-legal-dict-v1.0",
+    "tokenizer_contract_sha256": "6d5783be8b8a39a34b55b383e7735b916d9912a01e831165b45a50abb4a2b5a1",
+    "legal_dictionary_sha256": "4af2531db0861dbe64abbbef502b71d9292282f661094a38afec5f80768540f8",
+    "vector_status": "deliberately_disabled"
+  },
+  "rc8_graph_distinction": {
+    "direct_amendment_edges": [
+      {
+        "assertion_id": "asrt.rc6.94d9a7e1f643b3",
+        "subject": "subreg.th.rc.royal_decree.780",
+        "predicate": "AMENDS",
+        "object": "subreg.th.rc.royal_decree.646",
+        "evidence_ids": [
+          "psg.77340ce3ca711d"
+        ]
+      },
+      {
+        "assertion_id": "asrt.rc8.rd780.amends.rd646",
+        "subject": "subreg.th.rc.royal_decree.780",
+        "predicate": "AMENDS",
+        "object": "subreg.th.rc.royal_decree.646",
+        "evidence_ids": [
+          "psg.rc8.rd780.sec_3_amending_clause",
+          "psg.rc8.rd780.sec_3_quoted_rd646_sec_4"
+        ],
+        "applicable_period": "2023-10-01..2024-09-30"
+      },
+      {
+        "assertion_id": "asrt.rc8.rd790.amends.rd646",
+        "subject": "subreg.th.rc.royal_decree.790",
+        "predicate": "AMENDS",
+        "object": "subreg.th.rc.royal_decree.646",
+        "evidence_ids": [
+          "psg.rc8.rd790.sec_3_amending_clause",
+          "psg.rc8.rd790.sec_3_quoted_rd646_sec_4"
+        ],
+        "applicable_period": "2024-10-01..2025-09-30"
+      },
+      {
+        "assertion_id": "asrt.rc8.rd799.amends.rd646",
+        "subject": "subreg.th.rc.royal_decree.799",
+        "predicate": "AMENDS",
+        "object": "subreg.th.rc.royal_decree.646",
+        "evidence_ids": [
+          "psg.rc8.rd799.sec_3_amending_clause",
+          "psg.rc8.rd799.sec_3_quoted_rd646_sec_4"
+        ],
+        "applicable_period": "2025-10-01..2026-09-30"
+      },
+      {
+        "assertion_id": "asrt.rc8.rd807.amends.rd646",
+        "subject": "subreg.th.rc.royal_decree.807",
+        "predicate": "AMENDS",
+        "object": "subreg.th.rc.royal_decree.646",
+        "evidence_ids": [
+          "psg.rc8.rd807.sec_3_amending_clause",
+          "psg.rc8.rd807.sec_3_quoted_rd646_sec_4"
+        ],
+        "applicable_period": "2026-10-01..2027-09-30"
+      }
+    ],
+    "predecessor_history_edges": [
+      {
+        "assertion_id": "asrt.rc8.rd790.supersedes.prev",
+        "subject": "subreg.th.rc.royal_decree.790",
+        "predicate": "SUPERSEDES",
+        "object": "subreg.th.rc.royal_decree.780",
+        "evidence_ids": [
+          "psg.rc8.rd790.sec_3_amending_clause"
+        ],
+        "applicable_period": "2024-10-01..2025-09-30"
+      },
+      {
+        "assertion_id": "asrt.rc8.rd799.supersedes.prev",
+        "subject": "subreg.th.rc.royal_decree.799",
+        "predicate": "SUPERSEDES",
+        "object": "subreg.th.rc.royal_decree.790",
+        "evidence_ids": [
+          "psg.rc8.rd799.sec_3_amending_clause"
+        ],
+        "applicable_period": "2025-10-01..2026-09-30"
+      },
+      {
+        "assertion_id": "asrt.rc8.rd807.supersedes.prev",
+        "subject": "subreg.th.rc.royal_decree.807",
+        "predicate": "SUPERSEDES",
+        "object": "subreg.th.rc.royal_decree.799",
+        "evidence_ids": [
+          "psg.rc8.rd807.sec_3_amending_clause"
+        ],
+        "applicable_period": "2026-10-01..2027-09-30"
+      }
+    ],
+    "zero_legacy_amends_prev_edges_in_rc8": true
+  },
+  "decrees": [
+    {
+      "work_id": "subreg.th.rc.royal_decree.646",
+      "version_id": "ver.th.rc.royal_decree.646.v2",
+      "status": "CONSOLIDATED_DERIVED (base window 2017-10-01..2018-09-30; superseded history for post-2018-09-30)",
+      "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc646.pdf",
+      "repo_archived_pdf_path": "data/knowledge-store-b01-rc2-staging/artifacts/a7591ae8a8fbee647b1c9ee3f8ccaff56eb8cd82f9c094e0d62c445866d30776.bin",
+      "sha256": "a7591ae8a8fbee647b1c9ee3f8ccaff56eb8cd82f9c094e0d62c445866d30776",
+      "enactment_date": "2017-09-30",
+      "publication_date": "2017-10-01",
+      "commencement_date": "2017-10-01",
+      "active_governing_window": {
+        "valid_from": "2017-10-01",
+        "valid_to": "2018-09-30",
+        "is_temporary_rule": true
+      },
+      "passages": [
+        "psg.rc8.rd646.sec_1_3",
+        "psg.rc8.rd646.sec_4_compiled"
+      ]
+    },
+    {
+      "work_id": "subreg.th.rc.royal_decree.780",
+      "version_id": "ver.th.rc.royal_decree.780.v2",
+      "status": "ENACTED_AMENDMENT (official Royal Gazette original)",
+      "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc780.pdf",
+      "repo_archived_pdf_path": "data/knowledge-store-b01-rc2-staging/artifacts/26f4a13406bea41d938b0cb1819e2c75885669b0f9bc77db1110a8e78e91d421.bin",
+      "sha256": "26f4a13406bea41d938b0cb1819e2c75885669b0f9bc77db1110a8e78e91d421",
+      "royal_gazette_ref": "ราชกิจจานุเบกษา เล่ม ๑๔๐ ตอนที่ ๕๕ ก หน้า ๑–๓ วันที่ ๑๖ กันยายน ๒๕๖๖",
+      "enactment_date": "2023-09-15",
+      "publication_date": "2023-09-16",
+      "commencement_date": "2023-10-01",
+      "covered_transaction_period": {
+        "from": "2017-10-01",
+        "to": "2024-09-30"
+      },
+      "active_governing_window": {
+        "valid_from": "2023-10-01",
+        "valid_to": "2024-09-30",
+        "is_temporary_rule": true
+      },
+      "separately_labeled_passages": [
+        {
+          "passage_id": "psg.rc8.rd780.sec_1_2",
+          "section_key": "sec_1_2",
+          "heading_th": "ชื่อกฎหมายและวันเริ่มใช้บังคับ (มาตรา ๑ – มาตรา ๒)",
+          "pdf_page_zero_based": 0,
+          "printed_page": "หน้า ๑"
+        },
+        {
+          "passage_id": "psg.rc8.rd780.sec_3_amending_clause",
+          "section_key": "sec_3_amending_clause",
+          "heading_th": "มาตรา ๓ แห่ง พ.ร.ฎ. (ฉบับที่ ๗๘๐) พ.ศ. ๒๕๖๖ (บทบัญญัติแก้ไขเพิ่มเติม พ.ร.ฎ. ฉบับที่ ๖๔๖ มาตรา ๔)",
+          "pdf_page_zero_based": 0,
+          "printed_page": "หน้า ๑–๒"
+        },
+        {
+          "passage_id": "psg.rc8.rd780.sec_3_quoted_rd646_sec_4",
+          "section_key": "sec_3_quoted_rd646_sec_4",
+          "heading_th": "ข้อความแก้ไขแทนที่ในมาตรา ๓: มาตรา ๔ แห่ง พ.ร.ฎ. (ฉบับที่ ๖๔๖) พ.ศ. ๒๕๖๐ (คงจัดเก็บ VAT ร้อยละ ๖.๓ ถึง ๓๐ กันยายน ๒๕๖๗)",
+          "pdf_page_zero_based": 1,
+          "printed_page": "หน้า ๒"
+        },
+        {
+          "passage_id": "psg.rc8.rd780.note",
+          "section_key": "note",
+          "heading_th": "หมายเหตุ (เหตุผลในการประกาศใช้ พ.ร.ฎ. ฉบับที่ ๗๘๐ พ.ศ. ๒๕๖๖)",
+          "pdf_page_zero_based": 2,
+          "printed_page": "หน้า ๓"
+        }
+      ]
+    },
+    {
+      "work_id": "subreg.th.rc.royal_decree.790",
+      "version_id": "ver.th.rc.royal_decree.790.v2",
+      "status": "ENACTED_AMENDMENT (official Royal Gazette original)",
+      "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc790.pdf",
+      "repo_archived_pdf_path": "data/knowledge-store-b01-rc2-staging/artifacts/8cee8f1d3715313f0538e99b1f6cb6887945e943ade089022a5d9d2bc8c5a14e.bin",
+      "sha256": "8cee8f1d3715313f0538e99b1f6cb6887945e943ade089022a5d9d2bc8c5a14e",
+      "royal_gazette_ref": "ราชกิจจานุเบกษา เล่ม ๑๔๑ ตอนที่ ๕๗ ก หน้า ๑–๓ วันที่ ๒๐ กันยายน ๒๕๖๗",
+      "enactment_date": "2024-09-19",
+      "publication_date": "2024-09-20",
+      "commencement_date": "2024-10-01",
+      "covered_transaction_period": {
+        "from": "2017-10-01",
+        "to": "2025-09-30"
+      },
+      "active_governing_window": {
+        "valid_from": "2024-10-01",
+        "valid_to": "2025-09-30",
+        "is_temporary_rule": true
+      },
+      "separately_labeled_passages": [
+        {
+          "passage_id": "psg.rc8.rd790.sec_1_2",
+          "section_key": "sec_1_2",
+          "heading_th": "ชื่อกฎหมายและวันเริ่มใช้บังคับ (มาตรา ๑ – มาตรา ๒)",
+          "pdf_page_zero_based": 0,
+          "printed_page": "หน้า ๑"
+        },
+        {
+          "passage_id": "psg.rc8.rd790.sec_3_amending_clause",
+          "section_key": "sec_3_amending_clause",
+          "heading_th": "มาตรา ๓ แห่ง พ.ร.ฎ. (ฉบับที่ ๗๙๐) พ.ศ. ๒๕๖๗ (บทบัญญัติแก้ไขเพิ่มเติม พ.ร.ฎ. ฉบับที่ ๖๔๖ มาตรา ๔)",
+          "pdf_page_zero_based": 1,
+          "printed_page": "หน้า ๒"
+        },
+        {
+          "passage_id": "psg.rc8.rd790.sec_3_quoted_rd646_sec_4",
+          "section_key": "sec_3_quoted_rd646_sec_4",
+          "heading_th": "ข้อความแก้ไขแทนที่ในมาตรา ๓: มาตรา ๔ แห่ง พ.ร.ฎ. (ฉบับที่ ๖๔๖) พ.ศ. ๒๕๖๐ (คงจัดเก็บ VAT ร้อยละ ๖.๓ ถึง ๓๐ กันยายน ๒๕๖๘)",
+          "pdf_page_zero_based": 1,
+          "printed_page": "หน้า ๒"
+        },
+        {
+          "passage_id": "psg.rc8.rd790.note",
+          "section_key": "note",
+          "heading_th": "หมายเหตุ (เหตุผลในการประกาศใช้ พ.ร.ฎ. ฉบับที่ ๗๙๐ พ.ศ. ๒๕๖๗)",
+          "pdf_page_zero_based": 2,
+          "printed_page": "หน้า ๓"
+        }
+      ]
+    },
+    {
+      "work_id": "subreg.th.rc.royal_decree.799",
+      "version_id": "ver.th.rc.royal_decree.799.v3",
+      "status": "ENACTED_AMENDMENT (official Royal Gazette original)",
+      "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf",
+      "repo_archived_pdf_path": "data/knowledge-store-b01-rc2-staging/artifacts/796b9aff527081720587dcf5b378833eb09bac731c3cc941fea382ce18302ba3.bin",
+      "sha256": "796b9aff527081720587dcf5b378833eb09bac731c3cc941fea382ce18302ba3",
+      "royal_gazette_ref": "ราชกิจจานุเบกษา เล่ม ๑๔๒ ตอนที่ ๕๙ ก หน้า ๑–๓ วันที่ ๑๔ กันยายน ๒๕๖๘",
+      "enactment_date": "2025-09-13",
+      "publication_date": "2025-09-14",
+      "commencement_date": "2025-10-01",
+      "covered_transaction_period": {
+        "from": "2017-10-01",
+        "to": "2026-09-30"
+      },
+      "active_governing_window": {
+        "valid_from": "2025-10-01",
+        "valid_to": "2026-09-30",
+        "is_temporary_rule": true
+      },
+      "separately_labeled_passages": [
+        {
+          "passage_id": "psg.rc8.rd799.sec_1_2",
+          "section_key": "sec_1_2",
+          "heading_th": "ชื่อกฎหมายและวันเริ่มใช้บังคับ (มาตรา ๑ – มาตรา ๒)",
+          "pdf_page_zero_based": 0,
+          "printed_page": "หน้า ๑"
+        },
+        {
+          "passage_id": "psg.rc8.rd799.sec_3_amending_clause",
+          "section_key": "sec_3_amending_clause",
+          "heading_th": "มาตรา ๓ แห่ง พ.ร.ฎ. (ฉบับที่ ๗๙๙) พ.ศ. ๒๕๖๘ (บทบัญญัติแก้ไขเพิ่มเติม พ.ร.ฎ. ฉบับที่ ๖๔๖ มาตรา ๔)",
+          "pdf_page_zero_based": 1,
+          "printed_page": "หน้า ๒"
+        },
+        {
+          "passage_id": "psg.rc8.rd799.sec_3_quoted_rd646_sec_4",
+          "section_key": "sec_3_quoted_rd646_sec_4",
+          "heading_th": "ข้อความแก้ไขแทนที่ในมาตรา ๓: มาตรา ๔ แห่ง พ.ร.ฎ. (ฉบับที่ ๖๔๖) พ.ศ. ๒๕๖๐ (คงจัดเก็บ VAT ร้อยละ ๖.๓ ถึง ๓๐ กันยายน ๒๕๖๙)",
+          "pdf_page_zero_based": 1,
+          "printed_page": "หน้า ๒"
+        },
+        {
+          "passage_id": "psg.rc8.rd799.note",
+          "section_key": "note",
+          "heading_th": "หมายเหตุ (เหตุผลในการประกาศใช้ พ.ร.ฎ. ฉบับที่ ๗๙๙ พ.ศ. ๒๕๖๘)",
+          "pdf_page_zero_based": 2,
+          "printed_page": "หน้า ๓"
+        }
+      ]
+    },
+    {
+      "work_id": "subreg.th.rc.royal_decree.807",
+      "version_id": "ver.th.rc.royal_decree.807.v3",
+      "status": "ENACTED_AMENDMENT (official Royal Gazette original)",
+      "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc807.pdf",
+      "repo_archived_pdf_path": "data/knowledge-store-b01-rc2-staging/artifacts/a4e0c55a2324397af4079317d2a5138fa075fcd87eb9348771742ed7ad6dab70.bin",
+      "sha256": "a4e0c55a2324397af4079317d2a5138fa075fcd87eb9348771742ed7ad6dab70",
+      "royal_gazette_ref": "ราชกิจจานุเบกษา เล่ม ๑๔๓ ตอนที่ ๕๐ ก หน้า ๒๐–๒๒ วันที่ ๒๓ สิงหาคม ๒๕๖๙",
+      "enactment_date": "2026-08-20",
+      "publication_date": "2026-08-23",
+      "commencement_date": "2026-10-01",
+      "covered_transaction_period": {
+        "from": "2017-10-01",
+        "to": "2027-09-30"
+      },
+      "active_governing_window": {
+        "valid_from": "2026-10-01",
+        "valid_to": "2027-09-30",
+        "is_temporary_rule": true
+      },
+      "separately_labeled_passages": [
+        {
+          "passage_id": "psg.rc8.rd807.sec_1_2",
+          "section_key": "sec_1_2",
+          "heading_th": "ชื่อกฎหมายและวันเริ่มใช้บังคับ (มาตรา ๑ – มาตรา ๒)",
+          "pdf_page_zero_based": 0,
+          "printed_page": "หน้า ๒๐"
+        },
+        {
+          "passage_id": "psg.rc8.rd807.sec_3_amending_clause",
+          "section_key": "sec_3_amending_clause",
+          "heading_th": "มาตรา ๓ แห่ง พ.ร.ฎ. (ฉบับที่ ๘๐๗) พ.ศ. ๒๕๖๙ (บทบัญญัติแก้ไขเพิ่มเติม พ.ร.ฎ. ฉบับที่ ๖๔๖ มาตรา ๔)",
+          "pdf_page_zero_based": 1,
+          "printed_page": "หน้า ๒๑"
+        },
+        {
+          "passage_id": "psg.rc8.rd807.sec_3_quoted_rd646_sec_4",
+          "section_key": "sec_3_quoted_rd646_sec_4",
+          "heading_th": "ข้อความแก้ไขแทนที่ในมาตรา ๓: มาตรา ๔ แห่ง พ.ร.ฎ. (ฉบับที่ ๖๔๖) พ.ศ. ๒๕๖๐ (คงจัดเก็บ VAT ร้อยละ ๖.๓ ถึง ๓๐ กันยายน ๒๕๗๐)",
+          "pdf_page_zero_based": 1,
+          "printed_page": "หน้า ๒๑"
+        },
+        {
+          "passage_id": "psg.rc8.rd807.note",
+          "section_key": "note",
+          "heading_th": "หมายเหตุ (เหตุผลในการประกาศใช้ พ.ร.ฎ. ฉบับที่ ๘๐๗ พ.ศ. ๒๕๖๙)",
+          "pdf_page_zero_based": 2,
+          "printed_page": "หน้า ๒๒"
+        }
+      ]
+    }
+  ],
+  "counts": {
+    "rc7_passages": 11786,
+    "rc8_passages": 11791,
+    "rc7_assertions": 43164,
+    "rc8_assertions": 43166
+  }
+}

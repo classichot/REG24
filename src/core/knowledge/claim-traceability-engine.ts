@@ -33,6 +33,7 @@ import {
   loadAllOnboardedSourcesFromPostgres,
   loadPinnedPassageFromPostgres,
   loadSavedAnswerFromPostgres,
+  lookupSavedAnswerByOperationKeyInPostgres,
   lookupSavedRevisionRecordInPostgres,
   persistAnswerRevisionToPostgres,
 } from "./citation-postgres-store";
@@ -2153,6 +2154,36 @@ function extractConversationTagFromReason(reason?: string | null): string | null
  *    - A first answer ALWAYS saves as `r1` (`revision_number = 1`, `supersedes_answer_revision = null`).
  *    - A follow-up answer links ONLY to a verified saved revision from the SAME conversation owned by the SAME actor.
  */
+const localSaveOperationKeyIndex = new Map<
+  string,
+  { answer_revision: string; save_payload_sha256: string }
+>();
+
+export function computeCanonicalSavePayloadSha256(params: {
+  question_text: string;
+  as_of_date: string | null | undefined;
+  rendered_answer_th: string | null | undefined;
+  claims: Array<{
+    text: string;
+    claim_type?: string;
+    evidence_references?: Array<{ evidence_id: string; support_role?: string }>;
+  }>;
+}): string {
+  const canonical = {
+    question_text: (params.question_text || "").trim(),
+    as_of_date: params.as_of_date ?? null,
+    rendered_answer_th: (params.rendered_answer_th || "").trim(),
+    claims: (params.claims || []).map((c) => ({
+      text: (c.text || "").trim(),
+      claim_type: c.claim_type || "legal_proposition",
+      evidence: (c.evidence_references || [])
+        .map((r) => `${r.evidence_id}:${r.support_role || "primary_authority"}`)
+        .sort(),
+    })),
+  };
+  return sha256Bytes(JSON.stringify(canonical));
+}
+
 export async function saveOrReviseAnswerServerVerified(
   store: DurableKnowledgeStore,
   params: {
@@ -2160,6 +2191,7 @@ export async function saveOrReviseAnswerServerVerified(
     question_text: string;
     revision_reason?: string;
     actor: Actor;
+    save_operation_key?: string | null;
     query_persistence_context?: {
       conversation_id?: string | null;
       prior_saved_answer_revision?: string | null;
@@ -2360,6 +2392,30 @@ export async function saveOrReviseAnswerServerVerified(
     }
   }
 
+  const normalizedSaveOpKey =
+    typeof params.save_operation_key === "string" && params.save_operation_key.trim().length > 0
+      ? params.save_operation_key.trim()
+      : null;
+  const canonicalSavePayloadSha256 = computeCanonicalSavePayloadSha256({
+    question_text: params.question_text,
+    as_of_date: sub.as_of_date ?? null,
+    rendered_answer_th: sub.rendered_answer_th ?? null,
+    claims: (sub.claims || [])
+      .filter(
+        (c) =>
+          c.claim_type !== "user_fact_or_assumption" &&
+          c.claim_type !== "scoped_unresolved_notice"
+      )
+      .map((c) => ({
+        text: c.text,
+        claim_type: c.claim_type,
+        evidence_references: (c.evidence_references || []).map((r) => ({
+          evidence_id: r.evidence_id,
+          support_role: r.support_role,
+        })),
+      })),
+  });
+
   // Check ownership & authoritative revision head in hosted PostgreSQL (across deployments/restarts!)
   const pgOwn = await inspectExistingAnswerOwnershipInPostgres(requestedAnswerId);
   if (pgOwn.exists) {
@@ -2381,6 +2437,64 @@ export async function saveOrReviseAnswerServerVerified(
       throw new Error(
         `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${params.actor.actor_id}' is not authorized to modify or overwrite answer '${requestedAnswerId}' owned by '${pgOwn.owner_actor_id}'.`
       );
+    }
+  }
+
+  // RC10.3 P0-2: Stable save-operation idempotency check BEFORE allocating any new revision!
+  // Same (actor, tenant, answer_id, save_operation_key) + same payload -> return exact existing revision;
+  // same key + different payload -> fail clearly with HTTP 409.
+  const effectiveOwnerActorId = pgOwn.owner_actor_id || params.actor.actor_id;
+  const effectiveOwnerTenantId = pgOwn.owner_tenant_id || params.actor.tenant_id;
+  const localIdempScopeKey = normalizedSaveOpKey
+    ? `${effectiveOwnerActorId}|${effectiveOwnerTenantId}|${requestedAnswerId}|${normalizedSaveOpKey}`
+    : null;
+
+  if (normalizedSaveOpKey) {
+    if (pgActive) {
+      const existingOp = await lookupSavedAnswerByOperationKeyInPostgres({
+        owner_actor_id: effectiveOwnerActorId,
+        owner_tenant_id: effectiveOwnerTenantId,
+        answer_id: requestedAnswerId,
+        save_operation_key: normalizedSaveOpKey,
+      });
+      if (existingOp.found && existingOp.answer_revision_id) {
+        if (
+          existingOp.save_payload_sha256 &&
+          existingOp.save_payload_sha256 !== canonicalSavePayloadSha256
+        ) {
+          throw new Error(
+            `IDEMPOTENCY_KEY_PAYLOAD_CONFLICT_409: save_operation_key '${normalizedSaveOpKey}' was already committed for '${requestedAnswerId}' with different answer content; supply a new save_operation_key for an intentional edit.`
+          );
+        }
+        const existingLoaded = await loadSavedAnswerFromPostgres(
+          existingOp.answer_revision_id,
+          params.actor
+        );
+        if (existingLoaded.found && existingLoaded.answer) {
+          const replayEnv = existingLoaded.answer as TraceableAnswerEnvelope & {
+            __idempotent_replay?: boolean;
+          };
+          replayEnv.__idempotent_replay = true;
+          return replayEnv;
+        }
+      }
+    } else if (localIdempScopeKey) {
+      const localExistingOp = localSaveOperationKeyIndex.get(localIdempScopeKey);
+      if (localExistingOp) {
+        if (localExistingOp.save_payload_sha256 !== canonicalSavePayloadSha256) {
+          throw new Error(
+            `IDEMPOTENCY_KEY_PAYLOAD_CONFLICT_409: save_operation_key '${normalizedSaveOpKey}' was already committed for '${requestedAnswerId}' with different answer content; supply a new save_operation_key for an intentional edit.`
+          );
+        }
+        const existingLocal = unified.published_answers[localExistingOp.answer_revision];
+        if (existingLocal) {
+          const replayEnv = { ...existingLocal } as TraceableAnswerEnvelope & {
+            __idempotent_replay?: boolean;
+          };
+          replayEnv.__idempotent_replay = true;
+          return replayEnv;
+        }
+      }
     }
   }
 
@@ -2540,18 +2654,168 @@ export async function saveOrReviseAnswerServerVerified(
     }))
   );
 
-  const committed = commitTraceableAnswerAtomically(store, serverValidated, allLinks, {
+  // RC10.3 P0-2: COMMIT-BEFORE-EXPOSE RULE!
+  // When PostgreSQL (Neon) is active, persist the atomic transaction (answer + claims + citation links + audit record)
+  // to Neon FIRST BEFORE touching in-memory `store` or cache. If Neon fails or is interrupted, NOTHING is exposed
+  // through memory, cache, or API!
+  if (pgActive) {
+    const envelopeToPersist: TraceableAnswerEnvelope = {
+      ...serverValidated,
+      owner_actor_id: effectiveOwnerActorId,
+      owner_tenant_id: effectiveOwnerTenantId,
+      revision_reason: effectiveRevisionReason || "Initial verified publication",
+    };
+
+    // Gather referenced source bundles read-only from `unified` (ZERO in-memory mutation before Neon commit!)
+    const bundleMap = new Map<
+      string,
+      {
+        doc: OfficialDocumentRecord;
+        version: DocumentVersionRecord;
+        location: OfficialLocationRecord;
+        extraction: ExtractionRevisionRecord;
+        passages: EvidencePassageRecord[];
+      }
+    >();
+    for (const clm of envelopeToPersist.claims) {
+      for (const ref of clm.evidence_references) {
+        const psg = unified.passages[ref.evidence_id];
+        const doc = unified.documents[ref.doc_id];
+        const ver = unified.versions[ref.version_id];
+        const ext = unified.extraction_revisions[ref.extraction_revision_id];
+        const resolvedRefUrl = resolveVerifiedOfficialUrlForDoc(ref.doc_id, ref.official_url);
+        const isSynthFallback = isSyntheticPlaceholderOfficialUrl(resolvedRefUrl);
+        const loc =
+          selectBestOfficialLocation(unified.locations, ref.doc_id, ref.version_id, ref.official_url) || {
+            location_id: `oloc.pg.${sha256Bytes(ref.doc_id).slice(0, 12)}`,
+            doc_id: ref.doc_id,
+            version_id: ref.version_id,
+            exact_official_url: isSynthFallback ? ref.official_url : resolvedRefUrl,
+            role: "primary_official" as const,
+            parent_landing_location_id: null,
+            original_observed_url: ref.official_url,
+            redirect_history: [],
+            prior_urls: [],
+            first_verified_at: null,
+            last_verified_at: null,
+            last_successful_verified_at: null,
+            verification_method: isSynthFallback
+              ? "synthetic_placeholder_unverified"
+              : "canonical_corpus_unchecked_live",
+            identity_match_result: isSynthFallback
+              ? ("FAILED_SOFT_404" as const)
+              : ("VERIFIED_MATCH" as const),
+            link_health: isSynthFallback
+              ? ("quarantined_identity_failure" as const)
+              : ("unchecked_live" as const),
+            last_http_status: null,
+            failure_reason: isSynthFallback
+              ? "SYNTHETIC_INTERNAL_DEPENDENCY_URL_NOT_VERIFIED_ONLINE"
+              : null,
+            is_active_primary: !isSynthFallback,
+          };
+        if (!psg || !doc || !ver || !ext) continue;
+        const existingBundle = bundleMap.get(ver.version_id);
+        if (existingBundle) {
+          if (!existingBundle.passages.some((p) => p.passage_id === psg.passage_id)) {
+            existingBundle.passages.push(psg);
+          }
+        } else {
+          bundleMap.set(ver.version_id, {
+            doc,
+            version: ver,
+            location: loc,
+            extraction: ext,
+            passages: [psg],
+          });
+        }
+      }
+    }
+
+    try {
+      await persistAnswerRevisionToPostgres({
+        envelope: envelopeToPersist,
+        question_text: params.question_text,
+        owner_actor_id: effectiveOwnerActorId,
+        owner_tenant_id: effectiveOwnerTenantId,
+        actor: params.actor,
+        revision_reason: effectiveRevisionReason || "Initial verified publication",
+        save_operation_key: normalizedSaveOpKey,
+        save_payload_sha256: canonicalSavePayloadSha256,
+        referenced_bundles: Array.from(bundleMap.values()),
+      });
+    } catch (pgErr) {
+      const errMsg = pgErr instanceof Error ? pgErr.message : String(pgErr);
+      const isUniqueViolation =
+        /23505|duplicate key value violates unique constraint|idx_citation_published_answer_save_op_unique/i.test(
+          errMsg
+        );
+      if (normalizedSaveOpKey && isUniqueViolation) {
+        // Concurrent retry winner already committed this exact save_operation_key in Neon!
+        // Verify payload SHA-256 matches (else fail 409) and return the winner's committed revision!
+        const winnerOp = await lookupSavedAnswerByOperationKeyInPostgres({
+          owner_actor_id: effectiveOwnerActorId,
+          owner_tenant_id: effectiveOwnerTenantId,
+          answer_id: requestedAnswerId,
+          save_operation_key: normalizedSaveOpKey,
+        });
+        if (winnerOp.found && winnerOp.answer_revision_id) {
+          if (
+            winnerOp.save_payload_sha256 &&
+            winnerOp.save_payload_sha256 !== canonicalSavePayloadSha256
+          ) {
+            throw new Error(
+              `IDEMPOTENCY_KEY_PAYLOAD_CONFLICT_409: Concurrent save_operation_key '${normalizedSaveOpKey}' conflicted with different answer content.`
+            );
+          }
+          const winnerLoaded = await loadSavedAnswerFromPostgres(
+            winnerOp.answer_revision_id,
+            params.actor
+          );
+          if (winnerLoaded.found && winnerLoaded.answer) {
+            const replayEnv = winnerLoaded.answer as TraceableAnswerEnvelope & {
+              __idempotent_replay?: boolean;
+            };
+            replayEnv.__idempotent_replay = true;
+            return replayEnv;
+          }
+        }
+      }
+      // Failed transaction: rethrow immediately WITHOUT mutating in-memory `store` or cache!
+      throw pgErr;
+    }
+
+    // ONLY AFTER Neon PostgreSQL committed atomically, sync the committed revision into in-memory cache!
+    const committedAfterPg = commitTraceableAnswerAtomically(store, envelopeToPersist, allLinks, {
+      actor: params.actor,
+      question_text: params.question_text,
+      revision_reason: effectiveRevisionReason,
+      authoritative_prior_revisions: pgOwn.revisions,
+      authoritative_owner: pgOwn.exists
+        ? {
+            owner_actor_id: effectiveOwnerActorId,
+            owner_tenant_id: effectiveOwnerTenantId,
+          }
+        : null,
+      trusted_calculation_tokens_by_claim_id:
+        Object.keys(remappedTrustedTokensByClaimId).length > 0
+          ? remappedTrustedTokensByClaimId
+          : undefined,
+      trusted_calculations_by_claim_id:
+        Object.keys(remappedTrustedCalcsByClaimId).length > 0
+          ? remappedTrustedCalcsByClaimId
+          : undefined,
+      trusted_calculation_tokens_by_claim_text: trustedCalcTokensMap,
+      skip_local_disk_persist: true,
+    });
+    return committedAfterPg;
+  }
+
+  // Local durable store mode (offline / unit tests without PG transport)
+  const committedLocal = commitTraceableAnswerAtomically(store, serverValidated, allLinks, {
     actor: params.actor,
     question_text: params.question_text,
     revision_reason: effectiveRevisionReason,
-    authoritative_prior_revisions: pgActive ? pgOwn.revisions : undefined,
-    authoritative_owner:
-      pgActive && pgOwn.exists
-        ? {
-            owner_actor_id: pgOwn.owner_actor_id || params.actor.actor_id,
-            owner_tenant_id: pgOwn.owner_tenant_id || params.actor.tenant_id,
-          }
-        : null,
     trusted_calculation_tokens_by_claim_id:
       Object.keys(remappedTrustedTokensByClaimId).length > 0
         ? remappedTrustedTokensByClaimId
@@ -2561,88 +2825,15 @@ export async function saveOrReviseAnswerServerVerified(
         ? remappedTrustedCalcsByClaimId
         : undefined,
     trusted_calculation_tokens_by_claim_text: trustedCalcTokensMap,
-    skip_local_disk_persist: pgActive,
+    skip_local_disk_persist: false,
   });
-
-  // Gather referenced source bundles and persist to hosted PostgreSQL (`citation-postgres-store.ts`)
-  const bundleMap = new Map<
-    string,
-    {
-      doc: OfficialDocumentRecord;
-      version: DocumentVersionRecord;
-      location: OfficialLocationRecord;
-      extraction: ExtractionRevisionRecord;
-      passages: EvidencePassageRecord[];
-    }
-  >();
-
-  const freshView = getUnifiedCitationLedgerView(store, releaseId);
-  for (const clm of committed.claims) {
-    for (const ref of clm.evidence_references) {
-      const psg = freshView.passages[ref.evidence_id];
-      const doc = freshView.documents[ref.doc_id];
-      const ver = freshView.versions[ref.version_id];
-      const ext = freshView.extraction_revisions[ref.extraction_revision_id];
-      const resolvedRefUrl = resolveVerifiedOfficialUrlForDoc(ref.doc_id, ref.official_url);
-      const isSynthFallback = isSyntheticPlaceholderOfficialUrl(resolvedRefUrl);
-      const loc =
-        selectBestOfficialLocation(freshView.locations, ref.doc_id, ref.version_id, ref.official_url) || {
-          location_id: `oloc.pg.${sha256Bytes(ref.doc_id).slice(0, 12)}`,
-          doc_id: ref.doc_id,
-          version_id: ref.version_id,
-          exact_official_url: isSynthFallback ? ref.official_url : resolvedRefUrl,
-          role: "primary_official" as const,
-          parent_landing_location_id: null,
-          original_observed_url: ref.official_url,
-          redirect_history: [],
-          prior_urls: [],
-          first_verified_at: null,
-          last_verified_at: null,
-          last_successful_verified_at: null,
-          verification_method: isSynthFallback
-            ? "synthetic_placeholder_unverified"
-            : "canonical_corpus_unchecked_live",
-          identity_match_result: isSynthFallback
-            ? ("FAILED_SOFT_404" as const)
-            : ("VERIFIED_MATCH" as const),
-          link_health: isSynthFallback
-            ? ("quarantined_identity_failure" as const)
-            : ("unchecked_live" as const),
-          last_http_status: null,
-          failure_reason: isSynthFallback
-            ? "SYNTHETIC_INTERNAL_DEPENDENCY_URL_NOT_VERIFIED_ONLINE"
-            : null,
-          is_active_primary: !isSynthFallback,
-        };
-      if (!psg || !doc || !ver || !ext) continue;
-      const existingBundle = bundleMap.get(ver.version_id);
-      if (existingBundle) {
-        if (!existingBundle.passages.some((p) => p.passage_id === psg.passage_id)) {
-          existingBundle.passages.push(psg);
-        }
-      } else {
-        bundleMap.set(ver.version_id, {
-          doc,
-          version: ver,
-          location: loc,
-          extraction: ext,
-          passages: [psg],
-        });
-      }
-    }
+  if (localIdempScopeKey) {
+    localSaveOperationKeyIndex.set(localIdempScopeKey, {
+      answer_revision: committedLocal.answer_revision,
+      save_payload_sha256: canonicalSavePayloadSha256,
+    });
   }
-
-  await persistAnswerRevisionToPostgres({
-    envelope: committed,
-    question_text: params.question_text,
-    owner_actor_id: committed.owner_actor_id || params.actor.actor_id,
-    owner_tenant_id: committed.owner_tenant_id || params.actor.tenant_id,
-    actor: params.actor,
-    revision_reason: committed.revision_reason || "Initial verified publication",
-    referenced_bundles: Array.from(bundleMap.values()),
-  });
-
-  return committed;
+  return committedLocal;
 }
 
 /**

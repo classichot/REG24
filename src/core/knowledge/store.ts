@@ -934,9 +934,18 @@ export class DurableKnowledgeStore {
     if (hit) return hit;
 
     const allowedReleases = this.resolveAllowedReleaseChain(st, releaseId);
-    const res = Object.values(st.assertions).filter(
+    const raw = Object.values(st.assertions).filter(
       (a) => a.state === "ACCEPTED" && allowedReleases.has(a.release_id)
     );
+    const supersededAssertionIds = new Set<string>();
+    for (const a of raw) {
+      if (a.supersedes_assertion_ids) {
+        for (const supId of a.supersedes_assertion_ids) {
+          supersededAssertionIds.add(supId);
+        }
+      }
+    }
+    const res = raw.filter((a) => !supersededAssertionIds.has(a.assertion_id));
     this.releaseAssertionsCache.set(cacheKey, res);
     return res;
   }

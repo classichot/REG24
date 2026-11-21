@@ -64,7 +64,7 @@ export async function GET(req: Request) {
           vercel_env: process.env.VERCEL_ENV || "local_or_staging",
           environment_scope: process.env.REG24_TRIAL_ENV_SCOPE || "staging",
           git_branch:
-            process.env.VERCEL_GIT_COMMIT_REF || "feat/b01-thai-legal-index-retrieval-rc10",
+            process.env.VERCEL_GIT_COMMIT_REF || "feat/b01-thai-legal-index-retrieval-rc10.3",
           git_commit_sha: process.env.VERCEL_GIT_COMMIT_SHA || relRec?.code_commit || "local",
           deployment_url: process.env.VERCEL_URL || null,
           preview_url_vs_release_clarification:

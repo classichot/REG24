@@ -59,23 +59,40 @@ export async function POST(req: Request) {
       traceable_answer?: Partial<TraceableAnswerEnvelope>;
       question_text?: string;
       revision_reason?: string;
+      save_operation_key?: string | null;
     };
 
     if (!body.traceable_answer) {
       throw new Error("INVALID_ANSWER_400: traceable_answer is required.");
     }
 
+    const saveOperationKey =
+      (typeof body.save_operation_key === "string" && body.save_operation_key.trim()) ||
+      req.headers.get("idempotency-key")?.trim() ||
+      req.headers.get("x-idempotency-key")?.trim() ||
+      null;
+
     const store = getDefaultKnowledgeStore();
     const committed = await saveOrReviseAnswerServerVerified(store, {
       submitted_envelope: body.traceable_answer,
       question_text: body.question_text || "",
       revision_reason: body.revision_reason,
+      save_operation_key: saveOperationKey,
       actor,
     });
+    const idempotentReplay = Boolean(
+      (committed as TraceableAnswerEnvelope & { __idempotent_replay?: boolean }).__idempotent_replay
+    );
+    if ("__idempotent_replay" in committed) {
+      delete (committed as TraceableAnswerEnvelope & { __idempotent_replay?: boolean })
+        .__idempotent_replay;
+    }
 
     return NextResponse.json({
       ok: true,
       saved_answer_revision: committed.answer_revision,
+      idempotent_replay: idempotentReplay,
+      save_operation_key: saveOperationKey,
       answer: committed,
     });
   } catch (err) {

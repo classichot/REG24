@@ -1408,7 +1408,7 @@ async function executeCoreKnowledgeQuery(
         ((!asksExportOrZeroRate && !asksExempt && !asksMixedUse && !asksCrossBorderInbound) ||
           explicitlyAsksDomesticRate);
 
-      // Genuinely missing pre-2023-10-01 historical VAT reduction decree (between RD 646 and RD 780) -> Clean abstention!
+      // Genuinely missing 2018-10-01..2023-09-30 historical VAT reduction decrees (RD 669..766 between RD 646 and RD 780) -> Clean abstention!
       if (
         isDomesticVatRateQuery &&
         !asksExportOrZeroRate &&
@@ -1416,7 +1416,7 @@ async function executeCoreKnowledgeQuery(
         !asksMixedUse &&
         !asksCrossBorderInbound &&
         ctrlDate &&
-        ctrlDate >= "2017-10-01" &&
+        ctrlDate >= "2018-10-01" &&
         ctrlDate < "2023-10-01"
       ) {
         const gapMsg = `ไม่พบหลักฐานเพียงพอสำหรับวันที่ ${ctrlDate} — คลังข้อมูล ${releaseId} มีพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่ตรวจสอบต้นฉบับราชกิจจานุเบกษาแล้วเฉพาะช่วง พ.ร.ฎ. ฉบับที่ 780/790/799/807 (ตั้งแต่ 1 ตุลาคม 2566 – 30 กันยายน 2570) แต่ยังไม่มีต้นฉบับพระราชกฤษฎีกาขยายเวลาลดอัตรารายปีในช่วงระหว่าง 1 ตุลาคม 2560 – 30 กันยายน 2566 ระบบจึงระงับการสรุปอัตราภาษีและไม่นำ พ.ร.ฎ. ฉบับที่ 790/799/807 มาสวมรอยแทน`;
@@ -1497,6 +1497,8 @@ async function executeCoreKnowledgeQuery(
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.807");
         } else if (iso >= "2023-10-01" && iso <= "2024-09-30") {
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.780");
+        } else if (iso >= "2017-10-01" && iso <= "2018-09-30") {
+          vatCoreWorkIds.push("subreg.th.rc.royal_decree.646");
         }
       };
       if (isDomesticVatRateQuery) {
@@ -1536,7 +1538,7 @@ async function executeCoreKnowledgeQuery(
       }
       if (
         excludeDomesticVatDecrees &&
-        /^subreg\.th\.rc\.royal_decree\.(780|790|799|807)$/.test(p.work_id)
+        /^subreg\.th\.rc\.royal_decree\.(646|780|790|799|807)$/.test(p.work_id)
       ) {
         continue;
       }

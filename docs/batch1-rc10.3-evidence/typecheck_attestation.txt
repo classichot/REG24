@@ -1,0 +1,5 @@
+﻿Command: npx tsc --noEmit
+ExitCode: 0
+ExecutedAt: 2026-11-21T09:53:31.8349401+07:00
+Output:
+

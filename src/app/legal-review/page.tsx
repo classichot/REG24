@@ -259,10 +259,14 @@ export default function LegalTeamReviewStudioPage() {
       setReopenBusy(true);
       setStatusBanner(null);
       try {
-        const res = await fetch(`/api/v1/knowledge/answers/${encodeURIComponent(target)}`, {
-          method: "GET",
-          headers: buildHeaders(),
-        });
+        const requireDbQuery = envInfo?.shared_neon_postgres_connected ? "?require_db=1" : "";
+        const res = await fetch(
+          `/api/v1/knowledge/answers/${encodeURIComponent(target)}${requireDbQuery}`,
+          {
+            method: "GET",
+            headers: buildHeaders(),
+          }
+        );
         const json = await res.json();
         if (!res.ok || !json.ok || !json.answer) {
           setStatusBanner({

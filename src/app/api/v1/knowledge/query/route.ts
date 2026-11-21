@@ -37,6 +37,7 @@ export async function POST(req: Request) {
       attachment_doc_ids?: string[];
       channel?: TraceablePublicationChannel;
       persist_answer?: boolean;
+      save_operation_key?: string | null;
       stream?: boolean;
       qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
       answer_generation_mode?: "llm_grounded" | "baseline_deterministic" | null;
@@ -135,6 +136,12 @@ export async function POST(req: Request) {
         Array.isArray(body.conversation_history) &&
         body.conversation_history.some((t) => t.role === "user" && Boolean(t.content?.trim()));
 
+      const querySaveOpKey =
+        (typeof body.save_operation_key === "string" && body.save_operation_key.trim()) ||
+        req.headers.get("idempotency-key")?.trim() ||
+        req.headers.get("x-idempotency-key")?.trim() ||
+        null;
+
       const pgSaved = await saveOrReviseAnswerServerVerified(store, {
         submitted_envelope: {
           ...answer.traceable_answer,
@@ -144,6 +151,7 @@ export async function POST(req: Request) {
         revision_reason: isFollowUpSave
           ? "Persisted follow-up verified answer from query endpoint"
           : "Persisted initial verified answer from query endpoint",
+        save_operation_key: querySaveOpKey,
         actor,
         query_persistence_context: {
           conversation_id: body.conversation_id ?? null,

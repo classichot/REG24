@@ -115,20 +115,21 @@ function isVersionApplicableOnDate(
     return true;
   }
 
-  // If the user explicitly asked for a specific TaxRuling by letter number, allow retrieving it so we can display its date context;
-  // for consolidated statutory Provisions (`is_consolidated_derived === true`), keep them in candidatePool so `evaluateStatutoryVersionApplicability`
-  // can evaluate per-clause `amendment_ledger` (`ACCOUNTING_PERIOD_START`, `ASSESSABLE_TAX_YEAR`, `TRANSACTION_OR_EVENT_DATE`) instead of dropping via scalar `valid_from`!
-  if (explicitlyQueriedWorkIds.has(passage.work_id) && work?.type === "TaxRuling") {
-    return true;
-  }
-  if (ver.is_consolidated_derived) {
-    return true;
-  }
-
   // Check applicability interval [valid_from, valid_to]
   const isTemporaryDecree =
     ver.covered_transaction_period?.is_temporary_rule === true ||
-    /^subreg\.th\.rc\.royal_decree\.(780|790|799|807)$/.test(passage.work_id);
+    ver.legal_applicability.some((i) => i.is_temporary_rule === true) ||
+    /^subreg\.th\.rc\.royal_decree\.(646|780|790|799|807)$/.test(passage.work_id);
+
+  // If the user explicitly asked for a specific TaxRuling by letter number, allow retrieving it so we can display its date context;
+  // for consolidated statutory Provisions (`is_consolidated_derived === true`) that are NOT temporary decrees, keep them in candidatePool
+  // so `evaluateStatutoryVersionApplicability` can evaluate per-clause `amendment_ledger`.
+  if (explicitlyQueriedWorkIds.has(passage.work_id) && work?.type === "TaxRuling") {
+    return true;
+  }
+  if (ver.is_consolidated_derived && !isTemporaryDecree) {
+    return true;
+  }
 
   for (const interval of ver.legal_applicability) {
     if (interval.date_status === "unknown_restricted") {
@@ -1114,9 +1115,13 @@ export function retrieveAuthorizedKnowledge(
       }
     }
 
-    // Add passages of Hop 1 statutory provisions
+    // Add passages of Hop 1 statutory provisions — ALWAYS enforcing temporal eligibility so graph expansion
+    // beyond Top-5 can NEVER promote superseded base text (e.g. RD 646) or predecessors into governing hits!
     for (const provId of hop1ProvisionIds) {
       for (const p of passagesByWorkId.get(provId) || []) {
+        if (!isVersionApplicableOnDate(state, p, params.applicable_date, explicitWorkIds)) {
+          continue;
+        }
         addScore(p.passage_id, 2.6, "graph_hop");
       }
     }
@@ -1206,11 +1211,14 @@ export function retrieveAuthorizedKnowledge(
       (hitWork?.type === "Provision" || hitWork?.type === "ProvisionVersion") &&
       ((params.controlling_work_ids?.length || 0) >= 3 || (qTokens.length > 8 && rulingIds.length === 0))
         ? 1
-        : (hitWork?.type === "Provision" || hitWork?.type === "ProvisionVersion") &&
-            qTokens.length > 8 &&
-            rulingIds.length === 0
+        : hitWork?.type === "SubordinateLegislation" &&
+            (params.controlling_work_ids?.length || 0) >= 3
           ? 2
-          : 4;
+          : (hitWork?.type === "Provision" || hitWork?.type === "ProvisionVersion") &&
+              qTokens.length > 8 &&
+              rulingIds.length === 0
+            ? 2
+            : 4;
     if (c < perWorkCap) {
       primarySelected.push(hit);
       countByWorkVer.set(key, c + 1);
@@ -1239,6 +1247,7 @@ export function retrieveAuthorizedKnowledge(
             a.predicate === "CITES" ||
             a.predicate === "MADE_UNDER" ||
             a.predicate === "AMENDS" ||
+            a.predicate === "SUPERSEDES" ||
             a.predicate === "REPEALS" ||
             a.predicate === "ISSUED_BY")
       )

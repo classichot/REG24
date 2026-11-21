@@ -695,6 +695,51 @@ export async function lookupSavedRevisionRecordInPostgres(
  * Persists a validated `TraceableAnswerEnvelope` + its supporting source bundles, claims,
  * claim-evidence links, and append-only audit event to PostgreSQL.
  */
+export async function lookupSavedAnswerByOperationKeyInPostgres(params: {
+  owner_actor_id: string;
+  owner_tenant_id: string;
+  answer_id: string;
+  save_operation_key: string;
+}): Promise<{
+  found: boolean;
+  answer_revision_id: string | null;
+  save_payload_sha256: string | null;
+}> {
+  const db = resolveActiveCitationDbTransport();
+  if (!db) {
+    return { found: false, answer_revision_id: null, save_payload_sha256: null };
+  }
+  const envScope = getEnvScope();
+  const res = await db<{
+    answer_revision_id: string;
+    save_payload_sha256: string | null;
+  }>(
+    `SELECT answer_revision_id, save_payload_sha256
+       FROM citation_published_answer
+      WHERE owner_actor_id = $1
+        AND owner_tenant_id = $2
+        AND answer_id = $3
+        AND save_operation_key = $4
+        AND environment_scope = $5
+      LIMIT 1`,
+    [
+      params.owner_actor_id,
+      params.owner_tenant_id,
+      params.answer_id,
+      params.save_operation_key,
+      envScope,
+    ]
+  );
+  if (res.rows.length === 0) {
+    return { found: false, answer_revision_id: null, save_payload_sha256: null };
+  }
+  return {
+    found: true,
+    answer_revision_id: res.rows[0].answer_revision_id,
+    save_payload_sha256: res.rows[0].save_payload_sha256 ?? null,
+  };
+}
+
 export async function persistAnswerRevisionToPostgres(params: {
   envelope: TraceableAnswerEnvelope;
   question_text: string;
@@ -702,6 +747,8 @@ export async function persistAnswerRevisionToPostgres(params: {
   owner_tenant_id: string;
   actor: Actor;
   revision_reason: string;
+  save_operation_key?: string | null;
+  save_payload_sha256?: string | null;
   referenced_bundles: Array<{
     doc: OfficialDocumentRecord;
     version: DocumentVersionRecord;
@@ -748,6 +795,7 @@ export async function persistAnswerRevisionToPostgres(params: {
     // `ON CONFLICT DO NOTHING` so interrupted saves leave ZERO partial revision visible and retries never duplicate!
     const txStatements: Array<{ query: string; params: unknown[] }> = [];
 
+    const hasIdempKey = Boolean(params.save_operation_key && params.save_operation_key.trim());
     txStatements.push({
       query: `INSERT INTO citation_published_answer (
          answer_revision_id, answer_id, revision_number, supersedes_revision_id,
@@ -755,11 +803,12 @@ export async function persistAnswerRevisionToPostgres(params: {
          status, rendered_answer_th, ordered_claim_ids, unresolved_issues,
          user_supplied_facts, assumptions, legacy_warning_th, release_id,
          verifier_version, ruleset_version, owner_actor_id, owner_tenant_id,
-         actor_id, tenant_id, revision_reason, environment_scope, execution_provenance
+         actor_id, tenant_id, revision_reason, environment_scope, execution_provenance,
+         save_operation_key, save_payload_sha256
        ) VALUES (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,
-         $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb
-       ) ON CONFLICT (answer_revision_id) DO NOTHING`,
+         $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27,$28
+       )${hasIdempKey ? "" : " ON CONFLICT (answer_revision_id) DO NOTHING"}`,
       params: [
         env.answer_revision,
         env.answer_id,
@@ -787,6 +836,8 @@ export async function persistAnswerRevisionToPostgres(params: {
         params.revision_reason,
         envScope,
         env.execution_provenance ? JSON.stringify(env.execution_provenance) : null,
+        hasIdempKey ? params.save_operation_key!.trim() : null,
+        params.save_payload_sha256 ?? null,
       ],
     });
 
@@ -1172,7 +1223,8 @@ export async function loadSavedAnswerFromPostgres(
     link_health: ClaimEvidenceReferenceDto["link_health"];
     last_successful_verified_at: string | null;
   }>(
-    `SELECT l.link_id, l.claim_id, l.passage_id, l.version_id, l.support_role,
+    `SELECT DISTINCT ON (l.link_id)
+            l.link_id, l.claim_id, l.passage_id, l.version_id, l.support_role,
             l.required_group, l.citation_label_th, l.official_url, l.resolver_url,
             l.human_pinpoint_th, p.doc_id, p.extraction_revision_id,
             p.section_paragraph_path, p.physical_page_start, p.physical_page_end,
@@ -1185,8 +1237,12 @@ export async function loadSavedAnswerFromPostgres(
      JOIN citation_evidence_passage p ON p.passage_id = l.passage_id
      JOIN citation_official_document d ON d.doc_id = p.doc_id
      JOIN citation_document_version v ON v.version_id = l.version_id
-     LEFT JOIN citation_official_location loc ON loc.doc_id = d.doc_id AND loc.is_active_primary = TRUE
-     WHERE l.answer_revision_id = $1`,
+     LEFT JOIN citation_official_location loc
+       ON loc.doc_id = d.doc_id
+      AND loc.is_active_primary = TRUE
+      AND (loc.version_id = l.version_id OR loc.version_id IS NULL)
+     WHERE l.answer_revision_id = $1
+     ORDER BY l.link_id, (loc.version_id = l.version_id) DESC NULLS LAST`,
     [row.answer_revision_id]
   );
 

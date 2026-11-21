@@ -67,7 +67,7 @@ describe("Gemini 4 Neon Staging Candidate & Per-Claim Calculation Isolation", ()
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("1. Model-specific thinking_level adapter starts Neon at 'high', never sends 'minimal' to Neon, and keeps OpenAI challenger explicit-only", () => {
+  it("1. Model-specific thinking_level adapter defaults Neon explicitly to 'low' (RC10.3 P0-3), never sends 'minimal' to Neon, and keeps OpenAI challenger explicit-only", () => {
     // Primary staging default resolves to gemini-4-neon
     const prevModel = process.env.REG24_GROUNDED_LLM_MODEL;
     const prevProv = process.env.REG24_GROUNDED_LLM_PROVIDER;
@@ -78,15 +78,15 @@ describe("Gemini 4 Neon Staging Candidate & Per-Claim Calculation Isolation", ()
       expect(def.provider).toBe("google-gemini");
       expect(def.requestedModel).toBe("gemini-4-neon");
 
-      // Neon starts at high and gets 16384 max_output_tokens so reasoning never truncates JSON
+      // Neon defaults explicitly to low (RC10.3 P0-3) and gets 16384 max_output_tokens so reasoning never truncates JSON
       const neonDefault = resolveThinkingLevelForModel("gemini-4-neon");
-      expect(neonDefault.thinking_level).toBe("high");
+      expect(neonDefault.thinking_level).toBe("low");
       expect(neonDefault.max_output_tokens).toBeGreaterThanOrEqual(16384);
 
       // Even if someone passes "minimal", Neon NEVER receives "minimal"!
       const neonGuard = resolveThinkingLevelForModel("gemini-4-neon", "minimal");
       expect(neonGuard.thinking_level).not.toBe("minimal");
-      expect(neonGuard.thinking_level).toBe("high");
+      expect(neonGuard.thinking_level).toBe("low");
       expect(neonGuard.note).toContain("does not support thinking_level='minimal'");
 
       // Flash-Lite benchmark retains "minimal" support
@@ -453,7 +453,7 @@ describe("Gemini 4 Neon Staging Candidate & Per-Claim Calculation Isolation", ()
       if (q.startsWith("SELECT claim_id, display_order, displayed_claim_text,")) {
         return { rows: savedRows.claims as T[], rowCount: savedRows.claims.length };
       }
-      if (q.startsWith("SELECT l.link_id, l.claim_id, l.passage_id,")) {
+      if (q.includes("FROM citation_claim_evidence_link l")) {
         return { rows: savedRows.links as T[], rowCount: savedRows.links.length };
       }
       return { rows: [] as T[], rowCount: 0 };

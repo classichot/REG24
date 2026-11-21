@@ -1,0 +1,107 @@
+{
+  "schema_version": "1.0-rc10.3-app-level-retry-live-proof",
+  "executed_at": "2026-11-21T02:44:32.191Z",
+  "real_app_routes_exercised": [
+    "POST /api/v1/knowledge/answers",
+    "GET /api/v1/knowledge/answers/:id?require_db=1"
+  ],
+  "real_neon_postgres_tested": true,
+  "mock_used": false,
+  "database_unique_constraint": "idx_citation_published_answer_save_op_unique",
+  "model_provider_calls_during_save_retries": 0,
+  "scenario1_failed_tx_then_retry": {
+    "failed_http_status": 400,
+    "live_neon_counts_after_abort": {
+      "citation_published_answer": 0,
+      "citation_atomic_claim": 0,
+      "citation_claim_evidence_link": 0,
+      "citation_audit_event": 0
+    },
+    "in_memory_cache_leak_found": false,
+    "reopen_api_status_after_abort": 404,
+    "retry_http_status": 200,
+    "retry_saved_revision": "ans.rc10_3_app_retry_mwpt1aba.r1",
+    "retry_idempotent_replay": false,
+    "live_neon_counts_after_clean_retry": {
+      "citation_published_answer": 1,
+      "citation_atomic_claim": 1,
+      "citation_claim_evidence_link": 1,
+      "citation_audit_event": 1
+    }
+  },
+  "scenario2_lost_response_replay": {
+    "http_status": 200,
+    "returned_revision": "ans.rc10_3_app_retry_mwpt1aba.r1",
+    "idempotent_replay": true,
+    "live_neon_counts_unchanged": {
+      "citation_published_answer": 1,
+      "citation_atomic_claim": 1,
+      "citation_claim_evidence_link": 1,
+      "citation_audit_event": 1
+    }
+  },
+  "scenario3_same_key_different_content_conflict": {
+    "http_status": 409,
+    "error_code": "IDEMPOTENCY_KEY_PAYLOAD_CONFLICT_409: save_operation_key 'op.rc10_3.k1.mwpt1aba' was already committed for 'ans.rc10_3_app_retry_mwpt1aba' w",
+    "live_neon_counts_unchanged": {
+      "citation_published_answer": 1,
+      "citation_atomic_claim": 1,
+      "citation_claim_evidence_link": 1,
+      "citation_audit_event": 1
+    }
+  },
+  "scenario4_concurrent_retries_3x": {
+    "http_statuses": [
+      200,
+      200,
+      200
+    ],
+    "idempotent_replay_flags": [
+      false,
+      true,
+      true
+    ],
+    "distinct_revisions_returned": [
+      "ans.rc10_3_app_conc_mwpt1aba.r1"
+    ],
+    "live_neon_counts_after_3x_concurrent": {
+      "citation_published_answer": 1,
+      "citation_atomic_claim": 1,
+      "citation_claim_evidence_link": 1,
+      "citation_audit_event": 1
+    }
+  },
+  "scenario5_deliberate_edit_new_key_and_db_reopen": {
+    "edit_http_status": 200,
+    "edit_saved_revision": "ans.rc10_3_app_retry_mwpt1aba.r2",
+    "edit_supersedes": "ans.rc10_3_app_retry_mwpt1aba.r1",
+    "live_neon_counts_after_edit": {
+      "citation_published_answer": 2,
+      "citation_atomic_claim": 2,
+      "citation_claim_evidence_link": 2,
+      "citation_audit_event": 2
+    },
+    "reopen_r1": {
+      "http_status": 200,
+      "persistence_source": "neon_postgres",
+      "persistence_header": "neon_postgres",
+      "revision": "ans.rc10_3_app_retry_mwpt1aba.r1",
+      "claims_count": 1,
+      "citations_count": 1,
+      "provenance_preserved": true,
+      "audit_events_count": 2
+    },
+    "reopen_r2": {
+      "http_status": 200,
+      "persistence_source": "neon_postgres",
+      "persistence_header": "neon_postgres",
+      "revision": "ans.rc10_3_app_retry_mwpt1aba.r2",
+      "supersedes": "ans.rc10_3_app_retry_mwpt1aba.r1",
+      "claims_count": 1,
+      "citations_count": 1,
+      "provenance_preserved": true,
+      "audit_events_count": 2
+    }
+  },
+  "overall_passed": true
+}

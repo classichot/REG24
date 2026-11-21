@@ -196,6 +196,7 @@ export const KNOWLEDGE_TYPED_PREDICATES = [
   "INTERPRETS",
   "AMENDS",
   "REPEALS",
+  "SUPERSEDES",
   "HAS_CONDITION",
   "HAS_EXCEPTION",
   "APPLIES_TO",
@@ -247,6 +248,10 @@ export const KNOWLEDGE_PREDICATE_DOMAIN_RANGE: Record<
     allowedObjects: ["Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
   },
   REPEALS: {
+    allowedSubjects: ["Statute", "SubordinateLegislation", "LegalVersion", "ProvisionVersion"],
+    allowedObjects: ["Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
+  },
+  SUPERSEDES: {
     allowedSubjects: ["Statute", "SubordinateLegislation", "LegalVersion", "ProvisionVersion"],
     allowedObjects: ["Statute", "SubordinateLegislation", "LegalVersion", "Provision", "ProvisionVersion"],
   },

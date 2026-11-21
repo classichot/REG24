@@ -158,6 +158,7 @@ export interface ProviderInvocationAudit {
 }
 
 const KNOWN_DECREE_WINDOWS: Record<string, { valid_from: string; valid_to: string }> = {
+  "subreg.th.rc.royal_decree.646": { valid_from: "2017-10-01", valid_to: "2018-09-30" },
   "subreg.th.rc.royal_decree.780": { valid_from: "2023-10-01", valid_to: "2024-09-30" },
   "subreg.th.rc.royal_decree.790": { valid_from: "2024-10-01", valid_to: "2025-09-30" },
   "subreg.th.rc.royal_decree.799": { valid_from: "2025-10-01", valid_to: "2026-09-30" },
@@ -177,7 +178,7 @@ const MODEL_PRICING_USD_PER_1M: Record<string, { input: number; output: number }
 /**
  * Model-specific thinking/reasoning level resolver:
  * - Gemini 4 family (`gemini-4-neon`, `gemini-4-argon`, etc.): does NOT support `"minimal"`;
- *   starts at `"high"` by default and allows only `"low" | "medium" | "high"`.
+ *   defaults explicitly to `"low"` in REG24 staging (RC10.3 P0-3) and allows `"low" | "medium" | "high"`.
  * - Gemini 3.8 & 3.1 Pro: does NOT support `"minimal"`; allows `"low" | "medium" | "high"`.
  * - Gemini 3.5/3.6 Flash / Flash-Lite (benchmark models): supports `"minimal" | "low" | "medium" | "high"`.
  * - OpenAI Responses challenger (`gpt-6.2-astra`): maps `"minimal"` -> `"low"`, supports `"low" | "medium" | "high"`.
@@ -193,7 +194,7 @@ export function resolveThinkingLevelForModel(
   const m = (model || "").toLowerCase();
   const isGemini4 = m.startsWith("gemini-4-") || m.includes("neon") || m.includes("argon");
   const isGemini38OrPro = m.startsWith("gemini-3.8-") || m.includes("3.1-pro") || m.includes("3-pro");
-  const isOpenAi = m.startsWith("gpt-") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4");
+  const isOpenAi = m.startsWith("gpt-") || m.includes("o1") || m.startsWith("o3") || m.startsWith("o4");
   const supportsMinimal = !isGemini4 && !isGemini38OrPro && !isOpenAi;
 
   let chosen: GroundedThinkingLevel;
@@ -201,12 +202,14 @@ export function resolveThinkingLevelForModel(
 
   if (requestedLevel) {
     if (requestedLevel === "minimal" && !supportsMinimal) {
-      chosen = isGemini4 ? "high" : "low";
+      chosen = "low";
       note = `Model '${model}' does not support thinking_level='minimal'; normalized to '${chosen}'.`;
     } else {
       chosen = requestedLevel;
     }
-  } else if (isGemini4 || isOpenAi) {
+  } else if (isGemini4) {
+    chosen = "low";
+  } else if (isOpenAi) {
     chosen = "high";
   } else if (isGemini38OrPro) {
     chosen = "medium";
@@ -296,6 +299,56 @@ export function buildGroundedPassagePack(params: {
   const seen = new Set<string>();
   const out: GroundedPassagePackItem[] = [];
 
+  // RC10.3 P0-1: Universal packet-level predecessor & superseded-base-text guard.
+  // Build sets of works that are explicitly superseded or amended by an in-window governing work in this packet
+  // so a graph-expanded predecessor or superseded base text can NEVER become `governing` merely because it is linked!
+  const candidateWorkIds = new Set(params.passages.map((p) => p.work_id));
+  const supersededOrAmendedHistoricalWorkIds = new Set<string>();
+  const acceptedAssertions = Object.values(params.state.assertions || {}).filter(
+    (a) => a.state === "ACCEPTED"
+  );
+  if (params.controllingDateIso) {
+    for (const a of acceptedAssertions) {
+      if (a.predicate !== "SUPERSEDES" && a.predicate !== "AMENDS" && a.predicate !== "REPEALS") {
+        continue;
+      }
+      if (!candidateWorkIds.has(a.subject) || !candidateWorkIds.has(a.object)) continue;
+      // Check if the amending/superseding subject itself applies on `controllingDateIso`
+      const subjPsg = params.passages.find((p) => p.work_id === a.subject);
+      const subjVer = subjPsg ? params.state.versions[subjPsg.version_id] : undefined;
+      const subjWin = KNOWN_DECREE_WINDOWS[a.subject];
+      const subjFrom = subjWin?.valid_from || subjVer?.legal_applicability?.[0]?.valid_from || null;
+      const subjTo = subjWin?.valid_to || subjVer?.legal_applicability?.[0]?.valid_to || null;
+      const subjHint = evaluateTemporalHint(subjFrom, subjTo, params.controllingDateIso);
+      if (subjHint === "IN_WINDOW" || subjHint === "NO_FIXED_END_DATE") {
+        // When an amending/superseding instrument governs on `controllingDateIso`, its predecessor / superseded base text
+        // may appear ONLY as `historical_or_excluded_context` unless its own verified window also covers `controllingDateIso`
+        // AND it is NOT a consolidated derivative superseded by the amending decree!
+        const objPsg = params.passages.find((p) => p.work_id === a.object);
+        const objVer = objPsg ? params.state.versions[objPsg.version_id] : undefined;
+        const objWin = KNOWN_DECREE_WINDOWS[a.object];
+        const objFrom = objWin?.valid_from || objVer?.legal_applicability?.[0]?.valid_from || null;
+        const objTo = objWin?.valid_to || objVer?.legal_applicability?.[0]?.valid_to || null;
+        const objHint = evaluateTemporalHint(objFrom, objTo, params.controllingDateIso);
+        const objWork = params.state.works[a.object];
+        const isObjTemporarySubreg =
+          objWork?.type === "SubordinateLegislation" &&
+          (objVer?.legal_applicability?.[0]?.is_temporary_rule === true ||
+            /^subreg\.th\.rc\.royal_decree\./.test(a.object));
+        if (
+          a.predicate === "SUPERSEDES" ||
+          a.predicate === "REPEALS" ||
+          objHint === "OUT_OF_WINDOW" ||
+          (isObjTemporarySubreg &&
+            (objVer?.is_consolidated_derived === true ||
+              objVer?.draft_or_enacted_status === "CONSOLIDATED_DERIVED"))
+        ) {
+          supersededOrAmendedHistoricalWorkIds.add(a.object);
+        }
+      }
+    }
+  }
+
   for (const p of params.passages) {
     if (seen.has(p.passage_id)) continue;
     if (p.extraction_id.startsWith("ext.dep.")) continue;
@@ -307,8 +360,8 @@ export function buildGroundedPassagePack(params: {
     const art = params.state.artifacts[p.real_locator.artifact_id];
 
     const knownWindow = KNOWN_DECREE_WINDOWS[p.work_id];
-    const validFrom = knownWindow?.valid_from || ver?.legal_applicability?.[0]?.valid_from || null;
-    const validTo = knownWindow?.valid_to || ver?.legal_applicability?.[0]?.valid_to || null;
+    const validFrom = ver?.legal_applicability?.[0]?.valid_from || knownWindow?.valid_from || null;
+    const validTo = ver?.legal_applicability?.[0]?.valid_to || knownWindow?.valid_to || null;
     const resolvedUrl =
       resolveVerifiedOfficialUrlForDoc(p.work_id, p.real_locator.origin_uri) || null;
     const isPdf =
@@ -319,11 +372,13 @@ export function buildGroundedPassagePack(params: {
       ver?.legal_applicability?.[0]?.is_temporary_rule ||
         p.work_id.startsWith("subreg.th.rc.royal_decree.")
     );
-    let evidenceRole: GroundedEvidenceRole;
-    if (
+    const isSupersededOrHistory =
       temporalHint === "OUT_OF_WINDOW" ||
-      params.historicalContextWorkIds?.has(p.work_id)
-    ) {
+      params.historicalContextWorkIds?.has(p.work_id) ||
+      supersededOrAmendedHistoricalWorkIds.has(p.work_id);
+
+    let evidenceRole: GroundedEvidenceRole;
+    if (isSupersededOrHistory) {
       evidenceRole = "historical_or_excluded_context";
     } else if (temporalHint === "DATE_UNKNOWN" && isTemporaryDecree) {
       evidenceRole = "conditional_branch_authority";

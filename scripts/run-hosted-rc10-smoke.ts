@@ -49,8 +49,9 @@ async function main() {
   const args = parseArgs(process.argv.slice(2));
   const shareUrl = args.url;
   const expectedCommit = args.commit || process.env.EXPECTED_COMMIT_SHA || "";
-  const releaseId = args.release || "rel.B01.rc7";
+  const releaseId = args.release || "rel.B01.rc8";
   const outPath = args.out || "";
+  const forceThinking = args["force-thinking"] || null;
 
   if (!shareUrl || !shareUrl.startsWith("http")) {
     console.error("FATAL: --url <vercel-share-url> is required.");
@@ -117,6 +118,7 @@ async function main() {
   }
 
   // Step 2: Fictional smoke query -> live Gemini 4 Neon @ low + durable Neon save
+  // RC10.3 P0-3: Do NOT force `thinking_level` in the request by default — verify the deployed staging default is `low`!
   const fictionalQuestion =
     "บริษัทสมมติ อัลฟ่า คอมเมิร์ซ จำกัด ขายสินค้าในประเทศและออกใบกำกับภาษีในวันที่ 30 กันยายน 2568 ต้องเรียกเก็บภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด ตามพระราชกฤษฎีกาฉบับใด";
   const tQuery0 = performance.now();
@@ -128,7 +130,7 @@ async function main() {
       applicable_date: "2025-09-30",
       mode: "standard",
       answer_generation_mode: "llm_grounded",
-      thinking_level: "low",
+      ...(forceThinking ? { thinking_level: forceThinking } : {}),
       persist_answer: true,
     }),
   });
@@ -189,6 +191,7 @@ async function main() {
       http_status: qRes.status,
       elapsed_ms: queryMs,
       stage_timing_header: qRes.headers.get("x-reg24-stage-timing-ms"),
+      request_forced_thinking_level: Boolean(forceThinking),
       ok: true,
       ...queryCheck.extracted,
       answer_preview_th: String(qBody?.answer?.answer || "").slice(0, 400),

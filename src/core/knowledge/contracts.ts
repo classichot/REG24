@@ -352,6 +352,8 @@ export interface Assertion {
   confidence: number;
   legal_certainty: "settled_statutory" | "administrative_ruling_specific_facts" | "contested_or_conditional";
   scope: string;
+  /** Prior assertion IDs superseded by this verified assertion within a newer candidate release (preserves rollback!). */
+  supersedes_assertion_ids?: string[];
 }
 
 export interface UnresolvedReferenceRecord {
