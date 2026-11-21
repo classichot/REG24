@@ -478,4 +478,208 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       else delete process.env.REG24_GROUNDED_LLM_MODEL;
     }
   });
+
+  it("5. P0-2 Concurrency: Two distinct edits from the same predecessor cleanly reject the loser with 409 (CONCURRENT_EDIT_PREDECESSOR_CONFLICT_409) and ZERO orphaned child rows (with or without save_operation_key)", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+    const ledger = getUnifiedCitationLedgerView(store, "rel.B01.rc8");
+    const psg = ledger.passages["psg.rc8.rd790.sec_3_quoted_rd646_sec_4"];
+    expect(psg).toBeTruthy();
+
+    const ansId = `ans.rc103.concurrent_distinct.${Date.now()}`;
+    const storedAnswers = new Map<string, Record<string, unknown>>();
+    const storedClaims: Array<{ rev: string; text: string }> = [];
+
+    const mockDb = async (sql: string, params: unknown[] = []) => {
+      if (/save_operation_key = \$4/i.test(sql)) {
+        const key = String(params[3] || "");
+        const hit = [...storedAnswers.values()].find(
+          (r) => r.answer_id === params[2] && r.save_operation_key === key
+        );
+        return { rows: hit ? [hit] : [], rowCount: hit ? 1 : 0 };
+      }
+      if (/FROM citation_published_answer\s+WHERE answer_id = \$1\s+ORDER BY revision_number DESC/i.test(sql)) {
+        const hits = [...storedAnswers.values()]
+          .filter((r) => r.answer_id === params[0])
+          .sort((a, b) => Number(b.revision_number) - Number(a.revision_number));
+        return { rows: hits, rowCount: hits.length };
+      }
+      if (/FROM citation_published_answer\s+WHERE answer_revision_id = \$1/i.test(sql)) {
+        const hit = storedAnswers.get(String(params[0]));
+        return { rows: hit ? [hit] : [], rowCount: hit ? 1 : 0 };
+      }
+      return { rows: [], rowCount: 0 };
+    };
+
+    const mockTx = async (stmts: Array<{ query: string; params: unknown[] }>) => {
+      // Simulate PostgreSQL atomic PK enforcement on `citation_published_answer(answer_revision_id)`
+      const ansInsert = stmts.find((s) => /INSERT INTO citation_published_answer/i.test(s.query));
+      if (ansInsert) {
+        // Ensure parent insert NEVER uses ON CONFLICT DO NOTHING (which would corrupt child tables!)
+        expect(ansInsert.query).not.toMatch(/ON CONFLICT/i);
+        const revId = String(ansInsert.params[0]);
+        if (storedAnswers.has(revId)) {
+          throw new Error(
+            `NEON_CITATION_TX_HTTP_400: duplicate key value violates unique constraint "citation_published_answer_pkey" (23505)`
+          );
+        }
+        storedAnswers.set(revId, {
+          answer_revision_id: revId,
+          answer_id: ansInsert.params[1],
+          revision_number: ansInsert.params[2],
+          supersedes_revision_id: ansInsert.params[3],
+          question_text: ansInsert.params[5],
+          generated_at: ansInsert.params[6],
+          as_of_date_raw: ansInsert.params[8],
+          status: ansInsert.params[9],
+          rendered_answer_th: ansInsert.params[10],
+          ordered_claim_ids: JSON.parse(String(ansInsert.params[11] || "[]")),
+          owner_actor_id: ansInsert.params[19],
+          owner_tenant_id: ansInsert.params[20],
+          actor_id: ansInsert.params[21],
+          revision_reason: ansInsert.params[23],
+          save_operation_key: ansInsert.params[26],
+          save_payload_sha256: ansInsert.params[27],
+        });
+      }
+      const clmInsert = stmts.find((s) => /INSERT INTO citation_atomic_claim/i.test(s.query));
+      if (clmInsert) {
+        storedClaims.push({
+          rev: String(clmInsert.params[1]),
+          text: String(clmInsert.params[3]),
+        });
+      }
+    };
+
+    setCustomCitationDbTransportForTesting(mockDb as never, mockTx as never);
+
+    const buildPayload = (claimText: string) => ({
+      answer_id: ansId,
+      as_of_date: "2025-05-01",
+      status: "complete" as const,
+      rendered_answer_th: claimText,
+      claims: [
+        {
+          claim_id: `clm.${ansId}.1`,
+          claim_number: 1,
+          text: claimText,
+          claim_type: "legal_proposition" as const,
+          claim_type_label_th: "ข้อกฎหมาย",
+          premise_ids: [],
+          verification_decision: "supported" as const,
+          published: true,
+          withheld_explanation_th: null,
+          evidence_references: [
+            {
+              link_id: `lnk.${ansId}.1`,
+              evidence_id: psg.passage_id,
+              doc_id: psg.doc_id,
+              version_id: psg.version_id,
+              extraction_revision_id: psg.extraction_revision_id,
+              support_role: "primary_authority" as const,
+              support_role_label_th: "หลักฐานกฎหมายหลัก",
+              required_group: "grp.1",
+              citation_label_th: "พ.ร.ฎ. (ฉบับที่ 790) พ.ศ. 2567",
+              issuer_name_th: "กรมสรรพากร",
+              source_family: "gazette_enactment" as const,
+              source_family_label_th: "กฎหมาย",
+              record_type: "full_record" as const,
+              record_type_label_th: "เอกสารฉบับเต็มทางการ",
+              date_relied_on: "2025-05-01",
+              official_url: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc790.pdf",
+              official_url_with_anchor: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc790.pdf#page=2",
+              resolver_url: `/api/v1/knowledge/evidence/${psg.passage_id}`,
+              locator: {
+                human_pinpoint_th: "หน้า ๒",
+                section_paragraph_path: ["มาตรา ๓"],
+                physical_page_start: 2,
+                physical_page_end: 2,
+                printed_page_start: "หน้า ๒",
+                printed_page_end: "หน้า ๒",
+                anchors: [],
+              },
+              verification_status: "supported" as const,
+              link_health: "verified_online" as const,
+              link_health_notice_th: null,
+              last_successful_verification_at: "2026-11-20T00:00:00.000Z",
+              access_permission: "public" as const,
+              access_conditions_th: null,
+            },
+          ],
+        },
+      ],
+      verifier_metadata: {
+        release_id: "rel.B01.rc8",
+        verifier_version: "reg24-claim-verifier-v2.1",
+        ruleset_version: "th-official-traceability-2026.11.2",
+        publication_gate_mode: "enforced" as const,
+      },
+    });
+
+    // 1) Initial r1 succeeds
+    const r1 = await saveOrReviseAnswerServerVerified(store, {
+      submitted_envelope: buildPayload(
+        "ให้ลดอัตราภาษีมูลค่าเพิ่มตามมาตรา 80 แห่งประมวลรัษฎากร คงจัดเก็บในอัตราร้อยละ 6.3 ตาม พ.ร.ฎ. 790 [r1]"
+      ),
+      question_text: "ทดสอบ concurrent distinct edits",
+      save_operation_key: "k-init-r1",
+      actor: QA_ACTOR,
+    });
+    expect(r1.answer_revision).toBe(`${ansId}.r1`);
+    expect(storedAnswers.size).toBe(1);
+    expect(storedClaims.length).toBe(1);
+
+    // 2) Simulate two distinct edits racing concurrently from the exact same predecessor r1
+    //    (both see [r1] before either writes r2 -> winner writes r2, loser hits 23505!)
+    let releaseSecondLookup!: () => void;
+    const bothReadR1 = new Promise<void>((res) => {
+      releaseSecondLookup = res;
+    });
+    let r1ReadCount = 0;
+    const racingDb = async (sql: string, params: unknown[] = []) => {
+      const result = await mockDb(sql, params);
+      if (
+        /FROM citation_published_answer\s+WHERE answer_id = \$1\s+ORDER BY revision_number DESC/i.test(sql)
+      ) {
+        r1ReadCount += 1;
+        if (r1ReadCount === 2) releaseSecondLookup();
+        if (r1ReadCount <= 2) await bothReadR1;
+      }
+      return result;
+    };
+    setCustomCitationDbTransportForTesting(racingDb as never, mockTx as never);
+
+    const [resA, resB] = await Promise.allSettled([
+      saveOrReviseAnswerServerVerified(store, {
+        submitted_envelope: buildPayload(
+          "ให้ลดอัตราภาษีมูลค่าเพิ่มตามมาตรา 80 แห่งประมวลรัษฎากร คงจัดเก็บในอัตราร้อยละ 6.3 ตาม พ.ร.ฎ. 790 [edit A]"
+        ),
+        question_text: "ทดสอบ concurrent distinct edits",
+        save_operation_key: "k-edit-A",
+        actor: QA_ACTOR,
+      }),
+      saveOrReviseAnswerServerVerified(store, {
+        submitted_envelope: buildPayload(
+          "ให้ลดอัตราภาษีมูลค่าเพิ่มตามมาตรา 80 แห่งประมวลรัษฎากร คงจัดเก็บในอัตราร้อยละ 6.3 ตาม พ.ร.ฎ. 790 [edit B]"
+        ),
+        question_text: "ทดสอบ concurrent distinct edits",
+        save_operation_key: "k-edit-B",
+        actor: QA_ACTOR,
+      }),
+    ]);
+
+    const fulfilled = [resA, resB].filter((r) => r.status === "fulfilled");
+    const rejected = [resA, resB].filter((r) => r.status === "rejected");
+    const rejectionReasons = rejected.map((r) => String((r as PromiseRejectedResult).reason));
+    expect(fulfilled.length, `Rejections: ${JSON.stringify(rejectionReasons)}`).toBe(1);
+    expect(rejected.length).toBe(1);
+    expect((fulfilled[0] as PromiseFulfilledResult<{ answer_revision: string }>).value.answer_revision).toBe(
+      `${ansId}.r2`
+    );
+    expect(String((rejected[0] as PromiseRejectedResult).reason)).toContain(
+      "CONCURRENT_EDIT_PREDECESSOR_CONFLICT_409"
+    );
+    // ZERO orphaned child rows: exactly r1 + winning r2!
+    expect(storedAnswers.size).toBe(2);
+    expect(storedClaims.length).toBe(2);
+  });
 });

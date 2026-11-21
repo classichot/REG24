@@ -1,0 +1,91 @@
+{
+  "schema_version": "reg24.rc10_3.distinct_edit_concurrency_live_neon.v1",
+  "generated_at": "2026-11-21T03:53:29.751Z",
+  "environment": "staging_live_neon_postgres",
+  "release_id": "rel.B01.rc8",
+  "isolated_answer_id": "ans.rc103.live_distinct_race.1795233207190",
+  "isolated_actor_id": "qa.rc103.distinct_edit.1795233207190@reg24.th",
+  "model_provider_calls": 0,
+  "all_assertions_passed": true,
+  "step_1_initial_r1": {
+    "http_status": 200,
+    "saved_answer_revision": "ans.rc103.live_distinct_race.1795233207190.r1",
+    "live_neon_counts": {
+      "citation_published_answer": 1,
+      "citation_atomic_claim": 1,
+      "citation_claim_evidence_link": 1,
+      "citation_audit_event": 1
+    }
+  },
+  "step_2_concurrent_distinct_edits_with_distinct_keys": {
+    "predecessor_revision": "ans.rc103.live_distinct_race.1795233207190.r1",
+    "http_statuses_sorted": [
+      200,
+      409
+    ],
+    "winner": {
+      "http_status": 200,
+      "saved_answer_revision": "ans.rc103.live_distinct_race.1795233207190.r2",
+      "save_operation_key": "op.editB.1795233207190",
+      "rendered_answer_th": "[1] ให้ลดอัตราภาษีมูลค่าเพิ่มตามมาตรา 80 แห่งประมวลรัษฎากร คงจัดเก็บในอัตราร้อยละ 6.3 ตาม พ.ร.ฎ. 790 [edit B with key] [พ.ร.ฎ. (ฉบับที่ 790) · PDF หน้า 2 · หน้าพิมพ์ หน้า ๒ · พ.ร.ฎ. (ฉบับที่ 790)]"
+    },
+    "loser": {
+      "http_status": 409,
+      "error": "CONCURRENT_EDIT_PREDECESSOR_CONFLICT_409: A concurrent edit already committed revision 'ans.rc103.live_distinct_race.1795233207190.r2' from the same predecessor for answer 'ans.rc103.live_distinct_race.1795233207190'. Reload the latest revision before re-submitting your edit."
+    },
+    "live_neon_counts": {
+      "citation_published_answer": 2,
+      "citation_atomic_claim": 2,
+      "citation_claim_evidence_link": 2,
+      "citation_audit_event": 2
+    },
+    "zero_orphaned_child_rows": true,
+    "neon_readback_matches_winner_byte_for_byte": true,
+    "reopen_persistence_source": "neon_postgres"
+  },
+  "step_3_concurrent_distinct_edits_without_keys": {
+    "predecessor_revision": "ans.rc103.live_distinct_race.1795233207190.r2",
+    "http_statuses_sorted": [
+      200,
+      409
+    ],
+    "winner": {
+      "http_status": 200,
+      "saved_answer_revision": "ans.rc103.live_distinct_race.1795233207190.r3",
+      "rendered_answer_th": "[1] ให้ลดอัตราภาษีมูลค่าเพิ่มตามมาตรา 80 แห่งประมวลรัษฎากร คงจัดเก็บในอัตราร้อยละ 6.3 ตาม พ.ร.ฎ. 790 [edit D no key] [พ.ร.ฎ. (ฉบับที่ 790) · PDF หน้า 2 · หน้าพิมพ์ หน้า ๒ · พ.ร.ฎ. (ฉบับที่ 790)]"
+    },
+    "loser": {
+      "http_status": 409,
+      "error": "CONCURRENT_EDIT_PREDECESSOR_CONFLICT_409: A concurrent edit already committed revision 'ans.rc103.live_distinct_race.1795233207190.r3' from the same predecessor for answer 'ans.rc103.live_distinct_race.1795233207190'. Reload the latest revision before re-submitting your edit."
+    },
+    "live_neon_counts": {
+      "citation_published_answer": 3,
+      "citation_atomic_claim": 3,
+      "citation_claim_evidence_link": 3,
+      "citation_audit_event": 3
+    },
+    "zero_orphaned_child_rows": true,
+    "neon_readback_matches_winner_byte_for_byte": true,
+    "reopen_persistence_source": "neon_postgres"
+  },
+  "final_live_neon_revisions": [
+    {
+      "answer_revision_id": "ans.rc103.live_distinct_race.1795233207190.r1",
+      "revision_number": 1,
+      "supersedes_revision_id": null,
+      "save_operation_key": "op.init.1795233207190"
+    },
+    {
+      "answer_revision_id": "ans.rc103.live_distinct_race.1795233207190.r2",
+      "revision_number": 2,
+      "supersedes_revision_id": "ans.rc103.live_distinct_race.1795233207190.r1",
+      "save_operation_key": "op.editB.1795233207190"
+    },
+    {
+      "answer_revision_id": "ans.rc103.live_distinct_race.1795233207190.r3",
+      "revision_number": 3,
+      "supersedes_revision_id": "ans.rc103.live_distinct_race.1795233207190.r2",
+      "save_operation_key": null
+    }
+  ]
+}

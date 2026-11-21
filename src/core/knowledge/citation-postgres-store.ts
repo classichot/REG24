@@ -791,8 +791,11 @@ export async function persistAnswerRevisionToPostgres(params: {
   if (!customCitationDbTransport || customCitationTxTransport) {
     // ATOMIC TRANSACTIONAL SAVE (Section 4):
     // Saves `citation_published_answer` + `citation_atomic_claim` + `citation_claim_evidence_link`
-    // + `citation_audit_event` inside ONE atomic PostgreSQL transaction (`BEGIN ... COMMIT`) with
-    // `ON CONFLICT DO NOTHING` so interrupted saves leave ZERO partial revision visible and retries never duplicate!
+    // + `citation_audit_event` inside ONE atomic PostgreSQL transaction (`BEGIN ... COMMIT`).
+    // Never use `ON CONFLICT DO NOTHING` on the parent `citation_published_answer` row:
+    // any concurrent PK (`answer_revision_id`) or `save_operation_key` collision MUST raise
+    // PostgreSQL `23505` and abort the entire transaction so ZERO child rows are ever written
+    // for a losing concurrent edit!
     const txStatements: Array<{ query: string; params: unknown[] }> = [];
 
     const hasIdempKey = Boolean(params.save_operation_key && params.save_operation_key.trim());
@@ -808,7 +811,7 @@ export async function persistAnswerRevisionToPostgres(params: {
        ) VALUES (
          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12::jsonb,$13::jsonb,$14::jsonb,$15::jsonb,
          $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26::jsonb,$27,$28
-       )${hasIdempKey ? "" : " ON CONFLICT (answer_revision_id) DO NOTHING"}`,
+       )`,
       params: [
         env.answer_revision,
         env.answer_id,

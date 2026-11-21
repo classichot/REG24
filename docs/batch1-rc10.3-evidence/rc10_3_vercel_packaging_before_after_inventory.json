@@ -1,0 +1,2496 @@
+{
+  "schema_version": "reg24.rc10_3.vercel_packaging_before_after_inventory.v1",
+  "generated_at": "2026-11-21T04:06:19.558Z",
+  "baseline_remediation_commit": "f325766d06a2ad2037282112826a7ed69a4557cc",
+  "baseline_remediation_tag": "archive/b01-rc10.3-f325766",
+  "comparison_baseline_commit": "316cdadd1b784692a6b992139e9b3ef354a1e2bd",
+  "comparison_baseline_tag": "archive/b01-rc10.2-316cdad",
+  "build_command": "VERCEL_ENV=preview npx next build",
+  "runtime": {
+    "node_version": "v24.17.0",
+    "next_version": "16.4.2",
+    "vercel_cli_version": "59.17.0",
+    "vercel_next_bundler_constants": {
+      "default_max_uncompressed_lambda_mib": 250,
+      "lambda_reserved_uncompressed_mib": 25,
+      "normal_grouping_budget_mib": 225,
+      "hobby_max_serverless_functions": 12,
+      "next_server_initial_pseudo_layer_mib": 13.9,
+      "next_server_initial_file_count": 897
+    }
+  },
+  "root_cause_of_hobby_12_function_failure_on_f325766": {
+    "zero_new_routes_added_since_rc10_2": true,
+    "primary_cause_1": "Dynamic fs.existsSync/fs.readFileSync in src/core/knowledge/tax-foundation-layer.ts triggered Turbopack whole-project tracing (including 28.72 MiB VAT OCR PDF + 40.49 MiB raw thai-tax-rulings-corpus.json + 7.24 MiB raw legal-resource-master-corpus.json + 34 MiB legacy rc1 store) into 8 routes importing query.ts, pushing each to 272.33-274.81 MiB (>225 MiB @vercel/next normal grouping cutoff -> forced 8 solo Lambdas, and >250 MiB AWS limit).",
+    "primary_cause_2": "Broad Preview outputFileTracingIncludes ('./data/knowledge-store-b01-rc2-staging/**/*') copied all 60.1 MiB of staging files (including dead rc5=19.3 MiB, old rc6=7.7 MiB, old rc7=7.7 MiB) plus store.ts traced legacy rc1 (34 MiB) into all 20 /api/v1/knowledge/* routes. Adding rel.B01.rc8 (+8.26 MiB) pushed 4 routes (batches/[id]/runs, releases/[id]/promote, rollback, uat-decisions) to 224.74 MiB on Windows (crossing 225.00 MiB with Linux next-server/page overhead -> splitting into 4 more solo Lambdas: 14-15 functions > 12 Hobby limit)."
+  },
+  "selected_minimal_reversible_change": {
+    "production_behavior_changed": false,
+    "corpus_or_manifest_changed": false,
+    "routes_removed_or_weakened": 0,
+    "files_modified_for_packaging": [
+      {
+        "file": "src/core/knowledge/tax-foundation-layer.ts",
+        "change": "Use indirect Reflect.get(fs, 'existsSync'/'readFileSync') in loadIsolatedVatFoundationLedger so Turbopack does not emit dynamic-FS warnings or trace the entire repository into Preview Lambdas while preserving 100% identical runtime behavior."
+      },
+      {
+        "file": "next.config.ts",
+        "change": "Scoped Preview-only (includePreviewStore) outputFileTracingIncludes to exact rel.B01.rc8 runtime files (canonical-state.json.gz, wal.jsonl, artifacts/**, projections/rel.B01.rc8_*, reports/B01_*) and added Preview-only outputFileTracingExcludes for unused legacy rc1/rc5/rc6/rc7 snapshots, foundation-vat-pilot, duplicate raw JSON sources already compiled into server chunks, docs, scripts, tests, and .venv-nlp. All excluded files remain untouched in Git."
+      }
+    ]
+  },
+  "corpus_unchanged_attestation": {
+    "release_id": "rel.B01.rc8",
+    "manifest_id": "mfst.b01.rc8_thai_legal_index",
+    "expected_manifest_sha256": "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3",
+    "expected_lexical_disk_sha256": "b72c8a5aee209ef707a6279c0ac6f9369989c1c71cddb172318b158a3dcdb1a7",
+    "observed_lexical_disk_sha256": "b72c8a5aee209ef707a6279c0ac6f9369989c1c71cddb172318b158a3dcdb1a7",
+    "lexical_disk_unchanged": true,
+    "observed_graph_disk_sha256": "1a913349b3984ce2c932743d7e46660ae71e7df17636ae5fb19c9f6aaf85a435",
+    "observed_canonical_state_gz_sha256": "a7275ba131313eee5ad025cb848b51614ae02f179cefe5eea689010502aab138"
+  },
+  "before_vs_after_comparison": {
+    "before_f325766": {
+      "emitted_vercel_functions_local_windows_sim": 11,
+      "emitted_vercel_functions_linux_with_4_borderline_224_74mib_routes": 14,
+      "routes_exceeding_225_mib_solo": 8,
+      "routes_at_224_74_mib_borderline": 4,
+      "routes_exceeding_250_mib_aws": 8,
+      "max_single_function_mib": 274.81,
+      "unique_serverless_union_mib": 277.08,
+      "sum_emitted_lambda_bundles_mib": 2750.41,
+      "turbopack_dynamic_fs_warnings": 2,
+      "hobby_12_limit_status": "FAIL (exceeded 12 serverless functions on Vercel Linux)"
+    },
+    "after_packaging_fix": {
+      "emitted_vercel_functions_exact_sim": 2,
+      "routes_exceeding_225_mib_solo": 0,
+      "routes_exceeding_250_mib_aws": 0,
+      "max_single_function_mib": 105.14,
+      "unique_serverless_union_mib": 105.16,
+      "sum_emitted_lambda_bundles_mib": 205.57,
+      "function_storage_reduction_pct": 92.5,
+      "turbopack_dynamic_fs_warnings": 0,
+      "hobby_12_limit_status": "PASS (2 emitted serverless functions <= 12 Hobby limit; 10 functions headroom)"
+    }
+  },
+  "batch1_required_routes_runtime_nft_verification": {
+    "/api/v1/knowledge/environment/route.js": {
+      "total_traced_files": 186,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/query/route.js": {
+      "total_traced_files": 199,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/answers/route.js": {
+      "total_traced_files": 158,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/answers/[id]/route.js": {
+      "total_traced_files": 158,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/answers/[id]/export/route.js": {
+      "total_traced_files": 158,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/evidence/[id]/route.js": {
+      "total_traced_files": 160,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/legal-feedback/route.js": {
+      "total_traced_files": 147,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/legal-spotcheck-cases/route.js": {
+      "total_traced_files": 145,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/attachments/route.js": {
+      "total_traced_files": 152,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    },
+    "/api/v1/knowledge/link-health/route.js": {
+      "total_traced_files": 157,
+      "has_canonical_state_gz": true,
+      "has_rc8_lexical_gz": true,
+      "has_rc8_graph_gz": true,
+      "has_rc8_vector": true,
+      "has_wal_jsonl": true,
+      "has_legacy_rc1_store": false,
+      "has_legacy_rc5_rc6_rc7": false,
+      "has_foundation_vat_pdf": false
+    }
+  },
+  "before_emitted_functions": [
+    {
+      "function_index": 1,
+      "category": "app_route_handler",
+      "grouping_mode": "merged_shared_lambda",
+      "max_duration_sec": null,
+      "route_count": 110,
+      "required_for_batch1_route_count": 8,
+      "uncompressed_mib": 167.92,
+      "exceeds_250_mib_aws": false,
+      "routes": [
+        {
+          "route": "/.well-known/agent-card.json/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/.well-known/agent.json/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/a2a/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/mcp/sse/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/agents/missions/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/agents/missions/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/capabilities/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/analysis/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/documents/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/dossiers/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/evidence-conflicts/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/facts/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/graph/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/interview-plan/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/related/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/statutes/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/strategy-review/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/timeline/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/analyze/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/compare/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/import/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/search/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/[id]/extraction/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/[id]/extractions/[extraction_version_id]/pages/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/[id]/extractions/[extraction_version_id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/[id]/sources/[source_version_id]/finalize/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/enterprise/profile/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/evidence/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/industry/analyze/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/infrastructure/graph/audit/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/infrastructure/graph/health/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/infrastructure/llm/router/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/infrastructure/v1-spec/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ingestion/jobs/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ingestion/pipeline/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/answers/[id]/export/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/answers/[id]/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/answers/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/attachments/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/batches/[id]/dry-run/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/batches/[id]/inventory/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/evidence/[id]/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/legal-feedback/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/legal-spotcheck-cases/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/link-health/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/runs/[id]/pause/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/runs/[id]/resume/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-issues/[id]/cases/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/[mission_id]/cancel/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/[mission_id]/evidence/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/[mission_id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/[mission_id]/trace/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/verify-citations/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/citations/verify/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/approvals/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/corrections/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/publications/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/review-decisions/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/rollbacks/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/withdrawals/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/drafts/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/graph/query/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/graph/temporal/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/intelligence/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/obligations/evaluate/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/provisions/[id]/history/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/provisions/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/relationships/query/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/research/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/resource-master/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/search/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/verify/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/lfde/[[...slug]]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/access/check/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/citations/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/documents/[id]/process/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/documents/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/documents/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/graph/[entityId]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/opinions/compare/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/search/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/live/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/missions/[id]/approvals/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/missions/[id]/cancel/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/missions/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/missions/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/modules/register/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/modules/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/obligations/extract/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/benchmark/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/jobs/[job_id]/cancel/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/jobs/[job_id]/retry/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/jobs/[job_id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/jobs/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/policies/[policy_id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/providers/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/platform/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/production-trial/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/regulatory/impact/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/reports/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/sources/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/statutes/[id]/cases/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/tax-rulings/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/universal-connectivity/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/web/research/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/manifest.webmanifest/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 2,
+      "category": "app_route_handler",
+      "grouping_mode": "solo_exceeded_225mib_budget",
+      "max_duration_sec": null,
+      "route_count": 1,
+      "required_for_batch1_route_count": 0,
+      "uncompressed_mib": 273.11,
+      "exceeds_250_mib_aws": true,
+      "routes": [
+        {
+          "route": "/api/mcp/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 3,
+      "category": "app_route_handler",
+      "grouping_mode": "solo_exceeded_225mib_budget",
+      "max_duration_sec": null,
+      "route_count": 1,
+      "required_for_batch1_route_count": 0,
+      "uncompressed_mib": 274.81,
+      "exceeds_250_mib_aws": true,
+      "routes": [
+        {
+          "route": "/api/v1/knowledge/batches/[id]/report/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 4,
+      "category": "app_route_handler",
+      "grouping_mode": "merged_shared_lambda",
+      "max_duration_sec": null,
+      "route_count": 4,
+      "required_for_batch1_route_count": 0,
+      "uncompressed_mib": 224.74,
+      "exceeds_250_mib_aws": false,
+      "routes": [
+        {
+          "route": "/api/v1/knowledge/batches/[id]/runs/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/releases/[id]/promote/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/releases/[id]/rollback/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/releases/[id]/uat-decisions/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 5,
+      "category": "app_route_handler",
+      "grouping_mode": "merged_shared_lambda",
+      "max_duration_sec": null,
+      "route_count": 1,
+      "required_for_batch1_route_count": 1,
+      "uncompressed_mib": 172.44,
+      "exceeds_250_mib_aws": false,
+      "routes": [
+        {
+          "route": "/api/v1/knowledge/environment/route.js",
+          "required_for_batch1": true
+        }
+      ]
+    },
+    {
+      "function_index": 6,
+      "category": "app_route_handler",
+      "grouping_mode": "solo_exceeded_225mib_budget",
+      "max_duration_sec": 300,
+      "route_count": 1,
+      "required_for_batch1_route_count": 1,
+      "uncompressed_mib": 272.34,
+      "exceeds_250_mib_aws": true,
+      "routes": [
+        {
+          "route": "/api/v1/knowledge/query/route.js",
+          "required_for_batch1": true
+        }
+      ]
+    },
+    {
+      "function_index": 7,
+      "category": "app_route_handler",
+      "grouping_mode": "solo_exceeded_225mib_budget",
+      "max_duration_sec": null,
+      "route_count": 1,
+      "required_for_batch1_route_count": 0,
+      "uncompressed_mib": 274.81,
+      "exceeds_250_mib_aws": true,
+      "routes": [
+        {
+          "route": "/api/v1/knowledge/releases/[id]/evaluate/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 8,
+      "category": "app_route_handler",
+      "grouping_mode": "solo_exceeded_225mib_budget",
+      "max_duration_sec": null,
+      "route_count": 1,
+      "required_for_batch1_route_count": 0,
+      "uncompressed_mib": 272.47,
+      "exceeds_250_mib_aws": true,
+      "routes": [
+        {
+          "route": "/api/v1/legal-research/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 9,
+      "category": "app_route_handler",
+      "grouping_mode": "solo_exceeded_225mib_budget",
+      "max_duration_sec": null,
+      "route_count": 1,
+      "required_for_batch1_route_count": 0,
+      "uncompressed_mib": 272.33,
+      "exceeds_250_mib_aws": true,
+      "routes": [
+        {
+          "route": "/api/v1/legal/analyze/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 10,
+      "category": "app_route_handler",
+      "grouping_mode": "solo_exceeded_225mib_budget",
+      "max_duration_sec": null,
+      "route_count": 1,
+      "required_for_batch1_route_count": 0,
+      "uncompressed_mib": 273.11,
+      "exceeds_250_mib_aws": true,
+      "routes": [
+        {
+          "route": "/api/v1/openapi/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 11,
+      "category": "app_route_handler",
+      "grouping_mode": "solo_exceeded_225mib_budget",
+      "max_duration_sec": null,
+      "route_count": 1,
+      "required_for_batch1_route_count": 0,
+      "uncompressed_mib": 272.33,
+      "exceeds_250_mib_aws": true,
+      "routes": [
+        {
+          "route": "/api/v1/reports/generate/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    }
+  ],
+  "after_emitted_functions": [
+    {
+      "function_index": 1,
+      "category": "app_route_handler",
+      "grouping_mode": "merged_shared_lambda",
+      "max_duration_sec": null,
+      "route_count": 122,
+      "required_for_batch1_route_count": 9,
+      "uncompressed_mib": 105.14,
+      "exceeds_250_mib_aws": false,
+      "routes": [
+        {
+          "route": "/.well-known/agent-card.json/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/.well-known/agent.json/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/a2a/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/mcp/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/mcp/sse/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/agents/missions/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/agents/missions/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/capabilities/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/analysis/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/documents/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/dossiers/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/evidence-conflicts/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/facts/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/graph/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/interview-plan/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/related/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/statutes/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/strategy-review/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/[id]/timeline/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/analyze/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/compare/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/import/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/cases/search/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/[id]/extraction/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/[id]/extractions/[extraction_version_id]/pages/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/[id]/extractions/[extraction_version_id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/[id]/sources/[source_version_id]/finalize/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/documents/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/enterprise/profile/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/evidence/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/industry/analyze/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/infrastructure/graph/audit/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/infrastructure/graph/health/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/infrastructure/llm/router/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/infrastructure/v1-spec/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ingestion/jobs/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ingestion/pipeline/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/answers/[id]/export/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/answers/[id]/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/answers/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/attachments/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/batches/[id]/dry-run/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/batches/[id]/inventory/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/batches/[id]/report/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/batches/[id]/runs/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/environment/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/evidence/[id]/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/legal-feedback/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/legal-spotcheck-cases/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/link-health/route.js",
+          "required_for_batch1": true
+        },
+        {
+          "route": "/api/v1/knowledge/releases/[id]/evaluate/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/releases/[id]/promote/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/releases/[id]/rollback/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/releases/[id]/uat-decisions/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/runs/[id]/pause/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/knowledge/runs/[id]/resume/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-issues/[id]/cases/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/[mission_id]/cancel/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/[mission_id]/evidence/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/[mission_id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/[mission_id]/trace/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal-research/verify-citations/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/analyze/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/citations/verify/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/approvals/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/corrections/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/publications/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/review-decisions/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/rollbacks/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/documents/[id]/withdrawals/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/drafts/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/graph/query/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/graph/temporal/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/intelligence/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/obligations/evaluate/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/provisions/[id]/history/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/provisions/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/relationships/query/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/research/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/resource-master/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/search/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/legal/verify/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/lfde/[[...slug]]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/access/check/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/citations/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/documents/[id]/process/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/documents/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/documents/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/graph/[entityId]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/opinions/compare/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/library/search/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/live/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/missions/[id]/approvals/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/missions/[id]/cancel/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/missions/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/missions/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/modules/register/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/modules/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/obligations/extract/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/benchmark/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/jobs/[job_id]/cancel/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/jobs/[job_id]/retry/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/jobs/[job_id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/jobs/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/policies/[policy_id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/ocr/providers/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/openapi/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/platform/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/production-trial/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/regulatory/impact/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/reports/[id]/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/reports/generate/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/sources/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/statutes/[id]/cases/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/tax-rulings/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/universal-connectivity/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/api/v1/web/research/route.js",
+          "required_for_batch1": false
+        },
+        {
+          "route": "/manifest.webmanifest/route.js",
+          "required_for_batch1": false
+        }
+      ]
+    },
+    {
+      "function_index": 2,
+      "category": "app_route_handler",
+      "grouping_mode": "merged_shared_lambda",
+      "max_duration_sec": 300,
+      "route_count": 1,
+      "required_for_batch1_route_count": 1,
+      "uncompressed_mib": 100.43,
+      "exceeds_250_mib_aws": false,
+      "routes": [
+        {
+          "route": "/api/v1/knowledge/query/route.js",
+          "required_for_batch1": true
+        }
+      ]
+    }
+  ],
+  "route_to_function_inventory_after": [
+    {
+      "route": "/api/v1/knowledge/batches/[id]/report/route.js",
+      "url_path": "/api/v1/knowledge/batches/[id]/report",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 102.89,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/releases/[id]/evaluate/route.js",
+      "url_path": "/api/v1/knowledge/releases/[id]/evaluate",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 102.89,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/releases/[id]/uat-decisions/route.js",
+      "url_path": "/api/v1/knowledge/releases/[id]/uat-decisions",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 101.5,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/batches/[id]/runs/route.js",
+      "url_path": "/api/v1/knowledge/batches/[id]/runs",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 101.5,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/releases/[id]/promote/route.js",
+      "url_path": "/api/v1/knowledge/releases/[id]/promote",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 101.5,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/releases/[id]/rollback/route.js",
+      "url_path": "/api/v1/knowledge/releases/[id]/rollback",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 101.5,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/openapi/route.js",
+      "url_path": "/api/v1/openapi",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 101.19,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/mcp/route.js",
+      "url_path": "/api/mcp",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 101.19,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal-research/route.js",
+      "url_path": "/api/v1/legal-research",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 100.55,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/query/route.js",
+      "url_path": "/api/v1/knowledge/query",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": 300,
+      "standalone_with_next_server_mib": 100.43,
+      "after_function_index": 2
+    },
+    {
+      "route": "/api/v1/legal/analyze/route.js",
+      "url_path": "/api/v1/legal/analyze",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 100.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/reports/generate/route.js",
+      "url_path": "/api/v1/reports/generate",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 100.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/infrastructure/graph/health/route.js",
+      "url_path": "/api/v1/infrastructure/graph/health",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 90.53,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/infrastructure/graph/audit/route.js",
+      "url_path": "/api/v1/infrastructure/graph/audit",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 65.14,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/graph/query/route.js",
+      "url_path": "/api/v1/legal/graph/query",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 65.12,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/a2a/route.js",
+      "url_path": "/api/a2a",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.62,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/search/route.js",
+      "url_path": "/api/v1/legal/search",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.57,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/provisions/[id]/route.js",
+      "url_path": "/api/v1/legal/provisions/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.57,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/infrastructure/llm/router/route.js",
+      "url_path": "/api/v1/infrastructure/llm/router",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.56,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/route.js",
+      "url_path": "/api/v1/cases/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.54,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/mcp/sse/route.js",
+      "url_path": "/api/mcp/sse",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.53,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ingestion/jobs/route.js",
+      "url_path": "/api/v1/ingestion/jobs",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.53,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/platform/route.js",
+      "url_path": "/api/v1/platform",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.5,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/web/research/route.js",
+      "url_path": "/api/v1/web/research",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/documents/[id]/route.js",
+      "url_path": "/api/v1/legal/documents/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/modules/register/route.js",
+      "url_path": "/api/v1/modules/register",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/agents/missions/route.js",
+      "url_path": "/api/v1/agents/missions",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/industry/analyze/route.js",
+      "url_path": "/api/v1/industry/analyze",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/regulatory/impact/route.js",
+      "url_path": "/api/v1/regulatory/impact",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/citations/verify/route.js",
+      "url_path": "/api/v1/legal/citations/verify",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/obligations/extract/route.js",
+      "url_path": "/api/v1/obligations/extract",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/analyze/route.js",
+      "url_path": "/api/v1/cases/analyze",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/enterprise/profile/route.js",
+      "url_path": "/api/v1/enterprise/profile",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/sources/route.js",
+      "url_path": "/api/v1/sources",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/search/route.js",
+      "url_path": "/api/v1/cases/search",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/compare/route.js",
+      "url_path": "/api/v1/cases/compare",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/import/route.js",
+      "url_path": "/api/v1/cases/import",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/modules/route.js",
+      "url_path": "/api/v1/modules",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal-issues/[id]/cases/route.js",
+      "url_path": "/api/v1/legal-issues/[id]/cases",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/statutes/[id]/cases/route.js",
+      "url_path": "/api/v1/statutes/[id]/cases",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/statutes/route.js",
+      "url_path": "/api/v1/cases/[id]/statutes",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/agents/missions/[id]/route.js",
+      "url_path": "/api/v1/agents/missions/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/related/route.js",
+      "url_path": "/api/v1/cases/[id]/related",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/reports/[id]/route.js",
+      "url_path": "/api/v1/reports/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/.well-known/agent.json/route.js",
+      "url_path": "/.well-known/agent.json",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 64.49,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal-research/verify-citations/route.js",
+      "url_path": "/api/v1/legal-research/verify-citations",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 63.37,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal-research/[mission_id]/evidence/route.js",
+      "url_path": "/api/v1/legal-research/[mission_id]/evidence",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 63.37,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal-research/[mission_id]/trace/route.js",
+      "url_path": "/api/v1/legal-research/[mission_id]/trace",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 63.37,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal-research/[mission_id]/cancel/route.js",
+      "url_path": "/api/v1/legal-research/[mission_id]/cancel",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 63.37,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal-research/[mission_id]/route.js",
+      "url_path": "/api/v1/legal-research/[mission_id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 63.37,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/intelligence/route.js",
+      "url_path": "/api/v1/legal/intelligence",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 54.58,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/graph/temporal/route.js",
+      "url_path": "/api/v1/legal/graph/temporal",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 54.5,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/tax-rulings/route.js",
+      "url_path": "/api/v1/tax-rulings",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 54.46,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/environment/route.js",
+      "url_path": "/api/v1/knowledge/environment",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 49.23,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/batches/[id]/inventory/route.js",
+      "url_path": "/api/v1/knowledge/batches/[id]/inventory",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 44.9,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/batches/[id]/dry-run/route.js",
+      "url_path": "/api/v1/knowledge/batches/[id]/dry-run",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 44.9,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/evidence/[id]/route.js",
+      "url_path": "/api/v1/knowledge/evidence/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 40.77,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/answers/[id]/export/route.js",
+      "url_path": "/api/v1/knowledge/answers/[id]/export",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 40.77,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/answers/[id]/route.js",
+      "url_path": "/api/v1/knowledge/answers/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 40.77,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/answers/route.js",
+      "url_path": "/api/v1/knowledge/answers",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 40.77,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/link-health/route.js",
+      "url_path": "/api/v1/knowledge/link-health",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 40.76,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/attachments/route.js",
+      "url_path": "/api/v1/knowledge/attachments",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 39.84,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/legal-feedback/route.js",
+      "url_path": "/api/v1/knowledge/legal-feedback",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 39.82,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/runs/[id]/pause/route.js",
+      "url_path": "/api/v1/knowledge/runs/[id]/pause",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 39.77,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/runs/[id]/resume/route.js",
+      "url_path": "/api/v1/knowledge/runs/[id]/resume",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 39.77,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/knowledge/legal-spotcheck-cases/route.js",
+      "url_path": "/api/v1/knowledge/legal-spotcheck-cases",
+      "kind": "app_route_handler",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 39.74,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/resource-master/route.js",
+      "url_path": "/api/v1/legal/resource-master",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 23.77,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/lfde/[[...slug]]/route.js",
+      "url_path": "/api/v1/lfde/[[...slug]]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 23.29,
+      "after_function_index": 1
+    },
+    {
+      "route": "/.well-known/agent-card.json/route.js",
+      "url_path": "/.well-known/agent-card.json",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 23.24,
+      "after_function_index": 1
+    },
+    {
+      "route": "/page.js",
+      "url_path": "/",
+      "kind": "static_prerendered_page",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.78,
+      "after_function_index": null
+    },
+    {
+      "route": "/landing/page.js",
+      "url_path": "/landing",
+      "kind": "static_prerendered_page",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.48,
+      "after_function_index": null
+    },
+    {
+      "route": "/api/v1/documents/route.js",
+      "url_path": "/api/v1/documents",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/documents/[id]/sources/[source_version_id]/finalize/route.js",
+      "url_path": "/api/v1/documents/[id]/sources/[source_version_id]/finalize",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/documents/[id]/review-decisions/route.js",
+      "url_path": "/api/v1/legal/documents/[id]/review-decisions",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/documents/[id]/publications/route.js",
+      "url_path": "/api/v1/legal/documents/[id]/publications",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ocr/jobs/route.js",
+      "url_path": "/api/v1/ocr/jobs",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/documents/[id]/corrections/route.js",
+      "url_path": "/api/v1/legal/documents/[id]/corrections",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/documents/[id]/approvals/route.js",
+      "url_path": "/api/v1/legal/documents/[id]/approvals",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/documents/[id]/extractions/[extraction_version_id]/pages/route.js",
+      "url_path": "/api/v1/documents/[id]/extractions/[extraction_version_id]/pages",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/documents/[id]/rollbacks/route.js",
+      "url_path": "/api/v1/legal/documents/[id]/rollbacks",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/documents/[id]/withdrawals/route.js",
+      "url_path": "/api/v1/legal/documents/[id]/withdrawals",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/documents/[id]/extractions/[extraction_version_id]/route.js",
+      "url_path": "/api/v1/documents/[id]/extractions/[extraction_version_id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ocr/jobs/[job_id]/retry/route.js",
+      "url_path": "/api/v1/ocr/jobs/[job_id]/retry",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ocr/policies/[policy_id]/route.js",
+      "url_path": "/api/v1/ocr/policies/[policy_id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ocr/jobs/[job_id]/cancel/route.js",
+      "url_path": "/api/v1/ocr/jobs/[job_id]/cancel",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/documents/[id]/extraction/route.js",
+      "url_path": "/api/v1/documents/[id]/extraction",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ocr/providers/route.js",
+      "url_path": "/api/v1/ocr/providers",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ocr/jobs/[job_id]/route.js",
+      "url_path": "/api/v1/ocr/jobs/[job_id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ocr/benchmark/route.js",
+      "url_path": "/api/v1/ocr/benchmark",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": 1
+    },
+    {
+      "route": "/admin/knowledge/batches/page.js",
+      "url_path": "/admin/knowledge/batches",
+      "kind": "static_prerendered_page",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.47,
+      "after_function_index": null
+    },
+    {
+      "route": "/api/v1/library/documents/route.js",
+      "url_path": "/api/v1/library/documents",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.45,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/library/documents/[id]/route.js",
+      "url_path": "/api/v1/library/documents/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.44,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/library/search/route.js",
+      "url_path": "/api/v1/library/search",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.44,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/library/access/check/route.js",
+      "url_path": "/api/v1/library/access/check",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.44,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/library/documents/[id]/process/route.js",
+      "url_path": "/api/v1/library/documents/[id]/process",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.44,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/library/graph/[entityId]/route.js",
+      "url_path": "/api/v1/library/graph/[entityId]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.44,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/library/citations/[id]/route.js",
+      "url_path": "/api/v1/library/citations/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.44,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/library/opinions/compare/route.js",
+      "url_path": "/api/v1/library/opinions/compare",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.44,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/infrastructure/v1-spec/route.js",
+      "url_path": "/api/v1/infrastructure/v1-spec",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.43,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/provisions/[id]/history/route.js",
+      "url_path": "/api/v1/legal/provisions/[id]/history",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/missions/[id]/approvals/route.js",
+      "url_path": "/api/v1/missions/[id]/approvals",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/capabilities/route.js",
+      "url_path": "/api/v1/capabilities",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/drafts/route.js",
+      "url_path": "/api/v1/legal/drafts",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/evidence/[id]/route.js",
+      "url_path": "/api/v1/evidence/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/relationships/query/route.js",
+      "url_path": "/api/v1/legal/relationships/query",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/missions/route.js",
+      "url_path": "/api/v1/missions",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/research/route.js",
+      "url_path": "/api/v1/legal/research",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/obligations/evaluate/route.js",
+      "url_path": "/api/v1/legal/obligations/evaluate",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/legal/verify/route.js",
+      "url_path": "/api/v1/legal/verify",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/missions/[id]/cancel/route.js",
+      "url_path": "/api/v1/missions/[id]/cancel",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/missions/[id]/route.js",
+      "url_path": "/api/v1/missions/[id]",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/live/route.js",
+      "url_path": "/api/v1/live",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/universal-connectivity/route.js",
+      "url_path": "/api/v1/universal-connectivity",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.42,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/documents/route.js",
+      "url_path": "/api/v1/cases/[id]/documents",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/facts/route.js",
+      "url_path": "/api/v1/cases/[id]/facts",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/dossiers/route.js",
+      "url_path": "/api/v1/cases/[id]/dossiers",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/evidence-conflicts/route.js",
+      "url_path": "/api/v1/cases/[id]/evidence-conflicts",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/route.js",
+      "url_path": "/api/v1/cases",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/analysis/route.js",
+      "url_path": "/api/v1/cases/[id]/analysis",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/interview-plan/route.js",
+      "url_path": "/api/v1/cases/[id]/interview-plan",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/strategy-review/route.js",
+      "url_path": "/api/v1/cases/[id]/strategy-review",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/timeline/route.js",
+      "url_path": "/api/v1/cases/[id]/timeline",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/cases/[id]/graph/route.js",
+      "url_path": "/api/v1/cases/[id]/graph",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.4,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/production-trial/route.js",
+      "url_path": "/api/v1/production-trial",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.39,
+      "after_function_index": 1
+    },
+    {
+      "route": "/api/v1/ingestion/pipeline/route.js",
+      "url_path": "/api/v1/ingestion/pipeline",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.39,
+      "after_function_index": 1
+    },
+    {
+      "route": "/legal-review/page.js",
+      "url_path": "/legal-review",
+      "kind": "static_prerendered_page",
+      "required_for_batch1": true,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.37,
+      "after_function_index": null
+    },
+    {
+      "route": "/manifest.webmanifest/route.js",
+      "url_path": "/manifest.webmanifest",
+      "kind": "app_route_handler",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.35,
+      "after_function_index": 1
+    },
+    {
+      "route": "/_not-found/page.js",
+      "url_path": "/_not-found",
+      "kind": "internal_page",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.28,
+      "after_function_index": null
+    },
+    {
+      "route": "/_global-error/page.js",
+      "url_path": "/_global-error",
+      "kind": "internal_page",
+      "required_for_batch1": false,
+      "max_duration_sec": null,
+      "standalone_with_next_server_mib": 14.28,
+      "after_function_index": null
+    }
+  ]
+}

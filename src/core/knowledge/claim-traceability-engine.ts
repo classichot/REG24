@@ -2781,6 +2781,15 @@ export async function saveOrReviseAnswerServerVerified(
           }
         }
       }
+      if (isUniqueViolation) {
+        // Two distinct concurrent edits raced from the same predecessor revision (both computed the same
+        // next answer_revision_id, e.g. `.r2`, and the winner already committed its PK in Neon).
+        // Because the atomic PostgreSQL transaction rolled back completely on PK collision (23505),
+        // ZERO child rows (claims/evidence links/audit events) were written. Reject cleanly with HTTP 409!
+        throw new Error(
+          `CONCURRENT_EDIT_PREDECESSOR_CONFLICT_409: A concurrent edit already committed revision '${envelopeToPersist.answer_revision}' from the same predecessor for answer '${requestedAnswerId}'. Reload the latest revision before re-submitting your edit.`
+        );
+      }
       // Failed transaction: rethrow immediately WITHOUT mutating in-memory `store` or cache!
       throw pgErr;
     }

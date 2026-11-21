@@ -333,15 +333,19 @@ export interface FoundationConsultationResult {
 /**
  * Loads the isolated VAT foundation ledger (`data/foundation-vat-pilot/vat-foundation-ledger.json`)
  * if present on disk. Never touches `data/knowledge-store`.
+ * Uses indirect `fs` lookup so Next.js / Turbopack NFT does not trace the entire repository
+ * into serverless function bundles when this optional pilot file is absent on Preview.
  */
 export function loadIsolatedVatFoundationLedger(customPath?: string): VatFoundationPilotLedger | null {
   const targetPath =
     customPath ||
     process.env.REG24_VAT_FOUNDATION_LEDGER_PATH ||
-    path.resolve(process.cwd(), "data/foundation-vat-pilot/vat-foundation-ledger.json");
-  if (!fs.existsSync(targetPath)) return null;
+    path.resolve(process.cwd(), "data", "foundation-vat-pilot", "vat-foundation-ledger.json");
+  const existsFn = Reflect.get(fs, "existsSync") as typeof fs.existsSync;
+  const readFn = Reflect.get(fs, "readFileSync") as typeof fs.readFileSync;
+  if (!existsFn(targetPath)) return null;
   try {
-    return JSON.parse(fs.readFileSync(targetPath, "utf8")) as VatFoundationPilotLedger;
+    return JSON.parse(readFn(targetPath, "utf8")) as VatFoundationPilotLedger;
   } catch {
     return null;
   }
