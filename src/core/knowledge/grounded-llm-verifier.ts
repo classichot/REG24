@@ -443,6 +443,59 @@ function checkTemporalApplicabilityOfCitedPassages(
   return { ok: true };
 }
 
+function extractMonetaryAmountsThb(txt: string): number[] {
+  const vals: number[] = [];
+  for (const am of thaiDigitsToArabic(txt).matchAll(
+    /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+  )) {
+    const rawNum = (am[1] || am[2] || "").replace(/,/g, "");
+    const n = Number(rawNum);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    vals.push(am[3] === "ล้านบาท" ? n * 1_000_000 : n);
+  }
+  return vals;
+}
+
+function detectSupersededMonetaryBase(factLedger: StructuredCaseFactLedger): {
+  activeBaseThb: number;
+  supersededBasesThb: number[];
+} | null {
+  if (factLedger.user_turns.length < 2) return null;
+  const activeValFact = factLedger.material_facts.find(
+    (f) =>
+      /_thb$/i.test(f.fact_key) &&
+      Boolean(f.overridden_from) &&
+      f.source_turn > (f.overridden_from?.previous_turn ?? f.source_turn)
+  );
+  if (activeValFact?.overridden_from) {
+    const curMatch = activeValFact.normalized_category.match(/_THB_(\d+)/);
+    const curVal = curMatch ? Number(curMatch[1]) : null;
+    const prevVals = extractMonetaryAmountsThb(activeValFact.overridden_from.previous_text_th);
+    if (curVal !== null && Number.isFinite(curVal) && prevVals.length > 0) {
+      return {
+        activeBaseThb: curVal,
+        supersededBasesThb: prevVals.filter((p) => Math.abs(p - curVal) > 1),
+      };
+    }
+  }
+  const latestTurn = factLedger.user_turns[factLedger.user_turns.length - 1];
+  const latestText = thaiDigitsToArabic(latestTurn.raw_text);
+  const hasExplicitEditCue =
+    /(?:แก้ไข|แก้เป็น|เปลี่ยน(?:มูลค่า|ฐาน|ราคา|ค่าบริการ|ยอด)|ปรับ(?:มูลค่า|ฐาน|ราคา|ยอด)|change|update|revise)/i.test(
+      latestText
+    );
+  if (!hasExplicitEditCue) return null;
+  const latestAmounts = extractMonetaryAmountsThb(latestText);
+  if (latestAmounts.length === 0) return null;
+  const activeBase = latestAmounts[latestAmounts.length - 1];
+  const priorAmounts = factLedger.user_turns
+    .slice(0, -1)
+    .flatMap((t) => extractMonetaryAmountsThb(t.raw_text))
+    .filter((p) => Math.abs(p - activeBase) > 1);
+  if (priorAmounts.length === 0) return null;
+  return { activeBaseThb: activeBase, supersededBasesThb: Array.from(new Set(priorAmounts)) };
+}
+
 function verifyProposedCalculation(params: {
   issue: LlmDraftedIssue;
   citedItems: GroundedPassagePackItem[];
@@ -482,6 +535,74 @@ function verifyProposedCalculation(params: {
         rejection_code: "MISSING_REQUIRED_FACT_INPUT",
         rejection_reason_th:
           "ผู้ถามระบุชัดเจนว่าไม่ทราบข้อเท็จจริงชี้ขาด (ราคาประเมินทุนทรัพย์/วิธีการได้มา/จำนวนปีที่ถือครอง) จึงไม่อาจยืนยันตัวเลขภาษีหัก ณ ที่จ่ายได้",
+      },
+    };
+  }
+
+  // Installment & superseded-base consistency guard (Controls B & C):
+  // 1) On a single-portion split-payment issue with a known portion amount, tax_base_thb MUST match THAT portion's amount
+  //    (never a different installment or the whole contract total!).
+  const splitPointsForCalc = params.factLedger.temporal_facts.split_payment_tax_points || [];
+  if (
+    params.factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+    splitPointsForCalc.length >= 2 &&
+    calc.tax_base_thb !== null
+  ) {
+    const targetIso = resolveIssueTargetSplitPortionIso(params.issue, splitPointsForCalc);
+    const matchedPortion = targetIso
+      ? splitPointsForCalc.find((sp) => sp.iso_date === targetIso)
+      : undefined;
+    if (
+      matchedPortion &&
+      typeof matchedPortion.amount_thb === "number" &&
+      matchedPortion.amount_thb > 0 &&
+      Math.abs(calc.tax_base_thb - matchedPortion.amount_thb) > 1
+    ) {
+      return {
+        accepted: false,
+        verifiedCalc: null,
+        verifiedNumericTokens: [],
+        rejection: {
+          issue_id: params.issue.issue_id,
+          issue_title_th: params.issue.issue_title_th,
+          proposed_values: {
+            tax_base_thb: calc.tax_base_thb,
+            exempt_amount_thb: calc.exempt_amount_thb,
+            taxable_amount_thb: calc.taxable_amount_thb,
+            rate_pct: calc.rate_pct,
+            computed_tax_thb: calc.computed_tax_thb,
+          },
+          rejection_code: "ARITHMETIC_MISMATCH",
+          rejection_reason_th: `ฐานภาษีที่เสนอ (${calc.tax_base_thb.toLocaleString("en-US")} บาท) ไม่ตรงกับมูลค่าของงวดวันที่ ${targetIso} (${matchedPortion.amount_thb.toLocaleString("en-US")} บาท)`,
+        },
+      };
+    }
+  }
+
+  // 2) If a later turn explicitly superseded the transaction's stated monetary base (e.g., Turn 1 ฿100k -> Turn 2 ฿200k),
+  //    reject any calculation still using the superseded base.
+  const supersededBaseInfo = detectSupersededMonetaryBase(params.factLedger);
+  if (
+    supersededBaseInfo &&
+    calc.tax_base_thb !== null &&
+    supersededBaseInfo.supersededBasesThb.some((oldVal) => Math.abs(calc.tax_base_thb! - oldVal) <= 1)
+  ) {
+    return {
+      accepted: false,
+      verifiedCalc: null,
+      verifiedNumericTokens: [],
+      rejection: {
+        issue_id: params.issue.issue_id,
+        issue_title_th: params.issue.issue_title_th,
+        proposed_values: {
+          tax_base_thb: calc.tax_base_thb,
+          exempt_amount_thb: calc.exempt_amount_thb,
+          taxable_amount_thb: calc.taxable_amount_thb,
+          rate_pct: calc.rate_pct,
+          computed_tax_thb: calc.computed_tax_thb,
+        },
+        rejection_code: "ARITHMETIC_MISMATCH",
+        rejection_reason_th: `ฐานภาษีที่เสนอใช้มูลค่าเดิมที่ถูกแก้ไขทับแล้ว (${calc.tax_base_thb.toLocaleString("en-US")} บาท แทนมูลค่าล่าสุด ${supersededBaseInfo.activeBaseThb.toLocaleString("en-US")} บาท)`,
       },
     };
   }
@@ -576,12 +697,20 @@ function verifyProposedCalculation(params: {
   }
 
   const verifiedTokens = new Set<string>();
+  const grossTotalThb =
+    calc.tax_base_thb !== null &&
+    calc.computed_tax_thb !== null &&
+    Number.isFinite(calc.tax_base_thb) &&
+    Number.isFinite(calc.computed_tax_thb)
+      ? Math.round((calc.tax_base_thb + calc.computed_tax_thb) * 100) / 100
+      : null;
   for (const val of [
     calc.tax_base_thb,
     calc.exempt_amount_thb,
     calc.taxable_amount_thb,
     calc.rate_pct,
     calc.computed_tax_thb,
+    grossTotalThb,
   ]) {
     if (val !== null && Number.isFinite(val)) {
       verifiedTokens.add(String(val));
@@ -932,21 +1061,73 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       trustedTokens.add("6.3");
       trustedTokens.add("0.7");
       // When a VAT reduction decree is validly cited and no calculation was rejected (`calcCheck.accepted`),
-      // deterministically ground exact VAT-exclusive (7% / 6.3% / 0.7%) and VAT-inclusive (7/107, 100/107)
-      // amounts derived strictly from monetary bases stated in the user's own turns (never hallucinated figures!)
-      // so conditional branches, total-contract VAT summaries, and VAT-inclusive caveats are not falsely suppressed.
+      // deterministically ground exact VAT-exclusive (7% / 6.3% / 0.7%), VAT-inclusive total (107% = base + VAT),
+      // and VAT-inclusive back-out (7/107, 100/107) figures derived STRICTLY from THIS claim's own valid taxable base
+      // (never pooling across sibling installments or superseded multi-turn bases!).
       if (calcCheck.accepted) {
-        const rawUserBlob = thaiDigitsToArabic(
-          params.factLedger.user_turns.map((t) => t.raw_text).join(" ")
+        const extractAmounts = (txt: string): number[] => {
+          const vals: number[] = [];
+          for (const am of thaiDigitsToArabic(txt).matchAll(
+            /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+          )) {
+            const rawNum = (am[1] || am[2] || "").replace(/,/g, "");
+            const n = Number(rawNum);
+            if (!Number.isFinite(n) || n <= 0) continue;
+            vals.push(am[3] === "ล้านบาท" ? n * 1_000_000 : n);
+          }
+          return vals;
+        };
+
+        // Determine active (non-superseded) user-stated monetary bases (cross-turn override only)
+        const supersededGate5 = detectSupersededMonetaryBase(params.factLedger);
+        const latestTurn = params.factLedger.user_turns[params.factLedger.user_turns.length - 1];
+        const activeUserBases = new Set<number>(
+          supersededGate5 && latestTurn
+            ? [supersededGate5.activeBaseThb, ...extractMonetaryAmountsThb(latestTurn.raw_text)]
+            : extractMonetaryAmountsThb(params.factLedger.user_turns.map((t) => t.raw_text).join(" "))
         );
-        for (const am of rawUserBlob.matchAll(
-          /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
-        )) {
-          const rawNum = (am[1] || am[2] || "").replace(/,/g, "");
-          const n = Number(rawNum);
-          if (!Number.isFinite(n) || n <= 0) continue;
-          const base = am[3] === "ล้านบาท" ? n * 1_000_000 : n;
-          for (const mult of [0.07, 0.063, 0.007, 7 / 107, 100 / 107]) {
+
+        const scopedBasesThb = new Set<number>();
+        const splitPts = params.factLedger.temporal_facts.split_payment_tax_points || [];
+        const singleSplitTargetIso =
+          params.factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+          splitPts.length >= 2
+            ? resolveIssueTargetSplitPortionIso(iss, splitPts)
+            : null;
+        const singleSplitPortion = singleSplitTargetIso
+          ? splitPts.find((sp) => sp.iso_date === singleSplitTargetIso)
+          : undefined;
+
+        if (calcCheck.verifiedCalc && calcCheck.verifiedCalc.tax_base_thb !== null) {
+          scopedBasesThb.add(calcCheck.verifiedCalc.tax_base_thb);
+          if (
+            calcCheck.verifiedCalc.taxable_amount_thb !== null &&
+            calcCheck.verifiedCalc.taxable_amount_thb > 0
+          ) {
+            scopedBasesThb.add(calcCheck.verifiedCalc.taxable_amount_thb);
+          }
+        } else if (
+          singleSplitPortion &&
+          typeof singleSplitPortion.amount_thb === "number" &&
+          singleSplitPortion.amount_thb > 0
+        ) {
+          // Single-portion split claim: strictly scope to THAT portion's own amount (never another installment!).
+          scopedBasesThb.add(singleSplitPortion.amount_thb);
+        } else {
+          // Multi-portion conditional / non-split claim without verifiedCalc: intersect claim-mentioned bases with active user bases.
+          const claimMentioned = extractAmounts(
+            `${iss.issue_title_th} ${iss.party_or_scope_th} ${iss.conclusion_th} ${iss.application_explanation_th}`
+          );
+          for (const b of claimMentioned) {
+            if (activeUserBases.has(b)) scopedBasesThb.add(b);
+          }
+          if (scopedBasesThb.size === 0 && activeUserBases.size === 1) {
+            for (const b of activeUserBases) scopedBasesThb.add(b);
+          }
+        }
+
+        for (const base of scopedBasesThb) {
+          for (const mult of [0.07, 0.063, 0.007, 1.07, 7 / 107, 100 / 107]) {
             const derived = Math.round(base * mult * 100) / 100;
             trustedTokens.add(String(derived));
             trustedTokens.add(derived.toLocaleString("en-US"));

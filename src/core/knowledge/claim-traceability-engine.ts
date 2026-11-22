@@ -2713,10 +2713,28 @@ export async function saveOrReviseAnswerServerVerified(
     if (citesCanonicalVatDecreeAndLocalTaxGuide) {
       const tokenSet = new Set<string>(verifiedTokensForThisClaimOnly || []);
       for (const t of ["6.3", "0.7", "7", "7.0"]) tokenSet.add(t);
-      for (const base of questionMonetaryBasesThb) {
+      // Scope derived VAT arithmetic STRICTLY to monetary bases mentioned in THIS claim that also appear in
+      // question_text (never pooling across sibling installments or inheriting superseded bases from r1!).
+      const claimNormForVat = thaiDigitsToArabic(rawClm.text || "");
+      const claimMentionedBases = new Set<number>();
+      for (const cm of claimNormForVat.matchAll(
+        /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+      )) {
+        const rawNum = (cm[1] || cm[2] || "").replace(/,/g, "");
+        const n = Number(rawNum);
+        if (!Number.isFinite(n) || n <= 0) continue;
+        claimMentionedBases.add(cm[3] === "ล้านบาท" ? n * 1_000_000 : n);
+      }
+      const scopedQuestionBases =
+        claimMentionedBases.size > 0
+          ? questionMonetaryBasesThb.filter((b) => claimMentionedBases.has(b))
+          : questionMonetaryBasesThb.length === 1
+            ? questionMonetaryBasesThb
+            : [];
+      for (const base of scopedQuestionBases) {
         tokenSet.add(String(base));
         tokenSet.add(base.toLocaleString("en-US"));
-        for (const mult of [0.07, 0.063, 0.007, 7 / 107, 100 / 107]) {
+        for (const mult of [0.07, 0.063, 0.007, 1.07, 7 / 107, 100 / 107]) {
           const derived = Math.round(base * mult * 100) / 100;
           tokenSet.add(String(derived));
           tokenSet.add(derived.toLocaleString("en-US"));

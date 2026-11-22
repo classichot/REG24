@@ -419,6 +419,37 @@ Receipt: [rc10_3_two_fact_risks_before_cd941d2.json](rc10_3_two_fact_risks_befor
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
+---
+
+## 14. Focused Controls Remediation (`bd35a46` Trace `trc.20bde13a5b05ab`) — VAT-Inclusive Gross Total & Per-Claim Base Scoping
+
+> **Evidence Classification**: All Vitest, build, and local control verifications below are **Engineering evidence** only. Fresh affected hosted preflight on the new immutable pin is required before marking Ready for Independent QA.
+
+- **Preserved Prior Baseline**: `bd35a46a196c639507bf9b3041a7df49e427eab0` (Vercel deployment `dpl_BT726Sm9HLRvJPjNzvsave7wxZYN`, URL `https://reg24-b2b0x1hqo-7-l-advisory.vercel.app/legal-review`, pushed tag `archive/b01-rc10.3-bd35a46`; baseline 4/4 preflight receipt `trc.9a58694e0348ca` preserved).
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TypeScript BM25+Graph, `gemini-4-neon @ low`, `0` changes under `data/`, `package.json`, `package-lock.json`, or `next.config.ts`.
+
+### 14.1 Material Control Failures Reproduced on Frozen `bd35a46`
+
+1. **Control A — Correct Total (`107,000 บาท` VAT-inclusive total) FAILED LIVE (`trc.20bde13a5b05ab`)**:
+   - On `https://reg24-b2b0x1hqo-7-l-advisory.vercel.app/legal-review`, asking for rate (`7.0%`), VAT amount (`7,000`), and VAT-inclusive total (`107,000`) on a `100,000` baht domestic service suppressed the calculation claim (`UNGROUNDED_NUMERIC_ASSERTION: 107000 บาท`) before publication, leaving only Claim 1 (`7.0%`) with neither `7,000` nor `107,000`.
+2. **Control B — Wrong Base (`4,200` from wrong `60,000` installment applied to `40,000` installment) FAILED**:
+   - Gate 5 in `grounded-llm-verifier.ts` and `saveOrReviseAnswerServerVerified` in `claim-traceability-engine.ts` pooled derived VAT tokens across all monetary amounts in the prompt (`40,000`, `60,000`, `100,000`) instead of scoping strictly to each claim's own valid taxable base, allowing `4,200 บาท` to pass on the `40,000 บาท` installment.
+
+### 14.2 Generalized Shared Logic Fix
+
+1. **Per-Claim Base Scoping, Installment/Superseded-Base Guards & Gross-Total Grounding (`src/core/knowledge/grounded-llm-verifier.ts`)**:
+   - Added `grossTotalThb = tax_base_thb + computed_tax_thb` (`107,000`) to `verifyProposedCalculation` verified tokens and `1.07` to Gate 5 VAT-inclusive total grounding.
+   - Added single-portion installment base validation (`tax_base_thb === sp.amount_thb`) and cross-turn superseded monetary base detection (`detectSupersededMonetaryBase`, requiring `source_turn > previous_turn` or explicit multi-turn edit cue) so stale Turn 1 bases (e.g., `100,000` after editing to `200,000`) and wrong-installment calculations are deterministically rejected without dropping supported sibling claims.
+   - Replaced blanket whole-prompt monetary pooling in Gate 5 with strict per-claim base scoping (`verifiedCalc.tax_base_thb`, single-portion `sp.amount_thb`, or intersection of claim-mentioned bases with active non-superseded user bases).
+2. **Per-Claim Scoped Re-Verification on Save (`src/core/knowledge/claim-traceability-engine.ts`)**:
+   - Scoped `saveOrReviseAnswerServerVerified` VAT-decree + local-tax derived tokens strictly to monetary bases present in **both** the specific claim text and `question_text` (including `1.07` VAT-inclusive total) while preserving zero numeric inheritance from `r1` on genuinely edited `r2` claims.
+
+### 14.3 Regression Verification Receipts (Engineering Evidence)
+
+- **Full 9-Suite Vitest Regression (`55/55` PASS, exit `0`, including Test #12 covering Controls A, B1, B2, and C)**: [rc10_3_focused_controls_vitest.log](rc10_3_focused_controls_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
+
 
 
 

@@ -1440,4 +1440,344 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
     expect(r3.claims.filter((c) => c.verification_decision === "supported").length).toBe(1);
     expect(r3.unresolved_issues.length).toBeGreaterThanOrEqual(1);
   });
+
+  it("12. Focused Controls A/B/C (trc.20bde13a5b05ab): VAT-inclusive total (107,000) survives Generate/Save/Reopen; wrong installment base (4,200 on 40k) & superseded multi-turn base (7,000 after 100k->200k) are withheld without dropping supported siblings; genuine edit (200k->14k/214k) recalculates without inheriting r1 numbers", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+    const state = store.getState();
+    const ledger = getUnifiedCitationLedgerView(store, "rel.B01.rc8");
+    const psg77_2 = ledger.passages["psg.7bdc85da3153a7"]!;
+    const psg78_1 = ledger.passages["psg.3228c2c7aaeb10"]!;
+    const psg80 = ledger.passages["psg.1b1abb8e7e22df"]!;
+    const psg790 = ledger.passages["psg.rc8.rd790.sec_3_quoted_rd646_sec_4"]!;
+    const psg799 = ledger.passages["psg.rc8.rd799.sec_3_quoted_rd646_sec_4"]!;
+    const psgLocal = ledger.passages["psg.3d0eb5636faa0e"]!;
+    expect(psg77_2 && psg78_1 && psg80 && psg790 && psg799 && psgLocal).toBeTruthy();
+
+    const mockInv = {
+      provider: "google_gemini" as const,
+      requested_model: "gemini-4-neon",
+      resolved_model: "gemini-4-neon",
+      actual_model_invoked: "gemini-4-neon",
+      pinned_settings: { thinking_level: "low" as const, temperature: 0, max_output_tokens: 16384, timeout_ms: 180000, store: false as const },
+      live_provider_called: true,
+      silent_fallback_disabled: true,
+      failure_classification: "NONE" as const,
+      http_status: 200,
+      latency_ms: 500,
+      input_tokens: 100,
+      output_tokens: 100,
+      total_tokens: 200,
+      estimated_cost_usd: 0.01,
+      provider_response_id: "ctrl12.mock",
+    };
+
+    const toPack = (p: typeof psg80, app: string[], exc: string[] = []) => ({
+      passage_id: p.passage_id,
+      work_id: p.doc_id,
+      version_id: p.version_id,
+      official_identifier: p.doc_id,
+      title_th: p.section_paragraph_path.join(" > "),
+      pinpoint: p.section_paragraph_path.join(" > "),
+      authority_level: "subordinate_legislation",
+      evidence_role: "governing" as const,
+      effective_dates: { valid_from: null, valid_to: null, temporal_applicability_hint: "IN_WINDOW" as const },
+      applicable_tax_point_dates: app,
+      excluded_tax_point_dates: exc,
+      verbatim_text: p.verbatim_text,
+    });
+
+    const rawAll = new Map(
+      [psg77_2, psg78_1, psg80, psg790, psg799, psgLocal].map((p) => [p.passage_id, state.passages[p.passage_id]!])
+    );
+
+    // Control A: Correct total (100,000 + 7,000 = 107,000) MUST pass verifier AND survive Save + idempotent replay!
+    const qA =
+      "บริษัท ธีต้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท ชำระวันที่ 15 พฤศจิกายน 2568 ระบุอัตราภาษี จำนวนภาษีมูลค่าเพิ่ม และยอดรวมทั้งสิ้นที่รวมภาษีมูลค่าเพิ่มแล้ว";
+    const flA = buildStructuredCaseFactLedger({ question: qA, applicableDate: null });
+    const verA = verifyAndRenderGroundedLlmDraft({
+      traceId: "trc.ctrlA.test12",
+      factLedger: flA,
+      passagePack: [toPack(psg80, ["2025-11-15"]), toPack(psg799, ["2025-11-15"]), toPack(psgLocal, ["2025-11-15"])] as never,
+      rawPassagesById: rawAll,
+      state,
+      llmOk: true,
+      invocationAudit: mockInv as never,
+      stagingFlagActive: true,
+      draft: {
+        answer_status: "ANSWERED",
+        overall_summary_th: "",
+        case_facts_used: [],
+        issues: [
+          {
+            issue_id: "CTRL-A1",
+            issue_title_th: "อัตราภาษีมูลค่าเพิ่ม จำนวนภาษี และยอดรวมทั้งสิ้น",
+            party_or_scope_th: "มูลค่า 100,000 บาท (15 พฤศจิกายน 2568)",
+            conclusion_th:
+              "เสียภาษีมูลค่าเพิ่มตามมาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 อัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นอัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 7,000 บาท และยอดรวมทั้งสิ้นที่รวมภาษีมูลค่าเพิ่มแล้วเท่ากับ 107,000 บาท",
+            material_facts_relied_on: ["มูลค่า 100,000 บาท", "ชำระวันที่ 15 พฤศจิกายน 2568"],
+            governing_passage_ids: [psg80.passage_id, psg799.passage_id, psgLocal.passage_id],
+            application_explanation_th:
+              "มาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 799) ลดอัตราภาษีมูลค่าเพิ่มคงจัดเก็บร้อยละ 6.3 รวมภาษีท้องถิ่น 1 ใน 9 (ร้อยละ 0.7) เป็นร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 7,000 บาท รวมเป็นเงินทั้งสิ้น 107,000 บาท",
+            authority_distinction_note_th: "มาตรา 80 + พ.ร.ฎ. 799 + คู่มือภาษีท้องถิ่น",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: {
+              is_computable_from_stated_facts: true,
+              formula_description_th: "100,000 x 7% = 7,000; รวม 107,000",
+              tax_base_thb: 100000,
+              exempt_amount_thb: 0,
+              taxable_amount_thb: 100000,
+              rate_pct: 7,
+              computed_tax_thb: 7000,
+              steps_th: ["100,000 x 7% = 7,000 บาท", "100,000 + 7,000 = 107,000 บาท"],
+              missing_inputs_th: [],
+            },
+          },
+        ],
+        assumptions_th: [],
+        clarification_questions_th: [],
+        evidence_gaps_th: [],
+      },
+    });
+    expect(verA.status).toBe("ANSWERED");
+    expect(verA.verified_issues.length).toBe(1);
+    expect(verA.audit_trace.rejected_claims.length).toBe(0);
+    expect(verA.claims[0]?.bound_calculation?.verified_numeric_tokens).toContain("107000");
+
+    // Control B1 (Wrong installment base): 4,200 (7% of wrong 60,000 installment) on 40,000 installment MUST be withheld
+    // while the supported sibling claim (60,000 -> 4,200 under RD 799) SURVIVES!
+    const qB =
+      "บริษัท โอเมก้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่ารวม 100,000 บาท โดยไม่มีการใช้บริการหรือออกใบกำกับภาษีก่อนหน้า ลูกค้าแบ่งชำระ 2 งวด คือ งวดที่ 1 จำนวน 40,000 บาท วันที่ 25 กันยายน 2568 และงวดที่ 2 จำนวน 60,000 บาท วันที่ 5 ตุลาคม 2568";
+    const flB = buildStructuredCaseFactLedger({ question: qB, applicableDate: null });
+    const verB = verifyAndRenderGroundedLlmDraft({
+      traceId: "trc.ctrlB.test12",
+      factLedger: flB,
+      passagePack: [
+        toPack(psg80, ["2025-09-25", "2025-10-05"]),
+        toPack(psg790, ["2025-09-25"], ["2025-10-05"]),
+        toPack(psg799, ["2025-10-05"], ["2025-09-25"]),
+        toPack(psgLocal, ["2025-09-25", "2025-10-05"]),
+      ] as never,
+      rawPassagesById: rawAll,
+      state,
+      llmOk: true,
+      invocationAudit: mockInv as never,
+      stagingFlagActive: true,
+      draft: {
+        answer_status: "ANSWERED",
+        overall_summary_th: "",
+        case_facts_used: [],
+        issues: [
+          {
+            issue_id: "CTRL-B-SUPPORTED-60K",
+            issue_title_th: "งวดที่ 2 วันที่ 5 ตุลาคม 2568 (60,000 บาท)",
+            party_or_scope_th: "งวดที่ 2 วันที่ 5 ตุลาคม 2568 จำนวน 60,000 บาท",
+            conclusion_th:
+              "สำหรับการให้บริการงวดที่ 2 วันที่ 5 ตุลาคม 2568 มูลค่า 60,000 บาท ให้ลดอัตราภาษีมูลค่าเพิ่มตามมาตรา 80 แห่งประมวลรัษฎากร ประกอบพระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 คงจัดเก็บในอัตราร้อยละ 6.3 รวมภาษีท้องถิ่นอีก 1 ใน 9 (ร้อยละ 0.7) เป็นอัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 4,200 บาท",
+            material_facts_relied_on: ["งวดที่ 2 วันที่ 5 ตุลาคม 2568 จำนวน 60,000 บาท"],
+            governing_passage_ids: [psg80.passage_id, psg799.passage_id, psgLocal.passage_id],
+            application_explanation_th:
+              "มาตรา 80 ประกอบพระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 ลดอัตราภาษีมูลค่าเพิ่มคงจัดเก็บร้อยละ 6.3 สำหรับความรับผิดถึงวันที่ 30 กันยายน 2569 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นอัตรารวมร้อยละ 7.0 จากฐาน 60,000 บาท คิดเป็นภาษีมูลค่าเพิ่ม 4,200 บาท",
+            authority_distinction_note_th: "มาตรา 80 + พ.ร.ฎ. 799 + คู่มือภาษีท้องถิ่น",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: {
+              is_computable_from_stated_facts: true,
+              formula_description_th: "60,000 x 7% = 4,200",
+              tax_base_thb: 60000,
+              exempt_amount_thb: 0,
+              taxable_amount_thb: 60000,
+              rate_pct: 7,
+              computed_tax_thb: 4200,
+              steps_th: ["60,000 x 7% = 4,200 บาท"],
+              missing_inputs_th: [],
+            },
+          },
+          {
+            issue_id: "CTRL-B-WRONG-BASE-40K-USING-4200",
+            issue_title_th: "งวดที่ 1 วันที่ 25 กันยายน 2568 (40,000 บาท)",
+            party_or_scope_th: "งวดที่ 1 วันที่ 25 กันยายน 2568 จำนวน 40,000 บาท",
+            conclusion_th:
+              "สำหรับการให้บริการงวดที่ 1 วันที่ 25 กันยายน 2568 มูลค่า 40,000 บาท เสียภาษีมูลค่าเพิ่มตามมาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 790) อัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 4,200 บาท",
+            material_facts_relied_on: ["งวดที่ 1 วันที่ 25 กันยายน 2568 จำนวน 40,000 บาท"],
+            governing_passage_ids: [psg80.passage_id, psg790.passage_id, psgLocal.passage_id],
+            application_explanation_th:
+              "มาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 790) ลดอัตราภาษีมูลค่าเพิ่มคงจัดเก็บร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 4,200 บาท",
+            authority_distinction_note_th: "มาตรา 80 + พ.ร.ฎ. 790",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: null,
+          },
+        ],
+        assumptions_th: [],
+        clarification_questions_th: [],
+        evidence_gaps_th: [],
+      },
+    });
+    expect(verB.verified_issues.map((v) => v.issue_id)).toEqual(["CTRL-B-SUPPORTED-60K"]);
+    expect(verB.audit_trace.rejected_claims.map((r) => r.issue_id)).toContain("CTRL-B-WRONG-BASE-40K-USING-4200");
+
+    // Control B2 (Superseded multi-turn base: Turn 1 ฿100,000 -> Turn 2 ฿200,000): stale ฿7,000 MUST be rejected!
+    const flSuperseded = buildStructuredCaseFactLedger({
+      question: "แก้ไขมูลค่าบริการเป็น 200,000 บาท ชำระวันที่ 15 พฤศจิกายน 2568 ต้องเสียภาษีมูลค่าเพิ่มเท่าไร",
+      applicableDate: null,
+      conversationHistory: [
+        {
+          role: "user",
+          content:
+            "บริษัท ธีต้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท ชำระวันที่ 15 พฤศจิกายน 2568",
+        },
+      ],
+    });
+    const verSuperseded = verifyAndRenderGroundedLlmDraft({
+      traceId: "trc.ctrlB2.superseded",
+      factLedger: flSuperseded,
+      passagePack: [toPack(psg80, ["2025-11-15"]), toPack(psg799, ["2025-11-15"]), toPack(psgLocal, ["2025-11-15"])] as never,
+      rawPassagesById: rawAll,
+      state,
+      llmOk: true,
+      invocationAudit: mockInv as never,
+      stagingFlagActive: true,
+      draft: {
+        answer_status: "ANSWERED",
+        overall_summary_th: "",
+        case_facts_used: [],
+        issues: [
+          {
+            issue_id: "CTRL-B2-STALE-100K-BASE",
+            issue_title_th: "คำนวณจากฐานเดิม 100,000 บาทที่ถูกแก้ไขทับแล้ว",
+            party_or_scope_th: "15 พฤศจิกายน 2568",
+            conclusion_th:
+              "เสียภาษีมูลค่าเพิ่มตามมาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 799) ร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นร้อยละ 7.0 คิดเป็นเงิน 7,000 บาท",
+            material_facts_relied_on: ["15 พฤศจิกายน 2568"],
+            governing_passage_ids: [psg80.passage_id, psg799.passage_id, psgLocal.passage_id],
+            application_explanation_th: "คำนวณจากฐานเดิม 100,000 บาท ได้ภาษีมูลค่าเพิ่ม 7,000 บาท",
+            authority_distinction_note_th: "มาตรา 80 + พ.ร.ฎ. 799",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: {
+              is_computable_from_stated_facts: true,
+              formula_description_th: "100,000 x 7% = 7,000",
+              tax_base_thb: 100000,
+              exempt_amount_thb: 0,
+              taxable_amount_thb: 100000,
+              rate_pct: 7,
+              computed_tax_thb: 7000,
+              steps_th: ["100,000 x 7% = 7,000 บาท"],
+              missing_inputs_th: [],
+            },
+          },
+        ],
+        assumptions_th: [],
+        clarification_questions_th: [],
+        evidence_gaps_th: [],
+      },
+    });
+    expect(verSuperseded.verified_issues.length).toBe(0);
+    expect(verSuperseded.audit_trace.rejected_calculations.length).toBe(1);
+    expect(verSuperseded.audit_trace.rejected_claims.map((r) => r.issue_id)).toContain("CTRL-B2-STALE-100K-BASE");
+
+    // Control C (Genuine edit on Save: r1 100k/7k/107k -> r2 edited to 200k/14k/214k):
+    // r2 MUST NOT inherit r1's 7,000 verification, MUST verify 14,000 & 214,000 cleanly, and MUST reject stale 7,000!
+    const ansC = `ans.rc103.ctrlC.${Date.now().toString(36)}`;
+    const makeRefC = (psg: typeof psg80, role: "primary_authority" | "official_summary_scope" = "primary_authority") => ({
+      link_id: `lnk.${ansC}.${psg.passage_id}`,
+      evidence_id: psg.passage_id,
+      doc_id: psg.doc_id,
+      version_id: psg.version_id,
+      extraction_revision_id: psg.extraction_revision_id,
+      support_role: role,
+      support_role_label_th: role,
+      required_group: "grp.vat_799",
+      citation_label_th: psg.section_paragraph_path.join(" > "),
+      issuer_name_th: "กรมสรรพากร",
+      source_family: "gazette_enactment" as const,
+      source_family_label_th: "ราชกิจจานุเบกษา",
+      record_type: "full_record" as const,
+      record_type_label_th: "ต้นฉบับทางการ",
+      date_relied_on: "2025-11-15",
+      official_url: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf",
+      official_url_with_anchor: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf#page=2",
+      resolver_url: `/api/v1/knowledge/evidence/${psg.passage_id}`,
+      locator: {
+        human_pinpoint_th: psg.section_paragraph_path.join(" > "),
+        section_paragraph_path: psg.section_paragraph_path,
+        physical_page_start: psg.physical_page_start,
+        physical_page_end: psg.physical_page_end,
+        printed_page_start: psg.printed_page_start,
+        printed_page_end: psg.printed_page_end,
+        anchors: [],
+      },
+      verification_status: "supported" as const,
+      link_health: "unchecked_live" as const,
+      link_health_notice_th: null,
+      last_successful_verification_at: null,
+      access_permission: "public" as const,
+      access_conditions_th: null,
+    });
+
+    const r1C = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text: qA,
+      save_operation_key: `op.ctrlC.r1.${Date.now()}`,
+      submitted_envelope: {
+        answer_id: ansC,
+        as_of_date: "2025-11-15",
+        status: "complete",
+        claims: [
+          {
+            claim_id: `clm.${ansC}.r1.1`,
+            claim_number: 1,
+            text: "การให้บริการมูลค่า 100,000 บาท เสียภาษีมูลค่าเพิ่มตามมาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 อัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นอัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 7,000 บาท และยอดรวมทั้งสิ้น 107,000 บาท",
+            claim_type: "interpretation",
+            claim_type_label_th: "การปรับใช้กฎหมาย",
+            premise_ids: [],
+            verification_decision: "supported",
+            published: true,
+            withheld_explanation_th: null,
+            evidence_references: [makeRefC(psg80), makeRefC(psg799), makeRefC(psgLocal, "official_summary_scope")],
+          },
+        ],
+      },
+    });
+    expect(r1C.status).toBe("complete");
+    expect(r1C.claims[0].text).toContain("107,000");
+
+    // Genuine edit to 200,000 -> 14,000 VAT / 214,000 gross total succeeds cleanly on r2
+    const qC2 =
+      "บริษัท ธีต้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 200,000 บาท ชำระวันที่ 15 พฤศจิกายน 2568 ระบุอัตราภาษี จำนวนภาษีมูลค่าเพิ่ม และยอดรวมทั้งสิ้นที่รวมภาษีมูลค่าเพิ่มแล้ว";
+    const r2C = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text: qC2,
+      revision_reason: "Genuine edit updating taxable base from 100,000 to 200,000 THB",
+      save_operation_key: `op.ctrlC.r2.${Date.now()}`,
+      submitted_envelope: {
+        ...r1C,
+        claims: [
+          {
+            ...r1C.claims[0],
+            text: "การให้บริการมูลค่า 200,000 บาท เสียภาษีมูลค่าเพิ่มตามมาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 อัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นอัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 14,000 บาท และยอดรวมทั้งสิ้น 214,000 บาท",
+          },
+        ],
+      },
+    });
+    expect(r2C.answer_revision).toBe(`${ansC}.r2`);
+    expect(r2C.status).toBe("complete");
+    expect(r2C.claims.filter((c) => c.verification_decision === "supported").length).toBe(1);
+
+    // Attempting to save r3 on the 200,000 question while carrying stale 7,000 from r1 MUST be rejected (422)!
+    await expect(
+      saveOrReviseAnswerServerVerified(store, {
+        actor: QA_ACTOR,
+        question_text: qC2,
+        revision_reason: "Negative control: stale 7,000 from r1 on 200,000 base",
+        save_operation_key: `op.ctrlC.r3.stale.${Date.now()}`,
+        submitted_envelope: {
+          ...r2C,
+          claims: [
+            {
+              ...r2C.claims[0],
+              text: "การให้บริการมูลค่า 200,000 บาท เสียภาษีมูลค่าเพิ่มตามมาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 อัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นอัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 7,000 บาท",
+            },
+          ],
+        },
+      })
+    ).rejects.toThrow(/UNSUPPORTED_ANSWER_REJECTED_422/);
+  });
 });
