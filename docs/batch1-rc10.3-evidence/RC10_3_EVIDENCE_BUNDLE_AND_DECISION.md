@@ -488,6 +488,39 @@ Receipt: [rc10_3_two_fact_risks_before_cd941d2.json](rc10_3_two_fact_risks_befor
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
+---
+
+## 16. B2 Save-Path Calculation Binding, Pre-Generate Read-Only Reviewer Verification & Preview Model-Display Alignment (`4698e34` Follow-Up)
+
+> **Evidence Classification**: All Vitest, reproduction, build, and staging-runner results below are **Engineering evidence** only and remain strictly separate from Independent QA's blank scorecard.
+
+- **Preserved Prior Baseline**: `4698e34b96b3a8ef2003e87e3c5717dce8db957a` (authenticated deployment `dpl_AvANNMTmMMHiEEbpdcukRN6uZBNL`, URL `https://reg24-9xko7gd3q-7-l-advisory.vercel.app/legal-review`, archived tag `archive/b01-rc10.3-4698e34`).
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TypeScript BM25+Graph, `gemini-4-neon @ low` (zero silent fallback), `0` changes under `data/`, `package.json`, `package-lock.json`, or `next.config.ts`.
+
+### 16.1 Defects Reproduced on Frozen `4698e34`
+
+1. **B2 Save-Path Stale Calculation Carryover (Reproduced Locally)**:
+   - On `4698e34`, `saveOrReviseAnswerServerVerified` built `predecessorVerifiedCalcsBySignature` keyed solely by `${claim.text}::${sortedEvidenceIds}` without verifying that `question_text`, `as_of_date`, and the active non-superseded taxable base were unchanged from `r1`. Carrying `r1`'s exact `7,000` claim wording & citations onto an `r2` corrected to `200,000` inherited `r1`'s `bound_calculation` and published the stale `7,000` (`status: "complete"`, `2/2` claims).
+   - Additionally, correction phrasing mentioning both old and new bases (`"จาก 100,000 บาท เป็น 200,000 บาท"`) extracted both amounts into `questionMonetaryBasesThb`, allowing stale `7,000` to re-ground from the superseded `100,000` base.
+2. **Pre-Generate Reviewer Identity & Preview Model Display Disagreement**:
+   - `GET /api/v1/knowledge/environment` checked only `REG24_GROUNDED_LLM_STAGING_ENABLED === "true"`, reporting `baseline_deterministic` / `reg24-deterministic-legal-graphrag-v2.0` / `silent_fallback_disabled: false` on Preview even though `/legal-review` queries executed `google-gemini:gemini-4-neon @ low` with silent fallback disabled.
+   - `/legal-review` had no read-only pre-Generate server-verified reviewer/tenant status indicator before running a query.
+
+### 16.2 Surgical Fixes
+
+1. **Fact-Bound Predecessor Calculation Reuse & Superseded-Base Filtering (`src/core/knowledge/claim-traceability-engine.ts`)**:
+   - Excluded superseded old bases in explicit correction patterns (`จาก <old> เป็น <new>` / `from <old> to <new>`) from `questionMonetaryBasesThb`.
+   - Restricted `predecessorVerifiedCalcsBySignature` reuse strictly to revisions where normalized `question_text` and `as_of_date` are unchanged from the predecessor AND the verified taxable base remains active and non-superseded. Unchanged re-Save remains idempotent (`__idempotent_replay = true`); any base change forces fresh re-verification, withholding stale `7,000` while preserving supported sibling claims and leaving historical `r1` intact.
+2. **Read-Only Pre-Generate Reviewer Identity Check & Preview Model Policy Alignment (`src/core/knowledge/trial-gate.ts`, `src/core/knowledge/query.ts`, `src/app/api/v1/knowledge/environment/route.ts`, `src/app/legal-review/page.tsx`)**:
+   - Added read-only `inspectAuthenticatedReviewerReadOnly(req)` (strictly `SELECT`-only, zero quota burn, never echoes tokens/emails) returned as `authenticated_reviewer` on `GET /api/v1/knowledge/environment`, and surfaced a live **Server-Verified Reviewer & Tenant** badge + **"ตรวจสอบตัวตน (Verify)"** button on `/legal-review` before Generate.
+   - Shared `isDefaultGroundedLlmStagingEnabled()` across `query.ts` and `environment/route.ts` so Vercel Preview defaults consistently to `llm_grounded` / `google-gemini:gemini-4-neon @ low` / `silent_fallback_disabled: true` while Production remains strictly off.
+
+### 16.3 Regression Verification Receipts (Engineering Evidence)
+
+- **Full 9-Suite Vitest Regression (`57/57` PASS, exit `0`, including Test #14 covering B2 stale calculation carryover, explicit `100k -> 200k` phrasing, unchanged idempotent Save, read-only pre-Generate reviewer check, and Preview model policy alignment)**: [rc10_3_b2_save_and_preflight_vitest.log](rc10_3_b2_save_and_preflight_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
+
 
 
 

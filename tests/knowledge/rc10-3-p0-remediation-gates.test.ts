@@ -1975,4 +1975,204 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       else process.env.REG24_TRIAL_RATE_LIMIT = prevRateLimit;
     }
   });
+
+  it("14. B2 Save-Path Calculation Binding, Unchanged Idempotent Save, Read-Only Pre-Generate Reviewer Check & Preview Model Alignment", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+    setDefaultKnowledgeStoreForTesting(store);
+    const ledger = getUnifiedCitationLedgerView(store, "rel.B01.rc8");
+    const psg80 = ledger.passages["psg.1b1abb8e7e22df"]!;
+    const psg799 = ledger.passages["psg.rc8.rd799.sec_3_quoted_rd646_sec_4"]!;
+    const psgLocal = ledger.passages["psg.3d0eb5636faa0e"]!;
+    const mkRef = (p: typeof psg80, role: "primary_authority" | "supporting_guidance" = "primary_authority") => ({
+      evidence_id: p.passage_id,
+      work_id: p.doc_id,
+      version_id: p.version_id,
+      citation_label_th: p.section_paragraph_path.join(" > "),
+      official_url: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf",
+      authority_level: "subordinate_legislation" as const,
+      support_role: role,
+    });
+
+    const refs = [mkRef(psg80), mkRef(psg799), mkRef(psgLocal, "supporting_guidance")];
+    const rateClaimText =
+      "การให้บริการในประเทศไทยซึ่งชำระวันที่ 15 พฤศจิกายน 2568 อยู่ภายใต้มาตรา 80 แห่งประมวลรัษฎากร ประกอบ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 คงจัดเก็บภาษีมูลค่าเพิ่มอัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นอัตรารวมร้อยละ 7.0";
+    const calcClaimTextR1 =
+      "การให้บริการมูลค่า 100,000 บาท เสียภาษีมูลค่าเพิ่มตามมาตรา 80 ประกอบ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 อัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 7,000 บาท และยอดรวมทั้งสิ้น 107,000 บาท";
+    const q1 =
+      "บริษัท ธีต้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท ชำระวันที่ 15 พฤศจิกายน 2568 (ยังไม่ออกใบกำกับภาษี) ระบุอัตราภาษีมูลค่าเพิ่ม จำนวนภาษีมูลค่าเพิ่ม และยอดรวมทั้งสิ้นที่รวมภาษีมูลค่าเพิ่มแล้ว";
+    const ansId = `ans.rc103.b2save.${Date.now().toString(36)}`;
+    const realTokens = ["6.3", "0.7", "7", "7.0", "100000", "100,000", "7000", "7,000", "107000", "107,000"];
+
+    // 1) Valid r1 on 100,000 base with server-verified bound_calculation
+    const r1 = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text: q1,
+      revision_reason: "Initial verified answer from query endpoint (100,000 base)",
+      save_operation_key: `op.b2save.r1.${Date.now()}`,
+      query_persistence_context: {
+        trusted_calculations_by_claim_id: {
+          "clm.r1.calc": {
+            calculation_id: "calc.b2save.r1",
+            rule_id: "VAT_RATE_7PCT",
+            inputs: { tax_base_thb: 100000, exempt_amount_thb: 0, rate_pct: 7 },
+            outputs: { taxable_amount_thb: 100000, computed_tax_thb: 7000 },
+            steps_th: ["100,000 x 7% = 7,000 บาท", "100,000 + 7,000 = 107,000 บาท"],
+            source_versions: [],
+            verified_numeric_tokens: realTokens,
+            verifier_version: "reg24-llm-calc-verifier-v1.1",
+            verified_at: new Date().toISOString(),
+          },
+        },
+        trusted_calculation_tokens_by_claim_id: { "clm.r1.calc": realTokens },
+      } as never,
+      submitted_envelope: {
+        answer_id: ansId,
+        as_of_date: "2025-11-15",
+        status: "complete",
+        claims: [
+          { claim_id: "clm.r1.rate", claim_type: "legal_conclusion", text: rateClaimText, evidence_references: refs },
+          { claim_id: "clm.r1.calc", claim_type: "legal_conclusion", text: calcClaimTextR1, evidence_references: refs },
+        ],
+      } as never,
+    });
+    expect(r1.status).toBe("complete");
+    expect(r1.claims).toHaveLength(2);
+    expect(r1.claims.some((c) => c.text.includes("7,000") && Boolean(c.bound_calculation))).toBe(true);
+
+    // 2) Positive control: unchanged re-save of r1 remains idempotent!
+    const r1Replay = (await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text: q1,
+      save_operation_key: `op.b2save.r1.ui_save.${Date.now()}`,
+      submitted_envelope: r1,
+    })) as typeof r1 & { __idempotent_replay?: boolean };
+    expect(r1Replay.__idempotent_replay).toBe(true);
+    expect(r1Replay.answer_revision).toBe(r1.answer_revision);
+    expect(r1Replay.claims).toHaveLength(2);
+
+    // 3) Negative control (B2 exact carryover): base corrected to 200,000 while retaining r1's EXACT old 7,000 wording & citations!
+    const r2 = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text:
+        "แก้ไขข้อมูลมูลค่าค่าบริการเป็น 200,000 บาท (ชำระวันที่ 15 พฤศจิกายน 2568 เช่นเดิม และยังไม่ออกใบกำกับภาษี) ต้องเสียภาษีมูลค่าเพิ่มอัตราเท่าไรและกี่บาท",
+      revision_reason: "B2 negative fixture: base changed 100k -> 200k while carrying old 7,000 wording & citations",
+      save_operation_key: `op.b2save.r2.${Date.now()}`,
+      submitted_envelope: {
+        answer_id: ansId,
+        answer_revision: r1.answer_revision,
+        supersedes_answer_revision: r1.answer_revision,
+        as_of_date: "2025-11-15",
+        status: "complete",
+        claims: [
+          { claim_id: "clm.r2.rate", claim_type: "legal_conclusion", text: rateClaimText, evidence_references: refs },
+          { claim_id: "clm.r2.stale", claim_type: "legal_conclusion", text: calcClaimTextR1, evidence_references: refs },
+        ],
+      } as never,
+    });
+    expect(r2.status).toBe("partial");
+    expect(r2.claims).toHaveLength(1);
+    expect(r2.claims[0].text).toBe(rateClaimText);
+    expect(r2.claims.some((c) => c.text.includes("7,000"))).toBe(false);
+
+    // 4) Negative control (B2 "จาก 100,000 บาท เป็น 200,000 บาท" phrasing): superseded 100,000 MUST NOT ground 7,000!
+    const r3 = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text:
+        "แก้ไขข้อมูลมูลค่าค่าบริการจาก 100,000 บาท เป็น 200,000 บาท (ชำระวันที่ 15 พฤศจิกายน 2568) ต้องเสียภาษีมูลค่าเพิ่มกี่บาท",
+      revision_reason: "B2 variant: explicit from-100k-to-200k correction carrying stale 7,000",
+      save_operation_key: `op.b2save.r3.${Date.now()}`,
+      submitted_envelope: {
+        answer_id: ansId,
+        answer_revision: r2.answer_revision,
+        supersedes_answer_revision: r2.answer_revision,
+        as_of_date: "2025-11-15",
+        status: "complete",
+        claims: [
+          { claim_id: "clm.r3.rate", claim_type: "legal_conclusion", text: rateClaimText, evidence_references: refs },
+          { claim_id: "clm.r3.stale", claim_type: "legal_conclusion", text: calcClaimTextR1, evidence_references: refs },
+        ],
+      } as never,
+    });
+    expect(r3.status).toBe("partial");
+    expect(r3.claims).toHaveLength(1);
+    expect(r3.claims.some((c) => c.text.includes("7,000"))).toBe(false);
+
+    // Original historical r1 MUST remain intact on Reopen
+    const r1Reopened = reopenSavedTraceableAnswer(store, r1.answer_revision, QA_ACTOR);
+    expect(r1Reopened.answer?.status).toBe("complete");
+    expect(r1Reopened.answer?.claims).toHaveLength(2);
+
+    // 5) Read-only pre-Generate reviewer check + Preview model policy alignment on GET /api/v1/knowledge/environment
+    const { GET: getEnvironment } = await import("../../src/app/api/v1/knowledge/environment/route");
+    const prevVercelEnv = process.env.VERCEL_ENV;
+    const prevGroundedFlag = process.env.REG24_GROUNDED_LLM_STAGING_ENABLED;
+    const prevInviteOnly = process.env.REG24_TRIAL_INVITE_ONLY;
+    const prevInviteCodes = process.env.REG24_TRIAL_INVITE_CODES;
+    const prevEnvScope = process.env.REG24_TRIAL_ENV_SCOPE;
+    const tok = "test-readonly-reviewer-verify-token-2026";
+    process.env.VERCEL_ENV = "preview";
+    delete process.env.REG24_GROUNDED_LLM_STAGING_ENABLED;
+    process.env.REG24_TRIAL_INVITE_ONLY = "1";
+    process.env.REG24_TRIAL_INVITE_CODES = tok;
+    process.env.REG24_TRIAL_ENV_SCOPE = "staging";
+
+    try {
+      // Anonymous check: model policy aligned to gemini-4-neon @ low (no silent fallback) + reviewer UNVERIFIED
+      const anonEnvRes = await getEnvironment(new Request("http://localhost/api/v1/knowledge/environment"));
+      expect(anonEnvRes.status).toBe(200);
+      const anonEnv = (await anonEnvRes.json()) as {
+        model_and_verifiers: { generation_mode: string; model_id: string; thinking_level: string; silent_fallback_disabled: boolean };
+        authenticated_reviewer: { verified: boolean; gate_enabled: boolean; actor_id: string | null; tenant_id: string | null; error_code: string | null };
+      };
+      expect(anonEnv.model_and_verifiers.generation_mode).toBe("llm_grounded");
+      expect(anonEnv.model_and_verifiers.model_id).toBe("google-gemini:gemini-4-neon");
+      expect(anonEnv.model_and_verifiers.thinking_level).toBe("low");
+      expect(anonEnv.model_and_verifiers.silent_fallback_disabled).toBe(true);
+      expect(anonEnv.authenticated_reviewer.verified).toBe(false);
+      expect(anonEnv.authenticated_reviewer.gate_enabled).toBe(true);
+      expect(anonEnv.authenticated_reviewer.actor_id).toBeNull();
+      expect(anonEnv.authenticated_reviewer.error_code).toBe("TRIAL_INVITE_REQUIRED_401");
+
+      // Authenticated check (with spoofed x-reg24-actor-id ignored): reports server-verified actor & tenant!
+      const authEnvRes = await getEnvironment(
+        new Request("http://localhost/api/v1/knowledge/environment", {
+          headers: {
+            "x-reg24-trial-invite": tok,
+            "x-reg24-actor-id": "spoofed.display@evil.example",
+          },
+        })
+      );
+      expect(authEnvRes.status).toBe(200);
+      const authEnv = (await authEnvRes.json()) as {
+        authenticated_reviewer: { verified: boolean; actor_id: string; tenant_id: string; error_code: string | null };
+      };
+      expect(authEnv.authenticated_reviewer.verified).toBe(true);
+      expect(authEnv.authenticated_reviewer.actor_id).toMatch(/^trial\.user\.[0-9a-f]{14}@reg24\.th$/);
+      expect(authEnv.authenticated_reviewer.tenant_id).toMatch(/^tenant\.trial\.[0-9a-f]{14}$/);
+      expect(authEnv.authenticated_reviewer.error_code).toBeNull();
+
+      // Invalid token check
+      const badEnvRes = await getEnvironment(
+        new Request("http://localhost/api/v1/knowledge/environment", {
+          headers: { "x-reg24-trial-invite": "invalid-wrong-token" },
+        })
+      );
+      const badEnv = (await badEnvRes.json()) as {
+        authenticated_reviewer: { verified: boolean; error_code: string | null };
+      };
+      expect(badEnv.authenticated_reviewer.verified).toBe(false);
+      expect(badEnv.authenticated_reviewer.error_code).toBe("TRIAL_INVITE_INVALID_401");
+    } finally {
+      if (prevVercelEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = prevVercelEnv;
+      if (prevGroundedFlag === undefined) delete process.env.REG24_GROUNDED_LLM_STAGING_ENABLED;
+      else process.env.REG24_GROUNDED_LLM_STAGING_ENABLED = prevGroundedFlag;
+      if (prevInviteOnly === undefined) delete process.env.REG24_TRIAL_INVITE_ONLY;
+      else process.env.REG24_TRIAL_INVITE_ONLY = prevInviteOnly;
+      if (prevInviteCodes === undefined) delete process.env.REG24_TRIAL_INVITE_CODES;
+      else process.env.REG24_TRIAL_INVITE_CODES = prevInviteCodes;
+      if (prevEnvScope === undefined) delete process.env.REG24_TRIAL_ENV_SCOPE;
+      else process.env.REG24_TRIAL_ENV_SCOPE = prevEnvScope;
+    }
+  });
 });

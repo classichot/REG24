@@ -128,13 +128,28 @@ export default function LegalTeamReviewStudioPage() {
     environment_scope: string;
     git_branch: string;
     git_commit_sha: string;
+    deployment_id: string | null;
+    invite_only_trial_gate_enabled: boolean;
     shared_neon_postgres_connected: boolean;
     release_id: string;
     manifest_id: string | null;
     manifest_hash: string | null;
     eligible_official_documents: number;
     eligible_evidence_passages: number;
+    model_id: string;
+    thinking_level: string | null;
+    silent_fallback_disabled: boolean;
+    authenticated_reviewer: {
+      verified: boolean;
+      gate_enabled: boolean;
+      actor_id: string | null;
+      tenant_id: string | null;
+      invite_id: string | null;
+      environment_scope: string;
+      error_code: string | null;
+    } | null;
   } | null>(null);
+  const [identityCheckBusy, setIdentityCheckBusy] = useState<boolean>(false);
 
   const buildHeaders = useCallback((): Record<string, string> => {
     const h: Record<string, string> = { "Content-Type": "application/json" };
@@ -155,6 +170,57 @@ export default function LegalTeamReviewStudioPage() {
     return h;
   }, [inviteCode, reviewerName]);
 
+  const applyEnvJson = useCallback((envJson: Record<string, unknown>) => {
+    const e = envJson.environment as Record<string, unknown>;
+    const d = envJson.data_version as Record<string, unknown>;
+    const m = (envJson.model_and_verifiers || {}) as Record<string, unknown>;
+    const ar = (envJson.authenticated_reviewer || null) as {
+      verified: boolean;
+      gate_enabled: boolean;
+      actor_id: string | null;
+      tenant_id: string | null;
+      invite_id: string | null;
+      environment_scope: string;
+      error_code: string | null;
+    } | null;
+    setEnvInfo({
+      environment_scope: String(e.environment_scope || "staging"),
+      git_branch: String(e.git_branch || ""),
+      git_commit_sha: String(e.git_commit_sha || ""),
+      deployment_id: (e.deployment_id as string | null) ?? null,
+      invite_only_trial_gate_enabled: Boolean(e.invite_only_trial_gate_enabled),
+      shared_neon_postgres_connected: Boolean(e.shared_neon_postgres_connected),
+      release_id: String(d.release_id || ""),
+      manifest_id: (d.manifest_id as string | null) ?? null,
+      manifest_hash: (d.manifest_hash as string | null) ?? null,
+      eligible_official_documents: Number(d.eligible_official_documents || 0),
+      eligible_evidence_passages: Number(d.eligible_evidence_passages || 0),
+      model_id: String(m.model_id || "unknown"),
+      thinking_level: (m.thinking_level as string | null) ?? null,
+      silent_fallback_disabled: Boolean(m.silent_fallback_disabled),
+      authenticated_reviewer: ar,
+    });
+  }, []);
+
+  const verifyServerIdentityReadOnly = useCallback(async () => {
+    setIdentityCheckBusy(true);
+    try {
+      const envRes = await fetch("/api/v1/knowledge/environment", {
+        method: "GET",
+        headers: buildHeaders(),
+        cache: "no-store",
+      });
+      const envJson = await envRes.json();
+      if (envRes.ok && envJson.ok) {
+        applyEnvJson(envJson);
+      }
+    } catch {
+      // Non-fatal read-only check
+    } finally {
+      setIdentityCheckBusy(false);
+    }
+  }, [buildHeaders, applyEnvJson]);
+
   const loadFeedbackHistory = useCallback(async () => {
     try {
       const [fbRes, envRes, packRes] = await Promise.all([
@@ -165,6 +231,7 @@ export default function LegalTeamReviewStudioPage() {
         fetch("/api/v1/knowledge/environment", {
           method: "GET",
           headers: buildHeaders(),
+          cache: "no-store",
         }),
         fetch("/api/v1/knowledge/legal-spotcheck-cases", {
           method: "GET",
@@ -178,17 +245,7 @@ export default function LegalTeamReviewStudioPage() {
       }
       const envJson = await envRes.json();
       if (envRes.ok && envJson.ok) {
-        setEnvInfo({
-          environment_scope: envJson.environment.environment_scope,
-          git_branch: envJson.environment.git_branch,
-          git_commit_sha: envJson.environment.git_commit_sha,
-          shared_neon_postgres_connected: envJson.environment.shared_neon_postgres_connected,
-          release_id: envJson.data_version.release_id,
-          manifest_id: envJson.data_version.manifest_id,
-          manifest_hash: envJson.data_version.manifest_hash,
-          eligible_official_documents: envJson.data_version.eligible_official_documents,
-          eligible_evidence_passages: envJson.data_version.eligible_evidence_passages,
-        });
+        applyEnvJson(envJson);
       }
       const packJson = await packRes.json();
       if (packRes.ok && packJson.ok && Array.isArray(packJson.cases)) {
@@ -197,7 +254,7 @@ export default function LegalTeamReviewStudioPage() {
     } catch {
       // Non-fatal on initial load
     }
-  }, [buildHeaders]);
+  }, [buildHeaders, applyEnvJson]);
 
   const buildGroundedAnswerFromEnvelope = useCallback(
     (env: TraceableAnswerEnvelope): GroundedAnswer => {
@@ -744,22 +801,71 @@ export default function LegalTeamReviewStudioPage() {
                   fontSize: "12px",
                   color: "#cbd5e1",
                   fontFamily: "ui-monospace, monospace",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "4px",
                 }}
               >
-                Env: <strong>{envInfo.environment_scope}</strong> · Release:{" "}
-                <strong>{envInfo.release_id}</strong> ({envInfo.manifest_id || "man.B01.rc5"} ·{" "}
-                {envInfo.manifest_hash ? `${envInfo.manifest_hash.slice(0, 12)}…` : "-"}) · Eligible
-                Sources: <strong>{envInfo.eligible_official_documents.toLocaleString()}</strong> docs
-                / <strong>{envInfo.eligible_evidence_passages.toLocaleString()}</strong> passages ·
-                Commit: <strong>{envInfo.git_commit_sha.slice(0, 10)}</strong> · Neon DB:{" "}
-                <strong>{envInfo.shared_neon_postgres_connected ? "connected" : "local"}</strong>
+                <div>
+                  Env: <strong>{envInfo.environment_scope}</strong> · Release:{" "}
+                  <strong>{envInfo.release_id}</strong> ({envInfo.manifest_id || "man.B01.rc5"} ·{" "}
+                  {envInfo.manifest_hash ? `${envInfo.manifest_hash.slice(0, 12)}…` : "-"}) · Eligible
+                  Sources: <strong>{envInfo.eligible_official_documents.toLocaleString()}</strong> docs
+                  / <strong>{envInfo.eligible_evidence_passages.toLocaleString()}</strong> passages ·
+                  Commit: <strong>{envInfo.git_commit_sha.slice(0, 10)}</strong>
+                  {envInfo.deployment_id ? (
+                    <>
+                      {" "}
+                      · Deployment: <strong>{envInfo.deployment_id}</strong>
+                    </>
+                  ) : null}{" "}
+                  · Neon DB: <strong>{envInfo.shared_neon_postgres_connected ? "connected" : "local"}</strong>
+                </div>
+                <div>
+                  Model Policy: <strong>{envInfo.model_id}</strong>
+                  {envInfo.thinking_level ? (
+                    <>
+                      {" "}
+                      @ <strong>{envInfo.thinking_level}</strong>
+                    </>
+                  ) : null}{" "}
+                  · Silent Fallback:{" "}
+                  <strong>{envInfo.silent_fallback_disabled ? "disabled" : "enabled"}</strong> ·
+                  Reviewer Gate:{" "}
+                  <strong>{envInfo.invite_only_trial_gate_enabled ? "ON (invite-only)" : "OFF"}</strong>
+                </div>
+                {envInfo.authenticated_reviewer ? (
+                  <div
+                    style={{
+                      color: envInfo.authenticated_reviewer.verified ? "#4ade80" : "#fbbf24",
+                    }}
+                  >
+                    Server-Verified Reviewer:{" "}
+                    {envInfo.authenticated_reviewer.verified ? (
+                      <>
+                        <strong>{envInfo.authenticated_reviewer.actor_id}</strong> · Tenant:{" "}
+                        <strong>{envInfo.authenticated_reviewer.tenant_id}</strong>
+                        {envInfo.authenticated_reviewer.invite_id ? (
+                          <>
+                            {" "}
+                            · Invite: <strong>{envInfo.authenticated_reviewer.invite_id}</strong>
+                          </>
+                        ) : null}
+                      </>
+                    ) : (
+                      <strong>
+                        UNVERIFIED ({envInfo.authenticated_reviewer.error_code || "NO_INVITE"} — กรุณากรอกรหัสเชิญแล้วกดตรวจสอบตัวตนก่อนรันคำถาม; ชื่อที่พิมพ์เองไม่ยืนยันตัวตน)
+                      </strong>
+                    )}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center", flexWrap: "wrap" }}>
             <input
               type="text"
-              placeholder="ชื่อผู้ตรวจทาน (เช่น Beer / ทนายความ)"
+              placeholder="ชื่อแสดงผล (ไม่ใช้ยืนยันตัวตน)"
               value={reviewerName}
               onChange={(e) => setReviewerName(e.target.value)}
               style={{
@@ -768,7 +874,7 @@ export default function LegalTeamReviewStudioPage() {
                 border: "1px solid #374151",
                 padding: "7px 10px",
                 fontSize: "13px",
-                minWidth: "220px",
+                minWidth: "200px",
               }}
             />
             <input
@@ -776,6 +882,7 @@ export default function LegalTeamReviewStudioPage() {
               placeholder="รหัสเชิญ (ถ้าเปิดโหมด Invite Gate)"
               value={inviteCode}
               onChange={(e) => setInviteCode(e.target.value)}
+              onBlur={() => void verifyServerIdentityReadOnly()}
               style={{
                 background: "#111827",
                 color: "#f9fafb",
@@ -785,6 +892,22 @@ export default function LegalTeamReviewStudioPage() {
                 width: "210px",
               }}
             />
+            <button
+              type="button"
+              disabled={identityCheckBusy}
+              onClick={() => void verifyServerIdentityReadOnly()}
+              style={{
+                background: "#0f766e",
+                color: "#f0fdfa",
+                border: "1px solid #14b8a6",
+                padding: "7px 11px",
+                fontSize: "12px",
+                fontWeight: 700,
+                cursor: identityCheckBusy ? "wait" : "pointer",
+              }}
+            >
+              {identityCheckBusy ? "กำลังตรวจ..." : "ตรวจสอบตัวตน (Verify)"}
+            </button>
             <a
               href="/admin/knowledge/batches?batch=B01"
               style={{

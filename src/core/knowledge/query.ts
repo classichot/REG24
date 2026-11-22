@@ -541,12 +541,21 @@ function buildSingleAnswerPremiseAndOperativeSummary(params: {
   return notes;
 }
 
+export function isDefaultGroundedLlmStagingEnabled(): boolean {
+  // Staging/Preview default: strictly disabled in production until separate Owner release approval.
+  if (process.env.VERCEL_ENV === "production") return false;
+  const rawFlag = (process.env.REG24_GROUNDED_LLM_STAGING_ENABLED || "").trim().toLowerCase();
+  if (rawFlag === "false" || rawFlag === "0") return false;
+  if (rawFlag === "true" || rawFlag === "1") return true;
+  return process.env.VERCEL_ENV === "preview";
+}
+
 export function isGroundedLlmStagingModeEnabled(req: QueryRequest): boolean {
   // Staging-only flag: strictly disabled in production until separate Owner release approval.
   if (process.env.VERCEL_ENV === "production") return false;
   if (req.answer_generation_mode === "baseline_deterministic") return false;
   if (req.answer_generation_mode === "llm_grounded") return true;
-  return process.env.REG24_GROUNDED_LLM_STAGING_ENABLED === "true";
+  return isDefaultGroundedLlmStagingEnabled();
 }
 
 export interface RealAppEvidenceAssemblyCapture {

@@ -174,6 +174,101 @@ function resolveAllowedInviteHashes(): Set<string> {
   return out;
 }
 
+export interface AuthenticatedReviewerReadOnlyStatus {
+  verified: boolean;
+  gate_enabled: boolean;
+  actor_id: string | null;
+  tenant_id: string | null;
+  invite_id: string | null;
+  environment_scope: "staging" | "trial";
+  error_code: string | null;
+}
+
+/**
+ * Strictly read-only pre-Generate check that reports the server-verified reviewer & tenant identity
+ * without mutating state, burning query quota, or echoing raw tokens/emails.
+ */
+export async function inspectAuthenticatedReviewerReadOnly(
+  req: Request
+): Promise<AuthenticatedReviewerReadOnlyStatus> {
+  const inviteOnly = process.env.REG24_TRIAL_INVITE_ONLY === "1";
+  const envScope: "staging" | "trial" =
+    process.env.REG24_TRIAL_ENV_SCOPE === "staging" ? "staging" : "trial";
+  const token = extractInviteToken(req);
+  const tokenHash = token ? sha256Bytes(token) : null;
+
+  if (!tokenHash) {
+    return {
+      verified: false,
+      gate_enabled: inviteOnly,
+      actor_id: null,
+      tenant_id: null,
+      invite_id: null,
+      environment_scope: envScope,
+      error_code: inviteOnly ? "TRIAL_INVITE_REQUIRED_401" : null,
+    };
+  }
+
+  const allowedHashes = resolveAllowedInviteHashes();
+  let matched = allowedHashes.has(tokenHash);
+  let matchedInviteId: string | null = matched ? "env.allowed_invite" : null;
+  const dbTransport = resolveActiveDbTransport();
+
+  if (dbTransport) {
+    try {
+      const dbInviteRes = await dbTransport<{ invite_id: string }>(
+        `SELECT invite_id
+         FROM trial_invite_credentials
+         WHERE token_sha256 = $1
+           AND environment_scope = $2
+           AND revoked_at IS NULL
+           AND expires_at > NOW()
+         LIMIT 1`,
+        [tokenHash, envScope]
+      );
+      if (dbInviteRes.rows.length > 0) {
+        matched = true;
+        matchedInviteId = dbInviteRes.rows[0].invite_id;
+      }
+    } catch {
+      if (!matched) {
+        return {
+          verified: false,
+          gate_enabled: inviteOnly,
+          actor_id: null,
+          tenant_id: null,
+          invite_id: null,
+          environment_scope: envScope,
+          error_code: "TRIAL_INVITE_STORE_UNAVAILABLE_503",
+        };
+      }
+    }
+  }
+
+  if (!matched) {
+    return {
+      verified: false,
+      gate_enabled: inviteOnly,
+      actor_id: null,
+      tenant_id: null,
+      invite_id: null,
+      environment_scope: envScope,
+      error_code: "TRIAL_INVITE_INVALID_401",
+    };
+  }
+
+  const sha14 = tokenHash.slice(0, 14);
+  return {
+    verified: true,
+    gate_enabled: inviteOnly,
+    actor_id: `trial.user.${sha14}@reg24.th`,
+    tenant_id: `tenant.trial.${sha14}`,
+    invite_id: matchedInviteId,
+    environment_scope: envScope,
+    error_code: null,
+  };
+}
+
 export async function enforceTrialAccessAndRateLimit(
   req: Request,
   actor: Actor,

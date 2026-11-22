@@ -14,7 +14,9 @@ import {
   isStrictSingleReleasePreviewMode,
   runTokenizerParityProbe,
 } from "../../../../../core/knowledge/projections";
+import { isDefaultGroundedLlmStagingEnabled } from "../../../../../core/knowledge/query";
 import { getDefaultKnowledgeStore } from "../../../../../core/knowledge/store";
+import { inspectAuthenticatedReviewerReadOnly } from "../../../../../core/knowledge/trial-gate";
 
 export async function GET(req: Request) {
   try {
@@ -48,7 +50,8 @@ export async function GET(req: Request) {
       ? runTokenizerParityProbe(store, activeReleaseId)
       : undefined;
     const dbActive = Boolean(resolveActiveCitationDbTransport());
-    const groundedEnabled = process.env.REG24_GROUNDED_LLM_STAGING_ENABLED === "true";
+    const groundedEnabled = isDefaultGroundedLlmStagingEnabled();
+    const authenticatedReviewer = await inspectAuthenticatedReviewerReadOnly(req);
     const llmConfig = resolveConfiguredProviderAndModel();
     const envThinking = (process.env.REG24_GROUNDED_LLM_THINKING_LEVEL || "").trim().toLowerCase();
     const thinkingResolved = resolveThinkingLevelForModel(
@@ -61,6 +64,7 @@ export async function GET(req: Request) {
     return NextResponse.json(
       {
         ok: true,
+        authenticated_reviewer: authenticatedReviewer,
         environment: {
           vercel_env: process.env.VERCEL_ENV || "local_or_staging",
           environment_scope: process.env.REG24_TRIAL_ENV_SCOPE || "staging",

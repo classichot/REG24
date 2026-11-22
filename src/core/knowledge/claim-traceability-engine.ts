@@ -2603,11 +2603,68 @@ export async function saveOrReviseAnswerServerVerified(
     }
   }
 
+  // Pre-extract active (non-superseded) monetary bases strictly from server-known question_text.
+  // Exclude superseded old bases in explicit correction phrasing (e.g. "จาก 100,000 บาท เป็น 200,000 บาท"
+  // or "from 100,000 to 200,000") so stale predecessor amounts can never be re-grounded after a base change.
+  const questionNormForVat = thaiDigitsToArabic(params.question_text || "");
+  const supersededQuestionBasesThb = new Set<number>();
+  const parseAmountVal = (raw: string, unit?: string): number | null => {
+    const n = Number((raw || "").replace(/,/g, ""));
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return unit === "ล้านบาท" ? n * 1_000_000 : n;
+  };
+  for (const sm of questionNormForVat.matchAll(
+    /(?:จาก(?:เดิม)?\s*(?:มูลค่า(?:ค่าบริการ)?\s*)?(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท)?\s*(?:เป็น|เปลี่ยนเป็น|แก้ไขเป็น|แก้เป็น|->|→)\s*(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท)?|\bfrom\s+(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(?:THB|baht)?\s+to\s+(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?))/gi
+  )) {
+    const oldVal = parseAmountVal(sm[1] || sm[5] || "", sm[2]);
+    const newVal = parseAmountVal(sm[3] || sm[6] || "", sm[4]);
+    if (oldVal !== null && newVal !== null && oldVal !== newVal) {
+      supersededQuestionBasesThb.add(oldVal);
+    }
+  }
+  const questionMonetaryBasesThb: number[] = [];
+  for (const am of questionNormForVat.matchAll(
+    /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+  )) {
+    const val = parseAmountVal(am[1] || am[2] || "", am[3]);
+    if (val === null || supersededQuestionBasesThb.has(val)) continue;
+    questionMonetaryBasesThb.push(val);
+  }
+
   // Build strict per-claim predecessor lookup keyed by `${claim.text}::${sortedEvidenceIds}` (server-verified only).
+  // CRITICAL (Control B2): Bind calculation reuse strictly to the authoritative facts, as_of_date, and active
+  // taxable portion it was verified against! If question_text (or as_of_date) changed from the predecessor
+  // revision, or the verified taxable base is no longer active in question_text, NEVER carry forward the prior
+  // bound_calculation — force fresh re-verification against the new authoritative facts.
+  const normalizeFactKey = (s: string | null | undefined): string =>
+    thaiDigitsToArabic(s || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  const predecessorFactsUnchanged =
+    Boolean(authoritativePredecessorQuestionText) &&
+    normalizeFactKey(params.question_text) === normalizeFactKey(authoritativePredecessorQuestionText) &&
+    (sub.as_of_date ?? null) === (authoritativePredecessorEnvelope?.as_of_date ?? null);
+
   const predecessorVerifiedCalcsBySignature = new Map<string, ClaimBoundCalculationRecord>();
-  if (!params.query_persistence_context && authoritativePredecessorEnvelope) {
+  if (
+    !params.query_persistence_context &&
+    authoritativePredecessorEnvelope &&
+    predecessorFactsUnchanged
+  ) {
     for (const prevClm of authoritativePredecessorEnvelope.claims || []) {
       if (prevClm.verification_decision !== "supported" || !prevClm.bound_calculation) continue;
+      const calcBase =
+        prevClm.bound_calculation.inputs?.tax_base_thb ??
+        prevClm.bound_calculation.outputs?.taxable_amount_thb ??
+        null;
+      if (
+        typeof calcBase === "number" &&
+        calcBase > 0 &&
+        (supersededQuestionBasesThb.has(calcBase) ||
+          (questionMonetaryBasesThb.length > 0 && !questionMonetaryBasesThb.includes(calcBase)))
+      ) {
+        continue;
+      }
       const sig = `${prevClm.text.trim()}::${(prevClm.evidence_references || [])
         .map((r) => r.evidence_id)
         .sort()
@@ -2634,19 +2691,6 @@ export async function saveOrReviseAnswerServerVerified(
   const remappedTrustedCalcsByClaimId: Record<string, ClaimBoundCalculationRecord> = {};
   const shouldRemapClaimIds = requestedAnswerId !== sub.answer_id || nextRevHint > 1;
   const subClaimIdRemap = new Map<string, string>();
-
-  // Pre-extract monetary bases strictly from server-known question_text (for deterministic VAT-decree + local-tax
-  // rate/arithmetic re-verification on POST /api/v1/knowledge/answers when no query_persistence_context is passed).
-  const questionNormForVat = thaiDigitsToArabic(params.question_text || "");
-  const questionMonetaryBasesThb: number[] = [];
-  for (const am of questionNormForVat.matchAll(
-    /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
-  )) {
-    const rawNum = (am[1] || am[2] || "").replace(/,/g, "");
-    const n = Number(rawNum);
-    if (!Number.isFinite(n) || n <= 0) continue;
-    questionMonetaryBasesThb.push(am[3] === "ล้านบาท" ? n * 1_000_000 : n);
-  }
   const VAT_REDUCTION_WORK_IDS = new Set([
     "subreg.th.rc.royal_decree.780",
     "subreg.th.rc.royal_decree.790",
