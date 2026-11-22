@@ -339,6 +339,52 @@ Receipt: [rc10_3_partial_invoice_before_diagnostic_d4b3e40.json](rc10_3_partial_
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
+---
+
+## 12. Remaining Fact-Handling Risks (Unstated Invoice Coverage & Same-Amount Unstated Allocation) + Request-Linked Read-Only Neon Concurrency Audit
+
+> **Evidence Classification**: All Vitest suites, live `gemini-4-neon @ low` scenario runs, and Neon concurrency audits in this section are **Engineering evidence** only and do **not** constitute Independent QA scoring or Batch 1 acceptance sign-off.
+
+- **Frozen Preflight Baseline Preserved**: `cd941d24a62817406b7ef24015c3b457387f92a6` (protected Preview `https://reg24-56jpn4vgr-7-l-advisory.vercel.app`, pushed tag `archive/b01-rc10.3-cd941d2`; prior `d4b3e40` also preserved at `archive/b01-rc10.3-d4b3e40`).
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TypeScript BM25+Graph, `gemini-4-neon @ low`, `0` changes under `data/`.
+- **Next.js `16.4.2` Advisory Invariance**: `0` diffs in `package.json`, `package-lock.json`, or `next.config.ts` since `2a1dbc0`; the prior Vercel Preview assessment ([rc10_3_nextjs_security_advisory_assessment.json](rc10_3_nextjs_security_advisory_assessment.json)) remains unchanged pending separate Platform review.
+
+### 12.1 BEFORE Reproduction on Frozen `cd941d2` (Engineering Evidence, No Date Override)
+
+Receipt: [rc10_3_two_fact_risks_before_cd941d2.json](rc10_3_two_fact_risks_before_cd941d2.json) (`applicable_date: null`, live `gemini-4-neon @ low`)
+
+1. **Risk 1A FAILED (`trc.9efa86bac8010c`) — Unstated invoice coverage (`25 Sep 2568`) + ONE later payment (`฿100,000` on `5 Oct 2568`)**:
+   - `case-fact-ledger.ts` inferred full coverage from `distinctPaymentDateCount <= 1` (`PRIOR_INVOICE_FIXED_TAX_POINT`), omitting `RD 799` from `PASSAGE_PACK` and causing the live draft to claim no reduction decree existed for `5 Oct 2568` while also suppressing 1 claim (`rejected_claims_count: 1`).
+2. **Risk 2 FAILED (`trc.c7f9aaa5e78398`) — Partial `฿50,000` invoice (`25 Sep 2568`) + two equal `฿50,000` payments (`30 Sep 2568`, `5 Oct 2568`) with NO stated allocation**:
+   - `case-fact-ledger.ts` inferred `30 Sep 2568` settled the `25 Sep` invoice purely from equal amounts (`50000 === 50000`), dropping `30 Sep` from `split_payment_tax_points` and returning an unconditional `ANSWERED` (`RD 790 + RD 799`) that hid Branch 2 (where `5 Oct` settles the invoice and ONLY `RD 790` governs).
+3. **English Extraction Gap**: English Risk 2 phrasing (`"issues a partial tax invoice ... receives two equal payments of THB 50,000 ... and THB 50,000"`) failed event extraction.
+
+### 12.2 Generalized Shared-Logic Fix
+
+1. **Explicit Coverage & Allocation State Machine (`src/core/knowledge/case-fact-ledger.ts`)**:
+   - **Risk 1**: Removed invoice-count / single-payment full-coverage inference; classifies `priorInvoiceCoverageStatus: "FULL" | "PARTIAL" | "UNSTATED"`. When `UNSTATED` and all dates fall inside the same verified decree window (e.g., `20 Sep` & `25 Sep 2568`, both `RD 790`), routes to `PRIOR_INVOICE_SAME_WINDOW_SUFFICIENT` and answers without declining. When `UNSTATED` and dates cross a decree handover/cutoff/expiry (e.g., `25 Sep` vs `5 Oct 2568`), routes to `UNSTATED_INVOICE_COVERAGE_CONDITIONAL`, supplies all relevant decrees (`RD 790 + RD 799`), names the missing invoice-coverage fact, and lays out both conditional branches.
+   - **Risk 2**: Removed equal-amount-alone settlement inference; excludes a settlement payment only when allocation is not unstated and either explicitly marked as settling the prior invoice or uniquely matched against distinct remaining-balance markers. Otherwise routes to `PARTIAL_INVOICE_UNSTATED_ALLOCATION_CONDITIONAL`, retaining all dates (`2025-09-25`, `2025-09-30`, `2025-10-05`), naming the missing allocation fact, and laying out both conditional branches on the full ฿100,000 tax base without double-taxing or dropping any portion.
+   - Added Thai and English event extraction for partial/full/initial invoices and equal/continuation payments (`and THB X on DATE`).
+2. **Conditional-Branch Grounding, Verifier & Timeout Hardening (`src/core/knowledge/grounded-llm-drafter.ts`, `src/core/knowledge/grounded-llm-verifier.ts`, `src/core/knowledge/answer-verification.ts`, `src/core/knowledge/claim-traceability-engine.ts`)**:
+   - Updated system instruction for `CONDITIONAL` unstated-coverage / unstated-allocation branches and raised Gemini 4 synchronous client timeout from `120s` to `180s` (within route `maxDuration = 300s`, preserving strict no-silent-fallback).
+   - Fixed multi-date conditional-branch target resolution and explicit-exclusion context detection (`ไม่ต้องนำ`, `ไม่นำ`, `ไม่มีความรับผิดเกิดขึ้นภายใต้`, multi-date `excluded_tax_point_dates`), deterministically grounded exact VAT-exclusive (`7% / 6.3% / 0.7%`) and VAT-inclusive (`7/107, 100/107`) figures derived strictly from user-stated monetary bases when an in-window VAT reduction decree is validly cited (`calcCheck.accepted`), guarded Thai compound date nouns (`วันเกิดความรับผิด`) and referential counts (`ทั้งสองวัน`) from being misparsed as statutory day deadlines, and stopped Revenue Code §80's `เว้นแต่กรณีที่กำหนดไว้ในมาตรา 80/2` exception capture before enumerated main-rule items `(1) การขายสินค้า (2) การให้บริการ`.
+3. **Hardened Request-Linked Read-Only Neon Concurrency Audit (`scripts/audit-rc10-3-qa-two-session-readonly.ts`, schema `v2`)**:
+   - Upgraded the `SELECT`-only Neon audit script to require positive identification of the starting revision row, winning revision row, same owner, zero orphans, and zero revision/claim/citation-link/successful-write-audit rows attributable to the rejected edit (`non_empty_match_guard_passed`, exiting non-zero `2` on empty or failed matches; verified via negative control `--answer-id ans.nonexistent.negative_control`).
+
+### 12.3 AFTER Live `gemini-4-neon @ low`, Regression & Concurrency Receipts (Engineering Evidence)
+
+- **Live 6-Scenario `gemini-4-neon @ low` Verification Receipt (`applicable_date: null`, `6/6` PASS, `0` rejected claims, `0` fallbacks)**: [rc10_3_two_fact_risks_after_verification.json](rc10_3_two_fact_risks_after_verification.json)
+  - `RISK1-UNSTATED-COVERAGE-ONE-PAYMENT-CROSS-HANDOVER` (`trc.88c4d826e57f7f`): `CONDITIONAL`, `3/3 VERIFIED`, `rejected=0` — names missing invoice coverage in `clarification_questions`, cites `RD 790 + RD 799`, presents Branch 1 (full invoice `25 Sep` → `RD 790`, `฿7,000`, `RD 799` excluded) and Branch 2 (partial invoice `25 Sep` → `RD 790`, remaining balance `5 Oct` → `RD 799`).
+  - `RISK1B-UNSTATED-COVERAGE-SAME-WINDOW-SUFFICIENT` (`trc.bf4146421f3bf5`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — answers `7.0% = ฿7,000` under `RD 790` without unnecessarily declining.
+  - `RISK2-EQUAL-AMOUNT-PAYMENTS-NO-ALLOCATION` (`trc.277da4a8fd10df`): `CONDITIONAL`, `2/2 VERIFIED`, `rejected=0` — names missing payment allocation between the two equal `฿50,000` payments (`30 Sep` vs `5 Oct`) in `clarification_questions`, fixes invoiced `฿50,000` on `25 Sep` (`RD 790`, `฿3,500`, no double tax), and presents both conditional branches (`30 Sep` settles → remaining `฿50,000` on `5 Oct` under `RD 799`; `5 Oct` settles → remaining `฿50,000` on `30 Sep` under `RD 790`, `RD 799` excluded; total base `฿100,000` / `฿7,000` VAT in both).
+  - `CTRL-FULL-INVOICE-790` (`trc.f3237aca58da72`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — full `฿100,000` invoice fixed under `RD 790` (`฿7,000`).
+  - `CTRL-PARTIAL-INVOICE-STATED-ALLOCATION` (`trc.96731e07978c3b`, retried transparently after transient upstream timeout `trc.2c0fffd089aac6`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — `RD 790` (`฿2,800`) + `RD 799` (`฿4,200`).
+  - `CTRL-SPLIT-PAYMENT-790-799` (`trc.254103d1a7357a`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — `RD 790` (`฿2,800`) + `RD 799` (`฿4,200`).
+- **Request-Linked Read-Only Neon Two-Session Concurrency Receipt (`all_assertions_passed: true`)**: [rc10_3_two_session_readonly_neon_request_linked_receipt.json](rc10_3_two_session_readonly_neon_request_linked_receipt.json) — positively identifies starting row `r1` (`op.init.1795233207190`), winning revision `r2` (`op.editB.1795233207190`, `audit_id: caud.pg.cfc018d05709de`, `link_id: cel.e1aa04ccecd975ce`) for `ans.rc103.live_distinct_race.1795233207190` under same owner `qa.reviewer@reg24.th` / tenant `PUBLIC`, and `0` answer/claim/citation-link/write-audit rows for rejected edit `op.editA.1795233207190`.
+- **Full 9-Suite Vitest Regression (`53/53` PASS, exit `0`, including Thai + English Test #10)**: [rc10_3_two_fact_risks_vitest.log](rc10_3_two_fact_risks_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
+
 
 
 

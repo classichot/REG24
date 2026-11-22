@@ -47,6 +47,7 @@ export interface PreservedTemporalEvent {
   source_turn: number;
   amount_thb?: number | null;
   is_settlement_of_prior_invoice?: boolean;
+  has_remaining_balance_marker?: boolean;
 }
 
 export const VAT_RATE_VERIFIED_COVERAGE_START_ISO = "2023-10-01";
@@ -178,20 +179,30 @@ function extractDatesWithEventKinds(
     const ctx = `${leftCtx} ${rightCtx}`;
 
     const invoiceIssuanceRe =
-      /(?:ออกใบกำกับภาษี|ออกใบกำกับ|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
+      /(?:ออกใบกำกับภาษี|ออกใบกำกับ|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
     const paymentVerbRe =
-      /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|จ่ายเงิน|จ่ายงวด|receiv(?:e|ed|es)\s+(?:payment|the\s+remaining|THB|฿)|paid\b|payment\s+of)/i;
+      /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|จ่ายเงิน|จ่ายงวด|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|paid\b|payment(?:s)?\s+of)/i;
     const lastInvIdx = lastRegexMatchIndex(localClause, invoiceIssuanceRe);
     const lastPayIdx = lastRegexMatchIndex(localClause, paymentVerbRe);
     const isInvoiceIssuance = lastInvIdx >= 0;
     const isPaymentVerb = lastPayIdx >= 0;
+    const isEnglishContinuedPayment =
+      !isInvoiceIssuance &&
+      !isPaymentVerb &&
+      /^\s*(?:and\s+)?(?:THB|฿)\s*[0-9,]+/i.test(localClause) &&
+      /(?:receiv(?:e|ed|es)\s+.*payment|two\s+equal\s+payment|paid\b)/i.test(
+        norm.slice(Math.max(0, idx - 140), idx)
+      );
     const isInstallmentPaymentHint =
       !isInvoiceIssuance &&
-      /(?:มัดจำ|งวดแรก|งวดที่\s*[0-9]|งวดที่(?:หนึ่ง|สอง|สาม)|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน)/i.test(
+      /(?:มัดจำ|งวดแรก|งวดที่\s*[0-9]|งวดที่(?:หนึ่ง|สอง|สาม)|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน|remaining\s+(?:THB|฿|balance|amount))/i.test(
         localClause
       );
+    const hasRemainingBalanceMarker = /(?:ส่วนที่เหลือ|ยอดคงเหลือ|remaining\s+(?:THB|฿|balance|amount|portion))/i.test(
+      localClause
+    );
     const isSettlementOfPriorInvoice =
-      isPaymentVerb &&
+      (isPaymentVerb || isEnglishContinuedPayment) &&
       /(?:ตามใบกำกับภาษี(?:ดังกล่าว|นั้น)?|ที่ออกใบกำกับภาษีไว้แล้ว|สำหรับใบกำกับภาษี(?:ดังกล่าว|นั้น)|บาทนั้น|จำนวนนั้น|of\s+that\s+(?:THB|฿)?\s*[0-9,]+|for\s+that\s+(?:tax\s+)?invoice)/i.test(
         localClause
       );
@@ -204,7 +215,7 @@ function extractDatesWithEventKinds(
     } else if (isInvoiceIssuance && isPaymentVerb) {
       matchedKinds.push(lastInvIdx > lastPayIdx ? "INVOICE" : "PAYMENT");
     } else {
-      if (isPaymentVerb || isInstallmentPaymentHint) {
+      if (isPaymentVerb || isEnglishContinuedPayment || isInstallmentPaymentHint) {
         matchedKinds.push("PAYMENT");
       }
       if (isInvoiceIssuance) {
@@ -250,6 +261,9 @@ function extractDatesWithEventKinds(
         ...(clauseAmountThb !== null ? { amount_thb: clauseAmountThb } : {}),
         ...(kind === "PAYMENT" && isSettlementOfPriorInvoice
           ? { is_settlement_of_prior_invoice: true }
+          : {}),
+        ...(kind === "PAYMENT" && hasRemainingBalanceMarker
+          ? { has_remaining_balance_marker: true }
           : {}),
       });
     }
@@ -750,6 +764,14 @@ export function buildStructuredCaseFactLedger(input: {
     /(?:ออกใบกำกับภาษี(?:เต็มจำนวน|ทั้งจำนวน|ครบทั้งจำนวน|เต็มมูลค่า|รวมทั้งสิ้น)|full\s+(?:tax\s+)?invoice|invoiced\s+(?:the\s+)?(?:full|entire)\s+amount)/i.test(
       normMergedAll
     );
+  const hasExplicitUnstatedCoverageWording =
+    /(?:ไม่(?:ได้)?ระบุว่า(?:ออกใบกำกับภาษี)?(?:เต็มจำนวน|บางส่วน)|ไม่ทราบ(?:มูลค่า|จำนวน)ใบกำกับภาษี|without\s+stating\s+(?:whether|if)\s+it\s+covers|coverage\s+(?:is\s+)?(?:not\s+stated|unstated|unknown))/i.test(
+      normMergedAll
+    );
+  const hasExplicitUnstatedAllocationWording =
+    /(?:ไม่(?:ได้)?ระบุว่า(?:ยอดชำระ|งวด|การชำระ)(?:ใด|ไหน)(?:เป็นการ)?ชำระ(?:ตาม|สำหรับ)ใบกำกับภาษี|ไม่(?:ได้)?ระบุการจัดสรร|with\s+no\s+stated\s+allocation|no\s+stated\s+allocation|without\s+(?:stating|specifying)\s+which\s+payment)/i.test(
+      normMergedAll
+    );
 
   const singlePriorInvoiceCandidate = Boolean(
     isVatCase &&
@@ -763,21 +785,47 @@ export function buildStructuredCaseFactLedger(input: {
   const priorInvoiceBelowTotal = Boolean(
     priorInvoiceAmt !== null && referenceTotalThb > 0 && priorInvoiceAmt < referenceTotalThb - 1
   );
-  const invoiceCoversFullTransaction = singlePriorInvoiceCandidate
-    ? hasExplicitPartialInvoiceWording || priorInvoiceBelowTotal
-      ? false
-      : hasExplicitFullInvoiceWording
-        ? true
-        : priorInvoiceAmt !== null && referenceTotalThb > 0 && priorInvoiceAmt >= referenceTotalThb - 1
-          ? true
-          : distinctPaymentDateCount <= 1
-    : false;
+  // NEVER infer full coverage from invoice count (`distinctPaymentDateCount <= 1`) when coverage is unstated!
+  const priorInvoiceCoverageStatus: "FULL" | "PARTIAL" | "UNSTATED" = !singlePriorInvoiceCandidate
+    ? "UNSTATED"
+    : hasExplicitPartialInvoiceWording || priorInvoiceBelowTotal
+      ? "PARTIAL"
+      : hasExplicitUnstatedCoverageWording
+        ? "UNSTATED"
+        : hasExplicitFullInvoiceWording ||
+            (priorInvoiceAmt !== null && referenceTotalThb > 0 && priorInvoiceAmt >= referenceTotalThb - 1)
+          ? "FULL"
+          : "UNSTATED";
 
+  const priorInvoiceAllSameVerifiedWindow = Boolean(
+    singlePriorInvoiceCandidate &&
+      activeInvoicesSorted[0].iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO &&
+      activePaymentsSorted.every(
+        (p) =>
+          p.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO &&
+          vatWindowBucket(p.iso_date) === vatWindowBucket(activeInvoicesSorted[0].iso_date)
+      )
+  );
+  // If coverage is unstated AND all dates fall in the SAME verified decree window (with 1 payment),
+  // facts ARE sufficient to answer the governing decree and rate without unnecessarily declining.
+  // If coverage is unstated AND dates span DIFFERENT decree windows (or cutoff/expiry, or multi-date payments),
+  // the missing coverage fact changes the governing authority -> DO NOT collapse; surface conditional branches!
+  const isUnstatedCoverageMateriallyConditional = Boolean(
+    singlePriorInvoiceCandidate &&
+      priorInvoiceCoverageStatus === "UNSTATED" &&
+      !(priorInvoiceAllSameVerifiedWindow && distinctPaymentDateCount === 1)
+  );
   const priorInvoiceFixesWholeTaxPoint = Boolean(
-    singlePriorInvoiceCandidate && invoiceCoversFullTransaction
+    singlePriorInvoiceCandidate &&
+      (priorInvoiceCoverageStatus === "FULL" ||
+        (priorInvoiceCoverageStatus === "UNSTATED" &&
+          priorInvoiceAllSameVerifiedWindow &&
+          distinctPaymentDateCount === 1))
   );
   const isPartialPriorInvoiceMultiTaxPoint = Boolean(
-    singlePriorInvoiceCandidate && !invoiceCoversFullTransaction && distinctPaymentDateCount >= 1
+    singlePriorInvoiceCandidate &&
+      priorInvoiceCoverageStatus === "PARTIAL" &&
+      distinctPaymentDateCount >= 1
   );
 
   const distinctActiveVatDatesByIso = new Map<string, PreservedTemporalEvent>();
@@ -790,41 +838,109 @@ export function buildStructuredCaseFactLedger(input: {
     isVatCase &&
     !priorInvoiceFixesWholeTaxPoint &&
     !isPartialPriorInvoiceMultiTaxPoint &&
+    !isUnstatedCoverageMateriallyConditional &&
     distinctActiveVatDatesByIso.size >= 2 &&
     (hasSplitPaymentWording || distinctPaymentDateCount >= 2);
 
   if (priorInvoiceFixesWholeTaxPoint) {
     const inv = activeInvoicesSorted[0];
     controllingIso = inv.iso_date;
-    controllingEvent = `PRIOR_INVOICE_FIXED_TAX_POINT (${inv.raw_text}, Turn ${inv.source_turn})`;
-    statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78/1 (1): เมื่อมีการออกใบกำกับภาษีเต็มจำนวนก่อนได้รับชำระราคาค่าบริการ (วันที่ ${inv.iso_date}) ความรับผิดในการเสียภาษีมูลค่าเพิ่มสำหรับทั้งธุรกรรมเกิดขึ้นแล้ว ณ วันออกใบกำกับภาษีดังกล่าว ไม่ใช่แยกตามวันรับชำระเงินงวดภายหลัง`;
+    if (priorInvoiceCoverageStatus === "FULL") {
+      controllingEvent = `PRIOR_INVOICE_FIXED_TAX_POINT (${inv.raw_text}, Turn ${inv.source_turn})`;
+      statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78/1 (1): เมื่อมีการออกใบกำกับภาษีเต็มจำนวนก่อนได้รับชำระราคาค่าบริการ (วันที่ ${inv.iso_date}) ความรับผิดในการเสียภาษีมูลค่าเพิ่มสำหรับทั้งธุรกรรมเกิดขึ้นแล้ว ณ วันออกใบกำกับภาษีดังกล่าว ไม่ใช่แยกตามวันรับชำระเงินงวดภายหลัง`;
+    } else {
+      const pay = activePaymentsSorted[0];
+      controllingEvent = `PRIOR_INVOICE_SAME_WINDOW_SUFFICIENT (${inv.raw_text} & ${pay.raw_text}, Turn ${inv.source_turn})`;
+      statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78/1 (1): แม้มิได้ระบุจำนวนเงินบนใบกำกับภาษีวันที่ ${inv.iso_date} แต่ทั้งวันออกใบกำกับภาษี (${inv.iso_date}) และวันรับชำระเงิน (${pay.iso_date}) อยู่ในช่วงเวลาใช้บังคับของพระราชกฤษฎีกาฉบับเดียวกัน (${vatWindowBucket(inv.iso_date)}) จึงสามารถระบุอัตราภาษีมูลค่าเพิ่มและพระราชกฤษฎีกาที่ใช้บังคับได้อย่างชัดเจนโดยไม่จำเป็นต้องปฏิเสธการตอบ (พร้อมระบุข้อสังเกตว่าหากออกใบกำกับภาษีเต็มจำนวน ความรับผิดเกิดวันที่ ${inv.iso_date} หากออกบางส่วน ส่วนที่เหลือเกิดวันที่ ${pay.iso_date} โดยไม่เก็บภาษีซ้ำ)`;
+    }
+  } else if (isUnstatedCoverageMateriallyConditional) {
+    const inv = activeInvoicesSorted[0];
+    const condEvents: PreservedTemporalEvent[] = [inv, ...activePaymentsSorted];
+    isSplitPaymentMultiTaxPoint = true;
+    splitPaymentTaxPoints = condEvents.map((ev, idx) => {
+      const govWid = governingDecreeWorkIdForIso(ev.iso_date);
+      const expiredWids = ev.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [];
+      return {
+        portion_index: idx + 1,
+        iso_date: ev.iso_date,
+        raw_text: ev.raw_text,
+        event_type: ev.event_type,
+        decree_window: vatWindowBucket(ev.iso_date),
+        within_verified_coverage: ev.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+        governing_decree_work_id: govWid,
+        expired_or_non_governing_work_ids: expiredWids,
+        ...(ev.amount_thb != null ? { amount_thb: ev.amount_thb } : {}),
+      };
+    });
+    controllingIso = null;
+    controllingEvent = `UNSTATED_INVOICE_COVERAGE_CONDITIONAL (${splitPaymentTaxPoints.map((p) => `${p.iso_date}:${p.event_type}:${p.decree_window}`).join(" + ")})`;
+    unknownFacts.add(
+      `ขอบเขตมูลค่าของใบกำกับภาษีที่ออกเมื่อวันที่ ${inv.iso_date} (ไม่ได้ระบุว่าออกเต็มจำนวนหรือเฉพาะบางส่วนเป็นจำนวนเงินเท่าใด)`
+    );
+    const payListDesc = activePaymentsSorted
+      .map((p) => `วันที่ ${p.iso_date} (${vatWindowBucket(p.iso_date)}${p.amount_thb ? `, ${p.amount_thb.toLocaleString("en-US")} บาท` : ""})`)
+      .join(", ");
+    statutoryRuleHint =
+      `ประมวลรัษฎากร มาตรา 78/1 (1) กรณีไม่ได้ระบุขอบเขตมูลค่าของใบกำกับภาษี (Unstated Invoice Coverage): ห้ามอนุมานว่าใบกำกับภาษีที่ออกเมื่อวันที่ ${inv.iso_date} (${vatWindowBucket(inv.iso_date)}) ครอบคลุมเต็มจำนวนทั้งสัญญาโดยไม่มีข้อเท็จจริงรองรับ เนื่องจากวันออกใบกำกับภาษีและวันรับชำระเงิน (${payListDesc}) อยู่คนละช่วงเวลาใช้บังคับของพระราชกฤษฎีกา — ให้ระบุข้อเท็จจริงที่ขาดหายอย่างชัดเจน (จำนวนเงินที่ออกใบกำกับภาษีเมื่อวันที่ ${inv.iso_date}) และแยกแสดงเงื่อนไข 2 กรณีภายใต้หลักฐานที่รองรับโดยไม่เก็บภาษีซ้ำหรือตกหล่น: ` +
+      `(กรณีที่ 1) หากใบกำกับภาษีวันที่ ${inv.iso_date} ออกเต็มจำนวน ความรับผิดทั้งหมดเกิดขึ้นวันที่ ${inv.iso_date} ตาม ${vatWindowBucket(inv.iso_date)} และการรับชำระเงินภายหลังไม่ก่อให้เกิดภาระภาษีซ้ำ; ` +
+      `(กรณีที่ 2) หากใบกำกับภาษีวันที่ ${inv.iso_date} ออกเฉพาะบางส่วน ส่วนที่ออกใบกำกับภาษีเกิดความรับผิดวันที่ ${inv.iso_date} ตาม ${vatWindowBucket(inv.iso_date)} ส่วนยอดคงเหลือที่ยังไม่ได้ออกใบกำกับภาษีเกิดความรับผิดเมื่อรับชำระเงิน (${payListDesc}) ตามพระราชกฤษฎีกาที่ใช้บังคับในวันรับชำระนั้น`;
   } else if (isPartialPriorInvoiceMultiTaxPoint) {
     const inv = activeInvoicesSorted[0];
-    // Identify any payment that merely settles the ALREADY-INVOICED portion so it is NOT treated as a second VAT tax point!
-    let settledPayment: PreservedTemporalEvent | null = null;
-    const uninvoicedPayments: PreservedTemporalEvent[] = [];
-    for (let pi = 0; pi < activePaymentsSorted.length; pi++) {
-      const pay = activePaymentsSorted[pi];
-      const matchesInvoicedAmount =
+    // NEVER infer settlement from equal amounts alone!
+    // Exclude a payment as settlement ONLY when:
+    //   (a) allocation is NOT explicitly unstated, AND
+    //   (b) EITHER the payment clause explicitly references settling the prior invoice (`is_settlement_of_prior_invoice`),
+    //       OR there is strictly ONE payment matching `inv.amount_thb` AND every other payment explicitly marks a distinct remaining balance (`has_remaining_balance_marker` with amount != inv.amount_thb).
+    const equalToInvPayments = activePaymentsSorted.filter(
+      (pay) =>
         inv.amount_thb != null &&
         pay.amount_thb != null &&
-        Math.abs(pay.amount_thb - inv.amount_thb) < 1;
-      const hasLaterRemainingPayment = activePaymentsSorted.some(
-        (other, oi) => oi !== pi && other.iso_date > pay.iso_date
-      );
-      if (
-        !settledPayment &&
-        (pay.is_settlement_of_prior_invoice || (matchesInvoicedAmount && hasLaterRemainingPayment))
-      ) {
-        settledPayment = pay;
-        continue;
+        Math.abs(pay.amount_thb - inv.amount_thb) < 1
+    );
+    const hasExplicitSettlementTag = activePaymentsSorted.some((p) => p.is_settlement_of_prior_invoice);
+    let settledPayment: PreservedTemporalEvent | null = null;
+    const uninvoicedPayments: PreservedTemporalEvent[] = [];
+    let hasUnstatedPaymentAllocation = false;
+
+    if (!hasExplicitUnstatedAllocationWording) {
+      if (hasExplicitSettlementTag) {
+        for (const pay of activePaymentsSorted) {
+          if (!settledPayment && pay.is_settlement_of_prior_invoice) {
+            settledPayment = pay;
+            continue;
+          }
+          uninvoicedPayments.push(pay);
+        }
+      } else if (equalToInvPayments.length === 1 && activePaymentsSorted.length >= 2) {
+        const candidateSettle = equalToInvPayments[0];
+        const others = activePaymentsSorted.filter((p) => p !== candidateSettle);
+        const othersClearlyDistinctRemainder =
+          others.length > 0 &&
+          others.every(
+            (o) =>
+              o.has_remaining_balance_marker &&
+              (o.amount_thb == null || inv.amount_thb == null || Math.abs(o.amount_thb - inv.amount_thb) >= 1)
+          );
+        if (othersClearlyDistinctRemainder) {
+          settledPayment = candidateSettle;
+          uninvoicedPayments.push(...others);
+        } else {
+          hasUnstatedPaymentAllocation = true;
+        }
+      } else if (equalToInvPayments.length >= 2) {
+        hasUnstatedPaymentAllocation = true;
+      } else {
+        // Payment amounts don't match the invoiced amount and no explicit settlement tag -> allocation unstated
+        hasUnstatedPaymentAllocation = activePaymentsSorted.length >= 2;
       }
-      uninvoicedPayments.push(pay);
+    } else {
+      hasUnstatedPaymentAllocation = true;
     }
+
     const partialTaxPointEvents: PreservedTemporalEvent[] =
-      uninvoicedPayments.length >= 1
+      !hasUnstatedPaymentAllocation && uninvoicedPayments.length >= 1
         ? [inv, ...uninvoicedPayments]
-        : Array.from(distinctActiveVatDatesByIso.values());
+        : [inv, ...activePaymentsSorted];
     isSplitPaymentMultiTaxPoint = true;
     splitPaymentTaxPoints = partialTaxPointEvents.map((ev, idx) => {
       const govWid = governingDecreeWorkIdForIso(ev.iso_date);
@@ -843,24 +959,40 @@ export function buildStructuredCaseFactLedger(input: {
       };
     });
     controllingIso = null;
-    controllingEvent = `PARTIAL_INVOICE_MULTI_TAX_POINT (${splitPaymentTaxPoints.map((p) => `${p.iso_date}:${p.event_type}:${p.decree_window}`).join(" + ")})`;
-    const settlementNoteTh = settledPayment
-      ? ` (การรับชำระเงินสำหรับยอดที่ออกใบกำกับภาษีไว้แล้วเมื่อวันที่ ${settledPayment.iso_date} เป็นเพียงการชำระหนี้ตามใบกำกับภาษีเดิม ไม่ก่อให้เกิดจุดความรับผิดทางภาษีซ้ำและไม่เปลี่ยนพระราชกฤษฎีกาที่ใช้บังคับกับส่วนที่ออกใบกำกับภาษีแล้ว)`
-      : "";
-    statutoryRuleHint =
-      `ประมวลรัษฎากร มาตรา 78/1 (1) กรณีออกใบกำกับภาษีบางส่วนก่อนรับชำระเงิน ("ตามส่วนของการกระทำนั้นๆ"): ห้ามนำวันออกใบกำกับภาษีบางส่วนไปเหมารวมกับส่วนที่ยังไม่ได้ออกใบกำกับภาษี และห้ามเก็บภาษีซ้ำเมื่อรับชำระเงินตามยอดที่ออกใบกำกับภาษีแล้ว${settlementNoteTh} — แยกพิจารณาตามวันเกิดความรับผิดของแต่ละส่วน: ` +
-      splitPaymentTaxPoints
-        .map(
-          (p) =>
-            `ส่วนที่ ${p.portion_index} (${p.event_type === "INVOICE" ? "ออกใบกำกับภาษีบางส่วน" : "รับชำระส่วนที่ยังไม่ออกใบกำกับภาษี"}${p.amount_thb ? ` ${p.amount_thb.toLocaleString("en-US")} บาท` : ""}) วันที่ ${p.iso_date} (${
-              !p.within_verified_coverage
-                ? "ก่อน 2023-10-01 — อยู่นอกขอบเขตต้นฉบับที่ตรวจสอบแล้ว"
-                : p.governing_decree_work_id
-                  ? `กฎหมายลดอัตราที่ใช้บังคับเฉพาะส่วนนี้: ${p.decree_window} (${p.governing_decree_work_id})`
-                  : "หลังวันสิ้นสุด พ.ร.ฎ. ฉบับที่ 807 (30 ก.ย. 2570) — พ.ร.ฎ. 807 ไม่ครอบคลุมส่วนนี้และห้ามสมมติอัตราลดในอนาคต"
-            })`
-        )
-        .join("; ");
+
+    if (hasUnstatedPaymentAllocation) {
+      controllingEvent = `PARTIAL_INVOICE_UNSTATED_ALLOCATION_CONDITIONAL (${splitPaymentTaxPoints.map((p) => `${p.iso_date}:${p.event_type}:${p.decree_window}`).join(" + ")})`;
+      unknownFacts.add(
+        `การจัดสรรการชำระเงิน (ไม่ได้ระบุว่ายอดชำระงวดใดเป็นการชำระตามใบกำกับภาษีบางส่วนลงวันที่ ${inv.iso_date}${inv.amount_thb ? ` จำนวน ${inv.amount_thb.toLocaleString("en-US")} บาท` : ""})`
+      );
+      const pA = activePaymentsSorted[0];
+      const pB = activePaymentsSorted[1];
+      const branchDesc =
+        pA && pB
+          ? `(กรณีที่ 1) หากยอดชำระวันที่ ${pA.iso_date} (${pA.amount_thb ? `${pA.amount_thb.toLocaleString("en-US")} บาท` : ""}) เป็นการชำระตามใบกำกับภาษีลงวันที่ ${inv.iso_date} -> ส่วนที่ออกใบกำกับภาษีเกิดความรับผิดวันที่ ${inv.iso_date} (${vatWindowBucket(inv.iso_date)}, ไม่เก็บภาษีซ้ำวันที่ ${pA.iso_date}) และส่วนที่ยังไม่ออกใบกำกับภาษีเกิดความรับผิดวันที่ ${pB.iso_date} (${vatWindowBucket(pB.iso_date)}); ` +
+            `(กรณีที่ 2) หากยอดชำระวันที่ ${pA.iso_date} เป็นการชำระส่วนที่ยังไม่ได้ออกใบกำกับภาษี และยอดชำระวันที่ ${pB.iso_date} เป็นการชำระตามใบกำกับภาษีลงวันที่ ${inv.iso_date} -> ส่วนที่ออกใบกำกับภาษีเกิดความรับผิดวันที่ ${inv.iso_date} (${vatWindowBucket(inv.iso_date)}) และส่วนที่ยังไม่ออกใบกำกับภาษีเกิดความรับผิดวันที่ ${pA.iso_date} (${vatWindowBucket(pA.iso_date)}, ไม่เก็บภาษีซ้ำวันที่ ${pB.iso_date}${vatWindowBucket(pB.iso_date) !== vatWindowBucket(pA.iso_date) ? ` และไม่นำ ${vatWindowBucket(pB.iso_date)} มาใช้` : ""})`
+          : `ต้องยืนยันว่ายอดชำระใดเป็นการชำระตามใบกำกับภาษีเดิมเพื่อไม่ให้เก็บภาษีซ้ำหรือตกหล่น`;
+      statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78/1 (1) กรณีใบกำกับภาษีบางส่วนและมีการชำระเงินหลายงวดโดยไม่ได้ระบุการจัดสรร (Unstated Payment Allocation): ห้ามอนุมานว่ายอดชำระงวดแรกเป็นการชำระตามใบกำกับภาษีเพียงเพราะจำนวนเงินเท่ากัน — ให้ตั้งคำถามขอข้อมูลการจัดสรรที่ขาดหาย แสดงเงื่อนไขแยกตามทางเลือกที่มีหลักฐานรองรับ และยืนยันว่าฐานภาษีรวมต้องเท่ากับมูลค่าบริการทั้งหมด (ห้ามเก็บภาษีซ้ำในส่วนที่ออกใบกำกับภาษีแล้วและห้ามตัดยอดส่วนที่เหลือตกหล่น): ${branchDesc}`;
+    } else {
+      controllingEvent = `PARTIAL_INVOICE_MULTI_TAX_POINT (${splitPaymentTaxPoints.map((p) => `${p.iso_date}:${p.event_type}:${p.decree_window}`).join(" + ")})`;
+      const settlementNoteTh = settledPayment
+        ? ` (การรับชำระเงินสำหรับยอดที่ออกใบกำกับภาษีไว้แล้วเมื่อวันที่ ${settledPayment.iso_date} เป็นเพียงการชำระหนี้ตามใบกำกับภาษีเดิม ไม่ก่อให้เกิดจุดความรับผิดทางภาษีซ้ำและไม่เปลี่ยนพระราชกฤษฎีกาที่ใช้บังคับกับส่วนที่ออกใบกำกับภาษีแล้ว)`
+        : "";
+      statutoryRuleHint =
+        `ประมวลรัษฎากร มาตรา 78/1 (1) กรณีออกใบกำกับภาษีบางส่วนก่อนรับชำระเงิน ("ตามส่วนของการกระทำนั้นๆ"): ห้ามนำวันออกใบกำกับภาษีบางส่วนไปเหมารวมกับส่วนที่ยังไม่ได้ออกใบกำกับภาษี และห้ามเก็บภาษีซ้ำเมื่อรับชำระเงินตามยอดที่ออกใบกำกับภาษีแล้ว${settlementNoteTh} — แยกพิจารณาตามวันเกิดความรับผิดของแต่ละส่วน: ` +
+        splitPaymentTaxPoints
+          .map(
+            (p) =>
+              `ส่วนที่ ${p.portion_index} (${p.event_type === "INVOICE" ? "ออกใบกำกับภาษีบางส่วน" : "รับชำระส่วนที่ยังไม่ออกใบกำกับภาษี"}${p.amount_thb ? ` ${p.amount_thb.toLocaleString("en-US")} บาท` : ""}) วันที่ ${p.iso_date} (${
+                !p.within_verified_coverage
+                  ? "ก่อน 2023-10-01 — อยู่นอกขอบเขตต้นฉบับที่ตรวจสอบแล้ว"
+                  : p.governing_decree_work_id
+                    ? `กฎหมายลดอัตราที่ใช้บังคับเฉพาะส่วนนี้: ${p.decree_window} (${p.governing_decree_work_id})`
+                    : "หลังวันสิ้นสุด พ.ร.ฎ. ฉบับที่ 807 (30 ก.ย. 2570) — พ.ร.ฎ. 807 ไม่ครอบคลุมส่วนนี้และห้ามสมมติอัตราลดในอนาคต"
+              })`
+          )
+          .join("; ");
+    }
   } else if (detectedSplitPayment) {
     isSplitPaymentMultiTaxPoint = true;
     splitPaymentTaxPoints = Array.from(distinctActiveVatDatesByIso.values()).map((ev, idx) => {

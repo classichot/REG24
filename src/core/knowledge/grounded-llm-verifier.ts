@@ -229,7 +229,7 @@ function checkCaseFactPreservation(
 }
 
 const EXPLICIT_EXCLUSION_RE =
-  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|สิ้นสุดการบังคับใช้|สิ้นสุดระยะเวลา|สิ้นสุดในวันที่|สิ้นสุดเมื่อวันที่|สิ้นสุดลง|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|OUT_OF_WINDOW)/;
+  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่ภายใต้|ไม่อยู่ภายใต้|สิ้นสุดการบังคับใช้|สิ้นสุดระยะเวลา|สิ้นสุดในวันที่|สิ้นสุดเมื่อวันที่|สิ้นสุดลง|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|OUT_OF_WINDOW)/;
 
 function resolveIssueTargetSplitPortionIso(
   issue: LlmDraftedIssue,
@@ -245,6 +245,18 @@ function resolveIssueTargetSplitPortionIso(
       const rawNorm = thaiDigitsToArabic(sp.raw_text).replace(/\s+/g, " ").trim();
       return haystack.includes(sp.iso_date) || (rawNorm.length >= 6 && haystack.includes(rawNorm));
     });
+
+  // 0. If this issue is an explicit multi-portion conditional branch whose conclusion applies >= 2 distinct
+  //    split-point dates (e.g. "กรณีที่ 2: หากออกใบกำกับภาษีบางส่วน ... และรับชำระส่วนที่เหลือ ..."),
+  //    do NOT collapse the whole branch to a single date mentioned in the title!
+  const concText = thaiDigitsToArabic(issue.conclusion_th).replace(/\s+/g, " ");
+  const concMatches = matchIn(concText);
+  const isConditionalBranchHeader = /(?:กรณีที่\s*[0-9]|ทางเลือก|หากออกใบกำกับ|หากยอดชำระ|conditional|branch|scenario)/i.test(
+    headerText
+  );
+  if (isConditionalBranchHeader && concMatches.length >= 2) {
+    return null;
+  }
 
   // 1. Prefer exact date match in issue title / party_or_scope (never fooled by expiry date cited in explanation!)
   const headerMatches = matchIn(headerText);
@@ -264,8 +276,6 @@ function resolveIssueTargetSplitPortionIso(
   if (ordMatches.length === 1) return ordMatches[0].iso_date;
 
   // 3. Fallback to conclusion text
-  const concText = thaiDigitsToArabic(issue.conclusion_th).replace(/\s+/g, " ");
-  const concMatches = matchIn(concText);
   if (concMatches.length === 1) return concMatches[0].iso_date;
 
   return null;
@@ -297,6 +307,9 @@ function extractExplicitlyExcludedContextInstruments(params: {
   const excludedPackPassages = params.passagePack.filter((p) => {
     if (citedSet.has(p.passage_id)) return false;
     if (singleTargetIso && (p.excluded_tax_point_dates || []).includes(singleTargetIso)) {
+      return true;
+    }
+    if (isSplitMultiTaxPoint && !singleTargetIso && (p.excluded_tax_point_dates || []).length > 0) {
       return true;
     }
     return (
@@ -918,6 +931,28 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       trustedTokens.add("7.0");
       trustedTokens.add("6.3");
       trustedTokens.add("0.7");
+      // When a VAT reduction decree is validly cited and no calculation was rejected (`calcCheck.accepted`),
+      // deterministically ground exact VAT-exclusive (7% / 6.3% / 0.7%) and VAT-inclusive (7/107, 100/107)
+      // amounts derived strictly from monetary bases stated in the user's own turns (never hallucinated figures!)
+      // so conditional branches, total-contract VAT summaries, and VAT-inclusive caveats are not falsely suppressed.
+      if (calcCheck.accepted) {
+        const rawUserBlob = thaiDigitsToArabic(
+          params.factLedger.user_turns.map((t) => t.raw_text).join(" ")
+        );
+        for (const am of rawUserBlob.matchAll(
+          /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+        )) {
+          const rawNum = (am[1] || am[2] || "").replace(/,/g, "");
+          const n = Number(rawNum);
+          if (!Number.isFinite(n) || n <= 0) continue;
+          const base = am[3] === "ล้านบาท" ? n * 1_000_000 : n;
+          for (const mult of [0.07, 0.063, 0.007, 7 / 107, 100 / 107]) {
+            const derived = Math.round(base * mult * 100) / 100;
+            trustedTokens.add(String(derived));
+            trustedTokens.add(derived.toLocaleString("en-US"));
+          }
+        }
+      }
     }
     const trustedTokensArr = Array.from(trustedTokens);
     const fullIssueClaimStatement = iss.application_explanation_th

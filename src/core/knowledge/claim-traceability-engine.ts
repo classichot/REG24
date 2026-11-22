@@ -1638,7 +1638,13 @@ function evaluateSubstantiveSupportAndExceptions(
     /(?:เว้นแต่|ยกเว้น|ทั้งนี้|ภายใต้เงื่อนไข|มิให้ใช้บังคับ)/.test(normFullAnswer);
   if (exceptionClauseMatches.length > 0 && !answerAlreadyDisclosesException) {
     for (const rawExc of exceptionClauseMatches) {
-      const excBody = rawExc.replace(/^(?:เว้นแต่|ยกเว้น|มิให้ใช้บังคับแก่)\s*/, "").trim();
+      // Stop the exception clause before an enumerated main-rule list such as `(1) การขายสินค้า (2) การให้บริการ`
+      // (e.g., Revenue Code §80's `เว้นแต่กรณีที่กำหนดไว้ในมาตรา 80/2 (1) การขายสินค้า (2) การให้บริการ (3) การนำเข้า`)
+      // so the main rule's enumerated taxable subjects are never misclassified as exception carve-outs.
+      const excBody = rawExc
+        .replace(/^(?:เว้นแต่|ยกเว้น|มิให้ใช้บังคับแก่)\s*/, "")
+        .split(/\s*\((?:1|๑)\)\s*/)[0]
+        .trim();
       const excTokens = excBody
         .split(/\s+/)
         .map((t) => t.replace(/[^\u0E00-\u0E7Fa-zA-Z0-9]/g, ""))

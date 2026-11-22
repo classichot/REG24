@@ -1204,4 +1204,82 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
     expect(ledgerUnstated.temporal_facts.controlling_tax_point.iso_date).toBeNull();
     expect(ledgerUnstated.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point).toBe(true);
   });
+
+  it("10. Fact-Handling Risk Gates (Thai + English): unstated invoice coverage + one later payment (cross-handover conditional vs same-window sufficient) & same-amount payments with no stated allocation (never infer settlement from equal amounts alone)", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+
+    // Risk 1A (Thai + English): Unstated invoice coverage + ONE later payment crossing decree handover (RD 790 -> RD 799)
+    // Must NEVER infer full coverage from invoice count (`distinctPaymentDateCount === 1`)!
+    const r1Th =
+      "บริษัท อัลฟา คอนซัลติ้ง จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่าสัญญารวม 100,000 บาท โดยไม่มีการใช้บริการก่อนวันออกใบกำกับภาษีหรือรับชำระเงิน บริษัทออกใบกำกับภาษีเมื่อวันที่ 25 กันยายน 2568 และต่อมาลูกค้าชำระเงินจำนวน 100,000 บาท เมื่อวันที่ 5 ตุลาคม 2568 ต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละเท่าใดและตามพระราชกฤษฎีกาฉบับใด";
+    const r1En =
+      "A VAT-registered Thai company provides a THB 100,000 domestic consulting service with no prior service use. It issues a tax invoice on 25 September 2025 (without stating whether it covers the full contract or only part) and receives payment of THB 100,000 on 5 October 2025. What VAT rate and Royal Decree apply?";
+    for (const q of [r1Th, r1En]) {
+      const l = buildStructuredCaseFactLedger({ question: q, applicableDate: null });
+      expect(l.temporal_facts.controlling_tax_point.iso_date).toBeNull();
+      expect(l.temporal_facts.controlling_tax_point.controlling_event).toContain(
+        "UNSTATED_INVOICE_COVERAGE_CONDITIONAL"
+      );
+      expect(l.temporal_facts.split_payment_tax_points?.map((p) => p.iso_date)).toEqual([
+        "2025-09-25",
+        "2025-10-05",
+      ]);
+      expect(l.explicitly_unknown_facts_th.some((u) => u.includes("2025-09-25"))).toBe(true);
+    }
+    const r1Cap = await capturePacket(store, "rel.B01.rc8", r1Th, null);
+    expect(
+      r1Cap.actual_model_packet.some(
+        (p) => p.work_id === "subreg.th.rc.royal_decree.790" && p.evidence_role === "governing"
+      )
+    ).toBe(true);
+    expect(
+      r1Cap.actual_model_packet.some(
+        (p) => p.work_id === "subreg.th.rc.royal_decree.799" && p.evidence_role === "governing"
+      )
+    ).toBe(true);
+
+    // Risk 1B (Thai + English): Unstated invoice coverage + ONE later payment inside SAME decree window (RD 790)
+    // Facts ARE sufficient for governing decree & rate -> must NOT unnecessarily decline!
+    const r1SameTh =
+      "บริษัท อัลฟา คอนซัลติ้ง จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท โดยไม่มีการใช้บริการก่อนออกใบกำกับภาษีหรือรับชำระเงิน ออกใบกำกับภาษีวันที่ 20 กันยายน 2568 และรับชำระเงิน 100,000 บาท วันที่ 25 กันยายน 2568 ต้องเสียภาษีมูลค่าเพิ่มตามพระราชกฤษฎีกาฉบับใด";
+    const r1SameEn =
+      "A VAT-registered Thai company provides a THB 100,000 domestic consulting service with no prior service use. It issues a tax invoice on 20 September 2025 and receives payment of THB 100,000 on 25 September 2025. What VAT rate and Royal Decree apply?";
+    for (const q of [r1SameTh, r1SameEn]) {
+      const l = buildStructuredCaseFactLedger({ question: q, applicableDate: null });
+      expect(l.temporal_facts.controlling_tax_point.iso_date).toBe("2025-09-20");
+      expect(l.temporal_facts.controlling_tax_point.controlling_event).toContain(
+        "PRIOR_INVOICE_SAME_WINDOW_SUFFICIENT"
+      );
+      expect(l.temporal_facts.controlling_tax_point.is_ambiguous).toBe(false);
+    }
+
+    // Risk 2 (Thai + English): Same-amount payments (฿50k + ฿50k) after partial ฿50k invoice with NO stated allocation
+    // Must NEVER infer settlement from equal amounts alone! Must keep all 3 candidate dates and name missing allocation!
+    const r2Th =
+      "บริษัท เบต้า จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่าสัญญารวม 100,000 บาท โดยไม่มีการใช้บริการก่อนออกใบกำกับภาษีหรือรับชำระเงิน บริษัทออกใบกำกับภาษีบางส่วนจำนวน 50,000 บาท เมื่อวันที่ 25 กันยายน 2568 ต่อมาลูกค้าชำระเงิน 50,000 บาท เมื่อวันที่ 30 กันยายน 2568 และชำระเงินอีก 50,000 บาท เมื่อวันที่ 5 ตุลาคม 2568 โดยไม่ได้ระบุว่ายอดชำระงวดใดเป็นการชำระตามใบกำกับภาษีที่ออกไว้แล้ว แต่ละส่วนต้องเสียภาษีมูลค่าเพิ่มตามพระราชกฤษฎีกาฉบับใด";
+    const r2En =
+      "A VAT-registered Thai company provides a THB 100,000 domestic consulting service with no prior service use. It issues a partial tax invoice for THB 50,000 on 25 September 2025, then receives two equal payments of THB 50,000 on 30 September 2025 and THB 50,000 on 5 October 2025 with no stated allocation as to which payment settles the invoice. What VAT rate and Royal Decree apply?";
+    for (const q of [r2Th, r2En]) {
+      const l = buildStructuredCaseFactLedger({ question: q, applicableDate: null });
+      expect(l.temporal_facts.controlling_tax_point.iso_date).toBeNull();
+      expect(l.temporal_facts.controlling_tax_point.controlling_event).toContain(
+        "PARTIAL_INVOICE_UNSTATED_ALLOCATION_CONDITIONAL"
+      );
+      // MUST NOT drop 2025-09-30 as assumed settlement!
+      expect(l.temporal_facts.split_payment_tax_points?.map((p) => p.iso_date)).toEqual([
+        "2025-09-25",
+        "2025-09-30",
+        "2025-10-05",
+      ]);
+      expect(l.temporal_facts.split_payment_tax_points?.[0]?.settled_payment_date_iso).toBeUndefined();
+      expect(l.explicitly_unknown_facts_th.some((u) => u.includes("การจัดสรรการชำระเงิน"))).toBe(true);
+    }
+    const r2Cap = await capturePacket(store, "rel.B01.rc8", r2Th, null);
+    const rd790R2 = r2Cap.actual_model_packet.find((p) => p.work_id === "subreg.th.rc.royal_decree.790");
+    const rd799R2 = r2Cap.actual_model_packet.find((p) => p.work_id === "subreg.th.rc.royal_decree.799");
+    expect(rd790R2?.evidence_role).toBe("governing");
+    expect(rd790R2?.applicable_tax_point_dates).toEqual(["2025-09-25", "2025-09-30"]);
+    expect(rd799R2?.evidence_role).toBe("governing");
+    expect(rd799R2?.applicable_tax_point_dates).toEqual(["2025-10-05"]);
+  });
 });

@@ -41,13 +41,16 @@ function getArg(flag: string): string | null {
 async function main() {
   loadDotEnvLocal();
   const answerId = getArg("--answer-id");
+  const startingRevArg = getArg("--starting-revision");
+  const winningKey = getArg("--winning-key");
   const rejectedText = getArg("--rejected-text");
   const rejectedKey = getArg("--rejected-key");
+  const expectedOwnerActorId = getArg("--owner-actor-id");
   const outPath = getArg("--out");
 
   if (!answerId) {
     console.error(
-      "Usage: npx tsx scripts/audit-rc10-3-qa-two-session-readonly.ts --answer-id <ans.xxx> [--rejected-text <substr>] [--rejected-key <key>] [--out <file.json>]"
+      "Usage: npx tsx scripts/audit-rc10-3-qa-two-session-readonly.ts --answer-id <ans.xxx> [--starting-revision <ans.xxx.r1>] [--winning-key <key>] [--rejected-key <key>] [--rejected-text <substr>] [--owner-actor-id <actor>] [--out <file.json>]"
     );
     process.exit(1);
   }
@@ -136,21 +139,24 @@ async function main() {
   const orphanLinks = lnkRes.rows.filter((l) => !revSet.has(l.answer_revision_id));
   const orphanAudits = audRes.rows.filter((a) => !revSet.has(a.correlation_id));
 
-  const rejectedMatches = {
-    answer_rows: ansRes.rows.filter(
-      (r) =>
-        (rejectedKey && r.save_operation_key === rejectedKey) ||
-        (rejectedText && r.rendered_answer_th.includes(rejectedText))
-    ).length,
-    claim_rows: clmRes.rows.filter(
-      (c) => Boolean(rejectedText && c.displayed_claim_text.includes(rejectedText))
-    ).length,
-    audit_rows: audRes.rows.filter(
-      (a) => Boolean(rejectedText && a.reason && a.reason.includes(rejectedText))
-    ).length,
-  };
+  const startingRevId = startingRevArg || `${answerId}.r1`;
+  const startingRow = ansRes.rows.find((r) => r.answer_revision_id === startingRevId) || null;
+  const startingClaims = startingRow
+    ? clmRes.rows.filter((c) => c.answer_revision_id === startingRow.answer_revision_id)
+    : [];
+  const startingLinks = startingRow
+    ? lnkRes.rows.filter((l) => l.answer_revision_id === startingRow.answer_revision_id)
+    : [];
 
-  const winner = ansRes.rows[ansRes.rows.length - 1] || null;
+  const winningRow =
+    (winningKey
+      ? ansRes.rows.find(
+          (r) =>
+            r.save_operation_key === winningKey &&
+            r.supersedes_revision_id === startingRevId
+        )
+      : ansRes.rows.find((r) => r.supersedes_revision_id === startingRevId)) || null;
+  const winner = winningRow || ansRes.rows[ansRes.rows.length - 1] || null;
   const winnerClaims = winner
     ? clmRes.rows.filter((c) => c.answer_revision_id === winner.answer_revision_id)
     : [];
@@ -161,11 +167,88 @@ async function main() {
     ? audRes.rows.filter((a) => a.correlation_id === winner.answer_revision_id)
     : [];
 
+  const rejectedAnswerRows = ansRes.rows.filter(
+    (r) =>
+      (rejectedKey && r.save_operation_key === rejectedKey) ||
+      (rejectedText && r.rendered_answer_th.includes(rejectedText))
+  );
+  const rejectedRevIdSet = new Set(rejectedAnswerRows.map((r) => r.answer_revision_id));
+  const rejectedMatches = {
+    answer_rows: rejectedAnswerRows.length,
+    claim_rows: clmRes.rows.filter(
+      (c) =>
+        rejectedRevIdSet.has(c.answer_revision_id) ||
+        Boolean(rejectedText && c.displayed_claim_text.includes(rejectedText))
+    ).length,
+    citation_link_rows: lnkRes.rows.filter(
+      (l) =>
+        rejectedRevIdSet.has(l.answer_revision_id) ||
+        !revSet.has(l.answer_revision_id)
+    ).length,
+    successful_write_audit_rows: audRes.rows.filter(
+      (a) =>
+        rejectedRevIdSet.has(a.correlation_id) ||
+        Boolean(
+          (rejectedKey && a.reason && a.reason.includes(rejectedKey)) ||
+            (rejectedText && a.reason && a.reason.includes(rejectedText))
+        )
+    ).length,
+  };
+
+  const startingRowPositivelyIdentified = Boolean(
+    startingRow &&
+      (!expectedOwnerActorId || startingRow.owner_actor_id === expectedOwnerActorId)
+  );
+  const winningRevisionPositivelyIdentified = Boolean(
+    winningRow &&
+      winningRow.supersedes_revision_id === startingRevId &&
+      (!expectedOwnerActorId || winningRow.owner_actor_id === expectedOwnerActorId) &&
+      (!winningKey || winningRow.save_operation_key === winningKey)
+  );
+  const sameOwnerForStartAndWinner = Boolean(
+    startingRow && winningRow && startingRow.owner_actor_id === winningRow.owner_actor_id
+  );
+  const zeroOrphans =
+    orphanClaims.length === 0 && orphanLinks.length === 0 && orphanAudits.length === 0;
+  const zeroRejectedWrites =
+    rejectedMatches.answer_rows === 0 &&
+    rejectedMatches.claim_rows === 0 &&
+    rejectedMatches.citation_link_rows === 0 &&
+    rejectedMatches.successful_write_audit_rows === 0;
+  const allPositiveAssertionsPassed =
+    startingRowPositivelyIdentified &&
+    winningRevisionPositivelyIdentified &&
+    sameOwnerForStartAndWinner &&
+    zeroOrphans &&
+    zeroRejectedWrites;
+
   const receipt = {
-    schema_version: "reg24.rc10_3.qa_two_session_readonly_neon_audit.v1",
+    schema_version: "reg24.rc10_3.qa_two_session_readonly_neon_audit.v2",
     audited_at: new Date().toISOString(),
     readonly_mode: true,
     answer_id: answerId,
+    positive_verification_assertions: {
+      starting_row_positively_identified: startingRowPositivelyIdentified,
+      winning_revision_positively_identified: winningRevisionPositivelyIdentified,
+      same_owner_for_start_and_winner: sameOwnerForStartAndWinner,
+      zero_orphaned_child_rows: zeroOrphans,
+      zero_rejected_revision_claim_link_or_write_audit_rows: zeroRejectedWrites,
+      non_empty_match_guard_passed: ansRes.rows.length >= 2 && startingRowPositivelyIdentified && winningRevisionPositivelyIdentified,
+      all_assertions_passed: allPositiveAssertionsPassed,
+    },
+    starting_revision_row: startingRow
+      ? {
+          answer_revision_id: startingRow.answer_revision_id,
+          revision_number: startingRow.revision_number,
+          owner_actor_id: startingRow.owner_actor_id,
+          release_id: startingRow.release_id,
+          save_operation_key: startingRow.save_operation_key,
+          save_payload_sha256: startingRow.save_payload_sha256,
+          generated_at: startingRow.generated_at,
+          claims_count: startingClaims.length,
+          citations_count: startingLinks.length,
+        }
+      : null,
     table_counts: {
       citation_published_answer: ansRes.rows.length,
       citation_atomic_claim: clmRes.rows.length,
@@ -176,22 +259,20 @@ async function main() {
       claims: orphanClaims.length,
       evidence_links: orphanLinks.length,
       audit_events: orphanAudits.length,
-      zero_orphans:
-        orphanClaims.length === 0 && orphanLinks.length === 0 && orphanAudits.length === 0,
+      zero_orphans: zeroOrphans,
     },
     rejected_edit_leak_check: {
+      checked_winning_key: winningKey,
       checked_rejected_key: rejectedKey,
       checked_rejected_text_substring: rejectedText,
       writes_attributable_to_rejected_edit: rejectedMatches,
-      zero_rejected_edit_writes:
-        rejectedMatches.answer_rows === 0 &&
-        rejectedMatches.claim_rows === 0 &&
-        rejectedMatches.audit_rows === 0,
+      zero_rejected_edit_writes: zeroRejectedWrites,
     },
     committed_revisions: ansRes.rows.map((r) => ({
       answer_revision_id: r.answer_revision_id,
       revision_number: r.revision_number,
       supersedes_revision_id: r.supersedes_revision_id,
+      owner_actor_id: r.owner_actor_id,
       release_id: r.release_id,
       status: r.status,
       save_operation_key: r.save_operation_key,
@@ -202,11 +283,19 @@ async function main() {
           answer_revision_id: winner.answer_revision_id,
           revision_number: winner.revision_number,
           supersedes_revision_id: winner.supersedes_revision_id,
+          owner_actor_id: winner.owner_actor_id,
+          save_operation_key: winner.save_operation_key,
+          save_payload_sha256: winner.save_payload_sha256,
           release_id: winner.release_id,
           rendered_answer_th: winner.rendered_answer_th,
           claims_count: winnerClaims.length,
           citations_count: winnerLinks.length,
           audit_events_count: winnerAudits.length,
+          audit_ids: winnerAudits.map((a) => ({
+            audit_id: a.audit_id,
+            event_type: a.event_type,
+            recorded_at: a.recorded_at,
+          })),
           execution_provenance: winner.execution_provenance,
           citations: winnerLinks.map((l) => ({
             link_id: l.link_id,
@@ -224,6 +313,10 @@ async function main() {
     fs.writeFileSync(path.resolve(outPath), JSON.stringify(receipt, null, 2));
   }
   console.log(JSON.stringify(receipt, null, 2));
+  if (!allPositiveAssertionsPassed) {
+    console.error("READONLY_NEON_AUDIT_FAILED: Positive starting/winning row match or zero-rejected-write check failed.");
+    process.exitCode = 2;
+  }
 }
 
 main().catch((err) => {

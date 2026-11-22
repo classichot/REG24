@@ -1,0 +1,112 @@
+{
+  "schema_version": "reg24.rc10_3.qa_two_session_readonly_neon_audit.v2",
+  "audited_at": "2026-11-22T13:23:22.271Z",
+  "readonly_mode": true,
+  "answer_id": "ans.rc103.live_distinct_race.1795233207190",
+  "positive_verification_assertions": {
+    "starting_row_positively_identified": true,
+    "winning_revision_positively_identified": true,
+    "same_owner_for_start_and_winner": true,
+    "zero_orphaned_child_rows": true,
+    "zero_rejected_revision_claim_link_or_write_audit_rows": true,
+    "non_empty_match_guard_passed": true,
+    "all_assertions_passed": true
+  },
+  "starting_revision_row": {
+    "answer_revision_id": "ans.rc103.live_distinct_race.1795233207190.r1",
+    "revision_number": 1,
+    "owner_actor_id": "qa.rc103.distinct_edit.1795233207190@reg24.th",
+    "release_id": "rel.B01.rc8",
+    "save_operation_key": "op.init.1795233207190",
+    "save_payload_sha256": "15c79469df5e4e329ccef86d0c492d753d5763d94a68658f0a208452be20157a",
+    "generated_at": "2026-11-21 03:53:27.586+00",
+    "claims_count": 1,
+    "citations_count": 1
+  },
+  "table_counts": {
+    "citation_published_answer": 3,
+    "citation_atomic_claim": 3,
+    "citation_claim_evidence_link": 3,
+    "citation_audit_event": 3
+  },
+  "orphaned_child_rows": {
+    "claims": 0,
+    "evidence_links": 0,
+    "audit_events": 0,
+    "zero_orphans": true
+  },
+  "rejected_edit_leak_check": {
+    "checked_winning_key": "op.editB.1795233207190",
+    "checked_rejected_key": "op.editA.1795233207190",
+    "checked_rejected_text_substring": "[edit A with key]",
+    "writes_attributable_to_rejected_edit": {
+      "answer_rows": 0,
+      "claim_rows": 0,
+      "citation_link_rows": 0,
+      "successful_write_audit_rows": 0
+    },
+    "zero_rejected_edit_writes": true
+  },
+  "committed_revisions": [
+    {
+      "answer_revision_id": "ans.rc103.live_distinct_race.1795233207190.r1",
+      "revision_number": 1,
+      "supersedes_revision_id": null,
+      "owner_actor_id": "qa.rc103.distinct_edit.1795233207190@reg24.th",
+      "release_id": "rel.B01.rc8",
+      "status": "complete",
+      "save_operation_key": "op.init.1795233207190",
+      "generated_at": "2026-11-21 03:53:27.586+00"
+    },
+    {
+      "answer_revision_id": "ans.rc103.live_distinct_race.1795233207190.r2",
+      "revision_number": 2,
+      "supersedes_revision_id": "ans.rc103.live_distinct_race.1795233207190.r1",
+      "owner_actor_id": "qa.rc103.distinct_edit.1795233207190@reg24.th",
+      "release_id": "rel.B01.rc8",
+      "status": "complete",
+      "save_operation_key": "op.editB.1795233207190",
+      "generated_at": "2026-11-21 03:53:28.32+00"
+    },
+    {
+      "answer_revision_id": "ans.rc103.live_distinct_race.1795233207190.r3",
+      "revision_number": 3,
+      "supersedes_revision_id": "ans.rc103.live_distinct_race.1795233207190.r2",
+      "owner_actor_id": "qa.rc103.distinct_edit.1795233207190@reg24.th",
+      "release_id": "rel.B01.rc8",
+      "status": "complete",
+      "save_operation_key": null,
+      "generated_at": "2026-11-21 03:53:29.09+00"
+    }
+  ],
+  "winning_revision_neon_readback": {
+    "answer_revision_id": "ans.rc103.live_distinct_race.1795233207190.r2",
+    "revision_number": 2,
+    "supersedes_revision_id": "ans.rc103.live_distinct_race.1795233207190.r1",
+    "owner_actor_id": "qa.rc103.distinct_edit.1795233207190@reg24.th",
+    "save_operation_key": "op.editB.1795233207190",
+    "save_payload_sha256": "f8c54f4725d1aae5fc20640b4cb49f7be880f68f29d04ac4aff3a5aa28004639",
+    "release_id": "rel.B01.rc8",
+    "rendered_answer_th": "[1] ให้ลดอัตราภาษีมูลค่าเพิ่มตามมาตรา 80 แห่งประมวลรัษฎากร คงจัดเก็บในอัตราร้อยละ 6.3 ตาม พ.ร.ฎ. 790 [edit B with key] [พ.ร.ฎ. (ฉบับที่ 790) · PDF หน้า 2 · หน้าพิมพ์ หน้า ๒ · พ.ร.ฎ. (ฉบับที่ 790)]",
+    "claims_count": 1,
+    "citations_count": 1,
+    "audit_events_count": 1,
+    "audit_ids": [
+      {
+        "audit_id": "caud.pg.cfc018d05709de",
+        "event_type": "ANSWER_REVISION_CREATED",
+        "recorded_at": "2026-11-21 03:53:28.32+00"
+      }
+    ],
+    "execution_provenance": null,
+    "citations": [
+      {
+        "link_id": "cel.e1aa04ccecd975ce",
+        "passage_id": "psg.rc8.rd790.sec_3_quoted_rd646_sec_4",
+        "version_id": "ver.th.rc.royal_decree.790.v2",
+        "citation_label_th": "พ.ร.ฎ. (ฉบับที่ 790) · PDF หน้า 2 · หน้าพิมพ์ หน้า ๒ · พ.ร.ฎ. (ฉบับที่ 790)",
+        "official_url": "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc790.pdf"
+      }
+    ]
+  }
+}

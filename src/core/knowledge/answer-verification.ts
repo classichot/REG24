@@ -256,12 +256,17 @@ function extractMaterialQuantitativeTokens(normText: string): Array<{
   }
 
   // 2. Deadlines, durations, promoter/person counts, multipliers, and monetary caps
-  //    Note: In Thai script, words follow units without spaces (`15 วันนับแต่`, `3 คนขึ้นไป`, `5 ปีนับแต่`), so only guard `วัน` against `วันที่`/`วันสิ้น` and guard English units with `(?![a-z])`!
+  //    Note: In Thai script, words follow units without spaces (`15 วันนับแต่`, `3 คนขึ้นไป`, `5 ปีนับแต่`), so guard `วัน` against compound date nouns (`วันที่`, `วันสิ้น`, `วันเกิดความรับผิด`, `วันออกใบกำกับภาษี`, `วันรับชำระ`, etc.) and referential date counts (`ทั้งสองวัน` / `ทั้ง 2 วัน`), and guard English units with `(?![a-z])`!
   for (const m of normText.matchAll(
-    /(?<![0-9/.\-])([0-9]+(?:\.[0-9]+)?)\s*(วัน(?!ที่|สิ้น)|เดือน|ปี|คน|เท่า|ล้านบาท|บาท|(?:thb|baht|days?|months?|years?|promoters?)(?![a-z]))/g
+    /(?<![0-9/.\-])([0-9]+(?:\.[0-9]+)?)\s*(วัน(?!ที่|สิ้น|เกิด|ออก|รับ|ชำระ|ใช้|ทำ|ส่ง|เดือน)|เดือน|ปี|คน|เท่า|ล้านบาท|บาท|(?:thb|baht|days?|months?|years?|promoters?)(?![a-z]))/g
   )) {
     const valNum = Number(m[1]);
     const u = m[2];
+    // Skip referential multi-date phrases like `ทั้งสองวัน` / `ทั้ง 2 วัน` ("both dates") which are not statutory day-count deadlines.
+    if (u === "วัน" && m.index !== undefined) {
+      const prefix = normText.slice(Math.max(0, m.index - 8), m.index);
+      if (/ทั้ง\s*$/.test(prefix)) continue;
+    }
     // Skip 4-digit calendar years (`2569`, `2026`)
     if ((u === "ปี" || u.startsWith("year")) && valNum >= 1900 && valNum <= 2600) {
       continue;
@@ -692,7 +697,8 @@ export function evaluateSubstantiveClaimSupport(params: {
       );
     }
     if (qTok.kind === "unit") {
-      const unitGuard = qTok.unitTh === "วัน" ? "วัน(?!ที่|สิ้น)" : qTok.unitTh;
+      const unitGuard =
+        qTok.unitTh === "วัน" ? "วัน(?!ที่|สิ้น|เกิด|ออก|รับ|ชำระ|ใช้|ทำ|ส่ง|เดือน)" : qTok.unitTh;
       return new RegExp(`(?<![0-9.])${escapedVal}\\s*${unitGuard}`).test(combinedNormWithMeta);
     }
     return new RegExp(`(?<![0-9.])${escapedVal}(?![0-9])`).test(combinedNormWithMeta);
