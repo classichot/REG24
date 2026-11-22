@@ -306,6 +306,40 @@ Receipt: [rc10_3_rd807_split_expiry_before_diagnostic.json](rc10_3_rd807_split_e
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
+---
+
+## 11. Partial-Invoice Coverage Rule (§78/1(1)) — Diagnostic on `d4b3e40`, Generalized Fix & Controls
+
+- **Frozen First-Check Baseline Preserved**: `d4b3e40c8c125d464fc31fff660810df0e8c5635` (protected Preview `https://reg24-aczqyjdjn-7-l-advisory.vercel.app`, pushed tag `archive/b01-rc10.3-d4b3e40`).
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TS BM25+Graph, `gemini-4-neon @ low`, `0` changes under `data/`.
+- **Next.js `16.4.2` Advisory Invariance**: `0` diffs in `package.json`, `package-lock.json`, or `next.config.ts` since `2a1dbc0`, and `0` uses of `next/image`, `'use cache'`, `unstable_cache`, or `runtime = 'edge'`; the prior `NOT_APPLICABLE` Vercel Preview assessment ([rc10_3_nextjs_security_advisory_assessment.json](rc10_3_nextjs_security_advisory_assessment.json)) applies identically to `d4b3e40` and this replacement commit.
+
+### 11.1 BEFORE Material Defect Reproduced on Frozen `d4b3e40` (No Date Override)
+
+Receipt: [rc10_3_partial_invoice_before_diagnostic_d4b3e40.json](rc10_3_partial_invoice_before_diagnostic_d4b3e40.json) (`bug_reproduced_on_d4b3e40: true`)
+
+- Fictional **฿100,000** domestic consulting service: **only ฿40,000 invoiced on 25 Sep 2568 (`2025-09-25`, before handover)** → **฿40,000 paid on 30 Sep 2568 (`2025-09-30`)** → **remaining ฿60,000 paid on 5 Oct 2568 (`2025-10-05`, after handover)**.
+- On `d4b3e40` (`DIAG-PARTIAL-INVOICE-COLLAPSE-BUG`, `trc.da8b54890eabcc`), `case-fact-ledger.ts` checked only invoice count and date (not coverage), so `priorInvoiceFixesWholeTaxPoint` misfired (`controlling_date_iso: "2025-09-25"`), assembling **only `RD 790`** and **completely omitting `RD 799`** from the model packet — causing the live final answer to claim no reduction decree existed for 5 Oct 2568 and fall back to §80's 10% ceiling instead of `RD 799` (7% = ฿4,200).
+
+### 11.2 Generalized Shared Rule Fix (`src/core/knowledge/case-fact-ledger.ts`, `src/core/knowledge/grounded-llm-drafter.ts`)
+
+1. **Clause-Scoped Event & Amount Extraction**: Extracts per-event `amount_thb` strictly after the event's verb (preventing preceding contract totals from masquerading as invoice amounts), supports both Thai and English invoice/payment/service-use verbs, prevents settlement references (`ตามใบกำกับภาษีดังกล่าว` / `of that invoiced amount`) from creating phantom invoices, and preserves Revenue Code §78/1(1) precedence when earlier `SERVICE_USE` precedes an invoice.
+2. **Invoice Coverage Check (`invoiceCoversFullTransaction`)**: Fixes the whole transaction at the invoice date **only** when the prior invoice covers the full transaction (`hasExplicitFullInvoiceWording` or `priorInvoiceAmt >= referenceTotalThb`, with zero partial wording). Any partial invoice (`priorInvoiceAmt < referenceTotalThb` or partial wording) or unstated-coverage invoice before multi-date split payments routes to `PARTIAL_INVOICE_MULTI_TAX_POINT` instead of collapsing.
+3. **Anti-Double-Taxation Settlement Exclusion**: Excludes the settlement payment for an already-invoiced portion (`2025-09-30` or post-handover `2025-10-02`) from `split_payment_tax_points` so `PASSAGE_PACK` carries clean non-overlapping per-portion validity (`RD 790` on `2025-09-25` for invoiced ฿40,000; `RD 799` on `2025-10-05` for uninvoiced ฿60,000) without taxing the invoiced ฿40,000 twice or shifting its decree.
+
+### 11.3 AFTER Live `gemini-4-neon @ low` & Regression Verification Receipts
+
+- **Live 5-Scenario `gemini-4-neon @ low` Final-Answer Receipt (`applicable_date: null`, `0` rejected claims, `0` fallbacks)**: [rc10_3_partial_invoice_after_verification.json](rc10_3_partial_invoice_after_verification.json)
+  - `DIAG-PARTIAL-INVOICE-COLLAPSE-BUG` (`trc.9a826a57861f09`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — Portion 1 (฿40k invoiced `2025-09-25`, paid `2025-09-30`) → `RD 790` (`7.0% = ฿2,800`, explicitly no double taxation on `2025-09-30`); Portion 2 (฿60k paid `2025-10-05`) → `RD 799` (`7.0% = ฿4,200`).
+  - `DIAG-PARTIAL-INVOICE-HANDOVER` (`trc.fa9218ab8cc5b2`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — `RD 790` (`฿2,800`) + `RD 799` (`฿4,200`).
+  - `DIAG-PARTIAL-INVOICE-CROSS-PAY` (`trc.908dd5f0e89c4f`, invoiced ฿40k settled AFTER handover on `2025-10-02`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — invoiced ฿40k stays at `2025-09-25` under `RD 790` (`฿2,800`, not double-taxed or shifted to `RD 799`); uninvoiced ฿60k on `2025-10-05` uses `RD 799` (`฿4,200`).
+  - `CTRL-FULL-INVOICE-790` (`trc.2d7b6faa580259`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — full ฿100k invoice on `2025-09-25` fixes whole transaction under `RD 790` (`฿7,000`), excluding `RD 799`.
+  - `CTRL-SPLIT-PAYMENT-790-799` (`trc.ff839ae2b42553`): `ANSWERED`, `2/2 VERIFIED`, `rejected=0` — pure split payment assigns `RD 790` (`฿2,800`) + `RD 799` (`฿4,200`).
+- **Full 9-Suite Vitest Regression (`52/52` PASS, exit `0`, including Test #9)**: [rc10_3_partial_invoice_vitest.log](rc10_3_partial_invoice_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
+
+
 
 
 

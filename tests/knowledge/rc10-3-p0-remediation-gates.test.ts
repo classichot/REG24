@@ -1143,4 +1143,65 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
     expect(priorInvGovWorks).toContain("subreg.th.rc.royal_decree.790");
     expect(priorInvGovWorks).not.toContain("subreg.th.rc.royal_decree.799");
   });
+
+  it("9. Partial-Invoice Coverage Rule (§78/1(1)): partial ฿40k invoice of ฿100k service fixes ONLY ฿40k at invoice date (RD 790) without double-taxing settlement payment, while uninvoiced ฿60k uses post-handover payment date (RD 799)", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+
+    // 1) Partial invoice WITHOUT repeating 'ใบกำกับภาษี' on payment clause (the exact d4b3e40 collapse bug!)
+    const partialNoRepeatQ =
+      "บริษัท โอเมก้า จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยแก่ลูกค้าในกรุงเทพมหานครซึ่งใช้บริการทั้งหมดในประเทศไทย มูลค่าสัญญารวม 100,000 บาท โดยไม่มีการใช้บริการก่อนออกใบกำกับภาษีหรือรับชำระเงิน บริษัทออกใบกำกับภาษีเฉพาะบางส่วนจำนวน 40,000 บาท เมื่อวันที่ 25 กันยายน 2568 ต่อมาลูกค้าชำระเงินจำนวน 40,000 บาทนั้นเมื่อวันที่ 30 กันยายน 2568 และชำระส่วนที่เหลืออีก 60,000 บาท เมื่อวันที่ 5 ตุลาคม 2568 แต่ละส่วนต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละเท่าใดและตามพระราชกฤษฎีกาฉบับใด";
+    const ledgerPartial1 = buildStructuredCaseFactLedger({ question: partialNoRepeatQ, applicableDate: null });
+    expect(ledgerPartial1.temporal_facts.controlling_tax_point.iso_date).toBeNull();
+    expect(ledgerPartial1.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point).toBe(true);
+    expect(ledgerPartial1.temporal_facts.controlling_tax_point.controlling_event).toContain(
+      "PARTIAL_INVOICE_MULTI_TAX_POINT"
+    );
+    // Settlement payment on 2025-09-30 MUST NOT become a 3rd taxable point (no double taxation of invoiced ฿40,000!)
+    expect(ledgerPartial1.temporal_facts.split_payment_tax_points?.map((p) => p.iso_date)).toEqual([
+      "2025-09-25",
+      "2025-10-05",
+    ]);
+    expect(ledgerPartial1.temporal_facts.split_payment_tax_points?.[0]?.settled_payment_date_iso).toBe(
+      "2025-09-30"
+    );
+    const partialCap1 = await capturePacket(store, "rel.B01.rc8", partialNoRepeatQ, null);
+    const rd790P1 = partialCap1.actual_model_packet.find((p) => p.work_id === "subreg.th.rc.royal_decree.790");
+    const rd799P1 = partialCap1.actual_model_packet.find((p) => p.work_id === "subreg.th.rc.royal_decree.799");
+    expect(rd790P1?.evidence_role).toBe("governing");
+    expect(rd790P1?.applicable_tax_point_dates).toEqual(["2025-09-25"]);
+    expect(rd790P1?.excluded_tax_point_dates).toEqual(["2025-10-05"]);
+    expect(rd799P1?.evidence_role).toBe("governing");
+    expect(rd799P1?.applicable_tax_point_dates).toEqual(["2025-10-05"]);
+    expect(rd799P1?.excluded_tax_point_dates).toEqual(["2025-09-25"]);
+
+    // 2) Partial invoice settled AFTER decree handover (2025-10-02): must keep invoiced ฿40k at 2025-09-25 (RD 790), NOT shift to RD 799 or double-tax!
+    const partialCrossPayQ =
+      "บริษัท โอเมก้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท ออกใบกำกับภาษีบางส่วน 40,000 บาท วันที่ 25 กันยายน 2568 แล้วรับชำระยอด 40,000 บาทนั้นวันที่ 2 ตุลาคม 2568 และรับชำระส่วนที่เหลือ 60,000 บาท วันที่ 5 ตุลาคม 2568 ต้องเสียภาษีมูลค่าเพิ่มอย่างไร";
+    const ledgerCross = buildStructuredCaseFactLedger({ question: partialCrossPayQ, applicableDate: null });
+    expect(ledgerCross.temporal_facts.controlling_tax_point.iso_date).toBeNull();
+    expect(ledgerCross.temporal_facts.split_payment_tax_points?.map((p) => p.iso_date)).toEqual([
+      "2025-09-25",
+      "2025-10-05",
+    ]);
+    expect(ledgerCross.temporal_facts.split_payment_tax_points?.[0]?.settled_payment_date_iso).toBe(
+      "2025-10-02"
+    );
+
+    // 3) English partial invoice phrasing (same coverage rule, language-independent)
+    const partialEnQ =
+      "A VAT-registered Thai company provides a THB 100,000 domestic consulting service. It issues a tax invoice for only THB 40,000 on 25 September 2025, receives payment of THB 40,000 on 30 September 2025, and receives the remaining THB 60,000 on 5 October 2025. What VAT rate and Royal Decree apply to each portion?";
+    const ledgerEn = buildStructuredCaseFactLedger({ question: partialEnQ, applicableDate: null });
+    expect(ledgerEn.temporal_facts.controlling_tax_point.iso_date).toBeNull();
+    expect(ledgerEn.temporal_facts.split_payment_tax_points?.map((p) => p.iso_date)).toEqual([
+      "2025-09-25",
+      "2025-10-05",
+    ]);
+
+    // 4) Unstated invoice coverage before multi-date split payments: NEVER blindly assume the invoice covered 100%!
+    const unstatedCovQ =
+      "บริษัท โอเมก้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท ออกใบกำกับภาษีวันที่ 25 กันยายน 2568 และรับชำระเงิน 40,000 บาท วันที่ 30 กันยายน 2568 กับอีก 60,000 บาท วันที่ 5 ตุลาคม 2568 ต้องเสียภาษีมูลค่าเพิ่มอย่างไร";
+    const ledgerUnstated = buildStructuredCaseFactLedger({ question: unstatedCovQ, applicableDate: null });
+    expect(ledgerUnstated.temporal_facts.controlling_tax_point.iso_date).toBeNull();
+    expect(ledgerUnstated.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point).toBe(true);
+  });
 });

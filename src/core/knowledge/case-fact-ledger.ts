@@ -45,6 +45,8 @@ export interface PreservedTemporalEvent {
   raw_text: string;
   iso_date: string;
   source_turn: number;
+  amount_thb?: number | null;
+  is_settlement_of_prior_invoice?: boolean;
 }
 
 export const VAT_RATE_VERIFIED_COVERAGE_START_ISO = "2023-10-01";
@@ -58,6 +60,8 @@ export interface SplitPaymentTaxPointItem {
   within_verified_coverage: boolean;
   governing_decree_work_id: string | null;
   expired_or_non_governing_work_ids: string[];
+  amount_thb?: number | null;
+  settled_payment_date_iso?: string | null;
 }
 
 export interface StructuredCaseFactLedger {
@@ -105,6 +109,51 @@ export interface StructuredCaseFactLedger {
 const THAI_MONTH_REGEX_SRC =
   "(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\\.ค\\.|ก\\.พ\\.|มี\\.ค\\.|เม\\.ย\\.|พ\\.ค\\.|มิ\\.ย\\.|ก\\.ค\\.|ส\\.ค\\.|ก\\.ย\\.|ต\\.ค\\.|พ\\.ย\\.|ธ\\.ค\\.)";
 
+function extractNearestClauseAmountThb(clauseText: string): number | null {
+  const norm = thaiDigitsToArabic(clauseText);
+  const matches: Array<{ idx: number; val: number }> = [];
+  for (const m of norm.matchAll(
+    /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+  )) {
+    const rawNum = (m[1] || m[2] || "").replace(/,/g, "");
+    const n = Number(rawNum);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    const thb = m[3] === "ล้านบาท" ? n * 1_000_000 : n;
+    matches.push({ idx: m.index ?? 0, val: thb });
+  }
+  if (matches.length === 0) return null;
+  // Prefer the amount closest to the date (the last amount appearing in the local clause before the date)
+  return matches[matches.length - 1].val;
+}
+
+function extractLocalClauseBeforeDate(norm: string, dateStartIdx: number): string {
+  const rawWindow = norm
+    .slice(Math.max(0, dateStartIdx - 90), dateStartIdx)
+    // Strip negated/comparative pre-clauses like "โดยไม่มีการใช้บริการก่อนออกใบกำกับภาษีหรือรับชำระเงิน"
+    .replace(/(?:โดย)?ไม่(?:มีการ|ได้)?(?:ใช้บริการ|ออกใบกำกับภาษี|รับชำระเงิน)[^,.]{0,45}?(?=\s+(?:บริษัท|ลูกค้า|ผู้|ต่อมา|แต่)|$)/gi, " ");
+  // Trim at the most recent clause boundary (NEVER cut on a thousands-separator comma like 40,000!)
+  const boundaryRe =
+    /(?:ต่อมา|และ(?:ชำระ|รับชำระ|ได้รับชำระ|จ่าย|ออก)|and\s+(?:receives?|paid|pays?)|[.;]|,(?!\d)|แต่(?:ลูกค้า|ผู้ซื้อ|ผู้รับ)|(?:บริษัท|ลูกค้า|ผู้ให้บริการ|ผู้ประกอบการ|ผู้ซื้อ|ผู้รับบริการ)(?=\s*(?:ออกใบกำกับ|ชำระ|รับชำระ|จ่าย|ได้รับชำระ)))/gi;
+  let lastCut = 0;
+  for (const m of rawWindow.matchAll(boundaryRe)) {
+    const pos = m.index ?? 0;
+    // Only cut if there is meaningful text after the boundary
+    if (rawWindow.length - pos >= 12) {
+      lastCut = pos;
+    }
+  }
+  return rawWindow.slice(lastCut);
+}
+
+function lastRegexMatchIndex(text: string, re: RegExp): number {
+  const gRe = new RegExp(re.source, re.flags.includes("g") ? re.flags : `${re.flags}g`);
+  let last = -1;
+  for (const m of text.matchAll(gRe)) {
+    if (typeof m.index === "number") last = m.index;
+  }
+  return last;
+}
+
 function extractDatesWithEventKinds(
   cleanedText: string,
   turnNumber: number
@@ -124,28 +173,65 @@ function extractDatesWithEventKinds(
     if (!iso) continue;
     const idx = m.index ?? 0;
     const leftCtx = norm.slice(Math.max(0, idx - 65), idx);
+    const localClause = extractLocalClauseBeforeDate(norm, idx);
     const rightCtx = norm.slice(idx + rawDate.length, idx + rawDate.length + 35);
     const ctx = `${leftCtx} ${rightCtx}`;
 
+    const invoiceIssuanceRe =
+      /(?:ออกใบกำกับภาษี|ออกใบกำกับ|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
+    const paymentVerbRe =
+      /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|จ่ายเงิน|จ่ายงวด|receiv(?:e|ed|es)\s+(?:payment|the\s+remaining|THB|฿)|paid\b|payment\s+of)/i;
+    const lastInvIdx = lastRegexMatchIndex(localClause, invoiceIssuanceRe);
+    const lastPayIdx = lastRegexMatchIndex(localClause, paymentVerbRe);
+    const isInvoiceIssuance = lastInvIdx >= 0;
+    const isPaymentVerb = lastPayIdx >= 0;
+    const isInstallmentPaymentHint =
+      !isInvoiceIssuance &&
+      /(?:มัดจำ|งวดแรก|งวดที่\s*[0-9]|งวดที่(?:หนึ่ง|สอง|สาม)|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน)/i.test(
+        localClause
+      );
+    const isSettlementOfPriorInvoice =
+      isPaymentVerb &&
+      /(?:ตามใบกำกับภาษี(?:ดังกล่าว|นั้น)?|ที่ออกใบกำกับภาษีไว้แล้ว|สำหรับใบกำกับภาษี(?:ดังกล่าว|นั้น)|บาทนั้น|จำนวนนั้น|of\s+that\s+(?:THB|฿)?\s*[0-9,]+|for\s+that\s+(?:tax\s+)?invoice)/i.test(
+        localClause
+      );
     const matchedKinds: TemporalEventKind[] = [];
-    if (/จดทะเบียน|โอนกรรมสิทธิ์/.test(leftCtx)) matchedKinds.push("REGISTRATION");
-    if (/(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|จ่ายเงิน|จ่ายงวด|มัดจำ|งวดแรก|งวดที่\s*[0-9]|งวดที่(?:หนึ่ง|สอง|สาม)|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน)/.test(leftCtx)) {
+    if (/จดทะเบียน|โอนกรรมสิทธิ์/.test(localClause)) matchedKinds.push("REGISTRATION");
+    // When both an invoice verb and payment verb appear in the window, prefer the verb closest to the date
+    // (unless explicitly a settlement of a prior invoice, which is always PAYMENT, never a new INVOICE!)
+    if (isSettlementOfPriorInvoice) {
       matchedKinds.push("PAYMENT");
+    } else if (isInvoiceIssuance && isPaymentVerb) {
+      matchedKinds.push(lastInvIdx > lastPayIdx ? "INVOICE" : "PAYMENT");
+    } else {
+      if (isPaymentVerb || isInstallmentPaymentHint) {
+        matchedKinds.push("PAYMENT");
+      }
+      if (isInvoiceIssuance) {
+        matchedKinds.push("INVOICE");
+      }
     }
-    if (/(?:ออกใบกำกับภาษี|ออกใบกำกับ|ใบกำกับภาษี|ออกใบแจ้งหนี้|ใบแจ้งหนี้)/.test(leftCtx)) {
-      matchedKinds.push("INVOICE");
-    }
-    if (/(?:ใช้บริการ|เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการ|ให้บริการเสร็จ)/.test(leftCtx)) {
+    // Extract the amount strictly tied to THIS event's verb (never let a preceding contract total like
+    // "มูลค่า 100,000 บาท ออกใบกำกับภาษีวันที่ ..." be mistaken for the invoice's own amount!)
+    const primaryKind = matchedKinds[0];
+    const clauseAmountThb =
+      primaryKind === "INVOICE" && lastInvIdx >= 0
+        ? extractNearestClauseAmountThb(localClause.slice(lastInvIdx))
+        : primaryKind === "PAYMENT" && lastPayIdx >= 0
+          ? extractNearestClauseAmountThb(localClause.slice(lastPayIdx)) ??
+            extractNearestClauseAmountThb(localClause)
+          : extractNearestClauseAmountThb(localClause);
+    if (/(?:ใช้บริการ|เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|used\s+the\s+service)/i.test(localClause)) {
       matchedKinds.push("SERVICE_USE");
     }
     if (/รอบระยะเวลาบัญชี|รอบบัญชี/.test(ctx)) {
       matchedKinds.push("ACCOUNTING_PERIOD_START");
     }
-    if (/(?:ถามเมื่อ|วันที่ถาม|สอบถามเมื่อ|ณ\s*วันที่ถาม)/.test(leftCtx)) {
+    if (/(?:ถามเมื่อ|วันที่ถาม|สอบถามเมื่อ|ณ\s*วันที่ถาม)/.test(localClause)) {
       matchedKinds.push("QUESTION_DATE");
     }
     if (matchedKinds.length === 0) {
-      if (/(?:โอน|ยก|ให้|ขาย|ซื้อ)/.test(leftCtx)) {
+      if (/(?:โอน|ยก|ให้|ขาย|ซื้อ)/.test(localClause)) {
         matchedKinds.push("TRANSFER");
       } else {
         matchedKinds.push("STATED_TRANSACTION_DATE");
@@ -161,6 +247,10 @@ function extractDatesWithEventKinds(
         raw_text: rawDate,
         iso_date: iso,
         source_turn: turnNumber,
+        ...(clauseAmountThb !== null ? { amount_thb: clauseAmountThb } : {}),
+        ...(kind === "PAYMENT" && isSettlementOfPriorInvoice
+          ? { is_settlement_of_prior_invoice: true }
+          : {}),
       });
     }
   }
@@ -600,12 +690,27 @@ export function buildStructuredCaseFactLedger(input: {
     return null;
   };
 
-  // Detect split-payment / multi-installment VAT transactions BEFORE single-tax-point selection:
-  // 1) Under Revenue Code §78/1(1), if a PRIOR full tax invoice was issued BEFORE the earliest payment
-  //    (and not separate per-installment invoicing), that prior invoice ALREADY FIXES the tax point for
-  //    the whole transaction — do NOT treat it as split-payment multi-tax-point!
-  // 2) Otherwise, when >= 2 distinct payment/portion dates exist, NEVER collapse to the earlier date
+  // Detect split-payment / partial-invoice / multi-installment VAT transactions BEFORE single-tax-point selection:
+  // 1) Under Revenue Code §78/1(1) ("ตามส่วนของการกระทำนั้นๆ"), a prior tax invoice fixes the tax point
+  //    for the WHOLE transaction ONLY if it covers the FULL transaction (not partial coverage!).
+  // 2) If a prior tax invoice covers only PART of the service (e.g. ฿40,000 of ฿100,000), the invoiced
+  //    portion's tax point is fixed at the invoice date (and its later payment is settlement only — NOT
+  //    a second VAT tax point!), while the uninvoiced remainder's tax point arises upon payment!
+  // 3) Otherwise, when >= 2 distinct payment/portion dates exist, NEVER collapse to the earlier date
   //    for the whole transaction: assign authority and validity per tax point!
+  const normMergedAll = thaiDigitsToArabic(mergedAllUserText);
+  const allMentionedAmountsThb: number[] = [];
+  for (const am of normMergedAll.matchAll(
+    /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+  )) {
+    const rawNum = (am[1] || am[2] || "").replace(/,/g, "");
+    const n = Number(rawNum);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    allMentionedAmountsThb.push(am[3] === "ล้านบาท" ? n * 1_000_000 : n);
+  }
+  const maxMentionedAmountThb =
+    allMentionedAmountsThb.length > 0 ? Math.max(...allMentionedAmountsThb) : 0;
+
   const activeTurnVatDates = (
     latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates
   ).filter(
@@ -622,12 +727,57 @@ export function buildStructuredCaseFactLedger(input: {
   const activePaymentsSorted = activeTurnVatDates
     .filter((e) => e.event_type === "PAYMENT")
     .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
-  const priorInvoiceFixesWholeTaxPoint = Boolean(
+  const activeServiceUseSorted = activeTurnVatDates
+    .filter((e) => e.event_type === "SERVICE_USE")
+    .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
+  const hasEarlierServiceUseBeforeInvoice = Boolean(
+    activeServiceUseSorted.length > 0 &&
+      activeInvoicesSorted.length > 0 &&
+      activeServiceUseSorted[0].iso_date < activeInvoicesSorted[0].iso_date
+  );
+  const distinctPaymentDateCount = new Set(activePaymentsSorted.map((e) => e.iso_date)).size;
+  const sumPaymentAmountsThb = activePaymentsSorted.reduce(
+    (sum, e) => sum + (typeof e.amount_thb === "number" ? e.amount_thb : 0),
+    0
+  );
+  const referenceTotalThb = Math.max(maxMentionedAmountThb, sumPaymentAmountsThb);
+
+  const hasExplicitPartialInvoiceWording =
+    /(?:ออกใบกำกับภาษี(?:เฉพาะ)?(?:บางส่วน|งวดแรก|งวดที่\s*1|เพียง|แค่|สำหรับส่วน|สำหรับงวด)|ใบกำกับภาษี(?:เฉพาะ)?บางส่วน|(?:ไม่|ยังมิ|ยังไม)ได้ออกใบกำกับภาษีสำหรับ(?:ส่วนที่เหลือ|ยอด)|invoice(?:d)?\s+(?:for\s+)?only|only\s+(?:THB|฿)?\s*[0-9,]+\s+invoiced|partial\s+(?:tax\s+)?invoice)/i.test(
+      normMergedAll
+    );
+  const hasExplicitFullInvoiceWording =
+    /(?:ออกใบกำกับภาษี(?:เต็มจำนวน|ทั้งจำนวน|ครบทั้งจำนวน|เต็มมูลค่า|รวมทั้งสิ้น)|full\s+(?:tax\s+)?invoice|invoiced\s+(?:the\s+)?(?:full|entire)\s+amount)/i.test(
+      normMergedAll
+    );
+
+  const singlePriorInvoiceCandidate = Boolean(
     isVatCase &&
       !hasSeparateInvoicePerInstallmentWording &&
+      !hasEarlierServiceUseBeforeInvoice &&
       activeInvoicesSorted.length === 1 &&
       activePaymentsSorted.length >= 1 &&
       activeInvoicesSorted[0].iso_date < activePaymentsSorted[0].iso_date
+  );
+  const priorInvoiceAmt = singlePriorInvoiceCandidate ? (activeInvoicesSorted[0].amount_thb ?? null) : null;
+  const priorInvoiceBelowTotal = Boolean(
+    priorInvoiceAmt !== null && referenceTotalThb > 0 && priorInvoiceAmt < referenceTotalThb - 1
+  );
+  const invoiceCoversFullTransaction = singlePriorInvoiceCandidate
+    ? hasExplicitPartialInvoiceWording || priorInvoiceBelowTotal
+      ? false
+      : hasExplicitFullInvoiceWording
+        ? true
+        : priorInvoiceAmt !== null && referenceTotalThb > 0 && priorInvoiceAmt >= referenceTotalThb - 1
+          ? true
+          : distinctPaymentDateCount <= 1
+    : false;
+
+  const priorInvoiceFixesWholeTaxPoint = Boolean(
+    singlePriorInvoiceCandidate && invoiceCoversFullTransaction
+  );
+  const isPartialPriorInvoiceMultiTaxPoint = Boolean(
+    singlePriorInvoiceCandidate && !invoiceCoversFullTransaction && distinctPaymentDateCount >= 1
   );
 
   const distinctActiveVatDatesByIso = new Map<string, PreservedTemporalEvent>();
@@ -636,10 +786,10 @@ export function buildStructuredCaseFactLedger(input: {
       distinctActiveVatDatesByIso.set(ev.iso_date, ev);
     }
   }
-  const distinctPaymentDateCount = new Set(activePaymentsSorted.map((e) => e.iso_date)).size;
   const detectedSplitPayment =
     isVatCase &&
     !priorInvoiceFixesWholeTaxPoint &&
+    !isPartialPriorInvoiceMultiTaxPoint &&
     distinctActiveVatDatesByIso.size >= 2 &&
     (hasSplitPaymentWording || distinctPaymentDateCount >= 2);
 
@@ -648,6 +798,69 @@ export function buildStructuredCaseFactLedger(input: {
     controllingIso = inv.iso_date;
     controllingEvent = `PRIOR_INVOICE_FIXED_TAX_POINT (${inv.raw_text}, Turn ${inv.source_turn})`;
     statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78/1 (1): เมื่อมีการออกใบกำกับภาษีเต็มจำนวนก่อนได้รับชำระราคาค่าบริการ (วันที่ ${inv.iso_date}) ความรับผิดในการเสียภาษีมูลค่าเพิ่มสำหรับทั้งธุรกรรมเกิดขึ้นแล้ว ณ วันออกใบกำกับภาษีดังกล่าว ไม่ใช่แยกตามวันรับชำระเงินงวดภายหลัง`;
+  } else if (isPartialPriorInvoiceMultiTaxPoint) {
+    const inv = activeInvoicesSorted[0];
+    // Identify any payment that merely settles the ALREADY-INVOICED portion so it is NOT treated as a second VAT tax point!
+    let settledPayment: PreservedTemporalEvent | null = null;
+    const uninvoicedPayments: PreservedTemporalEvent[] = [];
+    for (let pi = 0; pi < activePaymentsSorted.length; pi++) {
+      const pay = activePaymentsSorted[pi];
+      const matchesInvoicedAmount =
+        inv.amount_thb != null &&
+        pay.amount_thb != null &&
+        Math.abs(pay.amount_thb - inv.amount_thb) < 1;
+      const hasLaterRemainingPayment = activePaymentsSorted.some(
+        (other, oi) => oi !== pi && other.iso_date > pay.iso_date
+      );
+      if (
+        !settledPayment &&
+        (pay.is_settlement_of_prior_invoice || (matchesInvoicedAmount && hasLaterRemainingPayment))
+      ) {
+        settledPayment = pay;
+        continue;
+      }
+      uninvoicedPayments.push(pay);
+    }
+    const partialTaxPointEvents: PreservedTemporalEvent[] =
+      uninvoicedPayments.length >= 1
+        ? [inv, ...uninvoicedPayments]
+        : Array.from(distinctActiveVatDatesByIso.values());
+    isSplitPaymentMultiTaxPoint = true;
+    splitPaymentTaxPoints = partialTaxPointEvents.map((ev, idx) => {
+      const govWid = governingDecreeWorkIdForIso(ev.iso_date);
+      const expiredWids = ev.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [];
+      return {
+        portion_index: idx + 1,
+        iso_date: ev.iso_date,
+        raw_text: ev.raw_text,
+        event_type: ev.event_type,
+        decree_window: vatWindowBucket(ev.iso_date),
+        within_verified_coverage: ev.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+        governing_decree_work_id: govWid,
+        expired_or_non_governing_work_ids: expiredWids,
+        ...(ev.amount_thb != null ? { amount_thb: ev.amount_thb } : {}),
+        ...(ev === inv && settledPayment ? { settled_payment_date_iso: settledPayment.iso_date } : {}),
+      };
+    });
+    controllingIso = null;
+    controllingEvent = `PARTIAL_INVOICE_MULTI_TAX_POINT (${splitPaymentTaxPoints.map((p) => `${p.iso_date}:${p.event_type}:${p.decree_window}`).join(" + ")})`;
+    const settlementNoteTh = settledPayment
+      ? ` (การรับชำระเงินสำหรับยอดที่ออกใบกำกับภาษีไว้แล้วเมื่อวันที่ ${settledPayment.iso_date} เป็นเพียงการชำระหนี้ตามใบกำกับภาษีเดิม ไม่ก่อให้เกิดจุดความรับผิดทางภาษีซ้ำและไม่เปลี่ยนพระราชกฤษฎีกาที่ใช้บังคับกับส่วนที่ออกใบกำกับภาษีแล้ว)`
+      : "";
+    statutoryRuleHint =
+      `ประมวลรัษฎากร มาตรา 78/1 (1) กรณีออกใบกำกับภาษีบางส่วนก่อนรับชำระเงิน ("ตามส่วนของการกระทำนั้นๆ"): ห้ามนำวันออกใบกำกับภาษีบางส่วนไปเหมารวมกับส่วนที่ยังไม่ได้ออกใบกำกับภาษี และห้ามเก็บภาษีซ้ำเมื่อรับชำระเงินตามยอดที่ออกใบกำกับภาษีแล้ว${settlementNoteTh} — แยกพิจารณาตามวันเกิดความรับผิดของแต่ละส่วน: ` +
+      splitPaymentTaxPoints
+        .map(
+          (p) =>
+            `ส่วนที่ ${p.portion_index} (${p.event_type === "INVOICE" ? "ออกใบกำกับภาษีบางส่วน" : "รับชำระส่วนที่ยังไม่ออกใบกำกับภาษี"}${p.amount_thb ? ` ${p.amount_thb.toLocaleString("en-US")} บาท` : ""}) วันที่ ${p.iso_date} (${
+              !p.within_verified_coverage
+                ? "ก่อน 2023-10-01 — อยู่นอกขอบเขตต้นฉบับที่ตรวจสอบแล้ว"
+                : p.governing_decree_work_id
+                  ? `กฎหมายลดอัตราที่ใช้บังคับเฉพาะส่วนนี้: ${p.decree_window} (${p.governing_decree_work_id})`
+                  : "หลังวันสิ้นสุด พ.ร.ฎ. ฉบับที่ 807 (30 ก.ย. 2570) — พ.ร.ฎ. 807 ไม่ครอบคลุมส่วนนี้และห้ามสมมติอัตราลดในอนาคต"
+            })`
+        )
+        .join("; ");
   } else if (detectedSplitPayment) {
     isSplitPaymentMultiTaxPoint = true;
     splitPaymentTaxPoints = Array.from(distinctActiveVatDatesByIso.values()).map((ev, idx) => {
