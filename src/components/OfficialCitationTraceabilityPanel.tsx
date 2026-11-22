@@ -11,12 +11,16 @@ import type {
 export interface OfficialCitationTraceabilityPanelProps {
   envelope: TraceableAnswerEnvelope;
   questionText?: string;
+  requestHeaders?: Record<string, string>;
+  requireDbOnReopen?: boolean;
   onReopenedEnvelope?: (reopened: TraceableAnswerEnvelope, questionText: string) => void;
 }
 
 export function OfficialCitationTraceabilityPanel({
   envelope,
   questionText = "",
+  requestHeaders,
+  requireDbOnReopen = false,
   onReopenedEnvelope,
 }: OfficialCitationTraceabilityPanelProps) {
   const [activeRef, setActiveRef] = useState<{
@@ -103,32 +107,50 @@ export function OfficialCitationTraceabilityPanel({
 
   const handleSaveAnswer = useCallback(async () => {
     try {
+      const stableSaveKey = `op.ui_save.${envelope.answer_id}.${envelope.answer_revision}`;
       const res = await fetch("/api/v1/knowledge/answers", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(requestHeaders || {}),
+        },
         body: JSON.stringify({
           traceable_answer: envelope,
           question_text: questionText,
+          save_operation_key: stableSaveKey,
         }),
       });
       const json = await res.json();
       if (res.ok && json.ok) {
         setSavedRevisionId(json.saved_answer_revision);
         setReopenInputId(json.saved_answer_revision);
-        setActionToast(`บันทึกคำตอบตามรุ่นสำเร็จ: ${json.saved_answer_revision}`);
+        setActionToast(
+          json.idempotent_replay
+            ? `ยืนยันรุ่นคำตอบที่บันทึกไว้แล้ว (Idempotent): ${json.saved_answer_revision}`
+            : `บันทึกคำตอบตามรุ่นสำเร็จ: ${json.saved_answer_revision}`
+        );
+        if (json.answer && onReopenedEnvelope) {
+          onReopenedEnvelope(json.answer, questionText);
+        }
       } else {
         setActionToast(json.error || "ไม่สามารถบันทึกคำตอบได้");
       }
     } catch (err) {
       setActionToast(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการบันทึกคำตอบ");
     }
-  }, [envelope, questionText]);
+  }, [envelope, questionText, requestHeaders, onReopenedEnvelope]);
 
   const handleReopenAnswer = useCallback(async () => {
     const target = (reopenInputId || savedRevisionId || envelope.answer_revision).trim();
     if (!target) return;
     try {
-      const res = await fetch(`/api/v1/knowledge/answers/${encodeURIComponent(target)}`);
+      const requireDbSuffix = requireDbOnReopen ? "?require_db=1" : "";
+      const res = await fetch(
+        `/api/v1/knowledge/answers/${encodeURIComponent(target)}${requireDbSuffix}`,
+        {
+          headers: requestHeaders || undefined,
+        }
+      );
       const json = await res.json();
       if (res.ok && json.ok && json.answer) {
         setActionToast(`เปิดคำตอบย้อนหลังรุ่น ${json.answer.answer_revision} สำเร็จ`);
@@ -141,7 +163,15 @@ export function OfficialCitationTraceabilityPanel({
     } catch (err) {
       setActionToast(err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการเปิดคำตอบย้อนหลัง");
     }
-  }, [reopenInputId, savedRevisionId, envelope.answer_revision, onReopenedEnvelope, questionText]);
+  }, [
+    reopenInputId,
+    savedRevisionId,
+    envelope.answer_revision,
+    onReopenedEnvelope,
+    questionText,
+    requestHeaders,
+    requireDbOnReopen,
+  ]);
 
   const handleExport = useCallback(
     async (format: "markdown" | "word_doc" | "pdf_html") => {

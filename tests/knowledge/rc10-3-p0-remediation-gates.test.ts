@@ -1282,4 +1282,162 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
     expect(rd799R2?.evidence_role).toBe("governing");
     expect(rd799R2?.applicable_tax_point_dates).toEqual(["2025-10-05"]);
   });
+
+  it("11. Hosted Preflight Save Regression (trc.a1af76c79ef931): unmodified Save replays r1 idempotently, intentional r2 preserves RD 799 + 0.7% local-tax + 7,000 VAT without false downgrade, and tampered numbers stay blocked", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+    const ledger = getUnifiedCitationLedgerView(store, "rel.B01.rc8");
+    const psg77_2 = ledger.passages["psg.7bdc85da3153a7"];
+    const psg78_1 = ledger.passages["psg.3228c2c7aaeb10"];
+    const psg80 = ledger.passages["psg.1b1abb8e7e22df"];
+    const psg799 = ledger.passages["psg.rc8.rd799.sec_3_quoted_rd646_sec_4"];
+    const psgLocal = ledger.passages["psg.3d0eb5636faa0e"];
+    expect(psg77_2 && psg78_1 && psg80 && psg799 && psgLocal).toBeTruthy();
+
+    const ansId = `ans.rc103.preflight_save_reg.${Date.now().toString(36)}`;
+    const questionText =
+      "บริษัท ซิกม่า แอดไวซอรี่ จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่าสัญญารวม 100,000 บาท โดยลูกค้าชำระเงินครบถ้วนเมื่อวันที่ 15 พฤศจิกายน 2568 ต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละเท่าใด เป็นเงินเท่าใด และตามพระราชกฤษฎีกาฉบับใด";
+
+    const claim1Id = `clm.${ansId}.llm_issue.1`;
+    const claim2Id = `clm.${ansId}.llm_issue.2`;
+    const claim2Text =
+      "ต้องเสียภาษีมูลค่าเพิ่มตามประมวลรัษฎากร มาตรา 80 ประกอบพระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 ในอัตราร้อยละ 6.3 รวมภาษีท้องถิ่นอีก 1 ใน 9 (ร้อยละ 0.7) เป็นอัตรารวมร้อยละ 7.0 คิดเป็นเงินภาษีมูลค่าเพิ่ม 7,000 บาท (หากราคารวม VAT แล้วเท่ากับ 6,542.06 บาท จากฐาน 93,457.94 บาท)";
+
+    const makeRef = (
+      psg: NonNullable<typeof psg80>,
+      role: "primary_authority" | "official_summary_scope" = "primary_authority"
+    ) => ({
+      link_id: `lnk.${ansId}.${psg.passage_id}`,
+      evidence_id: psg.passage_id,
+      doc_id: psg.doc_id,
+      version_id: psg.version_id,
+      extraction_revision_id: psg.extraction_revision_id,
+      support_role: role,
+      support_role_label_th: role,
+      required_group: "grp.vat_799",
+      citation_label_th: psg.section_paragraph_path.join(" > "),
+      issuer_name_th: "กรมสรรพากร",
+      source_family: "gazette_enactment" as const,
+      source_family_label_th: "ราชกิจจานุเบกษา",
+      record_type: "full_record" as const,
+      record_type_label_th: "ต้นฉบับทางการ",
+      date_relied_on: "2025-11-15",
+      official_url: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf",
+      official_url_with_anchor: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf#page=2",
+      resolver_url: `/api/v1/knowledge/evidence/${psg.passage_id}`,
+      locator: {
+        human_pinpoint_th: psg.section_paragraph_path.join(" > "),
+        section_paragraph_path: psg.section_paragraph_path,
+        physical_page_start: psg.physical_page_start,
+        physical_page_end: psg.physical_page_end,
+        printed_page_start: psg.printed_page_start,
+        printed_page_end: psg.printed_page_end,
+        anchors: [],
+      },
+      verification_status: "supported" as const,
+      link_health: "unchecked_live" as const,
+      link_health_notice_th: null,
+      last_successful_verification_at: null,
+      access_permission: "public" as const,
+      access_conditions_th: null,
+    });
+
+    const boundCalc = {
+      calculation_id: `calc.${ansId}.2`,
+      claim_id: claim2Id,
+      answer_revision: `${ansId}.r1`,
+      verifier_version: "reg24-llm-calc-verifier-v1.1",
+      formula: "100,000 x 7% = 7,000 บาท",
+      inputs: { tax_base_thb: 100000, exempt_amount_thb: 0, rate_pct: 7 },
+      outputs: { taxable_amount_thb: 100000, computed_tax_thb: 7000 },
+      units: { primary_unit: "THB" as const, detail_th: "บาท" },
+      source_versions: [{ evidence_id: psg799.passage_id, doc_id: psg799.doc_id, version_id: psg799.version_id }],
+      verified_numeric_tokens: ["100000", "100,000", "7", "7.0", "6.3", "0.7", "7000", "7,000", "6542.06", "93457.94"],
+      verified_at: new Date().toISOString(),
+    };
+
+    const r1 = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text: questionText,
+      save_operation_key: null,
+      query_persistence_context: {
+        trusted_calculations_by_claim_id: { [claim2Id]: boundCalc },
+        trusted_calculation_tokens_by_claim_id: { [claim2Id]: boundCalc.verified_numeric_tokens },
+      },
+      submitted_envelope: {
+        answer_id: ansId,
+        as_of_date: "2025-11-15",
+        status: "complete",
+        claims: [
+          {
+            claim_id: claim1Id,
+            claim_number: 1,
+            text: "การให้บริการในราชอาณาจักรต้องเสียภาษีมูลค่าเพิ่มตามมาตรา 77/2 และความรับผิดเกิดขึ้นเมื่อได้รับชำระราคาค่าบริการตามมาตรา 78/1 (1)",
+            claim_type: "legal_proposition",
+            claim_type_label_th: "ข้อกฎหมาย",
+            premise_ids: [],
+            verification_decision: "supported",
+            published: true,
+            withheld_explanation_th: null,
+            evidence_references: [makeRef(psg77_2), makeRef(psg78_1)],
+          },
+          {
+            claim_id: claim2Id,
+            claim_number: 2,
+            text: claim2Text,
+            claim_type: "interpretation",
+            claim_type_label_th: "การปรับใช้กฎหมาย",
+            premise_ids: [],
+            verification_decision: "supported",
+            published: true,
+            withheld_explanation_th: null,
+            bound_calculation: boundCalc,
+            evidence_references: [makeRef(psg80), makeRef(psg799), makeRef(psgLocal, "official_summary_scope")],
+          },
+        ],
+      },
+    });
+    expect(r1.answer_revision).toBe(`${ansId}.r1`);
+    expect(r1.status).toBe("complete");
+    expect(r1.claims.filter((c) => c.verification_decision === "supported").length).toBe(2);
+
+    // Case A: Clicking Save in UI on unmodified r1 (NO query_persistence_context) MUST replay exact r1 idempotently!
+    const uiResave = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text: questionText,
+      save_operation_key: `op.ui_save.${r1.answer_id}.${r1.answer_revision}`,
+      submitted_envelope: r1,
+    });
+    expect(uiResave.answer_revision).toBe(r1.answer_revision);
+    expect((uiResave as unknown as { __idempotent_replay?: boolean }).__idempotent_replay).toBe(true);
+    expect(uiResave.status).toBe("complete");
+    expect(uiResave.claims.filter((c) => c.verification_decision === "supported").length).toBe(2);
+
+    // Case B: Intentional r2 edit WITHOUT query_persistence_context MUST preserve Claim 2 (0.7% / 7% / 7,000 / 6,542.06) without downgrading to partial!
+    const r2 = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text: questionText,
+      revision_reason: "Intentional reviewer save verifying RD 799 + 0.7% local-tax retention",
+      save_operation_key: `op.intentional_r2.${Date.now()}`,
+      submitted_envelope: r1,
+    });
+    expect(r2.answer_revision).toBe(`${ansId}.r2`);
+    expect(r2.status).toBe("complete");
+    expect(r2.claims.filter((c) => c.verification_decision === "supported").length).toBe(2);
+    expect(r2.unresolved_issues.length).toBe(0);
+
+    // Case C (Negative Control): Tampered ungrounded amount (99,999 บาท) in r3 MUST STILL be withheld/blocked!
+    const tamperedClaims = r1.claims.map((c, idx) =>
+      idx === 1 ? { ...c, text: `${c.text} โดยต้องเสียภาษีเพิ่มเติม 99,999 บาท` } : c
+    );
+    const r3 = await saveOrReviseAnswerServerVerified(store, {
+      actor: QA_ACTOR,
+      question_text: questionText,
+      revision_reason: "Negative control tampered numeric claim",
+      save_operation_key: `op.tampered_r3.${Date.now()}`,
+      submitted_envelope: { ...r1, claims: tamperedClaims },
+    });
+    expect(r3.status).toBe("partial");
+    expect(r3.claims.filter((c) => c.verification_decision === "supported").length).toBe(1);
+    expect(r3.unresolved_issues.length).toBeGreaterThanOrEqual(1);
+  });
 });

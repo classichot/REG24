@@ -385,6 +385,40 @@ Receipt: [rc10_3_two_fact_risks_before_cd941d2.json](rc10_3_two_fact_risks_befor
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
+---
+
+## 13. Hosted Preflight Material Save-Downgrade Defect on `4457d9b` (`trc.a1af76c79ef931`) & Shared Persistence Fix
+
+> **Evidence Classification**: Hosted preflight reproduction (`trc.a1af76c79ef931`) and the 54/54 Vitest regression suite below are **Engineering / Preflight evidence** only. Fresh hosted preflight on the new immutable pin is required before Formal Test 1 dispatch.
+
+- **Preserved Preflight-Failed Baseline**: `4457d9b968f288f50ade48d578a7b6cabeb98fd6` (Vercel deployment `dpl_6WdikFydSPnRoSz3C8AJ5iYau4xf`, URL `https://reg24-clv1vo0iz-7-l-advisory.vercel.app/legal-review`, pushed tag `archive/b01-rc10.3-4457d9b`).
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TypeScript BM25+Graph, `gemini-4-neon @ low`, `0` changes under `data/`, `package.json`, `package-lock.json`, or `next.config.ts`.
+
+### 13.1 Material Failure Reproduced During Live Hosted Preflight on `4457d9b`
+
+- **Live Environment & Tokenizer Check (`PASS`)**: `GET /api/v1/knowledge/environment?probe_tokenizer=1` returned HTTP `200`, `git_commit_sha: "4457d9b968f288f50ade48d578a7b6cabeb98fd6"`, `release_id: "rel.B01.rc8"`, `manifest_id: "mfst.b01.rc8_thai_legal_index"`, `manifest_hash: "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3"`, `all_probes_ok: true`, `contract_parity_ok: true`, `icu_version: "78.3"`, `node_version: "v24.22.3"`, `shared_neon_postgres_connected: true`.
+- **Blank-Date Fictional Thai VAT UI Query (`PASS`)**: `trace_id: trc.a1af76c79ef931` (`google-gemini:gemini-4-neon @ low`, `silent_fallback_disabled: true`, `failure_classification: "NONE"`, `32.5s` provider latency / `~58s` total) produced `r1` (`ans.trc.a1af76c79ef931.r1`, `status: "complete"`, `2` claims, `0` rejected, `7` citations including `RD 799` `7.0% = ฿7,000`, `GET .../r1?require_db=1` → HTTP `200`, `persistence_source: "neon_postgres"`).
+- **Official Citation Inspection (`PASS`)**: `GET /api/v1/knowledge/evidence/psg.rc8.rd799.sec_3_quoted_rd646_sec_4` → HTTP `200`, `ver.th.rc.royal_decree.799.v3`, `PDF หน้า 2 · หน้าพิมพ์ หน้า ๒`, `https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf#page=2`.
+- **UI Save & `?require_db=1` Reopen Match (`FAIL — MATERIAL PERSISTENCE DEFECT`)**:
+  - Clicking **"บันทึกคำตอบตามรุ่น" (Save)** called `POST /api/v1/knowledge/answers` without `save_operation_key`, without reviewer actor headers, and without `query_persistence_context`, allocating a redundant `ans.trc.a1af76c79ef931.r2`.
+  - Server re-verification in `saveOrReviseAnswerServerVerified` dropped `r1`'s server-verified `bound_calculation` and derived `0.7%` local-tax rate (`1/9` of `6.3%`), falsely withholding Claim 2 (`withheld_claim_ids: ["clm.ans.trc.a1af76c79ef931.r2.2"]`, `"ตัวเลขอัตราภาษี กำหนดเวลา หรือจำนวน (0.7 %) ในข้อสรุปไม่ตรงกับหลักฐานที่แนบ"`) and downgrading the saved answer from `complete` (`2` claims, `7` citations) to `partial` (`1` claim, `2` citations).
+
+### 13.2 Generalized Shared Behavior Fix
+
+1. **Server Save Path (`src/core/knowledge/claim-traceability-engine.ts`)**:
+   - Loads the authoritative server-committed predecessor revision (`Neon` or local durable store) in `saveOrReviseAnswerServerVerified`.
+   - **Idempotent Unmodified Re-Save**: When re-saving an unmodified already-committed revision (`sub.answer_revision === authoritativeSupersedes`, identical `canonicalSavePayloadSha256`, no explicit edit `revision_reason`), returns the exact committed revision (`__idempotent_replay = true`) instead of bumping `r1 → r2`.
+   - **Strict Per-Claim Predecessor Calculation Inheritance & Canonical VAT Local-Tax Grounding**: On intentional `r2+` revisions without `query_persistence_context`, inherits a predecessor claim's server-verified `bound_calculation` **only** when both exact claim text and cited `evidence_id` set match (never trusting client-supplied numbers or pooling across sibling claims), and deterministically permits `6.3% / 0.7% / 7% / 7.0%` + exact VAT-exclusive/VAT-inclusive arithmetic derived strictly from `question_text` **only** when the claim validly cites both a canonical VAT reduction Royal Decree (`RD 780/790/799/807`) and `subreg.th.rd.vat_local_tax_guide`. Tampered/ungrounded amounts remain strictly blocked.
+2. **UI Save & Reopen Consistency (`src/components/OfficialCitationTraceabilityPanel.tsx`, `src/app/legal-review/page.tsx`)**:
+   - Forwards reviewer `requestHeaders` (`buildHeaders()`) on Save and Reopen so Save runs under the same REG24 actor identity as Query.
+   - Sends deterministic `save_operation_key: op.ui_save.<answer_id>.<answer_revision>` on UI Save and appends `?require_db=1` on Reopen whenever Neon PostgreSQL is connected.
+
+### 13.3 Regression Verification Receipts (Engineering Evidence)
+
+- **Full 9-Suite Vitest Regression (`54/54` PASS, exit `0`, including Test #11 reproducing `trc.a1af76c79ef931` + tampered-number negative control)**: [rc10_3_preflight_save_fix_vitest.log](rc10_3_preflight_save_fix_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
+
 
 
 

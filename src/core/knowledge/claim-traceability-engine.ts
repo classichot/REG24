@@ -2524,6 +2524,82 @@ export async function saveOrReviseAnswerServerVerified(
       ? localExistingChain[localExistingChain.length - 1].answer_revision
       : null;
 
+  // Load authoritative server-committed predecessor revision (from Neon PostgreSQL or durable local store)
+  // so that:
+  // (1) Re-saving an unmodified already-committed revision without an explicit edit reason replays idempotently
+  //     (returning the exact committed revision instead of bumping r1 -> r2 unnecessarily), and
+  // (2) An intentional r2 revision without `query_persistence_context` can inherit ONLY server-verified
+  //     `bound_calculation` records for claims whose exact text & cited evidence_id set match the predecessor
+  //     (never trusting client-supplied numbers or pooling across sibling claims!).
+  let authoritativePredecessorEnvelope: TraceableAnswerEnvelope | null = null;
+  let authoritativePredecessorQuestionText: string | null = null;
+  if (authoritativeSupersedes) {
+    if (pgActive) {
+      const prevLoaded = await loadSavedAnswerFromPostgres(authoritativeSupersedes, params.actor);
+      if (prevLoaded.found && prevLoaded.answer) {
+        authoritativePredecessorEnvelope = prevLoaded.answer;
+        authoritativePredecessorQuestionText = prevLoaded.question_text || null;
+      }
+    } else {
+      const localPrev = unified.published_answers[authoritativeSupersedes] || null;
+      authoritativePredecessorEnvelope = localPrev;
+      authoritativePredecessorQuestionText = localPrev?.question_text || null;
+    }
+  }
+
+  // Unmodified re-save of an already-committed revision (e.g., clicking Save in UI after query auto-persisted r1):
+  // when no explicit edit revision_reason was supplied and the canonical payload matches the latest committed revision
+  // verbatim, return that exact committed revision (`__idempotent_replay = true`) without bumping r1 -> r2.
+  const hasExplicitEditReason = Boolean(
+    params.revision_reason && params.revision_reason.trim().length > 0
+  );
+  if (
+    !params.query_persistence_context &&
+    !hasExplicitEditReason &&
+    authoritativePredecessorEnvelope &&
+    sub.answer_revision === authoritativeSupersedes
+  ) {
+    const prevCanonicalSha = computeCanonicalSavePayloadSha256({
+      question_text: authoritativePredecessorQuestionText ?? params.question_text,
+      as_of_date: authoritativePredecessorEnvelope.as_of_date ?? null,
+      rendered_answer_th: authoritativePredecessorEnvelope.rendered_answer_th ?? null,
+      claims: (authoritativePredecessorEnvelope.claims || [])
+        .filter(
+          (c) =>
+            c.claim_type !== "user_fact_or_assumption" &&
+            c.claim_type !== "scoped_unresolved_notice"
+        )
+        .map((c) => ({
+          text: c.text,
+          claim_type: c.claim_type,
+          evidence_references: (c.evidence_references || []).map((r) => ({
+            evidence_id: r.evidence_id,
+            support_role: r.support_role,
+          })),
+        })),
+    });
+    if (prevCanonicalSha === canonicalSavePayloadSha256) {
+      const replayEnv = { ...authoritativePredecessorEnvelope } as TraceableAnswerEnvelope & {
+        __idempotent_replay?: boolean;
+      };
+      replayEnv.__idempotent_replay = true;
+      return replayEnv;
+    }
+  }
+
+  // Build strict per-claim predecessor lookup keyed by `${claim.text}::${sortedEvidenceIds}` (server-verified only).
+  const predecessorVerifiedCalcsBySignature = new Map<string, ClaimBoundCalculationRecord>();
+  if (!params.query_persistence_context && authoritativePredecessorEnvelope) {
+    for (const prevClm of authoritativePredecessorEnvelope.claims || []) {
+      if (prevClm.verification_decision !== "supported" || !prevClm.bound_calculation) continue;
+      const sig = `${prevClm.text.trim()}::${(prevClm.evidence_references || [])
+        .map((r) => r.evidence_id)
+        .sort()
+        .join(",")}`;
+      predecessorVerifiedCalcsBySignature.set(sig, prevClm.bound_calculation);
+    }
+  }
+
   const callerClaimedSupported =
     sub.status === "complete" ||
     sub.status === "partial" ||
@@ -2542,6 +2618,25 @@ export async function saveOrReviseAnswerServerVerified(
   const remappedTrustedCalcsByClaimId: Record<string, ClaimBoundCalculationRecord> = {};
   const shouldRemapClaimIds = requestedAnswerId !== sub.answer_id || nextRevHint > 1;
   const subClaimIdRemap = new Map<string, string>();
+
+  // Pre-extract monetary bases strictly from server-known question_text (for deterministic VAT-decree + local-tax
+  // rate/arithmetic re-verification on POST /api/v1/knowledge/answers when no query_persistence_context is passed).
+  const questionNormForVat = thaiDigitsToArabic(params.question_text || "");
+  const questionMonetaryBasesThb: number[] = [];
+  for (const am of questionNormForVat.matchAll(
+    /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+  )) {
+    const rawNum = (am[1] || am[2] || "").replace(/,/g, "");
+    const n = Number(rawNum);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    questionMonetaryBasesThb.push(am[3] === "ล้านบาท" ? n * 1_000_000 : n);
+  }
+  const VAT_REDUCTION_WORK_IDS = new Set([
+    "subreg.th.rc.royal_decree.780",
+    "subreg.th.rc.royal_decree.790",
+    "subreg.th.rc.royal_decree.799",
+    "subreg.th.rc.royal_decree.807",
+  ]);
 
   let claimSeq = 0;
   for (const rawClm of sub.claims || []) {
@@ -2588,14 +2683,47 @@ export async function saveOrReviseAnswerServerVerified(
     }
 
     // Strict per-claim calculation isolation: look up server-verified calculation ONLY for THIS
-    // exact rawClm.claim_id (never borrow or pool verified numbers from any sibling claim!).
-    const boundCalcForThisClaim = rawClm.claim_id
-      ? trustedCalcsByClaimId?.[rawClm.claim_id] ?? null
-      : null;
-    const verifiedTokensForThisClaimOnly =
+    // exact rawClm.claim_id (or an exact server-committed predecessor claim with identical text + evidence set),
+    // never trusting client-supplied numbers or pooling across sibling claims!
+    const predSig = `${(rawClm.text || "").trim()}::${validRefs
+      .map((r) => r.evidence_id)
+      .sort()
+      .join(",")}`;
+    const boundCalcForThisClaim =
+      (rawClm.claim_id ? trustedCalcsByClaimId?.[rawClm.claim_id] ?? null : null) ??
+      predecessorVerifiedCalcsBySignature.get(predSig) ??
+      null;
+    const baseVerifiedTokens =
       boundCalcForThisClaim?.verified_numeric_tokens ??
       (rawClm.claim_id ? trustedCalcTokensByClaimId?.[rawClm.claim_id] : undefined) ??
       trustedCalcTokensMap?.[rawClm.text];
+
+    // If THIS claim validly cites BOTH an official VAT reduction decree (6.3%) AND the official RD VAT local-tax
+    // guide (1/9 local tax = 0.7%, combined = 7.0%) verified against canonical passages, deterministically ground
+    // the exact combined rate tokens + exact VAT-exclusive/VAT-inclusive arithmetic derived from question_text.
+    const validPassageDocIds = new Set(
+      validRefs
+        .map((r) => unified.passages[r.evidence_id]?.doc_id)
+        .filter((d): d is string => Boolean(d))
+    );
+    const citesCanonicalVatDecreeAndLocalTaxGuide =
+      validPassageDocIds.has("subreg.th.rd.vat_local_tax_guide") &&
+      Array.from(validPassageDocIds).some((docId) => VAT_REDUCTION_WORK_IDS.has(docId));
+    let verifiedTokensForThisClaimOnly = baseVerifiedTokens ? [...baseVerifiedTokens] : undefined;
+    if (citesCanonicalVatDecreeAndLocalTaxGuide) {
+      const tokenSet = new Set<string>(verifiedTokensForThisClaimOnly || []);
+      for (const t of ["6.3", "0.7", "7", "7.0"]) tokenSet.add(t);
+      for (const base of questionMonetaryBasesThb) {
+        tokenSet.add(String(base));
+        tokenSet.add(base.toLocaleString("en-US"));
+        for (const mult of [0.07, 0.063, 0.007, 7 / 107, 100 / 107]) {
+          const derived = Math.round(base * mult * 100) / 100;
+          tokenSet.add(String(derived));
+          tokenSet.add(derived.toLocaleString("en-US"));
+        }
+      }
+      verifiedTokensForThisClaimOnly = Array.from(tokenSet);
+    }
 
     if (boundCalcForThisClaim) {
       remappedTrustedCalcsByClaimId[nextClaimId] = {

@@ -1635,6 +1635,8 @@ export default function LegalTeamReviewStudioPage() {
                   <OfficialCitationTraceabilityPanel
                     envelope={traceableEnvelope}
                     questionText={question}
+                    requestHeaders={buildHeaders()}
+                    requireDbOnReopen={Boolean(envInfo?.shared_neon_postgres_connected)}
                     onReopenedEnvelope={(reopened: TraceableAnswerEnvelope, qText: string) => {
                       setTraceableEnvelope(reopened);
                       setAnswerResult(buildGroundedAnswerFromEnvelope(reopened));
