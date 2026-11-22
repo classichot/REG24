@@ -1490,10 +1490,15 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       [psg77_2, psg78_1, psg80, psg790, psg799, psgLocal].map((p) => [p.passage_id, state.passages[p.passage_id]!])
     );
 
-    // Control A: Correct total (100,000 + 7,000 = 107,000) MUST pass verifier AND survive Save + idempotent replay!
+    // Control A: Correct total (100,000 + 7,000 = 107,000) MUST resolve PAYMENT date (never REGISTRATION from "ผู้ประกอบการจดทะเบียน"),
+    // pass verifier, AND survive Save + idempotent replay!
     const qA =
-      "บริษัท ธีต้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท ชำระวันที่ 15 พฤศจิกายน 2568 ระบุอัตราภาษี จำนวนภาษีมูลค่าเพิ่ม และยอดรวมทั้งสิ้นที่รวมภาษีมูลค่าเพิ่มแล้ว";
+      "บริษัท ธีต้า จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท ชำระวันที่ 15 พฤศจิกายน 2568 (ยังไม่ออกใบกำกับภาษี) ระบุอัตราภาษี จำนวนภาษีมูลค่าเพิ่ม และยอดรวมทั้งสิ้นที่รวมภาษีมูลค่าเพิ่มแล้ว";
     const flA = buildStructuredCaseFactLedger({ question: qA, applicableDate: null });
+    expect(flA.temporal_facts.controlling_tax_point.is_ambiguous).toBe(false);
+    expect(flA.temporal_facts.controlling_tax_point.iso_date).toBe("2025-11-15");
+    expect(flA.temporal_facts.transaction_or_event_dates.some((e) => e.iso_date === "2025-11-15" && e.event_type === "PAYMENT")).toBe(true);
+    expect(flA.temporal_facts.transaction_or_event_dates.some((e) => e.iso_date === "2025-11-15" && e.event_type === "REGISTRATION")).toBe(false);
     const verA = verifyAndRenderGroundedLlmDraft({
       traceId: "trc.ctrlA.test12",
       factLedger: flA,

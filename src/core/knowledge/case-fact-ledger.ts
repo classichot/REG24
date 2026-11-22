@@ -181,7 +181,7 @@ function extractDatesWithEventKinds(
     const invoiceIssuanceRe =
       /(?:ออกใบกำกับภาษี|ออกใบกำกับ|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
     const paymentVerbRe =
-      /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|จ่ายเงิน|จ่ายงวด|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|paid\b|payment(?:s)?\s+of)/i;
+      /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|paid\b|payment(?:s)?\s+of)/i;
     const lastInvIdx = lastRegexMatchIndex(localClause, invoiceIssuanceRe);
     const lastPayIdx = lastRegexMatchIndex(localClause, paymentVerbRe);
     const isInvoiceIssuance = lastInvIdx >= 0;
@@ -207,7 +207,13 @@ function extractDatesWithEventKinds(
         localClause
       );
     const matchedKinds: TemporalEventKind[] = [];
-    if (/จดทะเบียน|โอนกรรมสิทธิ์/.test(localClause)) matchedKinds.push("REGISTRATION");
+    // Never mistake taxpayer/entity/marital registration status (e.g. "ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม")
+    // for a property-transfer REGISTRATION date!
+    const registrationCheckClause = localClause.replace(
+      /(?:ผู้ประกอบการจดทะเบียน(?:ภาษีมูลค่าเพิ่ม|\s*VAT)?|จดทะเบียน(?:ภาษีมูลค่าเพิ่ม|\s*VAT|สมรส|จัดตั้งบริษัท|นิติบุคคล))/gi,
+      ""
+    );
+    if (/จดทะเบียน|โอนกรรมสิทธิ์/.test(registrationCheckClause)) matchedKinds.push("REGISTRATION");
     // When both an invoice verb and payment verb appear in the window, prefer the verb closest to the date
     // (unless explicitly a settlement of a prior invoice, which is always PAYMENT, never a new INVOICE!)
     if (isSettlementOfPriorInvoice) {

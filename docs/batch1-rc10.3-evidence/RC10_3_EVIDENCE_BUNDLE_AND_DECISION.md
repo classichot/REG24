@@ -479,10 +479,12 @@ Receipt: [rc10_3_two_fact_risks_before_cd941d2.json](rc10_3_two_fact_risks_befor
    - Forwarded `requestHeaders` (`x-reg24-trial-invite`) to Evidence Drawer (`inspectPinnedPassage`) and Export (`handleExport`), and stored the staging reviewer credential in tab-scoped `sessionStorage` (`reg24_staging_reviewer_invite`) so reloading `/legal-review?rev=...` preserves server-verified identity.
 3. **Multi-Turn Base-Update Prompt Discipline (`src/core/knowledge/grounded-llm-drafter.ts`)**:
    - Added a concise system instruction rule directing the drafter to state only recalculated tax and VAT-inclusive totals from the updated taxable base on multi-turn amount revisions without mixing superseded prior-turn figures or multiplier phrasing into the recalculated claim.
+4. **Thai Payment Date & VAT-Registrant Status Disambiguation (`src/core/knowledge/case-fact-ledger.ts`, caught live on `6c129d7` trace `trc.a7deab27fc7059`)**:
+   - Recognized `ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)` as `PAYMENT` in `paymentVerbRe` and stripped non-transfer status phrases (`ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม`, `จดทะเบียนสมรส`, `จดทะเบียนจัดตั้งบริษัท`, `จดทะเบียนนิติบุคคล`) before checking property-transfer `REGISTRATION` so VAT-registrant taxpayer descriptions never hijack a payment date into a false `NEEDS_CLARIFICATION`.
 
 ### 15.3 Regression Verification Receipts (Engineering Evidence)
 
-- **Full 9-Suite Vitest Regression (`56/56` PASS, exit `0`, including Test #13 verifying server-verified reviewer identity, spoofed header rejection, and cross-tester read/list/write isolation)**: [rc10_3_auth_isolation_and_ctrlC_vitest.log](rc10_3_auth_isolation_and_ctrlC_vitest.log)
+- **Full 9-Suite Vitest Regression (`56/56` PASS, exit `0`, including strengthened Test #12 for VAT-registrant `PAYMENT` date parsing and Test #13 for server-verified reviewer identity & cross-tester read/list/write isolation)**: [rc10_3_auth_isolation_and_ctrlC_vitest.log](rc10_3_auth_isolation_and_ctrlC_vitest.log)
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
