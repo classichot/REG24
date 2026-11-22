@@ -56,7 +56,8 @@ export function resolveServerActor(req: Request, opts?: { requireCsrfForMutation
     }
   }
 
-  // Derive distinct user identity from invite/bearer credential when present so two readers never collide on actor_id
+  // Derive distinct user identity & isolated tenant from invite/bearer credential when present so two readers never collide on actor_id or read each other's saved answers.
+  const inviteOnly = process.env.REG24_TRIAL_INVITE_ONLY === "1";
   const inviteOrBearer =
     req.headers.get("x-reg24-trial-invite")?.trim() ||
     req.headers
@@ -64,11 +65,14 @@ export function resolveServerActor(req: Request, opts?: { requireCsrfForMutation
       ?.replace(/^bearer\s+/i, "")
       .trim() ||
     "";
-  const credentialActorId = inviteOrBearer
-    ? `trial.user.${sha256Bytes(inviteOrBearer).slice(0, 14)}@reg24.th`
+  const credentialHash14 = inviteOrBearer ? sha256Bytes(inviteOrBearer).slice(0, 14) : null;
+  const credentialActorId = credentialHash14
+    ? `trial.user.${credentialHash14}@reg24.th`
     : null;
+  const credentialTenantId = credentialHash14 ? `tenant.trial.${credentialHash14}` : null;
 
-  const headerActorId = req.headers.get("x-reg24-actor-id")?.trim();
+  // Never trust client-supplied x-reg24-actor-id when invite-only staging/trial authentication is active!
+  const headerActorId = inviteOnly ? null : req.headers.get("x-reg24-actor-id")?.trim();
 
   // Private tenant scopes can ONLY be granted by verified server secret header, never from JSON payload (AT08)
   const verifiedTenantKey = req.headers.get("x-reg24-verified-tenant-scope")?.trim();
@@ -93,7 +97,7 @@ export function resolveServerActor(req: Request, opts?: { requireCsrfForMutation
             ? "counsel.thai@reg24.th"
             : "public.reader@reg24.th"),
     role: effectiveRole,
-    tenant_id: "PUBLIC",
+    tenant_id: credentialTenantId || "PUBLIC",
     authorized_scopes: scopes,
     csrf_verified: true,
   };

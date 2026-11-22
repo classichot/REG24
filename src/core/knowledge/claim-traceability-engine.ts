@@ -2444,6 +2444,22 @@ export async function saveOrReviseAnswerServerVerified(
         `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${params.actor.actor_id}' is not authorized to modify or overwrite answer '${requestedAnswerId}' owned by '${pgOwn.owner_actor_id}'.`
       );
     }
+  } else if (!pgActive) {
+    const localChainForOwn = Object.values(unified.published_answers)
+      .filter((a) => a.answer_id === requestedAnswerId)
+      .sort((a, b) => a.revision_number - b.revision_number);
+    if (localChainForOwn.length > 0) {
+      const localFirst = localChainForOwn[0];
+      const localOwnerActor = localFirst.owner_actor_id || localFirst.actor_id;
+      const localOwnerTenant = localFirst.owner_tenant_id || "PUBLIC";
+      const isLocalOwner =
+        localOwnerActor === params.actor.actor_id && localOwnerTenant === params.actor.tenant_id;
+      if (!isLocalOwner) {
+        throw new Error(
+          `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${params.actor.actor_id}' is not authorized to modify or overwrite answer '${requestedAnswerId}' owned by '${localOwnerActor}'.`
+        );
+      }
+    }
   }
 
   // RC10.3 P0-2: Stable save-operation idempotency check BEFORE allocating any new revision!
@@ -3598,6 +3614,19 @@ export function reopenSavedTraceableAnswer(
       found: false,
       http_status: 404,
       error_th: "ไม่พบคำตอบที่บันทึกไว้ตามรหัสที่ระบุ",
+    };
+  }
+
+  const matchedOwnerTenant = matched.owner_tenant_id || matched.tenant_id || "PUBLIC";
+  const matchedOwnerActor = matched.owner_actor_id || matched.actor_id || "";
+  if (
+    (matchedOwnerTenant !== "PUBLIC" && matchedOwnerTenant !== actor.tenant_id) ||
+    (matchedOwnerActor.startsWith("trial.user.") && matchedOwnerActor !== actor.actor_id)
+  ) {
+    return {
+      found: false,
+      http_status: 404,
+      error_th: "ไม่สามารถเปิดคำตอบนี้ได้ เนื่องจากเป็นคำตอบที่จำกัดสิทธิ์เฉพาะผู้ใช้งานเจ้าของคำตอบ",
     };
   }
 

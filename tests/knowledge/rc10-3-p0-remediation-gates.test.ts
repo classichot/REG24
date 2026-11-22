@@ -1780,4 +1780,194 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       })
     ).rejects.toThrow(/UNSUPPORTED_ANSWER_REJECTED_422/);
   });
+
+  it("13. Staging Reviewer Identity & Read/Write Isolation: server-verified invite derives isolated actor & tenant (ignoring spoofed x-reg24-actor-id), blocks unauthorized read/write/list across testers", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+    setDefaultKnowledgeStoreForTesting(store);
+    const { resolveServerActor } = await import("../../src/core/knowledge/http-auth");
+    const { POST: postAnswers, GET: listAnswers } = await import("../../src/app/api/v1/knowledge/answers/route");
+    const { GET: getAnswerById } = await import("../../src/app/api/v1/knowledge/answers/[id]/route");
+
+    const prevInviteOnly = process.env.REG24_TRIAL_INVITE_ONLY;
+    const prevInviteCodes = process.env.REG24_TRIAL_INVITE_CODES;
+    const prevRateLimit = process.env.REG24_TRIAL_RATE_LIMIT;
+    const tokenA = "staging-qa-tester-alpha-secret-token-2026";
+    const tokenB = "staging-qa-tester-beta-secret-token-2026";
+    process.env.REG24_TRIAL_INVITE_ONLY = "1";
+    process.env.REG24_TRIAL_INVITE_CODES = `${tokenA},${tokenB}`;
+    process.env.REG24_TRIAL_RATE_LIMIT = "0";
+
+    try {
+      // 1) Client-supplied x-reg24-actor-id is IGNORED when invite-only staging auth is active;
+      //    both actor_id and tenant_id are derived strictly from the server-verified credential.
+      const reqSpoofA = new Request("http://localhost/api/v1/knowledge/answers", {
+        headers: {
+          "x-reg24-trial-invite": tokenA,
+          "x-reg24-actor-id": "spoofed.admin@evil.example",
+        },
+      });
+      const actorA = resolveServerActor(reqSpoofA);
+      expect(actorA.actor_id).toMatch(/^trial\.user\.[0-9a-f]{14}@reg24\.th$/);
+      expect(actorA.actor_id).not.toContain("spoofed");
+      expect(actorA.tenant_id).toMatch(/^tenant\.trial\.[0-9a-f]{14}$/);
+
+      const actorB = resolveServerActor(
+        new Request("http://localhost/api/v1/knowledge/answers", {
+          headers: { "x-reg24-trial-invite": tokenB },
+        })
+      );
+      expect(actorB.actor_id).not.toBe(actorA.actor_id);
+      expect(actorB.tenant_id).not.toBe(actorA.tenant_id);
+
+      // 2) Missing invite credential -> HTTP 401 on list & read
+      const unauthList = await listAnswers(new Request("http://localhost/api/v1/knowledge/answers"));
+      expect(unauthList.status).toBe(401);
+
+      // 3) Tester A saves an answer -> resolves to actorA / tenantA on Save AND Reopen
+      const ledger = getUnifiedCitationLedgerView(store, "rel.B01.rc8");
+      const psg799 = ledger.passages["psg.rc8.rd799.sec_3_quoted_rd646_sec_4"]!;
+      const ansId = `ans.rc103.auth_iso.${Date.now().toString(36)}`;
+      const saveReqA = new Request("http://localhost/api/v1/knowledge/answers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reg24-trial-invite": tokenA,
+          "x-reg24-actor-id": "ignored.client.header@example.com",
+        },
+        body: JSON.stringify({
+          question_text: "อัตราภาษีมูลค่าเพิ่มตาม พ.ร.ฎ. ฉบับที่ 799 พ.ศ. 2568",
+          save_operation_key: `op.auth_iso.${Date.now()}`,
+          traceable_answer: {
+            answer_id: ansId,
+            as_of_date: "2025-11-15",
+            status: "complete",
+            claims: [
+              {
+                claim_id: `clm.${ansId}.1`,
+                claim_number: 1,
+                text: "พระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 ลดอัตราภาษีมูลค่าเพิ่มคงจัดเก็บร้อยละ 6.3 ถึงวันที่ 30 กันยายน 2569",
+                claim_type: "legal_proposition",
+                claim_type_label_th: "ข้อกฎหมาย",
+                premise_ids: [],
+                verification_decision: "supported",
+                published: true,
+                withheld_explanation_th: null,
+                evidence_references: [
+                  {
+                    link_id: `lnk.${ansId}.1`,
+                    evidence_id: psg799.passage_id,
+                    doc_id: psg799.doc_id,
+                    version_id: psg799.version_id,
+                    extraction_revision_id: psg799.extraction_revision_id,
+                    support_role: "primary_authority",
+                    support_role_label_th: "หลักฐานหลัก",
+                    required_group: "grp.1",
+                    citation_label_th: "พ.ร.ฎ. 799",
+                    issuer_name_th: "กรมสรรพากร",
+                    source_family: "gazette_enactment",
+                    source_family_label_th: "ราชกิจจานุเบกษา",
+                    record_type: "full_record",
+                    record_type_label_th: "ต้นฉบับทางการ",
+                    date_relied_on: "2025-11-15",
+                    official_url: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf",
+                    official_url_with_anchor: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc799.pdf#page=2",
+                    resolver_url: `/api/v1/knowledge/evidence/${psg799.passage_id}`,
+                    locator: {
+                      human_pinpoint_th: "หน้า ๒",
+                      section_paragraph_path: ["มาตรา ๓"],
+                      physical_page_start: 2,
+                      physical_page_end: 2,
+                      printed_page_start: "หน้า ๒",
+                      printed_page_end: "หน้า ๒",
+                      anchors: [],
+                    },
+                    verification_status: "supported",
+                    link_health: "unchecked_live",
+                    link_health_notice_th: null,
+                    last_successful_verification_at: null,
+                    access_permission: "public",
+                    access_conditions_th: null,
+                  },
+                ],
+              },
+            ],
+          },
+        }),
+      });
+      const saveResA = await postAnswers(saveReqA);
+      expect(saveResA.status).toBe(200);
+      const saveJsonA = (await saveResA.json()) as {
+        resolved_actor_id: string;
+        resolved_tenant_id: string;
+        saved_answer_revision: string;
+        answer: { owner_actor_id: string };
+      };
+      expect(saveJsonA.resolved_actor_id).toBe(actorA.actor_id);
+      expect(saveJsonA.resolved_tenant_id).toBe(actorA.tenant_id);
+      expect(saveJsonA.answer.owner_actor_id).toBe(actorA.actor_id);
+
+      // 4) Tester A can reopen own saved answer (HTTP 200) with matching server-verified actor & tenant
+      const reopenResA = await getAnswerById(
+        new Request(`http://localhost/api/v1/knowledge/answers/${saveJsonA.saved_answer_revision}`, {
+          headers: { "x-reg24-trial-invite": tokenA },
+        }),
+        { params: Promise.resolve({ id: saveJsonA.saved_answer_revision }) }
+      );
+      expect(reopenResA.status).toBe(200);
+      const reopenJsonA = (await reopenResA.json()) as {
+        resolved_actor_id: string;
+        resolved_tenant_id: string;
+      };
+      expect(reopenJsonA.resolved_actor_id).toBe(actorA.actor_id);
+      expect(reopenJsonA.resolved_tenant_id).toBe(actorA.tenant_id);
+
+      // 5) Unauthorized user (missing invite) CANNOT reopen Tester A's answer (HTTP 401)
+      const unauthRead = await getAnswerById(
+        new Request(`http://localhost/api/v1/knowledge/answers/${saveJsonA.saved_answer_revision}`),
+        { params: Promise.resolve({ id: saveJsonA.saved_answer_revision }) }
+      );
+      expect(unauthRead.status).toBe(401);
+
+      // 6) Different authorized user (Tester B) CANNOT read (404), list (0 leaked), or overwrite (403) Tester A's answer!
+      const crossReadB = await getAnswerById(
+        new Request(`http://localhost/api/v1/knowledge/answers/${saveJsonA.saved_answer_revision}`, {
+          headers: { "x-reg24-trial-invite": tokenB },
+        }),
+        { params: Promise.resolve({ id: saveJsonA.saved_answer_revision }) }
+      );
+      expect(crossReadB.status).toBe(404);
+
+      const listResB = await listAnswers(
+        new Request("http://localhost/api/v1/knowledge/answers", {
+          headers: { "x-reg24-trial-invite": tokenB },
+        })
+      );
+      expect(listResB.status).toBe(200);
+      const listJsonB = (await listResB.json()) as { saved_answers: Array<{ answer_id: string }> };
+      expect(listJsonB.saved_answers.some((a) => a.answer_id === ansId)).toBe(false);
+
+      const crossWriteB = await postAnswers(
+        new Request("http://localhost/api/v1/knowledge/answers", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-reg24-trial-invite": tokenB,
+          },
+          body: JSON.stringify({
+            question_text: "cross user overwrite attempt",
+            save_operation_key: `op.cross_write.${Date.now()}`,
+            traceable_answer: { answer_id: ansId, status: "complete", claims: [] },
+          }),
+        })
+      );
+      expect(crossWriteB.status).toBe(403);
+    } finally {
+      if (prevInviteOnly === undefined) delete process.env.REG24_TRIAL_INVITE_ONLY;
+      else process.env.REG24_TRIAL_INVITE_ONLY = prevInviteOnly;
+      if (prevInviteCodes === undefined) delete process.env.REG24_TRIAL_INVITE_CODES;
+      else process.env.REG24_TRIAL_INVITE_CODES = prevInviteCodes;
+      if (prevRateLimit === undefined) delete process.env.REG24_TRIAL_RATE_LIMIT;
+      else process.env.REG24_TRIAL_RATE_LIMIT = prevRateLimit;
+    }
+  });
 });

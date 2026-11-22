@@ -46,6 +46,8 @@ export async function GET(
     return NextResponse.json(
       {
         ok: true,
+        resolved_actor_id: actor.actor_id,
+        resolved_tenant_id: actor.tenant_id,
         persistence_source: res.persistence_source || "local_store",
         question_text: res.question_text || "",
         answer: res.answer,

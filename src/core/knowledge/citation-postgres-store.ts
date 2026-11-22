@@ -1137,6 +1137,13 @@ export async function loadSavedAnswerFromPostgres(
   if (row.owner_tenant_id !== "PUBLIC" && row.owner_tenant_id !== actor.tenant_id) {
     return { found: false, forbidden_restricted: true };
   }
+  if (
+    row.owner_actor_id &&
+    row.owner_actor_id.startsWith("trial.user.") &&
+    row.owner_actor_id !== actor.actor_id
+  ) {
+    return { found: false, forbidden_restricted: true };
+  }
 
   // Fetch full ordered revision history for this `answer_id`
   const histRes = await db<{
@@ -1740,10 +1747,11 @@ export async function listSavedAnswersSummaryFromPostgres(
             question_text, as_of_date_raw, generated_at::text AS generated_at,
             status, ordered_claim_ids, legacy_warning_th
      FROM citation_published_answer
-     WHERE owner_tenant_id = 'PUBLIC' OR owner_tenant_id = $1
+     WHERE owner_tenant_id = $1
+        OR (owner_tenant_id = 'PUBLIC' AND (owner_actor_id NOT LIKE 'trial.user.%' OR owner_actor_id = $2))
      ORDER BY generated_at DESC
-     LIMIT $2`,
-    [actor.tenant_id, limit]
+     LIMIT $3`,
+    [actor.tenant_id, actor.actor_id, limit]
   );
 
   return res.rows.map((r) => ({

@@ -23,11 +23,13 @@ export async function GET(req: Request) {
     const seenRevs = new Set<string>(pgList.map((p) => p.answer_revision));
 
     const localSaved = Object.values(view.published_answers)
-      .filter(
-        (a) =>
-          !seenRevs.has(a.answer_revision) &&
-          (a.tenant_id === "PUBLIC" || a.tenant_id === actor.tenant_id)
-      )
+      .filter((a) => {
+        if (seenRevs.has(a.answer_revision)) return false;
+        const ownTenant = a.owner_tenant_id || a.tenant_id || "PUBLIC";
+        const ownActor = a.owner_actor_id || a.actor_id || "";
+        if (ownActor.startsWith("trial.user.") && ownActor !== actor.actor_id) return false;
+        return ownTenant === actor.tenant_id || (ownTenant === "PUBLIC" && !ownActor.startsWith("trial.user."));
+      })
       .map((a) => ({
         answer_id: a.answer_id,
         answer_revision: a.answer_revision,
@@ -90,6 +92,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      resolved_actor_id: actor.actor_id,
+      resolved_tenant_id: actor.tenant_id,
       saved_answer_revision: committed.answer_revision,
       idempotent_replay: idempotentReplay,
       save_operation_key: saveOperationKey,

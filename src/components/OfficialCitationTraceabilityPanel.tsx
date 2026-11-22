@@ -61,7 +61,9 @@ export function OfficialCitationTraceabilityPanel({
 
       setLoadingResolver(true);
       try {
-        const res = await fetch(ref.resolver_url);
+        const res = await fetch(ref.resolver_url, {
+          headers: requestHeaders || undefined,
+        });
         const json = await res.json();
         if (!res.ok || !json.ok || !json.pinned_evidence) {
           setResolvedEvidence(null);
@@ -78,7 +80,7 @@ export function OfficialCitationTraceabilityPanel({
         setLoadingResolver(false);
       }
     },
-    []
+    [requestHeaders]
   );
 
   const copyFormattedCitation = useCallback(
@@ -180,7 +182,10 @@ export function OfficialCitationTraceabilityPanel({
           `/api/v1/knowledge/answers/${encodeURIComponent(envelope.answer_revision)}/export`,
           {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+              "Content-Type": "application/json",
+              ...(requestHeaders || {}),
+            },
             body: JSON.stringify({
               traceable_answer: envelope,
               format,

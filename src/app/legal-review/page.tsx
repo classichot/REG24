@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { OfficialCitationTraceabilityPanel } from "@/components/OfficialCitationTraceabilityPanel";
 import {
   CHALLENGING_THAI_TAX_SCENARIOS,
@@ -39,6 +39,33 @@ interface SpotcheckCaseItem {
 export default function LegalTeamReviewStudioPage() {
   const [inviteCode, setInviteCode] = useState<string>("");
   const [reviewerName, setReviewerName] = useState<string>("");
+  const queryInFlightRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const savedInvite = window.sessionStorage.getItem("reg24_staging_reviewer_invite");
+      if (savedInvite && !inviteCode) {
+        setInviteCode(savedInvite);
+      }
+    } catch {
+      // ignore storage restrictions
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      if (inviteCode.trim()) {
+        window.sessionStorage.setItem("reg24_staging_reviewer_invite", inviteCode.trim());
+      } else {
+        window.sessionStorage.removeItem("reg24_staging_reviewer_invite");
+      }
+    } catch {
+      // ignore storage restrictions
+    }
+  }, [inviteCode]);
   const [reviewModeTab, setReviewModeTab] = useState<"challenging" | "pack30" | "unseen">(
     "pack30"
   );
@@ -111,8 +138,16 @@ export default function LegalTeamReviewStudioPage() {
 
   const buildHeaders = useCallback((): Record<string, string> => {
     const h: Record<string, string> = { "Content-Type": "application/json" };
-    if (inviteCode.trim()) {
-      h["x-reg24-trial-invite"] = inviteCode.trim();
+    let effectiveInvite = inviteCode.trim();
+    if (!effectiveInvite && typeof window !== "undefined") {
+      try {
+        effectiveInvite = (window.sessionStorage.getItem("reg24_staging_reviewer_invite") || "").trim();
+      } catch {
+        // ignore storage restrictions
+      }
+    }
+    if (effectiveInvite) {
+      h["x-reg24-trial-invite"] = effectiveInvite;
     }
     if (reviewerName.trim()) {
       h["x-reg24-actor-id"] = `${reviewerName.trim().replace(/\s+/g, ".").toLowerCase()}@7ladvisory.review`;
@@ -455,6 +490,8 @@ export default function LegalTeamReviewStudioPage() {
   ) => {
     const qToRun = (overrideQuestion ?? question).trim();
     if (!qToRun) return;
+    if (queryInFlightRef.current) return;
+    queryInFlightRef.current = true;
 
     // Prevent stale preset as_of_date contamination on fresh custom prompts (T03 fix):
     // If a preset seeded asOfDate and the user replaced the prompt with a different case on a New Query,
@@ -573,6 +610,7 @@ export default function LegalTeamReviewStudioPage() {
         text: err instanceof Error ? err.message : "เกิดข้อผิดพลาดในการเชื่อมต่อเซิร์ฟเวอร์",
       });
     } finally {
+      queryInFlightRef.current = false;
       setQueryBusy(false);
     }
   };

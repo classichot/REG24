@@ -450,6 +450,42 @@ Receipt: [rc10_3_two_fact_risks_before_cd941d2.json](rc10_3_two_fact_risks_befor
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
+---
+
+## 15. Formal Test 1 Readiness Remediation (`fe9d9fa` Hosted Findings) — Server-Verified Reviewer Isolation, UI Double-Submit Guard & Changed-Fact Calculation Consistency
+
+> **Evidence Classification**: All Vitest, build, and preflight verifications below are **Engineering evidence** only and remain strictly separate from Independent QA's blank scorecard.
+
+- **Preserved Prior Baseline**: `fe9d9fa597642617dc89e63c3d858304d136498b` (Vercel deployment `dpl_8EmJkR6soAZAttDLQnVTck9H93qY`, URL `https://reg24-8xn40eog6-7-l-advisory.vercel.app/legal-review`, archived tag `archive/b01-rc10.3-fe9d9fa`).
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TypeScript BM25+Graph, `gemini-4-neon @ low`, `0` changes under `data/`, `package.json`, `package-lock.json`, or `next.config.ts`.
+
+### 15.1 Blockers Surfaced During `fe9d9fa` Hosted Verification
+
+1. **Staging Reviewer Identity & Cross-Tester Read/Write Isolation**:
+   - On `fe9d9fa`, `REG24_TRIAL_INVITE_ONLY` was disabled on Vercel Preview (`invite_only_trial_gate_enabled: false`), causing Generate/Save/Reopen to persist under an anonymous default identity (`trial.anonymous@reg24.th` / `PUBLIC`).
+   - Additionally, `resolveRequestActor` previously assigned `tenant_id: "PUBLIC"` even for server-verified `trial.user.*` actors, and `loadSavedAnswerFromPostgres` allowed reading any `owner_tenant_id = "PUBLIC"` answer, which would have allowed Tester B to read or list Tester A's saved answers even with `REG24_TRIAL_INVITE_ONLY=1` enabled.
+   - `OfficialCitationTraceabilityPanel` did not forward `requestHeaders` (`x-reg24-trial-invite`) on evidence drawer inspection or export calls, and `/legal-review` did not retain the reviewer credential in tab-scoped `sessionStorage` across `?rev=` reloads.
+2. **Hosted Changed-Fact Follow-Up (Control C) & Duplicate Single-Submit `409`**:
+   - On `fe9d9fa`, Control A passed live (`trc.d88900bd2a5c7d` / `ans.trc.d88900bd2a5c7d.r1`: `7.0%`, `7,000`, `107,000` survived Generate, Save `idempotent_replay: true`, and `?require_db=1` Neon Reopen).
+   - However, the hosted changed-fact follow-up (`100,000 -> 200,000`) dropped the recalculated claim on `r2` when the model mixed prior-turn figures/multipliers into the recalculated claim, and a duplicate follow-up POST fired on single submit returning a misleading HTTP `409` (`STALE_PRIOR_CONVERSATION_REVISION_409`).
+
+### 15.2 Generalized Shared Fixes
+
+1. **Server-Verified Reviewer Actor/Tenant Isolation (`src/core/knowledge/http-auth.ts`, `src/core/knowledge/citation-postgres-store.ts`, `src/core/knowledge/claim-traceability-engine.ts`, `src/app/api/v1/knowledge/answers/route.ts`, `src/app/api/v1/knowledge/answers/[id]/route.ts`)**:
+   - Derives both `actor_id: "trial.user.<sha256_14>@reg24.th"` and per-reviewer `tenant_id: "tenant.trial.<sha256_14>"` strictly on the server from the verified invite credential (`x-reg24-trial-invite` / `Authorization: Bearer`), ignoring any client-supplied `x-reg24-actor-id` whenever `REG24_TRIAL_INVITE_ONLY=1`.
+   - Enforces strict owner-scoped read (`404`), list (`0` leaked rows), and write (`403 ANSWER_OWNERSHIP_FORBIDDEN_403` before validation in both Neon PostgreSQL and local modes) across `trial.user.*` reviewers, and returns non-secret `resolved_actor_id` / `resolved_tenant_id` on Save and Reopen responses.
+2. **UI Single-Submit Mutex & Authenticated Evidence/Reload Continuity (`src/app/legal-review/page.tsx`, `src/components/OfficialCitationTraceabilityPanel.tsx`)**:
+   - Added a synchronous `queryInFlightRef` guard in `runQuery` to prevent duplicate concurrent POSTs from a single UI submit without weakening server-side concurrent-edit `409` protection.
+   - Forwarded `requestHeaders` (`x-reg24-trial-invite`) to Evidence Drawer (`inspectPinnedPassage`) and Export (`handleExport`), and stored the staging reviewer credential in tab-scoped `sessionStorage` (`reg24_staging_reviewer_invite`) so reloading `/legal-review?rev=...` preserves server-verified identity.
+3. **Multi-Turn Base-Update Prompt Discipline (`src/core/knowledge/grounded-llm-drafter.ts`)**:
+   - Added a concise system instruction rule directing the drafter to state only recalculated tax and VAT-inclusive totals from the updated taxable base on multi-turn amount revisions without mixing superseded prior-turn figures or multiplier phrasing into the recalculated claim.
+
+### 15.3 Regression Verification Receipts (Engineering Evidence)
+
+- **Full 9-Suite Vitest Regression (`56/56` PASS, exit `0`, including Test #13 verifying server-verified reviewer identity, spoofed header rejection, and cross-tester read/list/write isolation)**: [rc10_3_auth_isolation_and_ctrlC_vitest.log](rc10_3_auth_isolation_and_ctrlC_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
+
 
 
 
