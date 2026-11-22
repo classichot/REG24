@@ -49,7 +49,7 @@ function appendLocalFeedbackFallback(rec: LegalReviewFeedbackRecord): void {
 export async function GET(req: Request) {
   try {
     const actor = resolveServerActor(req);
-    await enforceTrialAccessAndRateLimit(req, actor, "query");
+    await enforceTrialAccessAndRateLimit(req, actor, "citation_open");
 
     const pgItems = await listLegalReviewFeedbackFromPostgres(100);
     if (pgItems !== null) {

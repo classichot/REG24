@@ -2175,4 +2175,124 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       else process.env.REG24_TRIAL_ENV_SCOPE = prevEnvScope;
     }
   });
+
+  it("15. Query SSE Keepalive Streaming, Spotcheck Graceful 200 & Legal-Feedback Auth Refresh Gate", async () => {
+    const store = new DurableKnowledgeStore(STORE_DIR);
+    setDefaultKnowledgeStoreForTesting(store);
+
+    const { GET: getSpotcheckCases } = await import(
+      "../../src/app/api/v1/knowledge/legal-spotcheck-cases/route"
+    );
+    const { GET: getLegalFeedback } = await import(
+      "../../src/app/api/v1/knowledge/legal-feedback/route"
+    );
+    const { POST: postQuery } = await import("../../src/app/api/v1/knowledge/query/route");
+
+    // 1) Spotcheck cases endpoint MUST return 200 cleanly (never crash with 500)
+    const spotRes = await getSpotcheckCases(
+      new Request("http://localhost/api/v1/knowledge/legal-spotcheck-cases")
+    );
+    expect(spotRes.status).toBe(200);
+    const spotJson = (await spotRes.json()) as {
+      ok: boolean;
+      cases: unknown[];
+      total_cases: number;
+    };
+    expect(spotJson.ok).toBe(true);
+    expect(Array.isArray(spotJson.cases)).toBe(true);
+
+    const prevInviteOnly = process.env.REG24_TRIAL_INVITE_ONLY;
+    const prevInviteCodes = process.env.REG24_TRIAL_INVITE_CODES;
+    const prevEnvScope = process.env.REG24_TRIAL_ENV_SCOPE;
+    const prevRateLimit = process.env.REG24_TRIAL_RATE_LIMIT;
+    const prevVercelEnv = process.env.VERCEL_ENV;
+    const tok = "test-sse-feedback-gate-token-2026";
+    process.env.REG24_TRIAL_INVITE_ONLY = "1";
+    process.env.REG24_TRIAL_INVITE_CODES = tok;
+    process.env.REG24_TRIAL_ENV_SCOPE = "staging";
+    process.env.REG24_TRIAL_RATE_LIMIT = "50";
+    delete process.env.VERCEL_ENV;
+
+    try {
+      // 2) Legal-feedback GET rejects anonymous with 401 and allows verified invite with 200
+      const anonFbRes = await getLegalFeedback(
+        new Request("http://localhost/api/v1/knowledge/legal-feedback")
+      );
+      expect(anonFbRes.status).toBe(401);
+
+      const authFbRes = await getLegalFeedback(
+        new Request("http://localhost/api/v1/knowledge/legal-feedback", {
+          headers: { "x-reg24-trial-invite": tok },
+        })
+      );
+      expect(authFbRes.status).toBe(200);
+      const authFbJson = (await authFbRes.json()) as { ok: boolean; feedback: unknown[] };
+      expect(authFbJson.ok).toBe(true);
+      expect(Array.isArray(authFbJson.feedback)).toBe(true);
+
+      // 3) Query stream: true MUST reject anonymous BEFORE starting SSE stream (JSON 401)
+      const anonStreamRes = await postQuery(
+        new Request("http://localhost/api/v1/knowledge/query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            question: "บริษัทขายสินค้าในประเทศเมื่อวันที่ 15 พฤศจิกายน 2568 เสีย VAT อัตราเท่าไร",
+            stream: true,
+          }),
+        })
+      );
+      expect(anonStreamRes.status).toBe(401);
+      expect((anonStreamRes.headers.get("content-type") || "").toLowerCase()).toContain(
+        "application/json"
+      );
+
+      // 4) Authenticated stream: true emits SSE progress -> validated_claim -> complete with full payload
+      const streamRes = await postQuery(
+        new Request("http://localhost/api/v1/knowledge/query", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-reg24-trial-invite": tok,
+          },
+          body: JSON.stringify({
+            question:
+              "บริษัทให้บริการที่ปรึกษาในประเทศไทยมูลค่า 100,000 บาท ชำระวันที่ 15 พฤศจิกายน 2568 ต้องเสียภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใด",
+            stream: true,
+            persist_answer: false,
+            answer_generation_mode: "baseline_deterministic",
+          }),
+        })
+      );
+      expect(streamRes.status).toBe(200);
+      expect((streamRes.headers.get("content-type") || "").toLowerCase()).toContain(
+        "text/event-stream"
+      );
+      const sseText = await streamRes.text();
+      expect(sseText).toContain('event: progress\ndata: {"stage":"accepted"');
+      expect(sseText).toContain('"stage":"retrieval_and_claim_validation_complete"');
+      expect(sseText).toContain("event: complete\ndata:");
+      const completeMatch = sseText.match(/event: complete\ndata: (\{.*\})/);
+      expect(completeMatch).toBeTruthy();
+      const completePayload = JSON.parse(completeMatch![1]) as {
+        ok: boolean;
+        answer: { status: string };
+        traceable_answer: { claims: unknown[] } | null;
+        stage_timing_ms: { query: number; persist: number; audit: number; total: number };
+      };
+      expect(completePayload.ok).toBe(true);
+      expect(completePayload.answer.status).toBe("ANSWERED");
+      expect(completePayload.stage_timing_ms.total).toBeGreaterThanOrEqual(0);
+    } finally {
+      if (prevInviteOnly === undefined) delete process.env.REG24_TRIAL_INVITE_ONLY;
+      else process.env.REG24_TRIAL_INVITE_ONLY = prevInviteOnly;
+      if (prevInviteCodes === undefined) delete process.env.REG24_TRIAL_INVITE_CODES;
+      else process.env.REG24_TRIAL_INVITE_CODES = prevInviteCodes;
+      if (prevEnvScope === undefined) delete process.env.REG24_TRIAL_ENV_SCOPE;
+      else process.env.REG24_TRIAL_ENV_SCOPE = prevEnvScope;
+      if (prevRateLimit === undefined) delete process.env.REG24_TRIAL_RATE_LIMIT;
+      else process.env.REG24_TRIAL_RATE_LIMIT = prevRateLimit;
+      if (prevVercelEnv === undefined) delete process.env.VERCEL_ENV;
+      else process.env.VERCEL_ENV = prevVercelEnv;
+    }
+  });
 });

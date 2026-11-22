@@ -16,6 +16,20 @@ export async function GET(req: Request) {
       "dodo-review-rc2-b02",
       "b01_rc2_legal_spotcheck_pack_30cases.json"
     );
+    if (!fs.existsSync(packPath)) {
+      return NextResponse.json(
+        {
+          ok: true,
+          release_id: process.env.REG24_PINNED_RELEASE_ID || "rel.B01.rc8",
+          manifest_id: null,
+          manifest_hash: null,
+          total_cases: 0,
+          cases: [],
+          source: "omitted_in_preview_bundle",
+        },
+        { headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
     const raw = JSON.parse(fs.readFileSync(packPath, "utf8")) as {
       release_id: string;
       manifest_id: string;

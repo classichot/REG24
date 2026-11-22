@@ -521,6 +521,44 @@ Receipt: [rc10_3_two_fact_risks_before_cd941d2.json](rc10_3_two_fact_risks_befor
 - **TypeScript (`tsc --noEmit`)**: exit `0`
 - **Preview Build Packaging**: `2` simulated Vercel Serverless Functions (`<= 12` Hobby limit), `0` Turbopack warnings.
 
+---
+
+## 17. Formal Test 1 Preflight Infrastructure Remediation (`e100ab8` Findings) — Query Timeout Elimination (`sin1` + Neon Batching + SSE Heartbeat), Spotcheck `500` Fix & Feedback `401` Auth Refresh
+
+> **Evidence Classification**: All Vercel log diagnostics, Vitest, build, and live smoke checks below are **Engineering evidence** only and remain strictly separate from Independent QA's blank scorecard.
+
+- **Preserved Prior Baseline**: `e100ab8db8ab19bc54ab79a778ac850bd027a6f3` (Vercel deployment `dpl_6A1MmbP8kNkt4DmRBwaqrNVL4UcD`, URL `https://reg24-nsr9uq8ud-7-l-advisory.vercel.app/legal-review`, archived tag `archive/b01-rc10.3-e100ab8`).
+- **Corpus, Manifest & Model Stack Unchanged**: `rel.B01.rc8` / `mfst.b01.rc8_thai_legal_index` (`1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3`), TypeScript BM25+Graph, `gemini-4-neon @ low` (zero silent fallback), `0` changes under `data/`, `package.json`, `package-lock.json`, or `next.config.ts`.
+
+### 17.1 Exact Root Causes Observed in `dpl_6A1MmbP8kNkt4DmRBwaqrNVL4UcD` Vercel Runtime Logs
+
+1. **`POST /api/v1/knowledge/query` 60–90s Client Cutoff**:
+   - Vercel Fluid Compute already provided `300s` (`5m`) function duration, and both GrokBot preflight calls actually returned HTTP `200` on Vercel (`59.70s` and `67s`), but clients/proxies dropped the idle HTTP connection after ~60s of zero response bytes.
+   - Vercel Serverless Functions were executing in `iad1` (US East) while Neon PostgreSQL is in `ap-southeast-1` (Singapore) and QA testers are in Bangkok (`sin1`).
+   - On cold instances, `persistAnswerRevisionToPostgres` issued **25+ sequential cross-Pacific Neon SQL round-trips** (syncing already-persisted document/version/passage bundles one-by-one), adding `10–15s` on top of Gemini 4 Neon inference (`~35–50s`), while `query/route.ts` withheld HTTP response headers until the entire request finished.
+2. **`GET /api/v1/knowledge/legal-spotcheck-cases` HTTP `500`**:
+   - Crashed with `ENOENT` because `docs/audit/dodo-review-rc2-b02/b01_rc2_legal_spotcheck_pack_30cases.json` is intentionally excluded from the trimmed RC8 Preview bundle.
+3. **`GET /api/v1/knowledge/legal-feedback` HTTP `401`**:
+   - `/legal-review` fetched `/api/v1/knowledge/legal-feedback` on initial mount before the reviewer entered an invite code, and `verifyServerIdentityReadOnly()` did not re-fetch `legal-feedback` after Verify succeeded. Additionally, `GET /api/v1/knowledge/legal-feedback` used the `"query"` rate-limit bucket instead of `"citation_open"`.
+
+### 17.2 Surgical Fixes
+
+1. **Function Region Pin + Batched Neon Sync + Incremental SSE Keepalive (`vercel.json`, `src/core/knowledge/citation-postgres-store.ts`, `src/app/api/v1/knowledge/query/route.ts`, `src/app/legal-review/page.tsx`)**:
+   - Added `vercel.json` pinning `"regions": ["sin1"]` (co-located with Neon `ap-southeast-1` and Bangkok testers).
+   - Replaced sequential cold-start document/passage upserts in `persistAnswerRevisionToPostgres` with a single batched `SELECT passage_id FROM citation_evidence_passage WHERE passage_id = ANY($1::text[])` check + parallel `Promise.all` upserts strictly for missing bundles (preserving FK integrity and local test transport behavior).
+   - Converted `stream: true` on `POST /api/v1/knowledge/query` to a true incremental SSE `ReadableStream` after synchronous auth/rate-limit/input checks (so `400`/`401`/`429` still return JSON immediately): flushes `event: progress` in `<200ms`, emits `event: heartbeat` every `8s` to prevent idle-connection drops, and emits `event: validated_claim` + `event: complete` **strictly after** full server verification and atomic Neon persistence succeed (zero unvalidated LLM token streaming — preserving Section 1 Release Invariant). Updated `/legal-review` `runQuery` to consume SSE heartbeats and completion payloads with automatic JSON fallback.
+2. **Graceful Missing-Pack Handling (`src/app/api/v1/knowledge/legal-spotcheck-cases/route.ts`)**:
+   - Checks `fs.existsSync(packPath)` and returns HTTP `200` (`{ ok: true, total_cases: 0, cases: [], source: "omitted_in_preview_bundle" }`) when the optional RC2 spotcheck JSON is omitted from Preview.
+3. **Auth-Gated Feedback Loading & Post-Verify Refresh (`src/app/api/v1/knowledge/legal-feedback/route.ts`, `src/app/legal-review/page.tsx`)**:
+   - Moved `GET /api/v1/knowledge/legal-feedback` to the `"citation_open"` rate-limit bucket while keeping `REG24_TRIAL_INVITE_ONLY=1` authentication enforcement intact (`401` when unauthenticated, `200` for verified trial sessions).
+   - Updated `/legal-review` to defer `GET /api/v1/knowledge/legal-feedback` until `authenticated_reviewer.verified === true` (zero spurious `401` on initial load) and immediately load feedback history upon successful Verify.
+
+### 17.3 Regression Verification Receipts (Engineering Evidence)
+
+- **Full 9-Suite Vitest Regression (`58/58` PASS, exit `0`, including Test #15 covering SSE keepalive streaming, pre-stream `401` JSON guard, graceful `200` spotcheck cases, and verified `legal-feedback` auth gate)**: [rc10_3_timeout_spotcheck_feedback_vitest.log](rc10_3_timeout_spotcheck_feedback_vitest.log)
+- **TypeScript (`tsc --noEmit`)**: exit `0`
+- **Preview Build (`VERCEL_ENV=preview npx next build`)**: exit `0`, `67/67` static pages, `0` changes to `data/`, `package.json`, `package-lock.json`, or `next.config.ts`.
+
 
 
 

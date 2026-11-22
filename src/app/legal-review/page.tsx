@@ -202,6 +202,26 @@ export default function LegalTeamReviewStudioPage() {
     });
   }, []);
 
+  const fetchFeedbackOnly = useCallback(async () => {
+    try {
+      const fbRes = await fetch("/api/v1/knowledge/legal-feedback", {
+        method: "GET",
+        headers: buildHeaders(),
+        cache: "no-store",
+      });
+      const fbJson = await fbRes.json();
+      if (fbRes.ok && fbJson.ok) {
+        setFeedbackList(fbJson.feedback || []);
+        setFeedbackBackend(fbJson.storage_backend || "unknown");
+      } else if (fbRes.status === 401) {
+        setFeedbackList([]);
+        setFeedbackBackend("locked_until_verified");
+      }
+    } catch {
+      // Non-fatal
+    }
+  }, [buildHeaders]);
+
   const verifyServerIdentityReadOnly = useCallback(async () => {
     setIdentityCheckBusy(true);
     try {
@@ -213,21 +233,25 @@ export default function LegalTeamReviewStudioPage() {
       const envJson = await envRes.json();
       if (envRes.ok && envJson.ok) {
         applyEnvJson(envJson);
+        const gateEnabled = Boolean(envJson.environment?.invite_only_trial_gate_enabled);
+        const isVerified = Boolean(envJson.authenticated_reviewer?.verified);
+        if (!gateEnabled || isVerified) {
+          await fetchFeedbackOnly();
+        } else {
+          setFeedbackList([]);
+          setFeedbackBackend("locked_until_verified");
+        }
       }
     } catch {
       // Non-fatal read-only check
     } finally {
       setIdentityCheckBusy(false);
     }
-  }, [buildHeaders, applyEnvJson]);
+  }, [buildHeaders, applyEnvJson, fetchFeedbackOnly]);
 
   const loadFeedbackHistory = useCallback(async () => {
     try {
-      const [fbRes, envRes, packRes] = await Promise.all([
-        fetch("/api/v1/knowledge/legal-feedback", {
-          method: "GET",
-          headers: buildHeaders(),
-        }),
+      const [envRes, packRes] = await Promise.all([
         fetch("/api/v1/knowledge/environment", {
           method: "GET",
           headers: buildHeaders(),
@@ -238,23 +262,28 @@ export default function LegalTeamReviewStudioPage() {
           headers: buildHeaders(),
         }),
       ]);
-      const fbJson = await fbRes.json();
-      if (fbRes.ok && fbJson.ok) {
-        setFeedbackList(fbJson.feedback || []);
-        setFeedbackBackend(fbJson.storage_backend || "unknown");
-      }
+      let canFetchFeedback = true;
       const envJson = await envRes.json();
       if (envRes.ok && envJson.ok) {
         applyEnvJson(envJson);
+        const gateEnabled = Boolean(envJson.environment?.invite_only_trial_gate_enabled);
+        const isVerified = Boolean(envJson.authenticated_reviewer?.verified);
+        canFetchFeedback = !gateEnabled || isVerified;
       }
       const packJson = await packRes.json();
       if (packRes.ok && packJson.ok && Array.isArray(packJson.cases)) {
         setSpotcheckCases(packJson.cases);
       }
+      if (canFetchFeedback) {
+        await fetchFeedbackOnly();
+      } else {
+        setFeedbackList([]);
+        setFeedbackBackend("locked_until_verified");
+      }
     } catch {
       // Non-fatal on initial load
     }
-  }, [buildHeaders, applyEnvJson]);
+  }, [buildHeaders, applyEnvJson, fetchFeedbackOnly]);
 
   const buildGroundedAnswerFromEnvelope = useCallback(
     (env: TraceableAnswerEnvelope): GroundedAnswer => {
@@ -597,13 +626,17 @@ export default function LegalTeamReviewStudioPage() {
     try {
       const res = await fetch("/api/v1/knowledge/query", {
         method: "POST",
-        headers: buildHeaders(),
+        headers: {
+          ...buildHeaders(),
+          Accept: "text/event-stream, application/json",
+        },
         body: JSON.stringify({
           question: qToRun,
           applicable_date: dateToRun,
           mode: queryMode,
           channel: "chat",
           persist_answer: true,
+          stream: true,
           conversation_id: activeConvId,
           prior_saved_answer_revision: priorSavedTurn?.saved_answer_revision ?? null,
           conversation_history: historyForCall,
@@ -612,14 +645,108 @@ export default function LegalTeamReviewStudioPage() {
           answer_generation_mode: answerGenerationMode,
         }),
       });
-      const json = await res.json();
-      if (!res.ok || !json.ok) {
-        setStatusBanner({
-          kind: "err",
-          text: `ไม่สามารถประมวลผลคำถามได้ (HTTP ${res.status}): ${json.error || "Unknown error"}`,
-        });
-        return;
+
+      type QueryApiResponse = {
+        ok?: boolean;
+        error?: string;
+        http_status?: number;
+        answer?: GroundedAnswer;
+        traceable_answer?: TraceableAnswerEnvelope | null;
+      };
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      let json: QueryApiResponse | null = null;
+
+      if (res.ok && contentType.includes("text/event-stream") && res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let sseBuffer = "";
+        const sseState: {
+          complete: QueryApiResponse | null;
+          error: { error?: string; http_status?: number } | null;
+        } = { complete: null, error: null };
+
+        const processSseBlock = (rawBlock: string) => {
+          const lines = rawBlock.split("\n");
+          let eventName = "message";
+          const dataLines: string[] = [];
+          for (const line of lines) {
+            if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              dataLines.push(line.slice(5).trim());
+            }
+          }
+          if (dataLines.length === 0) return;
+          try {
+            const parsed = JSON.parse(dataLines.join("\n")) as Record<string, unknown>;
+            if (eventName === "progress" && parsed.stage === "accepted") {
+              setStatusBanner({
+                kind: "info",
+                text: "กำลังสืบค้นกฎหมาย วิเคราะห์ด้วย Gemini 4 Neon (low) และตรวจสอบหลักฐานอ้างอิง...",
+              });
+            } else if (eventName === "heartbeat") {
+              const sec = Math.max(1, Math.round(Number(parsed.elapsed_ms || 0) / 1000));
+              setStatusBanner({
+                kind: "info",
+                text: `กำลังวิเคราะห์กฎหมายและตรวจพิสูจน์ข้อกล่าวอ้างกับฐานข้อมูลทางการ... (${sec} วินาที)`,
+              });
+            } else if (eventName === "complete") {
+              sseState.complete = parsed as QueryApiResponse;
+            } else if (eventName === "error") {
+              sseState.error = {
+                error: typeof parsed.error === "string" ? parsed.error : "Unknown stream error",
+                http_status: typeof parsed.http_status === "number" ? parsed.http_status : 500,
+              };
+            }
+          } catch {
+            // ignore malformed heartbeat chunk
+          }
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          sseBuffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+          let boundaryIdx = sseBuffer.indexOf("\n\n");
+          while (boundaryIdx !== -1) {
+            const block = sseBuffer.slice(0, boundaryIdx).trim();
+            sseBuffer = sseBuffer.slice(boundaryIdx + 2);
+            if (block) processSseBlock(block);
+            boundaryIdx = sseBuffer.indexOf("\n\n");
+          }
+        }
+        sseBuffer += decoder.decode().replace(/\r\n/g, "\n");
+        if (sseBuffer.trim()) {
+          processSseBlock(sseBuffer.trim());
+        }
+
+        if (sseState.error) {
+          setStatusBanner({
+            kind: "err",
+            text: `ไม่สามารถประมวลผลคำถามได้ (HTTP ${sseState.error.http_status || 500}): ${sseState.error.error || "Unknown error"}`,
+          });
+          return;
+        }
+        json = sseState.complete;
+        if (!json || !json.ok || !json.answer) {
+          setStatusBanner({
+            kind: "err",
+            text: "การเชื่อมต่อสตรีมสิ้นสุดก่อนได้รับคำตอบที่ผ่านการตรวจสอบ",
+          });
+          return;
+        }
+        setStatusBanner(null);
+      } else {
+        json = (await res.json()) as QueryApiResponse;
+        if (!res.ok || !json || !json.ok || !json.answer) {
+          setStatusBanner({
+            kind: "err",
+            text: `ไม่สามารถประมวลผลคำถามได้ (HTTP ${res.status}): ${json?.error || "Unknown error"}`,
+          });
+          return;
+        }
       }
+
       const ans: GroundedAnswer = json.answer;
       const env: TraceableAnswerEnvelope | null =
         json.traceable_answer || ans.traceable_answer || null;

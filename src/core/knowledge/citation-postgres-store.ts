@@ -764,21 +764,79 @@ export async function persistAnswerRevisionToPostgres(params: {
   const env = params.envelope;
 
   // Ensure all referenced source documents/versions/passages exist in PostgreSQL for FK integrity & cold-start resolution!
-  // On live Neon (`!customCitationDbTransport`), skip redundant re-upserts for immutable canonical release bundles
-  // already synced in this container lifetime (saves 5-15 HTTPS round-trips per warm save).
-  for (const b of params.referenced_bundles) {
+  // On live Neon (`!customCitationDbTransport`), first batch-check which canonical passage_ids ALREADY exist in Neon
+  // in ONE single SELECT (eliminating 25-42 sequential cold-start upsert round-trips per query!), then upsert only
+  // genuinely missing bundles in parallel.
+  const bundlesNeedingSync: typeof params.referenced_bundles = [];
+  const bundleKeyByIndex = new Map<number, string | null>();
+  for (let i = 0; i < params.referenced_bundles.length; i++) {
+    const b = params.referenced_bundles[i];
     const bundleKey = b.doc.canonical_work_id
       ? `${b.doc.doc_id}|${b.version.version_id}|${b.passages
           .map((p) => `${p.passage_id}:${p.eligible_for_publication ? 1 : 0}`)
           .sort()
           .join(",")}`
       : null;
+    bundleKeyByIndex.set(i, bundleKey);
     if (!customCitationDbTransport && bundleKey && syncedCanonicalBundleKeys.has(bundleKey)) {
       continue;
     }
-    await persistCitationSourceBundleToPostgres(b);
-    if (!customCitationDbTransport && bundleKey) {
-      syncedCanonicalBundleKeys.add(bundleKey);
+    bundlesNeedingSync.push(b);
+  }
+
+  if (!customCitationDbTransport && bundlesNeedingSync.length > 0) {
+    const canonicalCheckPassages = Array.from(
+      new Set(
+        bundlesNeedingSync
+          .filter((b) => Boolean(b.doc.canonical_work_id))
+          .flatMap((b) => b.passages.map((p) => p.passage_id))
+      )
+    );
+    const existingPassageIds = new Set<string>();
+    if (canonicalCheckPassages.length > 0) {
+      try {
+        const existRes = await db<{ passage_id: string }>(
+          `SELECT passage_id FROM citation_evidence_passage WHERE passage_id = ANY($1::text[])`,
+          [canonicalCheckPassages]
+        );
+        for (const row of existRes.rows) {
+          existingPassageIds.add(row.passage_id);
+        }
+      } catch {
+        // Fall through to normal upsert if batch existence check fails
+      }
+    }
+
+    const trulyMissing: typeof params.referenced_bundles = [];
+    for (const b of bundlesNeedingSync) {
+      const idx = params.referenced_bundles.indexOf(b);
+      const bundleKey = bundleKeyByIndex.get(idx) ?? null;
+      const allPassagesAlreadyInNeon =
+        Boolean(bundleKey) &&
+        b.passages.length > 0 &&
+        b.passages.every((p) => existingPassageIds.has(p.passage_id));
+      if (allPassagesAlreadyInNeon && bundleKey) {
+        syncedCanonicalBundleKeys.add(bundleKey);
+        continue;
+      }
+      trulyMissing.push(b);
+    }
+
+    if (trulyMissing.length > 0) {
+      await Promise.all(
+        trulyMissing.map(async (b) => {
+          await persistCitationSourceBundleToPostgres(b);
+          const idx = params.referenced_bundles.indexOf(b);
+          const bundleKey = bundleKeyByIndex.get(idx) ?? null;
+          if (bundleKey) {
+            syncedCanonicalBundleKeys.add(bundleKey);
+          }
+        })
+      );
+    }
+  } else {
+    for (const b of bundlesNeedingSync) {
+      await persistCitationSourceBundleToPostgres(b);
     }
   }
 

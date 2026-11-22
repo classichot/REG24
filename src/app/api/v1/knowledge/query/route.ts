@@ -105,195 +105,276 @@ export async function POST(req: Request) {
 
     const qClean = body.question.trim();
     const effectiveAsOf = body.applicable_date ?? body.as_of_date ?? null;
-    // IMPORTANT: Keep `persistAnswerAtomically: false` during `queryKnowledge` so unpersisted in-memory
-    // envelope generation NEVER pre-populates `r1` ahead of `saveOrReviseAnswerServerVerified`, and
-    // keep `enable_tax_foundation_pilot: false` so the VAT book pilot remains strictly OFF on staging!
-    const queryStartedAt = performance.now();
-    const answer = await queryKnowledge(
-      {
-        question: qClean,
-        release_id: isStrictSingleReleasePreviewMode()
-          ? pinnedActiveRelease ?? undefined
-          : requestedReleaseOverride ?? undefined,
-        applicable_date: effectiveAsOf,
-        mode: body.mode,
-        comparison_work_ids: body.comparison_work_ids,
-        conversation_history: body.conversation_history,
-        conversation_id: body.conversation_id ?? null,
-        prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
-        attachment_doc_ids: body.attachment_doc_ids,
-        enable_tax_foundation_pilot: false,
-        qa_synthetic_fixture:
-          process.env.VERCEL_ENV !== "production" ? body.qa_synthetic_fixture ?? null : null,
-        answer_generation_mode:
-          process.env.VERCEL_ENV !== "production" ? body.answer_generation_mode ?? null : null,
-        challenger_provider:
-          process.env.VERCEL_ENV !== "production" ? body.challenger_provider ?? null : null,
-        override_model:
-          process.env.VERCEL_ENV !== "production" ? body.override_model ?? null : null,
-        thinking_level:
-          process.env.VERCEL_ENV !== "production" ? body.thinking_level ?? null : null,
-      },
-      actor,
-      {
-        store,
-        channel: body.channel || "api",
-        persistAnswerAtomically: false,
-      }
-    );
-    const queryMs = Math.round((performance.now() - queryStartedAt) * 100) / 100;
-
-    let persistMs = 0;
-    if (
-      body.persist_answer &&
-      answer.status !== "NEEDS_CLARIFICATION" &&
-      answer.status !== "INSUFFICIENT_EVIDENCE" &&
-      answer.traceable_answer &&
-      (answer.traceable_answer.status === "complete" ||
-        answer.traceable_answer.status === "partial")
-    ) {
-      const persistStartedAt = performance.now();
-      // STRICT PER-CLAIM CALCULATION BINDING (ZERO CROSS-CLAIM POOLING!):
-      // Bind each server-verified calculation strictly to its OWN claim_id (and exact source_versions).
-      // A separate unsupported claim that reuses a verified number from another claim MUST stay blocked!
-      const trustedCalcTokensByClaimId: Record<string, string[]> = {};
-      const trustedCalcsByClaimId: Record<string, NonNullable<typeof answer.claims[number]["bound_calculation"]>> = {};
-      for (const tc of answer.traceable_answer.claims || []) {
-        if (tc.bound_calculation) {
-          trustedCalcsByClaimId[tc.claim_id] = tc.bound_calculation;
-          trustedCalcTokensByClaimId[tc.claim_id] = tc.bound_calculation.verified_numeric_tokens;
-          continue;
-        }
-        // Match strictly to the exact owning GroundedAnswer claim (same claim_id or atomic segment prefix of THAT claim only!)
-        const owningClaim = (answer.claims || []).find(
-          (gc) =>
-            gc.claim_id === tc.claim_id ||
-            (Boolean(gc.claim_id) && tc.claim_id.startsWith(`${gc.claim_id}.p`))
-        );
-        if (owningClaim?.bound_calculation) {
-          trustedCalcsByClaimId[tc.claim_id] = {
-            ...owningClaim.bound_calculation,
-            claim_id: tc.claim_id,
-          };
-          trustedCalcTokensByClaimId[tc.claim_id] =
-            owningClaim.bound_calculation.verified_numeric_tokens;
-        } else if (
-          Array.isArray(owningClaim?.verified_calculation_numeric_tokens) &&
-          owningClaim.verified_calculation_numeric_tokens.length > 0
-        ) {
-          trustedCalcTokensByClaimId[tc.claim_id] =
-            owningClaim.verified_calculation_numeric_tokens;
-        }
-      }
-
-      const isFollowUpSave =
-        Array.isArray(body.conversation_history) &&
-        body.conversation_history.some((t) => t.role === "user" && Boolean(t.content?.trim()));
-
-      const querySaveOpKey =
-        (typeof body.save_operation_key === "string" && body.save_operation_key.trim()) ||
-        req.headers.get("idempotency-key")?.trim() ||
-        req.headers.get("x-idempotency-key")?.trim() ||
-        null;
-
-      const pgSaved = await saveOrReviseAnswerServerVerified(store, {
-        submitted_envelope: {
-          ...answer.traceable_answer,
-          execution_provenance: answer.execution_provenance ?? null,
-        },
-        question_text: qClean,
-        revision_reason: isFollowUpSave
-          ? "Persisted follow-up verified answer from query endpoint"
-          : "Persisted initial verified answer from query endpoint",
-        save_operation_key: querySaveOpKey,
-        actor,
-        query_persistence_context: {
-          conversation_id: body.conversation_id ?? null,
-          prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
-          conversation_history: body.conversation_history,
-          trusted_calculation_tokens_by_claim_id:
-            Object.keys(trustedCalcTokensByClaimId).length > 0
-              ? trustedCalcTokensByClaimId
-              : undefined,
-          trusted_calculations_by_claim_id:
-            Object.keys(trustedCalcsByClaimId).length > 0
-              ? trustedCalcsByClaimId
-              : undefined,
-        },
-      });
-      answer.traceable_answer = pgSaved;
-      if (answer.llm_audit_trace && typeof answer.llm_audit_trace === "object") {
-        answer.llm_audit_trace = {
-          ...answer.llm_audit_trace,
-          final_answer_revision_id: pgSaved.answer_revision || null,
-        };
-      }
-      persistMs = Math.round((performance.now() - persistStartedAt) * 100) / 100;
-    }
-
-    const auditStartedAt = performance.now();
-    const relRec = store.getState().releases[answer.release_id];
-    const auditStatus = await appendTrialAuditEvent(store, {
-      audit_id: `aud.q.${answer.trace_id}`,
-      event_type: "TRIAL_QUERY",
-      recorded_at: new Date().toISOString(),
-      actor_id: actor.actor_id,
-      actor_role: actor.role,
-      invite_fingerprint: gate.inviteFingerprint,
-      release_id: answer.release_id,
-      manifest_hash: relRec?.manifest_hash || null,
-      trace_id: answer.trace_id,
-      question_sha256: sha256Bytes(qClean),
-      question_text: qClean,
-      applicable_date: answer.applicable_date,
-      mode: body.mode || "standard",
-      answer_status: answer.status,
-      cited_passage_ids: answer.evidence.map((e) => e.passage_id),
-      cited_work_ids: Array.from(new Set(answer.evidence.map((e) => e.work_id))),
-      coverage_warnings_count: answer.coverage_warnings.length,
-      latency_ms: answer.latency_ms,
-    });
-    const auditMs = Math.round((performance.now() - auditStartedAt) * 100) / 100;
-    const totalMs = Math.round((performance.now() - reqStartedAt) * 100) / 100;
-
-    const headers: Record<string, string> = {
-      "x-reg24-ratelimit-backend": gate.rateLimitBackend,
-      "x-reg24-ratelimit-remaining": String(gate.remainingInWindow),
-      "x-reg24-audit-status": auditStatus.backend,
-      "x-reg24-stage-timing-ms": `query=${queryMs};persist=${persistMs};audit=${auditMs};total=${totalMs}`,
-    };
-    if (auditStatus.error) {
-      headers["x-reg24-audit-error"] = auditStatus.error.slice(0, 200);
-    }
-
     const wantsStream =
       body.stream === true ||
       (req.headers.get("accept") || "").toLowerCase().includes("text/event-stream");
 
-    if (wantsStream && answer.traceable_answer) {
-      // Section 1 Release Invariant: Stream progress or ALREADY VALIDATED claim groups ONLY!
-      const env = answer.traceable_answer;
-      const sseLines: string[] = [];
-      sseLines.push(
-        `event: progress\ndata: ${JSON.stringify({ stage: "retrieval_and_claim_validation_complete", as_of_date: env.as_of_date })}\n\n`
+    const executeQueryPipeline = async () => {
+      // IMPORTANT: Keep `persistAnswerAtomically: false` during `queryKnowledge` so unpersisted in-memory
+      // envelope generation NEVER pre-populates `r1` ahead of `saveOrReviseAnswerServerVerified`, and
+      // keep `enable_tax_foundation_pilot: false` so the VAT book pilot remains strictly OFF on staging!
+      const queryStartedAt = performance.now();
+      const answer = await queryKnowledge(
+        {
+          question: qClean,
+          release_id: isStrictSingleReleasePreviewMode()
+            ? pinnedActiveRelease ?? undefined
+            : requestedReleaseOverride ?? undefined,
+          applicable_date: effectiveAsOf,
+          mode: body.mode,
+          comparison_work_ids: body.comparison_work_ids,
+          conversation_history: body.conversation_history,
+          conversation_id: body.conversation_id ?? null,
+          prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
+          attachment_doc_ids: body.attachment_doc_ids,
+          enable_tax_foundation_pilot: false,
+          qa_synthetic_fixture:
+            process.env.VERCEL_ENV !== "production" ? body.qa_synthetic_fixture ?? null : null,
+          answer_generation_mode:
+            process.env.VERCEL_ENV !== "production" ? body.answer_generation_mode ?? null : null,
+          challenger_provider:
+            process.env.VERCEL_ENV !== "production" ? body.challenger_provider ?? null : null,
+          override_model:
+            process.env.VERCEL_ENV !== "production" ? body.override_model ?? null : null,
+          thinking_level:
+            process.env.VERCEL_ENV !== "production" ? body.thinking_level ?? null : null,
+        },
+        actor,
+        {
+          store,
+          channel: body.channel || "api",
+          persistAnswerAtomically: false,
+        }
       );
-      for (const validatedClaim of env.claims) {
-        sseLines.push(
-          `event: validated_claim\ndata: ${JSON.stringify(validatedClaim)}\n\n`
-        );
+      const queryMs = Math.round((performance.now() - queryStartedAt) * 100) / 100;
+
+      let persistMs = 0;
+      if (
+        body.persist_answer &&
+        answer.status !== "NEEDS_CLARIFICATION" &&
+        answer.status !== "INSUFFICIENT_EVIDENCE" &&
+        answer.traceable_answer &&
+        (answer.traceable_answer.status === "complete" ||
+          answer.traceable_answer.status === "partial")
+      ) {
+        const persistStartedAt = performance.now();
+        // STRICT PER-CLAIM CALCULATION BINDING (ZERO CROSS-CLAIM POOLING!):
+        // Bind each server-verified calculation strictly to its OWN claim_id (and exact source_versions).
+        // A separate unsupported claim that reuses a verified number from another claim MUST stay blocked!
+        const trustedCalcTokensByClaimId: Record<string, string[]> = {};
+        const trustedCalcsByClaimId: Record<string, NonNullable<typeof answer.claims[number]["bound_calculation"]>> = {};
+        for (const tc of answer.traceable_answer.claims || []) {
+          if (tc.bound_calculation) {
+            trustedCalcsByClaimId[tc.claim_id] = tc.bound_calculation;
+            trustedCalcTokensByClaimId[tc.claim_id] = tc.bound_calculation.verified_numeric_tokens;
+            continue;
+          }
+          // Match strictly to the exact owning GroundedAnswer claim (same claim_id or atomic segment prefix of THAT claim only!)
+          const owningClaim = (answer.claims || []).find(
+            (gc) =>
+              gc.claim_id === tc.claim_id ||
+              (Boolean(gc.claim_id) && tc.claim_id.startsWith(`${gc.claim_id}.p`))
+          );
+          if (owningClaim?.bound_calculation) {
+            trustedCalcsByClaimId[tc.claim_id] = {
+              ...owningClaim.bound_calculation,
+              claim_id: tc.claim_id,
+            };
+            trustedCalcTokensByClaimId[tc.claim_id] =
+              owningClaim.bound_calculation.verified_numeric_tokens;
+          } else if (
+            Array.isArray(owningClaim?.verified_calculation_numeric_tokens) &&
+            owningClaim.verified_calculation_numeric_tokens.length > 0
+          ) {
+            trustedCalcTokensByClaimId[tc.claim_id] =
+              owningClaim.verified_calculation_numeric_tokens;
+          }
+        }
+
+        const isFollowUpSave =
+          Array.isArray(body.conversation_history) &&
+          body.conversation_history.some((t) => t.role === "user" && Boolean(t.content?.trim()));
+
+        const querySaveOpKey =
+          (typeof body.save_operation_key === "string" && body.save_operation_key.trim()) ||
+          req.headers.get("idempotency-key")?.trim() ||
+          req.headers.get("x-idempotency-key")?.trim() ||
+          null;
+
+        const pgSaved = await saveOrReviseAnswerServerVerified(store, {
+          submitted_envelope: {
+            ...answer.traceable_answer,
+            execution_provenance: answer.execution_provenance ?? null,
+          },
+          question_text: qClean,
+          revision_reason: isFollowUpSave
+            ? "Persisted follow-up verified answer from query endpoint"
+            : "Persisted initial verified answer from query endpoint",
+          save_operation_key: querySaveOpKey,
+          actor,
+          query_persistence_context: {
+            conversation_id: body.conversation_id ?? null,
+            prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
+            conversation_history: body.conversation_history,
+            trusted_calculation_tokens_by_claim_id:
+              Object.keys(trustedCalcTokensByClaimId).length > 0
+                ? trustedCalcTokensByClaimId
+                : undefined,
+            trusted_calculations_by_claim_id:
+              Object.keys(trustedCalcsByClaimId).length > 0
+                ? trustedCalcsByClaimId
+                : undefined,
+          },
+        });
+        answer.traceable_answer = pgSaved;
+        if (answer.llm_audit_trace && typeof answer.llm_audit_trace === "object") {
+          answer.llm_audit_trace = {
+            ...answer.llm_audit_trace,
+            final_answer_revision_id: pgSaved.answer_revision || null,
+          };
+        }
+        persistMs = Math.round((performance.now() - persistStartedAt) * 100) / 100;
       }
-      sseLines.push(
-        `event: complete\ndata: ${JSON.stringify({ ok: true, traceable_answer: env, audit_status: auditStatus })}\n\n`
-      );
-      return new Response(sseLines.join(""), {
+
+      const auditStartedAt = performance.now();
+      const relRec = store.getState().releases[answer.release_id];
+      const auditStatus = await appendTrialAuditEvent(store, {
+        audit_id: `aud.q.${answer.trace_id}`,
+        event_type: "TRIAL_QUERY",
+        recorded_at: new Date().toISOString(),
+        actor_id: actor.actor_id,
+        actor_role: actor.role,
+        invite_fingerprint: gate.inviteFingerprint,
+        release_id: answer.release_id,
+        manifest_hash: relRec?.manifest_hash || null,
+        trace_id: answer.trace_id,
+        question_sha256: sha256Bytes(qClean),
+        question_text: qClean,
+        applicable_date: answer.applicable_date,
+        mode: body.mode || "standard",
+        answer_status: answer.status,
+        cited_passage_ids: answer.evidence.map((e) => e.passage_id),
+        cited_work_ids: Array.from(new Set(answer.evidence.map((e) => e.work_id))),
+        coverage_warnings_count: answer.coverage_warnings.length,
+        latency_ms: answer.latency_ms,
+      });
+      const auditMs = Math.round((performance.now() - auditStartedAt) * 100) / 100;
+      const totalMs = Math.round((performance.now() - reqStartedAt) * 100) / 100;
+
+      const headers: Record<string, string> = {
+        "x-reg24-ratelimit-backend": gate.rateLimitBackend,
+        "x-reg24-ratelimit-remaining": String(gate.remainingInWindow),
+        "x-reg24-audit-status": auditStatus.backend,
+        "x-reg24-stage-timing-ms": `query=${queryMs};persist=${persistMs};audit=${auditMs};total=${totalMs}`,
+      };
+      if (auditStatus.error) {
+        headers["x-reg24-audit-error"] = auditStatus.error.slice(0, 200);
+      }
+
+      return {
+        answer,
+        auditStatus,
+        stageTimingMs: { query: queryMs, persist: persistMs, audit: auditMs, total: totalMs },
+        headers,
+      };
+    };
+
+    if (wantsStream) {
+      // Incremental SSE stream: flush response headers and initial progress immediately (<200ms)
+      // plus 8s keepalive heartbeats so browser / proxy / HTTP-1.1 connections NEVER drop while
+      // live Gemini 4 Neon @ low + verification + Neon persistence run.
+      // Section 1 Release Invariant: NEVER stream unvalidated LLM tokens — emit `validated_claim`
+      // and `complete` ONLY AFTER full server verification and atomic persistence succeed!
+      const encoder = new TextEncoder();
+      const sseStream = new ReadableStream<Uint8Array>({
+        async start(controller) {
+          let closed = false;
+          const sendEvent = (event: string, payload: unknown) => {
+            if (closed) return;
+            try {
+              controller.enqueue(
+                encoder.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`)
+              );
+            } catch {
+              closed = true;
+            }
+          };
+
+          sendEvent("progress", {
+            stage: "accepted",
+            started_at: new Date().toISOString(),
+          });
+
+          const heartbeatTimer = setInterval(() => {
+            sendEvent("heartbeat", {
+              stage: "processing",
+              elapsed_ms: Math.round(performance.now() - reqStartedAt),
+            });
+          }, 8000);
+
+          try {
+            const { answer, auditStatus, stageTimingMs } = await executeQueryPipeline();
+            const env = answer.traceable_answer || null;
+            sendEvent("progress", {
+              stage: "retrieval_and_claim_validation_complete",
+              as_of_date: env?.as_of_date ?? answer.applicable_date ?? null,
+              stage_timing_ms: stageTimingMs,
+            });
+            for (const validatedClaim of env?.claims || []) {
+              sendEvent("validated_claim", validatedClaim);
+            }
+            sendEvent("complete", {
+              ok: true,
+              answer,
+              traceable_answer: env,
+              execution_provenance: answer.execution_provenance || null,
+              audit_status: auditStatus,
+              stage_timing_ms: stageTimingMs,
+            });
+          } catch (err) {
+            const errResp = knowledgeApiErrorResponse(err);
+            let errBody: Record<string, unknown> = {
+              ok: false,
+              error: err instanceof Error ? err.message : "INTERNAL_QUERY_ERROR",
+            };
+            try {
+              errBody = (await errResp.json()) as Record<string, unknown>;
+            } catch {
+              // keep fallback error body
+            }
+            sendEvent("error", {
+              ...errBody,
+              ok: false,
+              http_status: errResp.status,
+            });
+          } finally {
+            clearInterval(heartbeatTimer);
+            if (!closed) {
+              closed = true;
+              try {
+                controller.close();
+              } catch {
+                // already closed
+              }
+            }
+          }
+        },
+      });
+
+      return new Response(sseStream, {
         status: 200,
         headers: {
-          ...headers,
+          "x-reg24-ratelimit-backend": gate.rateLimitBackend,
+          "x-reg24-ratelimit-remaining": String(gate.remainingInWindow),
           "Content-Type": "text/event-stream; charset=utf-8",
           "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+          "X-Accel-Buffering": "no",
         },
       });
     }
+
+    const { answer, auditStatus, headers } = await executeQueryPipeline();
 
     return NextResponse.json(
       {
