@@ -1370,10 +1370,13 @@ export function validateAndBuildTraceableAnswer(
     // Material Issue 1: Substantive claim-to-evidence support check!
     // An unrelated claim attached to a real, eligible source MUST remain unverified ('insufficient', published: false), NEVER 'supported'!
     // Per-claim calculation binding: ONLY verified calculation tokens bound strictly to THIS claim are eligible.
-    const claimOwnCalcTokens =
-      prop.bound_calculation?.verified_numeric_tokens?.length
-        ? prop.bound_calculation.verified_numeric_tokens
-        : prop.verified_calculation_numeric_tokens;
+    const mergedOwnCalcTokens = Array.from(
+      new Set([
+        ...(prop.bound_calculation?.verified_numeric_tokens || []),
+        ...(prop.verified_calculation_numeric_tokens || []),
+      ])
+    );
+    const claimOwnCalcTokens = mergedOwnCalcTokens.length > 0 ? mergedOwnCalcTokens : undefined;
     if (claimDecision === "supported" && validRefsForClaim.length > 0) {
       const substantiveCheck = evaluateSubstantiveClaimSupport({
         claim_text: prop.text,
@@ -1573,7 +1576,12 @@ export function validateAndBuildTraceableAnswer(
       const evalClaim = evaluatedClaims.get(cid);
       if (evalClaim?.bound_calculation) {
         trustedCalcsByClaimId[cid] = evalClaim.bound_calculation;
-        trustedTokensByClaimId[cid] = evalClaim.bound_calculation.verified_numeric_tokens;
+        trustedTokensByClaimId[cid] = Array.from(
+          new Set([
+            ...(evalClaim.bound_calculation.verified_numeric_tokens || []),
+            ...(pc.verified_calculation_numeric_tokens || []),
+          ])
+        );
       } else if (pc.verified_calculation_numeric_tokens && pc.verified_calculation_numeric_tokens.length > 0) {
         trustedTokensByClaimId[cid] = pc.verified_calculation_numeric_tokens;
       }
@@ -1781,10 +1789,15 @@ export function commitTraceableAnswerAtomically(
     if (sc.verification_decision !== "supported") continue;
     const scLinks = links.filter((l) => l.claim_id === sc.claim_id);
     // Strict per-claim binding: ONLY tokens explicitly bound to THIS claim_id are authorized!
+    const mergedCommitTokens = Array.from(
+      new Set([
+        ...(meta.trusted_calculations_by_claim_id?.[sc.claim_id]?.verified_numeric_tokens || []),
+        ...(meta.trusted_calculation_tokens_by_claim_id?.[sc.claim_id] || []),
+        ...(meta.trusted_calculation_tokens_by_claim_text?.[sc.text] || []),
+      ])
+    );
     const boundTokensForThisClaimOnly =
-      meta.trusted_calculations_by_claim_id?.[sc.claim_id]?.verified_numeric_tokens ??
-      meta.trusted_calculation_tokens_by_claim_id?.[sc.claim_id] ??
-      meta.trusted_calculation_tokens_by_claim_text?.[sc.text];
+      mergedCommitTokens.length > 0 ? mergedCommitTokens : undefined;
     const substantive = evaluateSubstantiveClaimSupport({
       claim_text: sc.text,
       verified_calculation_numeric_tokens: boundTokensForThisClaimOnly,
@@ -2785,13 +2798,25 @@ export async function saveOrReviseAnswerServerVerified(
       const canonicalCitedBlob = thaiDigitsToArabic(
         validRefs.map((r) => unified.passages[r.evidence_id]?.verbatim_text || "").join(" ")
       );
+      const effectiveQuestionBasesForUiSave =
+        questionMonetaryBasesThb.length > 0 ? questionMonetaryBasesThb : prevMonetaryBasesThb;
       const baseInQuestion =
         tBase !== null &&
         tBase > 0 &&
         !supersededQuestionBasesThb.has(tBase) &&
-        questionMonetaryBasesThb.some((qb) => Math.abs(qb - tBase) <= 1);
+        effectiveQuestionBasesForUiSave.some((qb) => Math.abs(qb - tBase) <= 1);
       const exemptGrounded =
         exAmt === 0 ||
+        (exAmt === tBase &&
+          tBase !== null &&
+          tBase <= 20_000_000 &&
+          (canonicalCitedBlob.includes("ยี่สิบล้านบาท") ||
+            canonicalCitedBlob.includes("20,000,000"))) ||
+        (exAmt === tBase &&
+          tBase !== null &&
+          tBase <= 10_000_000 &&
+          (canonicalCitedBlob.includes("สิบล้านบาท") ||
+            canonicalCitedBlob.includes("10,000,000"))) ||
         (exAmt === 20_000_000 &&
           (canonicalCitedBlob.includes("ยี่สิบล้านบาท") ||
             canonicalCitedBlob.includes("20,000,000"))) ||
@@ -2826,10 +2851,40 @@ export async function saveOrReviseAnswerServerVerified(
         };
       }
     }
-    const baseVerifiedTokens =
-      boundCalcForThisClaim?.verified_numeric_tokens ??
+    const mergedPerClaimTokens = new Set<string>();
+    for (const tok of boundCalcForThisClaim?.verified_numeric_tokens || []) {
+      mergedPerClaimTokens.add(tok);
+    }
+    const perClaimContextTokens =
       (rawClm.claim_id ? trustedCalcTokensByClaimId?.[rawClm.claim_id] : undefined) ??
       trustedCalcTokensMap?.[rawClm.text];
+    for (const tok of perClaimContextTokens || []) {
+      mergedPerClaimTokens.add(tok);
+    }
+    // Also ground Thai-word statutory thresholds ("ยี่สิบล้านบาท" -> 20,000,000; "สิบล้านบาท" -> 10,000,000)
+    // directly from THIS claim's cited canonical passages, plus non-overridden predecessor conversation bases
+    // when the follow-up turn did not introduce a new monetary base (e.g. G3t2 changing only the recipient).
+    const citedThresholdBlob = thaiDigitsToArabic(
+      validRefs.map((r) => unified.passages[r.evidence_id]?.verbatim_text || "").join(" ")
+    );
+    if (citedThresholdBlob.includes("ยี่สิบล้านบาท")) {
+      mergedPerClaimTokens.add("20000000");
+      mergedPerClaimTokens.add("20,000,000");
+      mergedPerClaimTokens.add("20");
+    }
+    if (citedThresholdBlob.includes("สิบล้านบาท")) {
+      mergedPerClaimTokens.add("10000000");
+      mergedPerClaimTokens.add("10,000,000");
+      mergedPerClaimTokens.add("10");
+    }
+    if (questionMonetaryBasesThb.length === 0 && supersededQuestionBasesThb.size === 0) {
+      for (const pb of prevMonetaryBasesThb) {
+        mergedPerClaimTokens.add(String(pb));
+        mergedPerClaimTokens.add(pb.toLocaleString("en-US"));
+      }
+    }
+    const baseVerifiedTokens =
+      mergedPerClaimTokens.size > 0 ? Array.from(mergedPerClaimTokens) : undefined;
 
     // If THIS claim validly cites BOTH an official VAT reduction decree (6.3%) AND the official RD VAT local-tax
     // guide (1/9 local tax = 0.7%, combined = 7.0%) verified against canonical passages, deterministically ground

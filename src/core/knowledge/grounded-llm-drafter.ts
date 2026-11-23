@@ -567,7 +567,34 @@ export const GROUNDED_LLM_RESPONSE_SCHEMA = {
   ],
 };
 
-function normalizeParsedDraftResponse(raw: GroundedLlmDraftResponse): GroundedLlmDraftResponse {
+function stripUngroundedSbtLocalTaxGloss(
+  text: string,
+  hasGoverningSbt33InPack: boolean
+): string {
+  if (!text || hasGoverningSbt33InPack) return text;
+  if (!/ภาษีธุรกิจเฉพาะ|91\/2|91\/6/.test(text)) return text;
+  let cleaned = text;
+  // Remove parenthetical municipal local-tax 3.3% / 0.3% glosses when the pack only contains § 91/6 (3) 3.0%
+  cleaned = cleaned.replace(
+    /\s*\([^()\n]{0,90}(?:3\.3|0\.3)[^()\n]{0,90}\)/g,
+    ""
+  );
+  // If phrasing wrote "ร้อยละ 3.0 รวมภาษีท้องถิ่นเป็นร้อยละ 3.3" without parentheses, keep only the statutory 3.0%
+  cleaned = cleaned.replace(
+    /(ร้อยละ\s*3(?:\.0)?)\s*(?:ซึ่ง|โดย)?(?:เมื่อ)?รวมภาษีท้องถิ่น[^.,;\n]{0,60}?3\.3\s*%?/g,
+    "$1"
+  );
+  return cleaned.replace(/\s{2,}/g, " ").trim();
+}
+
+function normalizeParsedDraftResponse(
+  raw: GroundedLlmDraftResponse,
+  passagePack?: GroundedPassagePackItem[]
+): GroundedLlmDraftResponse {
+  const packById = new Map((passagePack || []).map((p) => [p.passage_id, p]));
+  const hasGoverningSbt33InPack = (passagePack || []).some(
+    (p) => p.evidence_role === "governing" && /(?<![0-9.])3\.3(?![0-9])/.test(p.verbatim_text || "")
+  );
   return {
     ...raw,
     case_facts_used: Array.isArray(raw.case_facts_used) ? raw.case_facts_used : [],
@@ -576,52 +603,68 @@ function normalizeParsedDraftResponse(raw: GroundedLlmDraftResponse): GroundedLl
       ? raw.clarification_questions_th
       : [],
     evidence_gaps_th: Array.isArray(raw.evidence_gaps_th) ? raw.evidence_gaps_th : [],
-    issues: (raw.issues || []).map((iss) => ({
-      ...iss,
-      material_facts_relied_on: Array.isArray(iss.material_facts_relied_on)
-        ? iss.material_facts_relied_on
-        : [],
-      governing_passage_ids: Array.isArray(iss.governing_passage_ids)
-        ? iss.governing_passage_ids
-        : [],
-      missing_facts_or_uncertainties_th: Array.isArray(iss.missing_facts_or_uncertainties_th)
-        ? iss.missing_facts_or_uncertainties_th
-        : [],
-      proposed_calculation: iss.proposed_calculation
-        ? {
-            formula_description_th: iss.proposed_calculation.formula_description_th || "",
-            tax_base_thb:
-              typeof iss.proposed_calculation.tax_base_thb === "number"
-                ? iss.proposed_calculation.tax_base_thb
-                : null,
-            exempt_amount_thb:
-              typeof iss.proposed_calculation.exempt_amount_thb === "number"
-                ? iss.proposed_calculation.exempt_amount_thb
-                : null,
-            taxable_amount_thb:
-              typeof iss.proposed_calculation.taxable_amount_thb === "number"
-                ? iss.proposed_calculation.taxable_amount_thb
-                : null,
-            rate_pct:
-              typeof iss.proposed_calculation.rate_pct === "number"
-                ? iss.proposed_calculation.rate_pct
-                : null,
-            computed_tax_thb:
-              typeof iss.proposed_calculation.computed_tax_thb === "number"
-                ? iss.proposed_calculation.computed_tax_thb
-                : null,
-            is_computable_from_stated_facts: Boolean(
-              iss.proposed_calculation.is_computable_from_stated_facts
-            ),
-            missing_inputs_th: Array.isArray(iss.proposed_calculation.missing_inputs_th)
-              ? iss.proposed_calculation.missing_inputs_th
-              : [],
-            steps_th: Array.isArray(iss.proposed_calculation.steps_th)
-              ? iss.proposed_calculation.steps_th
-              : [],
-          }
-        : null,
-    })),
+    issues: (raw.issues || []).map((iss) => {
+      const govIds = Array.isArray(iss.governing_passage_ids) ? iss.governing_passage_ids : [];
+      const cites91_6 = govIds.some((pid) => {
+        const w = packById.get(pid)?.work_id || "";
+        return w === "prov.th.rc.91_6" || w === "prov.th.rc.91/6";
+      });
+      const conc = cites91_6
+        ? stripUngroundedSbtLocalTaxGloss(iss.conclusion_th || "", hasGoverningSbt33InPack)
+        : iss.conclusion_th;
+      const appExp = cites91_6
+        ? stripUngroundedSbtLocalTaxGloss(
+            iss.application_explanation_th || "",
+            hasGoverningSbt33InPack
+          )
+        : iss.application_explanation_th;
+      return {
+        ...iss,
+        conclusion_th: conc,
+        application_explanation_th: appExp,
+        material_facts_relied_on: Array.isArray(iss.material_facts_relied_on)
+          ? iss.material_facts_relied_on
+          : [],
+        governing_passage_ids: govIds,
+        missing_facts_or_uncertainties_th: Array.isArray(iss.missing_facts_or_uncertainties_th)
+          ? iss.missing_facts_or_uncertainties_th
+          : [],
+        proposed_calculation: iss.proposed_calculation
+          ? {
+              formula_description_th: iss.proposed_calculation.formula_description_th || "",
+              tax_base_thb:
+                typeof iss.proposed_calculation.tax_base_thb === "number"
+                  ? iss.proposed_calculation.tax_base_thb
+                  : null,
+              exempt_amount_thb:
+                typeof iss.proposed_calculation.exempt_amount_thb === "number"
+                  ? iss.proposed_calculation.exempt_amount_thb
+                  : null,
+              taxable_amount_thb:
+                typeof iss.proposed_calculation.taxable_amount_thb === "number"
+                  ? iss.proposed_calculation.taxable_amount_thb
+                  : null,
+              rate_pct:
+                typeof iss.proposed_calculation.rate_pct === "number"
+                  ? iss.proposed_calculation.rate_pct
+                  : null,
+              computed_tax_thb:
+                typeof iss.proposed_calculation.computed_tax_thb === "number"
+                  ? iss.proposed_calculation.computed_tax_thb
+                  : null,
+              is_computable_from_stated_facts: Boolean(
+                iss.proposed_calculation.is_computable_from_stated_facts
+              ),
+              missing_inputs_th: Array.isArray(iss.proposed_calculation.missing_inputs_th)
+                ? iss.proposed_calculation.missing_inputs_th
+                : [],
+              steps_th: Array.isArray(iss.proposed_calculation.steps_th)
+                ? iss.proposed_calculation.steps_th
+                : [],
+            }
+          : null,
+      };
+    }),
   };
 }
 
@@ -670,7 +713,7 @@ const GROUNDED_SYSTEM_INSTRUCTION = `คุณคือทนายความ�
      (ก) ภาระภาษีเงินได้และการหักภาษี ณ ที่จ่ายในวันจดทะเบียนโอนกรรมสิทธิ์ของผู้โอน: ประมวลรัษฎากร มาตรา 41 ทวิ กำหนดให้ถือว่าผู้โอนเป็นผู้มีเงินได้พึงประเมิน, มาตรา 49 ทวิ กำหนดให้ใช้ราคาประเมินทุนทรัพย์เพื่อเรียกเก็บค่าธรรมเนียมจดทะเบียนสิทธิและนิติกรรมตามประมวลกฎหมายที่ดินเป็นฐานคำนวณ (ไม่ใช่ราคาที่ระบุในสัญญาให้), มาตรา 42 (26) และมาตรา 50 (6) ยกเว้นเฉพาะกรณีบิดาหรือมารดาโอนอสังหาริมทรัพย์ให้แก่บุตรชอบด้วยกฎหมายซึ่งไม่รวมถึงบุตรบุญธรรม เฉพาะส่วนที่ไม่เกิน 20,000,000 บาทตลอดปีภาษี (ส่วนที่เกิน 20,000,000 บาท เสียและหักภาษี ณ ที่จ่ายร้อยละ 5 ตามมาตรา 48 (4/1) และมาตรา 50 (6)); หากผู้รับโอนเป็นบุตรบุญธรรม หลาน บุตรของหลาน หรือบุคคลอื่น จะไม่ได้รับยกเว้นตามมาตรา 42 (26) และต้องหักภาษีเงินได้ ณ ที่จ่ายในวันจดทะเบียนตามมาตรา 50 (5) (ก) (กรณีอสังหาริมทรัพย์อันเป็นมรดกหรือได้รับจากการให้โดยเสน่หา) หรือมาตรา 50 (5) (ข) ประกอบพระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529 (กรณีอสังหาริมทรัพย์ที่ได้มาโดยทางอื่นนอกจาก (ก) เช่น ได้มาโดยการซื้อ)
      (ข) ความรับผิดกรณีหักภาษีเงินได้ ณ ที่จ่ายและนำส่งไม่ครบถ้วนตามมาตรา 54: เมื่อธุรกรรมนั้นมีหน้าที่ต้องหักภาษีเงินได้ ณ ที่จ่ายในวันจดทะเบียน (เช่น โอนให้ผู้รับที่ไม่ใช่บุตรชอบด้วยกฎหมาย หรือโอนให้บุตรชอบด้วยกฎหมายในส่วนที่เกิน 20,000,000 บาท) ต้องแยกประเด็นอธิบายความรับผิดร่วมตามมาตรา 54 เสมอพร้อมอ้างอิง passage_id ของมาตรา 54 (และหากกล่าวอ้างถึงมาตรา 50 (5) (ก)/(ข) หรือมาตรา 50 (6) ในประเด็นมาตรา 54 ให้ใส่ passage_id ของมาตรา 50 ส่วนนั้นควบคู่ใน governing_passage_ids ด้วยทุกครั้ง); แต่หากธุรกรรมได้รับยกเว้นเต็มจำนวนจนไม่มีหน้าที่ต้องหักภาษี ณ ที่จ่าย (เช่น โอนให้บุตรชอบด้วยกฎหมายไม่เกิน 20,000,000 บาท) ห้ามใส่มาตรา 54 แบบเหมารวม
      (ค) ภาระภาษีเงินได้บุคคลธรรมดาของผู้รับโอนอสังหาริมทรัพย์: ห้ามนำหลักเกณฑ์ฝั่งผู้โอนตามมาตรา 41 ทวิ หรือข้อยกเว้นมาตรา 42 (26)-(28) มาสรุปว่าผู้รับโอนอสังหาริมทรัพย์ "ไม่ต้องเสียภาษี", "ไม่มีภาระภาษีเงินได้", "ไม่ต้องนำมารวมคำนวณ" หรือระบุจำนวนเงินภาษีของผู้รับโอนเป็นตัวเลขใดๆ รวมถึงห้ามระบุ 0 หรือ 0 บาท เด็ดขาด! ให้ชี้แจงข้อจำกัดตามตัวบทใน PASSAGE_PACK อย่างตรงไปตรงมาว่า มาตรา 41 ทวิ เป็นบทบัญญัติกำหนดให้ผู้โอนเป็นผู้มีเงินได้ และมาตรา 42 (26) กำหนดข้อยกเว้นเฉพาะฝั่งผู้โอนที่โอนอสังหาริมทรัพย์ให้บุตรชอบด้วยกฎหมาย ส่วนตัวบทมาตรา 41 ทวิ และมาตรา 42 (26)-(28) ในชุดหลักฐานที่ตรวจสอบแล้วไม่ได้บัญญัติสรุปภาระภาษีเงินได้บุคคลธรรมดาหรือวงเงินยกเว้นเฉพาะฝั่งผู้รับโอนอสังหาริมทรัพย์ไว้โดยตรง (หากคำถามระบุ "หลานสาว/หลานชาย" โดยไม่ระบุสายโลหิตว่าเป็นบุตรของบุตรหรือบุตรของพี่น้อง หรือเป็นการให้ในงานบวชของบุคคลอื่น ให้ชี้แจงความกำกวมของข้อเท็จจริงและขอบเขตถ้อยคำตามมาตรา 42 (27)-(28) ประกอบด้วย) จึงไม่อาจระบุภาระภาษีเงินได้ของผู้รับโอนอสังหาริมทรัพย์เป็นตัวเลขใดๆ ได้ (รวมถึงห้ามระบุ 0 บาท) และต้องไม่ส่ง proposed_calculation (หรือตั้ง is_computable_from_stated_facts = false, computed_tax_thb = null) สำหรับประเด็นผู้รับโอนอสังหาริมทรัพย์เสมอ และเมื่อยังมีข้อจำกัดหลักฐานฝั่งผู้รับโอนดังกล่าว ให้ตั้ง answer_status = "CONDITIONAL"
-   - สำหรับการให้สังหาริมทรัพย์หรือเงินสด (เช่น มอบเงินสดหรือโอนเงินสดผ่านธนาคารให้บิดา/มารดาซึ่งเป็นบุพการี): ใช้มาตรา 42 (27) (ยกเว้นส่วนที่ไม่เกิน 20,000,000 บาทตลอดปีภาษี) และมาตรา 48 (6) (ส่วนที่เกิน 20,000,000 บาท เลือกเสียภาษีอัตราร้อยละ 5 ได้); สำหรับผู้โอนและธนาคารในการโอนเงินสดให้โดยเสน่หา ธนาคารไม่มีหน้าที่หักภาษีเงินได้ ณ ที่จ่ายตามมาตรา 50 และธุรกรรมโอนเงินสดผ่านธนาคารไม่อยู่ในบัญชีอัตราอากรแสตมป์ที่ต้องเสียอากรแสตมป์ตามมาตรา 103 และมาตรา 104 (สำหรับประเด็นที่ไม่มีหน้าที่หักภาษี ณ ที่จ่ายหรือไม่อยู่ในบังคับต้องเสียอากรแสตมป์ ห้ามส่ง proposed_calculation หรือให้ตั้ง is_computable_from_stated_facts = false, computed_tax_thb = null และห้ามเขียนสรุปเป็นตัวเลข 0 บาท)
+   - สำหรับการให้สังหาริมทรัพย์หรือเงินสด (เช่น มอบเงินสดหรือโอนเงินสดผ่านธนาคารให้บิดา/มารดาซึ่งเป็นบุพการี): ใช้มาตรา 42 (27) (ยกเว้นส่วนที่ไม่เกิน 20,000,000 บาทตลอดปีภาษี) และมาตรา 48 (6) (ส่วนที่เกิน 20,000,000 บาท เลือกเสียภาษีอัตราร้อยละ 5 ได้); สำหรับผู้โอนและธนาคารในการโอนเงินสดให้โดยเสน่หา ธนาคารไม่มีหน้าที่หักภาษีเงินได้ ณ ที่จ่ายตามมาตรา 50 และธุรกรรมโอนเงินสดผ่านธนาคารไม่อยู่ในบัญชีอัตราอากรแสตมป์ที่ต้องเสียอากรแสตมป์ตามมาตรา 103 และมาตรา 104 (สำหรับประเด็นที่ไม่มีหน้าที่หักภาษี ณ ที่จ่ายหรือไม่อยู่ในบังคับต้องเสียอากรแสตมป์ ห้ามส่ง proposed_calculation หรือให้ตั้ง is_computable_from_stated_facts = false, computed_tax_thb = null และห้ามเขียนสรุปเป็นตัวเลข 0 บาท; และหากแยกประเด็นภาระภาษีเงินได้บุคคลธรรมดาของผู้รับเงินสดตามมาตรา 42 (27) และมาตรา 48 (6) ออกต่างหากแล้ว ในประเด็นผู้รับเงินสดห้ามกล่าวซ้ำคำว่า "หักภาษี ณ ที่จ่าย" หรือ "อากรแสตมป์" เพื่อไม่ให้ปะปนข้ามหมวดภาษี)
    - ห้ามสรุปตัวเลขภาษีที่คำนวณไม่ได้หากขาดข้อมูลสำคัญ (เช่น วิธีการได้มา ระยะเวลาถือครอง หรือราคาประเมินทุนทรัพย์ของทางราชการ) ให้ตั้งค่า is_computable_from_stated_facts = false, computed_tax_thb = null และระบุ missing_inputs_th ให้ชัดเจน
 4. กรณีหลักฐานใน PASSAGE_PACK ครอบคลุมเพียงบางส่วน หรือมีการอ้างอิงข้ามตัวบท:
    - หากตัวบทแม่บทใน PASSAGE_PACK กล่าวถึงพระราชกฤษฎีกาเพียงในวงเล็บอ้างอิง เช่น "( ดูพระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529 )" ในมาตรา 50 (5) (ข) หรือมาตรา 48 (4) (ข) โดยไม่มีตัวบทมาตราของพระราชกฤษฎีกาฉบับนั้นแยกอยู่ใน PASSAGE_PACK ห้ามประดิษฐ์เลขมาตราของพระราชกฤษฎีกานั้น (เช่น ห้ามเขียน "พระราชกฤษฎีกา (ฉบับที่ 165) มาตรา 4") ให้ระบุชื่อ "พระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529" ตามที่อ้างในมาตรา 50 (5) (ข) / มาตรา 48 (4) (ข) และระบุใน evidence_gaps_th ว่าตารางอัตราค่าใช้จ่ายเหมาตามจำนวนปีถือครองในพระราชกฤษฎีกาดังกล่าวไม่ได้รวมอยู่ในชุดหลักฐานที่ส่งให้
@@ -752,9 +795,27 @@ export function buildGroundedLlmUserPrompt(params: {
   passagePack: GroundedPassagePackItem[];
   specialConstraints?: GroundedLlmSpecialConstraints;
 }): string {
+  const hasSbtInPack = params.passagePack.some(
+    (p) =>
+      p.work_id === "prov.th.rc.91_6" ||
+      p.work_id === "prov.th.rc.91/6" ||
+      p.work_id === "subreg.th.rc.royal_decree.342"
+  );
+  const hasGoverningSbt33 = params.passagePack.some(
+    (p) => p.evidence_role === "governing" && /(?<![0-9.])3\.3(?![0-9])/.test(p.verbatim_text || "")
+  );
+  const packGroundingReminders: string[] = [];
+  if (hasSbtInPack && !hasGoverningSbt33) {
+    packGroundingReminders.push(
+      "สำหรับประเด็นภาษีธุรกิจเฉพาะ: ตัวบทกฎหมายบังคับใน PASSAGE_PACK (มาตรา 91/6 (3)) บัญญัติเฉพาะอัตราร้อยละ 3.0 โดยไม่มีตัวบทกฎหมายจัดสรรภาษีท้องถิ่นร้อยละ 0.3 / 3.3 เป็น governing statute ดังนั้นห้ามเขียนตัวเลข 3.3, 3.3% หรือ 0.3% ใน conclusion_th หรือ application_explanation_th เด็ดขาด ให้ระบุเฉพาะอัตราร้อยละ 3.0 ตามมาตรา 91/6 (3) เท่านั้น"
+    );
+  }
   const payload = {
     active_user_question: params.question,
     ...(params.specialConstraints ? { special_constraints: params.specialConstraints } : {}),
+    ...(packGroundingReminders.length > 0
+      ? { pack_grounding_reminders_th: packGroundingReminders }
+      : {}),
     structured_case_fact_ledger: {
       turn_count: params.factLedger.turn_count,
       is_new_conversation: params.factLedger.is_new_conversation,
@@ -1145,7 +1206,7 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
       thinkingLevel: thinking_level,
       specialConstraints: params.specialConstraints,
     });
-    const normalized = normalizeParsedDraftResponse(rawDraft);
+    const normalized = normalizeParsedDraftResponse(rawDraft, params.passagePack);
     const rawText = JSON.stringify(normalized);
     return {
       ok: true,
@@ -1339,7 +1400,10 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
         continue;
       }
 
-      const parsed = normalizeParsedDraftResponse(JSON.parse(outputText) as GroundedLlmDraftResponse);
+      const parsed = normalizeParsedDraftResponse(
+        JSON.parse(outputText) as GroundedLlmDraftResponse,
+        params.passagePack
+      );
       if (!parsed || !Array.isArray(parsed.issues)) {
         throw new Error("Invalid JSON output: missing required 'issues' array.");
       }

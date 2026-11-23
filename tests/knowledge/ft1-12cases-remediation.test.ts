@@ -28,7 +28,10 @@ import {
   setDefaultKnowledgeStoreForTesting,
 } from "../../src/core/knowledge/store";
 import { buildStructuredCaseFactLedger } from "../../src/core/knowledge/case-fact-ledger";
-import { buildGroundedPassagePack } from "../../src/core/knowledge/grounded-llm-drafter";
+import {
+  buildGroundedPassagePack,
+  draftGroundedLegalAnswerWithLlm,
+} from "../../src/core/knowledge/grounded-llm-drafter";
 import { verifyAndRenderGroundedLlmDraft } from "../../src/core/knowledge/grounded-llm-verifier";
 import { verifyClaimAgainstPassages } from "../../src/core/knowledge/answer-verification";
 import {
@@ -399,6 +402,64 @@ describe("REG24 Batch 1 — Formal Test 1 All 12 Non-Passing Cases Remediation S
     expect(g4S54Outcome.verified_issues[0].governing_passage_ids).toContain(psg54.passage_id);
     expect(g4S54Outcome.verified_issues[0].governing_passage_ids).toContain(psg50_5.passage_id);
 
+    // 3c. M1t3 SBT (`prov.th.rc.91_6` / `91/6` + `RD 342`) parenthetical `3.3%` municipal local-tax gloss normalization in drafter
+    const psg91_2 = rc8.find((p) => p.work_id === "prov.th.rc.91_2" || p.work_id === "prov.th.rc.91/2")!;
+    const psg91_6 = rc8.find((p) => p.work_id === "prov.th.rc.91_6" || p.work_id === "prov.th.rc.91/6")!;
+    const sbtPack = buildGroundedPassagePack({
+      passages: [psg91_2, psg91_6, psg342_2, psg342_3],
+      state: store.getState(),
+      controllingDateIso: "2026-01-08",
+      maxPassages: 10,
+    });
+    const sbtDraftRes = await draftGroundedLegalAnswerWithLlm({
+      question: "ถ้านายชาตรีได้ที่ดินพร้อมอาคารนี้มาโดยการซื้อ ต้องเสียภาษีธุรกิจเฉพาะด้วยหรือไม่",
+      factLedger: buildStructuredCaseFactLedger({
+        question: "ถ้านายชาตรีได้ที่ดินพร้อมอาคารนี้มาโดยการซื้อ ต้องเสียภาษีธุรกิจเฉพาะด้วยหรือไม่",
+      }),
+      passagePack: sbtPack,
+      mockInvokerForTesting: async () => ({
+        answer_status: "CONDITIONAL",
+        overall_summary_th: "",
+        case_facts_used: [],
+        issues: [
+          {
+            issue_id: "ISSUE_3_SPECIFIC_BUSINESS_TAX",
+            issue_title_th: "ภาระภาษีธุรกิจเฉพาะจากการโอนที่ดินพร้อมอาคารพาณิชย์ที่ได้มาโดยการซื้อ",
+            party_or_scope_th: "นายชาตรี (ผู้โอน)",
+            conclusion_th:
+              "หากโอนภายในกำหนดเวลา 5 ปีนับแต่วันที่ได้มา ต้องเสียภาษีธุรกิจเฉพาะตามมาตรา 91/2 (6) ประกอบพระราชกฤษฎีกา (ฉบับที่ 342) พ.ศ. 2541 มาตรา 4 ในอัตราร้อยละ 3.0 ตามมาตรา 91/6 (3) (รวมภาษีท้องถิ่นเป็นอัตราร้อยละ 3.3%)",
+            material_facts_relied_on: ["ซื้อที่ดินพร้อมอาคารพาณิชย์และโอนให้บุตรบุญธรรม"],
+            governing_passage_ids: [psg91_2.passage_id, psg91_6.passage_id, psg342_2.passage_id, psg342_3.passage_id],
+            application_explanation_th:
+              "การโอนให้บุตรบุญธรรมไม่ได้รับยกเว้นภาษีธุรกิจเฉพาะ หากขายหรือโอนภายใน 5 ปีนับแต่วันที่ได้มาต้องเสียภาษีธุรกิจเฉพาะอัตราร้อยละ 3.0 (หรือร้อยละ 3.3 เมื่อรวมภาษีท้องถิ่น)",
+            authority_distinction_note_th: "",
+            proposed_calculation: null,
+            missing_facts_or_uncertainties_th: ["วันที่ซื้อทรัพย์สิน"],
+          },
+        ],
+        assumptions_th: [],
+        clarification_questions_th: [],
+        evidence_gaps_th: [],
+      }),
+    });
+    expect(sbtDraftRes.ok).toBe(true);
+    expect(sbtDraftRes.draft!.issues[0].conclusion_th).not.toContain("3.3");
+    expect(sbtDraftRes.draft!.issues[0].application_explanation_th).not.toContain("3.3");
+    const sbtVerified = verifyAndRenderGroundedLlmDraft({
+      traceId: "trc.test.m1t3.sbt",
+      factLedger: buildStructuredCaseFactLedger({
+        question: "ถ้านายชาตรีได้ที่ดินพร้อมอาคารนี้มาโดยการซื้อ ต้องเสียภาษีธุรกิจเฉพาะด้วยหรือไม่",
+      }),
+      passagePack: sbtPack,
+      rawPassagesById: new Map<string, Passage>([psg91_2, psg91_6, psg342_2, psg342_3].map((p) => [p.passage_id, p])),
+      state: store.getState(),
+      draft: sbtDraftRes.draft,
+      invocationAudit: sbtDraftRes.invocation_audit,
+      llmOk: true,
+      stagingFlagActive: true,
+    });
+    expect(sbtVerified.verified_issues.length).toBe(1);
+
     // 4. K3 (`RC1_REJECTED_CALC`) redacted diagnostic across Generate, Save, and exact Reopen (ZERO leaked `999,888` or `88.5`)
     const k3Answer = await queryKnowledge(
       {
@@ -555,6 +616,116 @@ describe("REG24 Batch 1 — Formal Test 1 All 12 Non-Passing Cases Remediation S
     expect(reopenedExactR1.answer!.claims[0].bound_calculation?.outputs.computed_tax_thb).toBe(200_000);
     const firstEvRef = reopenedExactR1.answer!.claims[0].evidence_references[0] as unknown as Record<string, unknown>;
     expect(String(firstEvRef.verbatim_excerpt_th || "").length).toBeGreaterThan(20);
+
+    // G3t2 Regression: Follow-up r2 with `bound_calculation` (7,200,000 <= 20,000,000 -> 0 WHT) whose prose cites
+    // "20,000,000 บาท" (Thai words "ยี่สิบล้านบาท" in §42(26)) + Turn 1 "6,000,000 บาท" MUST retain BOTH Issue 1 & Issue 2!
+    const psg41b = rc8.find((p) => p.work_id === "prov.th.rc.41_ทวิ")!;
+    const psg49b = rc8.find((p) => p.work_id === "prov.th.rc.49_ทวิ")!;
+    const psg42_26 = rc8.find((p) => p.passage_id === "psg.c7c4aa1c3ac667")!;
+    const psgAct40 = rc8.find((p) => p.passage_id === "psg.34a782ee310eba")!;
+    const psg50_6 = rc8.find((p) => p.passage_id === "psg.acec8fcd9286c5")!;
+    const g3t1Question =
+      "นางวิไลวรรณยกห้องชุดในกรุงเทพมหานครให้แก่นายภูมิ โดยเสน่หาเมื่อวันที่ 18 สิงหาคม 2568 สัญญาให้ระบุมูลค่า 6,000,000 บาท แต่ราคาประเมินทุนทรัพย์ของทางราชการคือ 7,200,000 บาท";
+    const g3t2Question =
+      "ถ้าเปลี่ยนข้อเท็จจริงเฉพาะผู้รับ: นางวิไลวรรณยกห้องชุดห้องเดิมให้นางสาวแพรวา ซึ่งเป็นบุตรสาวชอบด้วยกฎหมายของนางวิไลวรรณเอง (ไม่ใช่บุตรบุญธรรม) แทนนายภูมิ ในวันเดิม ต้องหักภาษี ณ ที่จ่ายเท่าใด และบุตรสาวต้องเสียภาษีเงินได้หรือไม่";
+    const g3r1Base = await saveOrReviseAnswerServerVerified(store, {
+      submitted_envelope: {
+        answer_id: "ans.trc.g3t2test",
+        answer_revision: "ans.trc.g3t2test.r1",
+        revision_number: 1,
+        status: "partial",
+        claims: [
+          {
+            claim_id: "clm.g3r1.1",
+            claim_type: "interpretation",
+            text: "[ภาระภาษีของผู้โอน — นางวิไลวรรณ] การโอนกรรมสิทธิ์ในอสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ถือว่านางวิไลวรรณผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ โดยต้องถือราคาประเมินทุนทรัพย์เพื่อเรียกเก็บค่าธรรมเนียมจดทะเบียนสิทธิและนิติกรรมตามประมวลกฎหมายที่ดินจำนวน 7,200,000 บาท เป็นราคาขายตามมาตรา 49 ทวิ (ไม่ใช่ราคาสัญญา 6,000,000 บาท)",
+            verification_decision: "supported",
+            published: true,
+            evidence_references: [
+              { evidence_id: psg41b.passage_id, work_id: psg41b.work_id, version_id: psg41b.version_id, support_role: "primary_authority" },
+              { evidence_id: psg49b.passage_id, work_id: psg49b.work_id, version_id: psg49b.version_id, support_role: "primary_authority" },
+            ],
+          } as never,
+        ],
+      },
+      question_text: g3t1Question,
+      actor: QA_ACTOR,
+      query_persistence_context: {
+        conversation_id: "conv.g3t2test",
+        trusted_calculation_tokens_by_claim_id: {
+          "clm.g3r1.1": ["7200000", "7,200,000", "6000000", "6,000,000"],
+        },
+      },
+    });
+    const g3t2DonorCalc = {
+      calculation_id: "calc.g3t2.donor",
+      claim_id: "clm.g3r2.1",
+      answer_revision: "ans.trc.g3t2test.r2",
+      verifier_version: "reg24-llm-calc-verifier-v1.1",
+      formula: "max(0, 7,200,000 - 20,000,000) * 5%",
+      inputs: { tax_base_thb: 7_200_000, exempt_amount_thb: 7_200_000, rate_pct: 5 },
+      outputs: { taxable_amount_thb: 0, computed_tax_thb: 0 },
+      units: { primary_unit: "THB" as const, detail_th: "บาท (THB)" },
+      source_versions: [
+        { evidence_id: psg42_26.passage_id, doc_id: psg42_26.work_id, version_id: psg42_26.version_id },
+        { evidence_id: psg50_6.passage_id, doc_id: psg50_6.work_id, version_id: psg50_6.version_id },
+      ],
+      verified_numeric_tokens: ["7200000", "7,200,000", "5", "0"],
+      verified_at: new Date().toISOString(),
+    };
+    const g3r2Saved = await saveOrReviseAnswerServerVerified(store, {
+      submitted_envelope: {
+        answer_id: g3r1Base.answer_id,
+        answer_revision: "ans.trc.g3t2test.r2",
+        revision_number: 2,
+        status: "partial",
+        claims: [
+          {
+            claim_id: "clm.g3r2.1",
+            claim_type: "interpretation",
+            text: "[ภาระภาษีเงินได้บุคคลธรรมดาและภาษีเงินได้หัก ณ ที่จ่ายในวันจดทะเบียนของนางวิไลวรรณ (ผู้โอน) — นางวิไลวรรณ] การโอนกรรมสิทธิ์ในอสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ถือว่าผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ โดยถือราคาประเมินทุนทรัพย์เพื่อเรียกเก็บค่าธรรมเนียมจดทะเบียนสิทธิและนิติกรรมตามประมวลกฎหมายที่ดิน 7,200,000 บาท ตามมาตรา 49 ทวิ (ไม่ใช่ราคาสัญญา 6,000,000 บาท) ทั้งนี้นางวิไลวรรณได้รับยกเว้นภาษีเงินได้ตามมาตรา 42 (26) (แก้ไขเพิ่มเติมโดยพระราชบัญญัติแก้ไขเพิ่มเติมประมวลรัษฎากร (ฉบับที่ 40) พ.ศ. 2558) เนื่องจากเป็นการโอนให้แก่บุตรชอบด้วยกฎหมายซึ่งไม่รวมถึงบุตรบุญธรรมในส่วนที่ไม่เกิน 20,000,000 บาทตลอดปีภาษี จึงไม่ต้องหักภาษีเงินได้ ณ ที่จ่ายร้อยละ 5 ตามมาตรา 50 (6) คิดเป็นภาษีหัก ณ ที่จ่าย 0 บาท",
+            verification_decision: "supported",
+            published: true,
+            bound_calculation: g3t2DonorCalc,
+            evidence_references: [
+              { evidence_id: psg41b.passage_id, work_id: psg41b.work_id, version_id: psg41b.version_id, support_role: "primary_authority" },
+              { evidence_id: psg49b.passage_id, work_id: psg49b.work_id, version_id: psg49b.version_id, support_role: "primary_authority" },
+              { evidence_id: psg42_26.passage_id, work_id: psg42_26.work_id, version_id: psg42_26.version_id, support_role: "primary_authority" },
+              { evidence_id: psgAct40.passage_id, work_id: psgAct40.work_id, version_id: psgAct40.version_id, support_role: "primary_authority" },
+              { evidence_id: psg50_6.passage_id, work_id: psg50_6.work_id, version_id: psg50_6.version_id, support_role: "primary_authority" },
+            ],
+          } as never,
+          {
+            claim_id: "clm.g3r2.2",
+            claim_type: "interpretation",
+            text: "[ภาระภาษีเงินได้บุคคลธรรมดาของผู้รับโอนอสังหาริมทรัพย์ (นางสาวแพรวา) — ผู้รับโอน] ตัวบทมาตรา 41 ทวิ (การโอนกรรมสิทธิ์ในอสังหาริมทรัพย์โดยไม่มีค่าตอบแทนให้ถือว่าผู้โอนเป็นผู้มีเงินได้) และมาตรา 42 (26) (เฉพาะเงินได้จากการโอนกรรมสิทธิ์ในอสังหาริมทรัพย์ให้แก่บุตรชอบด้วยกฎหมายซึ่งไม่รวมถึงบุตรบุญธรรม) ในชุดหลักฐานบัญญัติเฉพาะฝั่งผู้โอนและไม่ได้บัญญัติสรุปภาระภาษีเงินได้ฝั่งผู้รับโอนอสังหาริมทรัพย์ไว้โดยตรง จึงไม่อาจระบุภาระภาษีเงินได้ของนางสาวแพรวาเป็นตัวเลขใดๆ ได้",
+            verification_decision: "supported",
+            published: true,
+            evidence_references: [
+              { evidence_id: psg41b.passage_id, work_id: psg41b.work_id, version_id: psg41b.version_id, support_role: "primary_authority" },
+              { evidence_id: psg42_26.passage_id, work_id: psg42_26.work_id, version_id: psg42_26.version_id, support_role: "primary_authority" },
+            ],
+          } as never,
+        ],
+      },
+      question_text: g3t2Question,
+      actor: QA_ACTOR,
+      query_persistence_context: {
+        conversation_id: "conv.g3t2test",
+        prior_saved_answer_revision: g3r1Base.answer_revision,
+        conversation_history: [
+          { role: "user", content: g3t1Question },
+          { role: "assistant", content: g3r1Base.rendered_answer_th, saved_answer_revision: g3r1Base.answer_revision, conversation_id: "conv.g3t2test" },
+        ],
+        trusted_calculations_by_claim_id: { "clm.g3r2.1": g3t2DonorCalc },
+        trusted_calculation_tokens_by_claim_id: {
+          "clm.g3r2.1": ["7200000", "7,200,000", "6000000", "6,000,000", "20000000", "20,000,000", "5", "0"],
+        },
+      },
+    });
+    const g3r2Published = g3r2Saved.claims.filter((c) => c.published && c.verification_decision === "supported");
+    expect(g3r2Published.length).toBe(2);
+    expect(g3r2Published[0].bound_calculation?.outputs.computed_tax_thb).toBe(0);
   });
 
   it("WS4 (K2 Fact Integrity): preserves ฿24,000,000 gift amount without ฿200,000 overwrite in Turn 1, routes §50 + §42(27) + Stamp Duty, and leaves r1 unchanged on Turn 2 amount edit", async () => {
