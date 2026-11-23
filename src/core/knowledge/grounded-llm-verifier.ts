@@ -570,6 +570,21 @@ function verifyProposedCalculation(params: {
     return { accepted: true, verifiedCalc: null, verifiedNumericTokens: [] };
   }
 
+  // Out-of-scope / non-applicable duty guard (e.g. K2 bank cash transfer: no WHT duty under §50 / not a dutiable stamp-duty instrument under §103-104):
+  // If the LLM filled `tax_base_thb = 24,000,000` with `taxable_amount_thb = 0, rate_pct = 0, computed_tax_thb = 0`
+  // on a non-immovable-recipient out-of-scope issue, treat as non-computable (no calculation card, no false ARITHMETIC_MISMATCH)!
+  const isOutOfScopeNoDutyIssue =
+    !isImmovableRecipientPitIssue &&
+    /(?:ไม่มีหน้าที่(?:ต้อง)?หักภาษี|ไม่อยู่ในบังคับต้อง(?:เสีย|หัก)|มิใช่ตราสารที่ต้อง(?:เสีย|ปิด)อากรแสตมป์|ไม่ต้อง(?:เสีย|ปิด)อากรแสตมป์)/.test(
+      issueScopeBlob
+    ) &&
+    (calc.computed_tax_thb === 0 || calc.computed_tax_thb === null) &&
+    (calc.rate_pct === 0 || calc.rate_pct === null) &&
+    (calc.taxable_amount_thb === 0 || calc.taxable_amount_thb === null);
+  if (isOutOfScopeNoDutyIssue) {
+    return { accepted: true, verifiedCalc: null, verifiedNumericTokens: ["0"] };
+  }
+
   // Missing-input guard: if user explicitly said appraisal / acquisition / holding period is unknown
   // on an immovable transfer donor WHT issue, refuse any fabricated tax amount!
   const unknownBlob = params.factLedger.explicitly_unknown_facts_th.join(" ");
@@ -1395,6 +1410,54 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       },
       allRawPassages
     );
+
+    // Cross-referenced governing passage binding within the supplied `passagePack` (e.g., §54 issue cross-referencing
+    // §50(5)(ก)/(ข) or §50(6) that was cited in sibling Issue 1): if the issue names an explicit Revenue Code section
+    // whose `governing` passages already exist in `params.passagePack`, bind those governing passages and re-verify!
+    if (
+      !entailmentCheck.allow_confident_answer &&
+      /UNGROUNDED_LEGAL_IDENTIFIER/.test(entailmentCheck.reason || "")
+    ) {
+      const normStmtForSec = thaiDigitsToArabic(fullIssueClaimStatement);
+      const mentionedRcNums = new Set<string>();
+      for (const sm of normStmtForSec.matchAll(
+        /มาตรา\s*(\d+(?:\/\d+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฏฐ|เตรส))?)/g
+      )) {
+        mentionedRcNums.add(sm[1].replace(/\s+/g, "_"));
+      }
+      const candidateGoverningAdds = params.passagePack
+        .filter((p) => {
+          if (finalPassageIds.includes(p.passage_id)) return false;
+          if (p.evidence_role !== "governing") return false;
+          if (p.work_id.startsWith("prov.th.rc.")) {
+            const secKey = p.work_id.slice("prov.th.rc.".length);
+            return (
+              mentionedRcNums.has(secKey) ||
+              mentionedRcNums.has(secKey.replace(/_/g, "/"))
+            );
+          }
+          if (
+            p.work_id === "sched.th.rc.stamp_duty" &&
+            /บัญชีอัตราอากรแสตมป์/.test(normStmtForSec)
+          ) {
+            return true;
+          }
+          return false;
+        })
+        .map((p) => p.passage_id);
+      if (candidateGoverningAdds.length > 0) {
+        finalPassageIds = [...finalPassageIds, ...candidateGoverningAdds];
+        entailmentCheck = verifyClaimAgainstPassages(
+          {
+            statement: fullIssueClaimStatement,
+            supporting_passage_ids: finalPassageIds,
+            verified_calculation_numeric_tokens: trustedTokensArr,
+            excluded_context_instruments: excludedContextInstruments,
+          },
+          allRawPassages
+        );
+      }
+    }
 
     // If the LLM attached an extra background passage ID not actually referenced in this issue's
     // conclusion/explanation (`IRRELEVANT_CITED_PASSAGE`), prune ONLY that unreferenced passage ID

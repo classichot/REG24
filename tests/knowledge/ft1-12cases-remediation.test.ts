@@ -332,6 +332,73 @@ describe("REG24 Batch 1 — Formal Test 1 All 12 Non-Passing Cases Remediation S
     );
     expect(s54ClaimCheck.allow_confident_answer).toBe(true);
 
+    // 3b. Cross-referenced §54 + §50(5)(ข) resolution in `verifyAndRenderGroundedLlmDraft` when LLM cites only `psg54` on Issue 2 while `prov.th.rc.50` is in `passagePack` (`G4`/`G5`/`M1t2` live edge case!)
+    const s54Pack = buildGroundedPassagePack({
+      passages: [psg54, psg50_1, psg50_5, psg50_6],
+      state: store.getState(),
+      controllingDateIso: "2026-03-03",
+      maxPassages: 10,
+    });
+    const s54RawMap = new Map<string, Passage>([psg54, psg50_1, psg50_5, psg50_6].map((p) => [p.passage_id, p]));
+    const g4S54Outcome = verifyAndRenderGroundedLlmDraft({
+      traceId: "trc.test.g4.s54",
+      factLedger: buildStructuredCaseFactLedger({ question: "นายเกรียงไกรยกบ้านพร้อมที่ดินให้นางสาวปาริชาติ ราคาประเมิน 8,300,000 บาท" }),
+      passagePack: s54Pack,
+      rawPassagesById: s54RawMap,
+      state: store.getState(),
+      llmOk: true,
+      stagingFlagActive: true,
+      invocationAudit: {
+        provider: "google-gemini",
+        api_surface: "interactions-v1beta",
+        requested_model: "gemini-4-neon",
+        resolved_model: "gemini-4-neon",
+        actual_model_invoked: "gemini-4-neon",
+        pinned_settings: { thinking_level: "low", thinking_level_note: null, temperature: 0, max_output_tokens: 16384, timeout_ms: 180000, store: false },
+        prompt_version: "test",
+        live_provider_called: true,
+        silent_fallback_disabled: true,
+        provider_interaction_id: null,
+        provider_response_status: "completed",
+        failure_classification: "NONE",
+        latency_ms: 10,
+        input_tokens: 100,
+        output_tokens: 100,
+        thought_tokens: 10,
+        total_tokens: 210,
+        estimated_cost_usd: 0.001,
+        attempts: [],
+        error_summary: null,
+      },
+      draft: {
+        answer_status: "CONDITIONAL",
+        overall_summary_th: "",
+        case_facts_used: [],
+        issues: [
+          {
+            issue_id: "ISSUE_2_SECTION_54",
+            issue_title_th: "ความรับผิดกรณีหักภาษี ณ ที่จ่ายไม่ครบถ้วนตามมาตรา 54",
+            party_or_scope_th: "ผู้จ่ายเงินได้และผู้มีเงินได้",
+            conclusion_th:
+              "หากไม่หักและนำส่งภาษีเงินได้ ณ ที่จ่ายตามมาตรา 50 (5) (ข) และมาตรา 50 (6) ในวันจดทะเบียนให้ครบถ้วน ผู้จ่ายเงินต้องรับผิดร่วมกับผู้มีเงินได้ตามประมวลรัษฎากร มาตรา 54",
+            material_facts_relied_on: ["ราคาประเมิน 8,300,000 บาท"],
+            governing_passage_ids: [psg54.passage_id], // intentionally omitted psg50_5/psg50_6 from Issue 2!
+            application_explanation_th:
+              "ประมวลรัษฎากร มาตรา 54 กำหนดให้ผู้จ่ายเงินต้องรับผิดร่วมกับผู้มีเงินได้ตามจำนวนเงินภาษีที่มิได้หักและนำส่งหรือตามจำนวนที่ขาดไป",
+            authority_distinction_note_th: "",
+            proposed_calculation: null,
+            missing_facts_or_uncertainties_th: [],
+          },
+        ],
+        assumptions_th: [],
+        clarification_questions_th: [],
+        evidence_gaps_th: [],
+      },
+    });
+    expect(g4S54Outcome.verified_issues.length).toBe(1);
+    expect(g4S54Outcome.verified_issues[0].governing_passage_ids).toContain(psg54.passage_id);
+    expect(g4S54Outcome.verified_issues[0].governing_passage_ids).toContain(psg50_5.passage_id);
+
     // 4. K3 (`RC1_REJECTED_CALC`) redacted diagnostic across Generate, Save, and exact Reopen (ZERO leaked `999,888` or `88.5`)
     const k3Answer = await queryKnowledge(
       {
