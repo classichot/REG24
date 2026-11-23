@@ -1301,12 +1301,22 @@ export function validateAndBuildTraceableAnswer(
           (cp) => cp.doc_id === psg.doc_id && cp.version_id === psg.version_id
         );
         const allProposedAnswerText = input.proposed_claims.map((pc) => pc.text).join("\n");
+        const companionStatutoryTextsOnClaim = prop.support_groups
+          .flatMap((sg) => sg.evidence_ids)
+          .filter((id) => id !== evId)
+          .map((id) => {
+            const cp = view.passages[id];
+            const cd = cp ? view.documents[cp.doc_id] : undefined;
+            return cp && cd?.source_family === "gazette_enactment" ? cp.verbatim_text : "";
+          })
+          .filter(Boolean);
         const contradictionCheck = evaluateSubstantiveSupportAndExceptions(
           prop.text,
           allProposedAnswerText,
           psg,
           siblingPassagesInDoc,
-          Boolean(prop.human_approved_by)
+          Boolean(prop.human_approved_by),
+          companionStatutoryTextsOnClaim
         );
         if (contradictionCheck.decision !== "supported") {
           claimDecision = contradictionCheck.decision;
@@ -1607,7 +1617,8 @@ function evaluateSubstantiveSupportAndExceptions(
   fullProposedAnswerText: string,
   citedPassage: EvidencePassageRecord,
   siblingPassagesInSameVersion: EvidencePassageRecord[],
-  humanApprovedOverride: boolean
+  humanApprovedOverride: boolean,
+  companionStatutoryTextsOnClaim: string[] = []
 ): {
   decision: VerifierDecisionOutcome;
   explanation_th: string | null;
@@ -1684,8 +1695,18 @@ function evaluateSubstantiveSupportAndExceptions(
     /(?:ไม่ได้รับยกเว้น|ไม่เข้าลักษณะ[^。\n]{0,60}ได้รับยกเว้น|อยู่ในบังคับต้องเสียภาษี)/.test(
       normPassage
     ) && !/(?<!ไม่|มิได้)ได้รับ(?:การ)?ยกเว้นภาษี/.test(normPassage);
+  const companionStatuteNorm = thaiDigitsToArabic(companionStatutoryTextsOnClaim.join("\n"));
+  const hasCompanionStatutoryExemptionOnClaim =
+    /(?:ไม่ต้องรวมคำนวณเพื่อเสียภาษีเงินได้|(?<!ไม่|มิได้)ได้รับ(?:การ)?ยกเว้น(?:ภาษี)?|ไม่ต้องหักภาษี)/.test(
+      companionStatuteNorm
+    );
 
-  if (claimExempt && sourceTaxableOnly && !humanApprovedOverride) {
+  if (
+    claimExempt &&
+    sourceTaxableOnly &&
+    !hasCompanionStatutoryExemptionOnClaim &&
+    !humanApprovedOverride
+  ) {
     return {
       decision: "conflicting",
       explanation_th:

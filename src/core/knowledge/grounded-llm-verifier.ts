@@ -1442,6 +1442,12 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           ) {
             return true;
           }
+          if (
+            p.work_id === "subreg.th.rc.royal_decree.342" &&
+            /(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^\n]{0,50}342/.test(normStmtForSec)
+          ) {
+            return true;
+          }
           return false;
         })
         .map((p) => p.passage_id);
@@ -1471,17 +1477,22 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     ) {
       const mPid = (entailmentCheck.reason || "").match(/\((psg\.[a-zA-Z0-9._-]+)\)/);
       if (!mPid || !finalPassageIds.includes(mPid[1])) break;
-      finalPassageIds = finalPassageIds.filter((pid) => pid !== mPid[1]);
+      const nextCandidateIds = finalPassageIds.filter((pid) => pid !== mPid[1]);
       pruneGuard++;
-      entailmentCheck = verifyClaimAgainstPassages(
+      const nextCheck = verifyClaimAgainstPassages(
         {
           statement: fullIssueClaimStatement,
-          supporting_passage_ids: finalPassageIds,
+          supporting_passage_ids: nextCandidateIds,
           verified_calculation_numeric_tokens: trustedTokensArr,
           excluded_context_instruments: excludedContextInstruments,
         },
         allRawPassages
       );
+      if (/UNGROUNDED_LEGAL_IDENTIFIER/.test(nextCheck.reason || "")) {
+        break;
+      }
+      finalPassageIds = nextCandidateIds;
+      entailmentCheck = nextCheck;
     }
 
     if (!entailmentCheck.allow_confident_answer) {

@@ -818,7 +818,9 @@ export function evaluateSubstantiveClaimSupport(params: {
       : null;
     const docIdGroundsClaimSection = Boolean(
       provSecPart &&
-        (claimSections.includes(`ม.${provSecPart.replace(/_/g, "")}`) ||
+        (claimSections.includes(`มาตรา ${provSecPart.replace(/_/g, " ")}`) ||
+          claimSections.includes(`มาตรา ${provSecPart.replace(/_/g, "/")}`) ||
+          claimSections.includes(`ม.${provSecPart.replace(/_/g, "")}`) ||
           claimSections.includes(`ม.${provSecPart.replace(/_/g, "/")}`))
     );
     const docIdGroundsInstrumentOrSchedule =
@@ -851,7 +853,7 @@ export function evaluateSubstantiveClaimSupport(params: {
       };
     }
 
-    const minRequiredRatio = groundsExplicitClaimIdentifier ? 0.03 : 0.25;
+    const minRequiredRatio = groundsExplicitClaimIdentifier ? 0.01 : 0.25;
 
     if (sharedWithThisSource.length === 0 || perSourceRatio < minRequiredRatio) {
       return {

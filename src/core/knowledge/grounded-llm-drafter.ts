@@ -1189,7 +1189,7 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
   // so complex multi-branch conditional VAT reasoning at low/high isn't prematurely aborted at 120s.
   const isGemini4Family = /^gemini-4(?:\b|-)/i.test(requestedModel);
   const timeoutMs =
-    params.timeoutMs ?? (isGemini4Family ? 180_000 : thinking_level === "high" ? 90_000 : 60_000);
+    params.timeoutMs ?? (isGemini4Family ? 240_000 : thinking_level === "high" ? 90_000 : 60_000);
   const userPrompt = buildGroundedLlmUserPrompt({
     question: params.question,
     factLedger: params.factLedger,
@@ -1325,13 +1325,13 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
   for (let attemptIdx = 0; attemptIdx < maxSameModelAttempts; attemptIdx++) {
     const elapsedMs = Date.now() - overallStart;
     const remainingBudgetMs = timeoutMs - elapsedMs;
-    if (attemptIdx > 0 && remainingBudgetMs < 35_000) {
+    if (attemptIdx > 0 && remainingBudgetMs < 55_000) {
       break;
     }
     const perAttemptTimeoutMs =
-      attemptIdx === 0 && timeoutMs >= 140_000
-        ? Math.min(remainingBudgetMs, 115_000)
-        : Math.max(15_000, remainingBudgetMs);
+      attemptIdx === 0 && timeoutMs >= 200_000
+        ? Math.min(remainingBudgetMs, 175_000)
+        : Math.max(20_000, remainingBudgetMs);
     const attemptStart = Date.now();
 
     try {

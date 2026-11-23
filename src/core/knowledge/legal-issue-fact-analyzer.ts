@@ -1376,7 +1376,10 @@ export function analyzeLegalIssuesAndFacts(params: {
 
     const isFinanceBusiness =
       /ธุรกิจเงินทุน|ธนาคาร|หลักทรัพย์|เครดิตฟองซิเอร์|รายรับดอกเบี้ย/.test(activeClean);
-    const isRealEstateSale = /ขายที่ดิน|ขายบ้าน|อสังหาริมทรัพย์/.test(mergedContext);
+    const isRealEstateSale =
+      /ขายที่ดิน|ขายบ้าน|ที่ดิน|ห้องชุด|คอนโด|อาคาร|บ้าน|ตึกแถว|ทาวน์โฮม|สิ่งปลูกสร้าง|อสังหาริมทรัพย์/.test(
+        mergedContext
+      );
 
     const detectResidence1Yr = (segment: string): boolean =>
       /(?:มีชื่ออยู่ในทะเบียนบ้าน(?:ไม่น้อยกว่า|เกิน|มา|ครบ)?\s*[1-9]\s*ปี|ใช้เป็นสถานที่อยู่อาศัยอันเป็นแหล่งสำคัญ|ทะเบียนบ้าน(?:ไม่น้อยกว่า|เกิน|มา|ครบ)?\s*[1-9]\s*ปี)/.test(

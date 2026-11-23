@@ -165,24 +165,33 @@ export async function POST(req: Request) {
         const trustedCalcTokensByClaimId: Record<string, string[]> = {};
         const trustedCalcsByClaimId: Record<string, NonNullable<typeof answer.claims[number]["bound_calculation"]>> = {};
         for (const tc of answer.traceable_answer.claims || []) {
-          if (tc.bound_calculation) {
-            trustedCalcsByClaimId[tc.claim_id] = tc.bound_calculation;
-            trustedCalcTokensByClaimId[tc.claim_id] = tc.bound_calculation.verified_numeric_tokens;
-            continue;
-          }
           // Match strictly to the exact owning GroundedAnswer claim (same claim_id or atomic segment prefix of THAT claim only!)
           const owningClaim = (answer.claims || []).find(
             (gc) =>
               gc.claim_id === tc.claim_id ||
               (Boolean(gc.claim_id) && tc.claim_id.startsWith(`${gc.claim_id}.p`))
           );
+          if (tc.bound_calculation) {
+            trustedCalcsByClaimId[tc.claim_id] = tc.bound_calculation;
+            trustedCalcTokensByClaimId[tc.claim_id] = Array.from(
+              new Set([
+                ...(tc.bound_calculation.verified_numeric_tokens || []),
+                ...(owningClaim?.verified_calculation_numeric_tokens || []),
+              ])
+            );
+            continue;
+          }
           if (owningClaim?.bound_calculation) {
             trustedCalcsByClaimId[tc.claim_id] = {
               ...owningClaim.bound_calculation,
               claim_id: tc.claim_id,
             };
-            trustedCalcTokensByClaimId[tc.claim_id] =
-              owningClaim.bound_calculation.verified_numeric_tokens;
+            trustedCalcTokensByClaimId[tc.claim_id] = Array.from(
+              new Set([
+                ...(owningClaim.bound_calculation.verified_numeric_tokens || []),
+                ...(owningClaim.verified_calculation_numeric_tokens || []),
+              ])
+            );
           } else if (
             Array.isArray(owningClaim?.verified_calculation_numeric_tokens) &&
             owningClaim.verified_calculation_numeric_tokens.length > 0
