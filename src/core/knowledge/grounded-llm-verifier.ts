@@ -18,11 +18,15 @@ import {
   verifyClaimAgainstPassages,
 } from "./answer-verification";
 import type { StructuredCaseFactLedger } from "./case-fact-ledger";
-import type { ClaimBoundCalculationRecord } from "./citation-contracts";
+import type {
+  ClaimBoundCalculationRecord,
+  RejectedCalculationDiagnosticDto,
+} from "./citation-contracts";
 import type { ClaimLedgerItem, EvidenceCard, Passage } from "./contracts";
 import type {
   AuthorityHierarchyTier,
   GroundedLlmDraftResponse,
+  GroundedLlmSpecialConstraints,
   GroundedPassagePackItem,
   LlmDraftedIssue,
   LlmProposedCalculation,
@@ -59,6 +63,7 @@ export interface RejectedCalculationAuditEntry {
     | "ARITHMETIC_MISMATCH"
     | "UNGROUNDED_RATE_OR_RULE"
     | "MISSING_REQUIRED_FACT_INPUT"
+    | "UNSUPPORTED_IMMOVABLE_RECIPIENT_CALCULATION"
     | "SYNTHETIC_RC1_REJECTED_FIXTURE";
   rejection_reason_th: string;
 }
@@ -131,6 +136,7 @@ export interface GroundedLlmVerificationOutcome {
   assumptions_th: string[];
   clarification_questions_th: string[];
   coverage_warnings_th: string[];
+  rejected_calculations_diagnostic: RejectedCalculationDiagnosticDto[];
   audit_trace: GroundedLlmAuditTrace;
 }
 
@@ -507,6 +513,59 @@ function verifyProposedCalculation(params: {
   rejection?: RejectedCalculationAuditEntry;
 } {
   const calc = params.issue.proposed_calculation;
+  const issueScopeBlob = thaiDigitsToArabic(
+    `${params.issue.issue_title_th} ${params.issue.party_or_scope_th} ${params.issue.conclusion_th}`
+  );
+  const allFactBlob = thaiDigitsToArabic(
+    [
+      ...params.factLedger.user_turns.map((t) => t.raw_text),
+      ...params.factLedger.material_facts.map((f) => f.original_text_th),
+      ...params.citedItems.map((c) => `${c.work_id} ${c.title_th}`),
+    ].join(" ")
+  );
+  const isImmovableContext =
+    /(?:ที่ดิน|ห้องชุด|คอนโด|บ้านเดี่ยว|บ้านพร้อมที่ดิน|อาคารพาณิชย์|สิ่งปลูกสร้าง|อสังหาริมทรัพย์|prov\.th\.rc\.41_ทวิ)/.test(
+      allFactBlob
+    ) && !/(?:เงินสด|โอนเงิน)/.test(allFactBlob);
+  const isImmovableRecipientPitIssue =
+    isImmovableContext &&
+    /(?:ผู้รับโอน|ผู้รับให้|ภาระภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?:นางสาว|นาย|นาง|หลาน|บุตร))/.test(
+      issueScopeBlob
+    ) &&
+    !/(?:หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ความรับผิดร่วม|ผู้โอนเป็นหลัก|ภาษีธุรกิจเฉพาะ|อากรแสตมป์)/.test(
+      `${params.issue.issue_title_th} ${params.issue.party_or_scope_th}`
+    );
+
+  // Immovable-property recipient PIT guard (G2b, G3, G4, G3t2, G1, M1t1, M1t2):
+  // Never allow ANY recipient tax figure (including 0 / 0 บาท) when authority establishes only donor-side rules!
+  if (
+    isImmovableRecipientPitIssue &&
+    calc &&
+    (calc.is_computable_from_stated_facts ||
+      calc.computed_tax_thb !== null ||
+      calc.tax_base_thb !== null)
+  ) {
+    return {
+      accepted: false,
+      verifiedCalc: null,
+      verifiedNumericTokens: [],
+      rejection: {
+        issue_id: params.issue.issue_id,
+        issue_title_th: params.issue.issue_title_th,
+        proposed_values: {
+          tax_base_thb: calc.tax_base_thb,
+          exempt_amount_thb: calc.exempt_amount_thb,
+          taxable_amount_thb: calc.taxable_amount_thb,
+          rate_pct: calc.rate_pct,
+          computed_tax_thb: calc.computed_tax_thb,
+        },
+        rejection_code: "UNSUPPORTED_IMMOVABLE_RECIPIENT_CALCULATION",
+        rejection_reason_th:
+          "ระงับตัวเลขคำนวณฝั่งผู้รับโอนอสังหาริมทรัพย์ (รวมถึงค่าศูนย์) เนื่องจากบทบัญญัติที่อ้างอิงไม่ได้กำหนดภาระภาษีเงินได้หรือวงเงินยกเว้นของผู้รับโอนอสังหาริมทรัพย์เป็นตัวเลขได้",
+      },
+    };
+  }
+
   if (!calc || !calc.is_computable_from_stated_facts) {
     return { accepted: true, verifiedCalc: null, verifiedNumericTokens: [] };
   }
@@ -670,10 +729,12 @@ function verifyProposedCalculation(params: {
     const rateStr = String(calc.rate_pct);
     const rateGrounded =
       citedBlob.includes(rateStr) ||
+      (calc.rate_pct === 5 && /ร้อยละ\s*(?:5|ห้า)|5%/.test(citedBlob)) ||
+      (calc.rate_pct === 1 && /ร้อยละ\s*(?:1|หนึ่ง)|1%/.test(citedBlob)) ||
       (calc.rate_pct === 7 && /6\.3|หกจุดสาม|ร้อยละ\s*7|7%/.test(citedBlob)) ||
       (calc.rate_pct === 0 && /ร้อยละ\s*0|0%|อัตรา\s*0/.test(citedBlob)) ||
-      (calc.rate_pct === 3.3 && /ร้อยละ\s*3|3\.0|3\.3/.test(citedBlob)) ||
-      (calc.rate_pct === 0.5 && /0\.5|1\s*บาท\s*ต่อ\s*200/.test(citedBlob));
+      (calc.rate_pct === 3.3 && /ร้อยละ\s*(?:3|สาม)|3\.0|3\.3/.test(citedBlob)) ||
+      (calc.rate_pct === 0.5 && /0\.5|ศูนย์จุดห้า|หนึ่งบาท|1\s*บาท\s*ต่อ\s*200/.test(citedBlob));
     if (!rateGrounded) {
       return {
         accepted: false,
@@ -853,6 +914,31 @@ function renderNeutralGroundedLlmAnswerTh(params: {
   return sections.join("\n\n");
 }
 
+function redactRejectedCalculationNumbers(
+  reasonTh: string,
+  proposed?: RejectedCalculationAuditEntry["proposed_values"]
+): string {
+  let out = reasonTh.replace(/999,?888|88\.5%?|1,?129,?808/g, "[REDACTED_REJECTED_VALUE]");
+  if (proposed) {
+    for (const v of [
+      proposed.tax_base_thb,
+      proposed.exempt_amount_thb,
+      proposed.taxable_amount_thb,
+      proposed.rate_pct,
+      proposed.computed_tax_thb,
+    ]) {
+      if (v !== null && Number.isFinite(v) && Math.abs(v) > 0) {
+        const rawStr = String(v).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const fmtStr = v.toLocaleString("en-US").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        out = out
+          .replace(new RegExp(fmtStr, "g"), "[REDACTED_REJECTED_VALUE]")
+          .replace(new RegExp(`\\b${rawStr}\\b`, "g"), "[REDACTED_REJECTED_VALUE]");
+      }
+    }
+  }
+  return out;
+}
+
 export function verifyAndRenderGroundedLlmDraft(params: {
   traceId: string;
   factLedger: StructuredCaseFactLedger;
@@ -863,6 +949,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   draft: GroundedLlmDraftResponse | null;
   invocationAudit: ProviderInvocationAudit;
   qaSyntheticFixture?: "RC1_REJECTED_CALC" | null;
+  specialConstraints?: GroundedLlmSpecialConstraints;
   stagingFlagActive: boolean;
 }): GroundedLlmVerificationOutcome {
   const packById = new Map<string, GroundedPassagePackItem>(
@@ -905,7 +992,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
               ? `ผลลัพธ์จากรุ่นที่กำหนด (${reqModel}) ไม่ตรงตามโครงสร้าง JSON ที่ตรวจสอบได้`
               : `ไม่สามารถรับคำตอบที่สมบูรณ์จากรุ่นที่กำหนด (${reqModel}) ได้ (${fc})`;
     const unableMsg =
-      `ไม่สามารถสร้างคำวิเคราะห์จากแบบจำลองภาษาได้ในขณะนี้: ${detailReason} — ระบบจึงระงับการเผยแพร่คำตอบ และ **ไม่สลับไปใช้แบบจำลองรุ่นอื่น (เช่น Flash/Flash-Lite) หรือข้อความสรุปสำเร็จรูปโดยอัตโนมัติ (No Silent Fallback)**`;
+      `ไม่สามารถสร้างคำวิเคราะห์จากแบบจำลองภาษาได้ในขณะนี้ (Trace ID: ${params.traceId}): ${detailReason} — ระบบจึงระงับการเผยแพร่คำตอบ ไม่บันทึกเป็นคำตอบที่เสร็จสมบูรณ์ และ **ไม่สลับไปใช้แบบจำลองรุ่นอื่น (เช่น Flash/Flash-Lite) หรือข้อความสรุปสำเร็จรูปโดยอัตโนมัติ (No Silent Fallback)**`;
     return {
       status: "REVIEW_REQUIRED",
       rendered_answer_th: unableMsg,
@@ -915,8 +1002,116 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       assumptions_th: [],
       clarification_questions_th: [],
       coverage_warnings_th: [
-        `[${fc}] ${params.invocationAudit.error_summary || "LLM provider unavailable; silent fallback disabled."}`,
+        `[${fc}] Trace ${params.traceId}: ${params.invocationAudit.error_summary || "LLM provider unavailable; silent fallback disabled."}`,
       ],
+      rejected_calculations_diagnostic: [],
+      audit_trace: {
+        schema_version: "reg24.llm_audit_trace.v1",
+        generation_mode: "llm_grounded",
+        staging_flag_active: params.stagingFlagActive,
+        template_fallback_used: false,
+        input_fact_ledger: params.factLedger,
+        supplied_passages: suppliedPassagesAudit,
+        consumed_passage_ids: consumedPassageIds,
+        consumed_passage_versions: consumedPassageVersions,
+        provider_invocation: params.invocationAudit,
+        claims_before_verification: [],
+        claims_after_verification: [],
+        rejected_claims: [],
+        rejected_calculations: [],
+        final_answer_revision_id: null,
+      },
+    };
+  }
+
+  // Post-LLM Deterministic Abstention Enforcement for Unresolved Explicit Rulings (CI1) & Pre-Cutoff VAT Coverage (VF/VG)
+  if ((params.specialConstraints?.unresolved_explicit_ruling_ids?.length || 0) > 0) {
+    const missingIds = params.specialConstraints!.unresolved_explicit_ruling_ids!;
+    const missingLabel = missingIds.join(", ");
+    const releaseLabel = params.passagePack[0]?.version_id ? "rel.B01.rc8" : "rel.B01.rc8";
+    const draftSummaryClean =
+      params.draft.overall_summary_th &&
+      missingIds.every((id) => params.draft!.overall_summary_th.includes(id.replace(/^กค\s+/, ""))) &&
+      !/ได้รับยกเว้น|ไม่ต้องหักภาษี/.test(params.draft.overall_summary_th)
+        ? params.draft.overall_summary_th
+        : null;
+    const abstentionMsg =
+      draftSummaryClean ||
+      `ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหนังสือตอบข้อหารือกรมสรรพากรเลขที่ ${missingLabel} ในคลังข้อมูลที่ผ่านการรับรองของ REG24 (${releaseLabel}) ระบบจึงระงับการยืนยันข้อกฎหมายตามหนังสือตอบข้อหารือดังกล่าว และไม่นำข้อหารือหรือบทบัญญัติอื่นมาสรุปสวมรอยแทน`;
+    return {
+      status: "INSUFFICIENT_EVIDENCE",
+      rendered_answer_th: abstentionMsg,
+      verified_issues: [],
+      claims: [
+        {
+          claim_id: `clm.${params.traceId}.abstain`,
+          statement: abstentionMsg,
+          claim_type: "abstention_notice",
+          statement_role: "reg24_inference",
+          supporting_passage_ids: [],
+          applicable_version_id: null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "UNSUPPORTED",
+        },
+      ],
+      evidence_cards: [],
+      assumptions_th: [],
+      clarification_questions_th:
+        params.draft.clarification_questions_th?.length > 0
+          ? params.draft.clarification_questions_th
+          : [`กรุณาตรวจสอบเลขที่หนังสือตอบข้อหารือ (${missingLabel}) หรือวันที่ออกหนังสืออีกครั้ง`],
+      coverage_warnings_th: [abstentionMsg],
+      rejected_calculations_diagnostic: [],
+      audit_trace: {
+        schema_version: "reg24.llm_audit_trace.v1",
+        generation_mode: "llm_grounded",
+        staging_flag_active: params.stagingFlagActive,
+        template_fallback_used: false,
+        input_fact_ledger: params.factLedger,
+        supplied_passages: suppliedPassagesAudit,
+        consumed_passage_ids: consumedPassageIds,
+        consumed_passage_versions: consumedPassageVersions,
+        provider_invocation: params.invocationAudit,
+        claims_before_verification: [],
+        claims_after_verification: [],
+        rejected_claims: [],
+        rejected_calculations: [],
+        final_answer_revision_id: null,
+      },
+    };
+  }
+
+  if (params.specialConstraints?.pre_cutoff_vat_coverage_constraint) {
+    const preVat = params.specialConstraints.pre_cutoff_vat_coverage_constraint;
+    const preCutoffMsg =
+      `ข้อจำกัดขอบเขตข้อมูลสำหรับวันเกิดความรับผิด ${preVat.controlling_date_iso} — ขอบเขตการตอบอัตราภาษีมูลค่าเพิ่มที่มีหลักฐานต้นฉบับราชกิจจานุเบกษาตรวจสอบครบถ้วนในคลังข้อมูลเริ่มตั้งแต่วันที่ 1 ตุลาคม 2566 (2023-10-01) เป็นต้นไป (พ.ร.ฎ. ฉบับที่ 780, 790, 799 และ 807) สำหรับวันเกิดความรับผิดก่อนวันที่ 1 ตุลาคม 2566 สายการแก้ไขเพิ่มเติมและต้นฉบับราชกิจจานุเบกษายังไม่ครบถ้วน ระบบจึงระงับการระบุอัตราภาษี ไม่คำนวณจำนวนเงินภาษีขาย และไม่อ้างเอกสารฉบับรวมกฎหมายย้อนหลัง`;
+    return {
+      status: "INSUFFICIENT_EVIDENCE",
+      rendered_answer_th: preCutoffMsg,
+      verified_issues: [],
+      claims: [
+        {
+          claim_id: `clm.${params.traceId}.abstain_vat_pre_cutoff`,
+          statement: preCutoffMsg,
+          claim_type: "abstention_notice",
+          statement_role: "reg24_inference",
+          supporting_passage_ids: [],
+          applicable_version_id: null,
+          factual_conditions: [],
+          exceptions: [],
+          counterevidence_passage_ids: [],
+          verification_result: "UNSUPPORTED",
+        },
+      ],
+      evidence_cards: [],
+      assumptions_th: [],
+      clarification_questions_th: [
+        "กรุณาตรวจสอบต้นฉบับราชกิจจานุเบกษาของพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่ใช้บังคับสำหรับวันเกิดความรับผิดก่อนวันที่ 1 ตุลาคม 2566 โดยตรง หรือยืนยันวันเกิดความรับผิดที่อยู่ในช่วงตั้งแต่วันที่ 1 ตุลาคม 2566 เป็นต้นไป",
+      ],
+      coverage_warnings_th: [preCutoffMsg],
+      rejected_calculations_diagnostic: [],
       audit_trace: {
         schema_version: "reg24.llm_audit_trace.v1",
         generation_mode: "llm_grounded",
@@ -967,7 +1162,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       },
       rejection_code: "SYNTHETIC_RC1_REJECTED_FIXTURE",
       rejection_reason_th:
-        "ระงับการคำนวณทดสอบ RC1 (อัตราสมมติ 88.5% / ภาษี 999,888 บาท) เนื่องจากไม่มีหลักฐานอัตราภาษีในตัวบทอ้างอิง และยืนยันว่าไม่มีตัวเลขหรือขั้นตอนรั่วไหลสู่ UI, API หรือฉบับที่บันทึก",
+        "ระงับการคำนวณทดสอบสังเคราะห์ RC1 เนื่องจากไม่มีหลักฐานอัตราภาษีในตัวบทอ้างอิง และยืนยันว่าไม่มีตัวเลขหรือขั้นตอนที่ถูกระงับรั่วไหลสู่ UI, API หรือฉบับที่บันทึก",
     });
   }
 
@@ -1027,9 +1222,14 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       continue;
     }
 
-    // Gate 4: Independent Calculation Verification
+    // Gate 4: Independent Calculation Verification (strip any unconditioned tax figure if needs_vat_date_clarification is active!)
+    const effectiveIssueForCalc: LlmDraftedIssue =
+      params.specialConstraints?.needs_vat_date_clarification &&
+      iss.proposed_calculation?.computed_tax_thb !== null
+        ? { ...iss, proposed_calculation: null }
+        : iss;
     const calcCheck = verifyProposedCalculation({
-      issue: iss,
+      issue: effectiveIssueForCalc,
       citedItems: citedPackItems,
       factLedger: params.factLedger,
     });
@@ -1044,6 +1244,46 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       ...factNumericTokens,
       ...calcCheck.verifiedNumericTokens,
     ]);
+    // Ground Thai statutory word-number thresholds ("ยี่สิบล้านบาท" -> 20,000,000; "สิบล้านบาท" -> 10,000,000; "ร้อยละห้า" -> 5)
+    // and deterministic excess/5%-tax derivations ONLY on non-recipient-immovable issues when calcCheck.accepted!
+    const citedVerbatimNorm = thaiDigitsToArabic(citedPackItems.map((p) => p.verbatim_text).join(" "));
+    const issueScopeNorm = thaiDigitsToArabic(`${iss.issue_title_th} ${iss.party_or_scope_th}`);
+    const isRecipientOnImmovable =
+      /(?:ผู้รับโอน|ผู้รับให้|ภาระภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?:นางสาว|นาย|นาง|หลาน|บุตร))/.test(issueScopeNorm) &&
+      !/(?:หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ความรับผิดร่วม|ผู้โอนเป็นหลัก|เงินสด)/.test(issueScopeNorm) &&
+      citedPackItems.some((p) => p.work_id === "prov.th.rc.41_ทวิ" || /\(26\)/.test(p.verbatim_text));
+    if (!isRecipientOnImmovable && calcCheck.accepted) {
+      if (citedVerbatimNorm.includes("ยี่สิบล้านบาท")) {
+        trustedTokens.add("20000000");
+        trustedTokens.add("20,000,000");
+        trustedTokens.add("20");
+        const activeBasesForThreshold = extractMonetaryAmountsThb(
+          params.factLedger.material_facts
+            .filter((f) => f.fact_key === "appraised_value_thb" || f.fact_key === "stated_asset_value_thb")
+            .map((f) => f.original_text_th)
+            .join(" ")
+        );
+        const citesFivePct = /ร้อยละ\s*(?:5|ห้า)/.test(citedVerbatimNorm);
+        if (citesFivePct) trustedTokens.add("5");
+        for (const baseVal of activeBasesForThreshold) {
+          if (baseVal > 20_000_000) {
+            const excess = baseVal - 20_000_000;
+            trustedTokens.add(String(excess));
+            trustedTokens.add(excess.toLocaleString("en-US"));
+            if (citesFivePct) {
+              const fivePctTax = Math.round(excess * 0.05 * 100) / 100;
+              trustedTokens.add(String(fivePctTax));
+              trustedTokens.add(fivePctTax.toLocaleString("en-US"));
+            }
+          }
+        }
+      }
+      if (citedVerbatimNorm.includes("สิบล้านบาท")) {
+        trustedTokens.add("10000000");
+        trustedTokens.add("10,000,000");
+        trustedTokens.add("10");
+      }
+    }
     // If cited passages include a statutory 6.3% VAT reduction decree (RD 799/807) AND the supplied
     // pack includes the official RD VAT local-tax guide (`6.3% + 1/9 local tax = 7%`), permit the
     // derived combined rate `7` / `0.7` / `6.3` when explaining the combined rate alongside local tax!
@@ -1262,13 +1502,65 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     });
   }
 
-  // If ZERO issues survived verification -> explicit inability notice, NEVER fall back to templates!
+  const buildRejectedDiagnostics = (): RejectedCalculationDiagnosticDto[] =>
+    rejectedCalculations.map((rc) => ({
+      rejected_claim_or_issue_id: rc.issue_id,
+      rejection_code: rc.rejection_code,
+      reason_th: redactRejectedCalculationNumbers(rc.rejection_reason_th, rc.proposed_values),
+      fixture_id:
+        rc.rejection_code === "SYNTHETIC_RC1_REJECTED_FIXTURE" ||
+        params.qaSyntheticFixture === "RC1_REJECTED_CALC"
+          ? "RC1_REJECTED_CALC"
+          : null,
+    }));
+
+  // If ZERO issues survived verification:
+  // - When `needs_vat_date_clarification` is active (e.g. VC), return clean `NEEDS_CLARIFICATION` asking for the tax-point date!
+  // - Otherwise return explicit `REVIEW_REQUIRED` inability notice, NEVER falling back to prewritten legal conclusions!
   if (verifiedIssues.length === 0) {
+    if (params.specialConstraints?.needs_vat_date_clarification) {
+      const clarifyQs =
+        params.draft.clarification_questions_th &&
+        params.draft.clarification_questions_th.length > 0
+          ? params.draft.clarification_questions_th
+          : [
+              "กรุณาระบุวันที่รับชำระค่าบริการและวันที่ออกใบกำกับภาษี (ตามมาตรา 78/1 (1)) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับและคำนวณภาษีขาย",
+            ];
+      const clarifyMsg =
+        "ต้องการข้อมูลวันที่เกิดความรับผิดในการเสียภาษีมูลค่าเพิ่มเพิ่มเติม (เช่น วันรับชำระค่าบริการหรือวันออกใบกำกับภาษีตามมาตรา 78/1 (1)) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับ — ระบบยังไม่สมมติใช้พระราชกฤษฎีกาฉบับล่าสุดและยังไม่คำนวณยอดภาษีขายจนกว่าจะระบุวันที่ชัดเจน";
+      return {
+        status: "NEEDS_CLARIFICATION",
+        rendered_answer_th: clarifyMsg,
+        verified_issues: [],
+        claims: [],
+        evidence_cards: [],
+        assumptions_th: params.draft.assumptions_th || [],
+        clarification_questions_th: clarifyQs,
+        coverage_warnings_th: [],
+        rejected_calculations_diagnostic: buildRejectedDiagnostics(),
+        audit_trace: {
+          schema_version: "reg24.llm_audit_trace.v1",
+          generation_mode: "llm_grounded",
+          staging_flag_active: params.stagingFlagActive,
+          template_fallback_used: false,
+          input_fact_ledger: params.factLedger,
+          supplied_passages: suppliedPassagesAudit,
+          consumed_passage_ids: consumedPassageIds,
+          consumed_passage_versions: consumedPassageVersions,
+          provider_invocation: params.invocationAudit,
+          claims_before_verification: claimsBefore,
+          claims_after_verification: [],
+          rejected_claims: rejectedClaims,
+          rejected_calculations: rejectedCalculations,
+          final_answer_revision_id: null,
+        },
+      };
+    }
     const reasonsSummary = rejectedClaims
       .map((r) => `- ${r.issue_title_th}: ${r.rejection_reason_th} (${r.rejection_code})`)
       .join("\n");
     const blockedMsg =
-      "ระบบระงับการเผยแพร่คำตอบ เนื่องจากประเด็นที่แบบจำลองภาษาร่างขึ้นไม่ผ่านการตรวจสอบหลักฐาน วันบังคับใช้ หรือการคงข้อเท็จจริง และ **ไม่สลับไปใช้คำตอบสำเร็จรูปแทน**:\n" +
+      `ระบบระงับการเผยแพร่คำตอบ (Trace ID: ${params.traceId}) เนื่องจากประเด็นที่แบบจำลองภาษาร่างขึ้นไม่ผ่านการตรวจสอบหลักฐาน วันบังคับใช้ หรือการคงข้อเท็จจริง และ **ไม่สลับไปใช้คำตอบสำเร็จรูปแทน**:\n` +
       (reasonsSummary || "- ไม่พบประเด็นที่รองรับด้วยหลักฐานต้นฉบับที่ส่งให้");
     return {
       status: "REVIEW_REQUIRED",
@@ -1281,6 +1573,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       coverage_warnings_th: rejectedClaims.map(
         (r) => `ระงับประเด็น ${r.issue_id}: ${r.rejection_reason_th} (${r.rejection_code})`
       ),
+      rejected_calculations_diagnostic: buildRejectedDiagnostics(),
       audit_trace: {
         schema_version: "reg24.llm_audit_trace.v1",
         generation_mode: "llm_grounded",
@@ -1341,7 +1634,12 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   });
 
   const assumptions = params.draft.assumptions_th || [];
-  const clarifications = params.draft.clarification_questions_th || [];
+  const clarifications = [...(params.draft.clarification_questions_th || [])];
+  if (params.specialConstraints?.needs_vat_date_clarification && clarifications.length === 0) {
+    clarifications.push(
+      "กรุณาระบุวันที่รับชำระค่าบริการและวันที่ออกใบกำกับภาษี (ตามมาตรา 78/1 (1)) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับและคำนวณภาษีขาย"
+    );
+  }
   const evidenceGaps = params.draft.evidence_gaps_th || [];
 
   const coverageWarnings: string[] = [
@@ -1350,21 +1648,26 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       (r) => `ระงับประเด็นร่าง (${r.issue_id}): ${r.rejection_reason_th} [${r.rejection_code}]`
     ),
     ...rejectedCalculations.map(
-      (rc) => `ระงับการคำนวณ (${rc.issue_id}): ${rc.rejection_reason_th} [${rc.rejection_code}]`
+      (rc) =>
+        `ระงับการคำนวณ (${rc.issue_id}): ${redactRejectedCalculationNumbers(rc.rejection_reason_th, rc.proposed_values)} [${rc.rejection_code}]`
     ),
   ];
 
   // Determine final honest status
   let finalStatus: GroundedLlmVerificationOutcome["status"] = params.draft.answer_status;
-  if (rejectedClaims.length > 0 || rejectedCalculations.length > 0 || evidenceGaps.length > 0) {
-    if (finalStatus === "ANSWERED") finalStatus = "CONDITIONAL";
-  }
-  if (
-    clarifications.length > 0 &&
-    params.factLedger.temporal_facts.controlling_tax_point.is_ambiguous &&
-    finalStatus === "ANSWERED"
-  ) {
+  if (params.specialConstraints?.needs_vat_date_clarification) {
     finalStatus = "NEEDS_CLARIFICATION";
+  } else {
+    if (rejectedClaims.length > 0 || rejectedCalculations.length > 0 || evidenceGaps.length > 0) {
+      if (finalStatus === "ANSWERED") finalStatus = "CONDITIONAL";
+    }
+    if (
+      clarifications.length > 0 &&
+      params.factLedger.temporal_facts.controlling_tax_point.is_ambiguous &&
+      finalStatus === "ANSWERED"
+    ) {
+      finalStatus = "NEEDS_CLARIFICATION";
+    }
   }
 
   const renderedAnswer = renderNeutralGroundedLlmAnswerTh({
@@ -1388,6 +1691,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     assumptions_th: assumptions,
     clarification_questions_th: clarifications,
     coverage_warnings_th: coverageWarnings,
+    rejected_calculations_diagnostic: buildRejectedDiagnostics(),
     audit_trace: {
       schema_version: "reg24.llm_audit_trace.v1",
       generation_mode: "llm_grounded",

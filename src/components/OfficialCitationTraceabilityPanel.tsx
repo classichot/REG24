@@ -541,6 +541,38 @@ export function OfficialCitationTraceabilityPanel({
             </div>
           ))}
 
+          {/* Redacted Rejected-Calculation Diagnostic (K3 / RC1 Gate — zero rejected values exposed) */}
+          {envelope.rejected_calculations_diagnostic &&
+            envelope.rejected_calculations_diagnostic.length > 0 && (
+              <div
+                style={{
+                  background: "rgba(124, 58, 237, 0.14)",
+                  border: "1px solid rgba(139, 92, 246, 0.55)",
+                  padding: "10px 12px",
+                  fontSize: "12.5px",
+                  color: "#ede9fe",
+                }}
+              >
+                <strong>
+                  รายการคำนวณที่ถูกตัวตรวจสอบระงับก่อนเผยแพร่ (Redacted Calculation Gate Diagnostic):
+                </strong>
+                <ul style={{ margin: "4px 0 0", paddingLeft: "18px" }}>
+                  {envelope.rejected_calculations_diagnostic.map((diag, dIdx) => (
+                    <li key={`${diag.rejected_claim_or_issue_id}-${dIdx}`}>
+                      <code>{diag.rejected_claim_or_issue_id}</code> [{diag.rejection_code}]
+                      {diag.fixture_id ? (
+                        <>
+                          {" "}
+                          · Fixture: <code>{diag.fixture_id}</code>
+                        </>
+                      ) : null}{" "}
+                      — {diag.reason_th}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
           {/* Scoped Unresolved Issues in Thai (Section 1 & ANS-03) */}
           {envelope.unresolved_issues.length > 0 && (
             <div

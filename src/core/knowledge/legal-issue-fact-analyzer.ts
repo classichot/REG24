@@ -80,7 +80,10 @@ export function stripNegatedFactualClauses(rawText: string): string {
   // Strip negated location/inheritance/relationship/channel clauses so positive extractors don't match negated keywords
   s = s.replace(/ไม่ได้ใช้(?:บริการ(?:นั้น)?)?ที่[^\s,.;)]+(?:\s+ใน[^\s,.;)]+)?(?:\s+ของ[^\s,.;)]+)?/g, " ");
   s = s.replace(/ไม่ได้มาทางมรดก/g, " ");
-  s = s.replace(/(?:ไม่ใช่|มิใช่)(?:ตัว)?(?:บุตร(?:ชาย|สาว)?ชอบด้วยกฎหมาย|บุตรชาย|บุตรสาว|บุตร|คนในครอบครัว)/g, " ");
+  s = s.replace(
+    /(?:ไม่ใช่|มิใช่)(?:ตัว)?(?:บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย(?:โดยกำเนิด)?|บุตรชาย|บุตรสาว|บุตร(?!บุญธรรม)|คนในครอบครัว)/g,
+    " "
+  );
   s = s.replace(
     /(?:ไม่ได้|มิได้|ไม่)\s*(?:ผ่าน|นำส่งผ่าน|ใช้)(?:ระบบ)?\s*e-Withholding(?:\s*Tax)?/gi,
     " "
@@ -669,11 +672,15 @@ export function analyzeLegalIssuesAndFacts(params: {
       }
 
       // 2) Recipient kinship & gender-faithful display label (explicit kinship overrides generic หลาน)
+      const tExplicitGrandNieceOrNephew =
+        /บุตร(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?|ลูก(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?/.test(turnText);
       const tExplicitGrandchild =
+        !tExplicitGrandNieceOrNephew &&
         /บุตร(?:สาว|ชาย)?ของ(?:บุตร(?:สาว|ชาย)?|ลูก(?:สาว|ชาย)?)|หลานปู่|หลานตา|หลานย่า|หลานยาย|ผู้สืบสันดานสายตรง|ผู้สืบสันดานโดยตรง/.test(
           turnText
         );
       const tExplicitCollateral =
+        !tExplicitGrandNieceOrNephew &&
         !tExplicitGrandchild &&
         /บุตร(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?|ลูก(?:สาว|ชาย)?ของ(?:พี่|น้อง)(?:สาว|ชาย)?|หลานลุง|หลานอา|หลานน้า|หลานป้า/.test(
           turnText
@@ -682,20 +689,34 @@ export function analyzeLegalIssuesAndFacts(params: {
         /บุตรบุญธรรม/.test(turnText) &&
         !/ไม่ใช่บุตรบุญธรรม|มิใช่บุตรบุญธรรม|ไม่รวม(?:ถึง)?บุตรบุญธรรม/.test(turnText);
       const tAmbiguousLan =
-        !tExplicitGrandchild && !tExplicitCollateral && !tAdopted && /หลานสาว|หลานชาย|หลาน/.test(turnText);
+        !tExplicitGrandNieceOrNephew &&
+        !tExplicitGrandchild &&
+        !tExplicitCollateral &&
+        !tAdopted &&
+        /หลานสาว|หลานชาย|หลาน/.test(turnText);
       const tAscendantMatch =
-        !tExplicitGrandchild && !tExplicitCollateral && !tAdopted && !tAmbiguousLan
+        !tExplicitGrandNieceOrNephew &&
+        !tExplicitGrandchild &&
+        !tExplicitCollateral &&
+        !tAdopted &&
+        !tAmbiguousLan
           ? turnText.match(
-              /(?:ให้(?:แก่)?[^\n]{0,25}?(?:ซึ่งเป็น|ที่เป็น|คือ)?\s*|(?:ผู้รับ(?:โอน|เงิน|ให้)?)[^\n]{0,25}?(?:เป็น|คือ)\s*)(มารดา(?:แท้ๆ)?|บิดา(?:แท้ๆ)?|พ่อ(?:แท้ๆ)?|แม่(?:แท้ๆ)?|บุพการี)/
+              /(?:ให้(?:แก่)?[^\n]{0,35}?(?:ซึ่งเป็น|ที่เป็น|คือ)?\s*|(?:ผู้รับ(?:โอน|เงิน|ให้)?)[^\n]{0,25}?(?:เป็น|คือ)\s*)(มารดา(?:บังเกิดเกล้า|แท้ๆ)?|บิดา(?:บังเกิดเกล้า|แท้ๆ)?|พ่อ(?:บังเกิดเกล้า|แท้ๆ)?|แม่(?:บังเกิดเกล้า|แท้ๆ)?|บุพการี)/
             )
           : null;
       const tSpouseMatch =
-        !tExplicitGrandchild && !tExplicitCollateral && !tAdopted && !tAmbiguousLan && !tAscendantMatch
+        !tExplicitGrandNieceOrNephew &&
+        !tExplicitGrandchild &&
+        !tExplicitCollateral &&
+        !tAdopted &&
+        !tAmbiguousLan &&
+        !tAscendantMatch
           ? turnText.match(
               /(?:ให้(?:แก่)?[^\n]{0,25}?(?:ซึ่งเป็น|ที่เป็น|คือ)?\s*|(?:ผู้รับ(?:โอน|เงิน|ให้)?)[^\n]{0,25}?(?:เป็น|คือ)\s*)(คู่สมรส|สามี|ภริยา|ภรรยา)/
             )
           : null;
       const tOtherCollateralMatch =
+        !tExplicitGrandNieceOrNephew &&
         !tExplicitGrandchild &&
         !tExplicitCollateral &&
         !tAdopted &&
@@ -707,6 +728,7 @@ export function analyzeLegalIssuesAndFacts(params: {
             )
           : null;
       const tLegitChild =
+        !tExplicitGrandNieceOrNephew &&
         !tExplicitGrandchild &&
         !tExplicitCollateral &&
         !tAdopted &&
@@ -714,9 +736,15 @@ export function analyzeLegalIssuesAndFacts(params: {
         !tAscendantMatch &&
         !tSpouseMatch &&
         !tOtherCollateralMatch &&
-        /บุตร(?:ชาย|สาว)?ชอบด้วยกฎหมาย/.test(turnText);
+        /บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย/.test(turnText);
 
-      if (tExplicitGrandchild) {
+      if (tExplicitGrandNieceOrNephew) {
+        recipientRole = "NON_LINEAL_RELATIVE_OR_THIRD_PARTY";
+        const isGrandNephew = /บุตรชายของหลาน|ลูกชายของหลาน/.test(turnText);
+        recipientDisplayTh = isGrandNephew
+          ? "บุตรชายของหลาน (เหลนสายข้าง — มิใช่บุตรชอบด้วยกฎหมายและมิใช่ผู้สืบสันดานสายตรง)"
+          : "บุตรสาวของหลานชาย (เหลนสายข้าง — มิใช่บุตรชอบด้วยกฎหมายและมิใช่ผู้สืบสันดานสายตรง)";
+      } else if (tExplicitGrandchild) {
         recipientRole = "EXPLICIT_LINEAL_GRANDCHILD";
         const genderWord = /หลานชาย|บุตรชายของบุตร/.test(turnText) ? "หลานชาย" : "หลานสาว";
         recipientDisplayTh = `${genderWord}ที่เป็นบุตรของบุตร (หลานปู่/หลานตา — ผู้สืบสันดานสายตรง แต่มิใช่บุตรชอบด้วยกฎหมาย)`;
@@ -751,12 +779,14 @@ export function analyzeLegalIssuesAndFacts(params: {
       }
 
       // 3) Occasion / ceremony / moral duty
-      if (/ไม่ได้เกี่ยวกับพิธี|มิได้เกี่ยวกับพิธี|ไม่ใช่(?:การให้ใน)?พิธี/.test(turnText)) {
+      if (/ไม่ได้เกี่ยวกับพิธี|มิได้เกี่ยวกับพิธี|ไม่เกี่ยวกับพิธี|ไม่ใช่(?:การให้ใน)?พิธี/.test(turnText)) {
         isCeremony = false;
         occasionLabelTh = null;
-      } else if (/พิธีอุปสมบท/.test(turnText)) {
+      } else if (/พิธีอุปสมบท|งานบวช/.test(turnText)) {
         isCeremony = true;
-        occasionLabelTh = "พิธีอุปสมบทตามประเพณี";
+        occasionLabelTh = /น้องชายหลานสาว/.test(turnText)
+          ? "งานบวชของน้องชายหลานสาวตามประเพณี"
+          : "พิธีอุปสมบทตามประเพณี";
       } else if (/งานสมรส|งานแต่งงาน/.test(turnText)) {
         isCeremony = true;
         occasionLabelTh = "งานสมรสตามประเพณี";
@@ -771,11 +801,12 @@ export function analyzeLegalIssuesAndFacts(params: {
       // 4) Values, appraisal, co-ownership, acquisition, holding years
       const tAmounts = parseThaiMoneyAmountsWithContext(turnText);
       const tVal =
-        tAmounts.find((a) =>
-          /มูลค่า|ที่ดิน|ห้องชุด|อาคาร|ราคา|เงินสด|จำนวน|อุปการะเลี้ยงดู|ของขวัญ/.test(a.leftContext) &&
-          !/ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ/.test(a.leftContext)
+        tAmounts.find(
+          (a) =>
+            /มูลค่า|ที่ดิน|ห้องชุด|อาคาร|ราคา|เงินสด|จำนวน|อุปการะเลี้ยงดู|ของขวัญ/.test(a.leftContext) &&
+            !/ราคาประเมินทุนทรัพย์|ราคาประเมินราชการ|หักภาษี|อากรแสตมป์/.test(a.leftContext)
         )?.amount ??
-        (tAmounts.length === 1 && !/ราคาประเมิน/.test(tAmounts[0].leftContext)
+        (tAmounts.length === 1 && !/ราคาประเมิน|หักภาษี|อากรแสตมป์/.test(tAmounts[0].leftContext)
           ? tAmounts[0].amount
           : null);
       if (tVal !== null) valAmt = tVal;
@@ -798,7 +829,7 @@ export function analyzeLegalIssuesAndFacts(params: {
       }
       if (/ได้มาโดยทางมรดก|รับมรดก|ได้มาจากการให้โดยเสน่หา/.test(turnText)) {
         acquisitionMethod = "INHERITANCE_OR_GIFT";
-      } else if (/ซื้อที่ดิน(?:แปลงหนึ่ง)?(?:มา|ร่วมกัน)|ได้มาโดยการซื้อ|ซื้อมาจาก/.test(turnText)) {
+      } else if (/ซื้อที่ดิน(?:แปลงหนึ่ง)?(?:มา|ร่วมกัน)|ได้[^\n]{0,35}มาโดยการซื้อ|ซื้อ(?:บ้าน|ห้องชุด|อาคาร)[^\n]{0,25}มา|ซื้อมาจาก/.test(turnText)) {
         acquisitionMethod = "OTHER_PURCHASE";
       } else if (/ไม่ทราบว่า[^\n]{0,35}ได้(?:ที่ดิน|ห้องชุด|อาคาร|อสังหา)[^\n]{0,20}มา(?:อย่างไร|ด้วยวิธีใด)/.test(turnText)) {
         acquisitionMethod = null;
@@ -806,6 +837,11 @@ export function analyzeLegalIssuesAndFacts(params: {
       const tHoldMatch = turnText.match(/ถือครอง(?:มา|ไว้|นาน|เกิน)?\s*([0-9]+)\s*ปี/);
       if (tHoldMatch) holdingYears = Number(tHoldMatch[1]);
     }
+
+    const explicitWhtOrShortfallIssue =
+      /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|ภาษีหัก\s*ณ\s*ที่จ่าย|รับผิดร่วม|หักไว้ไม่ครบ|หักภาษีไว้ไม่ครบ|มาตรา\s*54|withholding\s+tax)/i.test(
+        mergedContext
+      );
 
     if (isImmovable) {
       // Derive required property-transfer authorities strictly from asset + relationship + withholding relevance (NO blanket §54!).
@@ -815,10 +851,6 @@ export function analyzeLegalIssuesAndFacts(params: {
         recipientRole === "LEGITIMATE_CHILD" &&
         effectiveTransferVal !== null &&
         effectiveTransferVal > 20_000_000;
-      const explicitWhtOrShortfallIssue =
-        /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|ภาษีหัก\s*ณ\s*ที่จ่าย|รับผิดร่วม|หักไว้ไม่ครบ|หักภาษีไว้ไม่ครบ|มาตรา\s*54|withholding\s+tax)/i.test(
-          mergedContext
-        );
       if (
         recipientRole !== "LEGITIMATE_CHILD" ||
         exceedsChildExemptionCap ||
@@ -841,6 +873,10 @@ export function analyzeLegalIssuesAndFacts(params: {
     } else {
       controlling.add("statute.th.rc_amendment_40_2558");
       controlling.add("prov.th.rc.40");
+      if (explicitWhtOrShortfallIssue) {
+        controlling.add("prov.th.rc.50");
+        controlling.add("prov.th.rc.3_เตรส");
+      }
     }
 
     // Detect whose tax the ACTIVE turn is asking about (Recipient vs Donor vs Both)

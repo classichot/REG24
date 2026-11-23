@@ -896,7 +896,15 @@ export async function persistAnswerRevisionToPostgres(params: {
         params.actor.tenant_id,
         params.revision_reason,
         envScope,
-        env.execution_provenance ? JSON.stringify(env.execution_provenance) : null,
+        JSON.stringify({
+          ...(env.execution_provenance || {}),
+          __envelope_extensions: {
+            grounded_answer_status: env.grounded_answer_status ?? null,
+            clarification_questions_th: env.clarification_questions_th ?? [],
+            coverage_warnings_th: env.coverage_warnings_th ?? [],
+            rejected_calculations_diagnostic: env.rejected_calculations_diagnostic ?? [],
+          },
+        }),
         hasIdempKey ? params.save_operation_key!.trim() : null,
         params.save_payload_sha256 ?? null,
       ],
@@ -1052,7 +1060,15 @@ export async function persistAnswerRevisionToPostgres(params: {
       params.actor.tenant_id,
       params.revision_reason,
       envScope,
-      env.execution_provenance ? JSON.stringify(env.execution_provenance) : null,
+      JSON.stringify({
+        ...(env.execution_provenance || {}),
+        __envelope_extensions: {
+          grounded_answer_status: env.grounded_answer_status ?? null,
+          clarification_questions_th: env.clarification_questions_th ?? [],
+          coverage_warnings_th: env.coverage_warnings_th ?? [],
+          rejected_calculations_diagnostic: env.rejected_calculations_diagnostic ?? [],
+        },
+      }),
     ]
   );
 
@@ -1151,6 +1167,7 @@ export async function loadSavedAnswerFromPostgres(
   const db = resolveActiveCitationDbTransport();
   if (!db) return { found: false };
 
+  const isExplicitRevisionLookup = /\.(?:legacy\.)?r\d+$/.test(answerRevisionOrId);
   const ansRes = await db<{
     answer_revision_id: string;
     answer_id: string;
@@ -1176,16 +1193,26 @@ export async function loadSavedAnswerFromPostgres(
     revision_reason: string;
     execution_provenance?: TraceableAnswerEnvelope["execution_provenance"];
   }>(
-    `SELECT answer_revision_id, answer_id, revision_number, supersedes_revision_id,
-            channel, question_text, generated_at::text AS generated_at, as_of_date_raw,
-            status, rendered_answer_th, unresolved_issues, user_supplied_facts,
-            assumptions, legacy_warning_th, release_id, verifier_version, ruleset_version,
-            owner_actor_id, owner_tenant_id, actor_id, tenant_id, revision_reason,
-            execution_provenance
-     FROM citation_published_answer
-     WHERE answer_revision_id = $1 OR answer_id = $1
-     ORDER BY revision_number DESC
-     LIMIT 1`,
+    isExplicitRevisionLookup
+      ? `SELECT answer_revision_id, answer_id, revision_number, supersedes_revision_id,
+                channel, question_text, generated_at::text AS generated_at, as_of_date_raw,
+                status, rendered_answer_th, unresolved_issues, user_supplied_facts,
+                assumptions, legacy_warning_th, release_id, verifier_version, ruleset_version,
+                owner_actor_id, owner_tenant_id, actor_id, tenant_id, revision_reason,
+                execution_provenance
+         FROM citation_published_answer
+         WHERE answer_revision_id = $1
+         LIMIT 1`
+      : `SELECT answer_revision_id, answer_id, revision_number, supersedes_revision_id,
+                channel, question_text, generated_at::text AS generated_at, as_of_date_raw,
+                status, rendered_answer_th, unresolved_issues, user_supplied_facts,
+                assumptions, legacy_warning_th, release_id, verifier_version, ruleset_version,
+                owner_actor_id, owner_tenant_id, actor_id, tenant_id, revision_reason,
+                execution_provenance
+         FROM citation_published_answer
+         WHERE answer_id = $1
+         ORDER BY revision_number DESC
+         LIMIT 1`,
     [answerRevisionOrId]
   );
 
@@ -1281,6 +1308,8 @@ export async function loadSavedAnswerFromPostgres(
     printed_page_end: string | null;
     anchors: ClaimEvidenceReferenceDto["locator"]["anchors"];
     access_scope: string;
+    verbatim_text: string;
+    original_title_th: string;
     issuer_id: string;
     source_family: ClaimEvidenceReferenceDto["source_family"];
     record_type: ClaimEvidenceReferenceDto["record_type"];
@@ -1297,6 +1326,7 @@ export async function loadSavedAnswerFromPostgres(
             l.human_pinpoint_th, p.doc_id, p.extraction_revision_id,
             p.section_paragraph_path, p.physical_page_start, p.physical_page_end,
             p.printed_page_start, p.printed_page_end, p.anchors, p.access_scope,
+            p.verbatim_text, d.original_title_th,
             d.issuer_id, d.source_family, d.record_type, d.access_permission, d.access_conditions_th,
             v.effective_from::text AS effective_from, v.publication_date::text AS publication_date,
             COALESCE(loc.link_health, 'unchecked_live') AS link_health,
@@ -1363,6 +1393,8 @@ export async function loadSavedAnswerFromPostgres(
           support_role_label_th: roleLabels[l.support_role] || l.support_role,
           required_group: l.required_group,
           citation_label_th: l.citation_label_th,
+          original_title_th: l.original_title_th,
+          verbatim_excerpt_th: l.verbatim_text,
           issuer_name_th: pub?.name_th || l.issuer_id,
           source_family: l.source_family,
           source_family_label_th: familyLabels[l.source_family] || l.source_family,
@@ -1437,6 +1469,34 @@ export async function loadSavedAnswerFromPostgres(
     [revIds]
   );
 
+  const rawProvObj =
+    row.execution_provenance && typeof row.execution_provenance === "object"
+      ? ({ ...(row.execution_provenance as unknown as Record<string, unknown>) })
+      : null;
+  const extMeta =
+    rawProvObj && typeof rawProvObj.__envelope_extensions === "object" && rawProvObj.__envelope_extensions
+      ? (rawProvObj.__envelope_extensions as {
+          grounded_answer_status?: TraceableAnswerEnvelope["grounded_answer_status"] | null;
+          clarification_questions_th?: string[];
+          coverage_warnings_th?: string[];
+          rejected_calculations_diagnostic?: TraceableAnswerEnvelope["rejected_calculations_diagnostic"];
+        })
+      : null;
+  if (rawProvObj && "__envelope_extensions" in rawProvObj) {
+    delete rawProvObj.__envelope_extensions;
+  }
+  const cleanExecProvenance =
+    rawProvObj && Object.keys(rawProvObj).length > 0
+      ? (rawProvObj as unknown as TraceableAnswerEnvelope["execution_provenance"])
+      : null;
+  const restoredGroundedStatus: NonNullable<TraceableAnswerEnvelope["grounded_answer_status"]> =
+    extMeta?.grounded_answer_status ||
+    (row.status === "complete"
+      ? "ANSWERED"
+      : row.status === "partial"
+        ? "CONDITIONAL"
+        : "INSUFFICIENT_EVIDENCE");
+
   return {
     found: true,
     question_text: row.question_text,
@@ -1455,13 +1515,23 @@ export async function loadSavedAnswerFromPostgres(
       generated_at: row.generated_at,
       as_of_date: row.as_of_date_raw,
       status: row.status,
+      grounded_answer_status: restoredGroundedStatus,
       rendered_answer_th: row.rendered_answer_th,
       user_supplied_facts: Array.isArray(row.user_supplied_facts) ? row.user_supplied_facts : [],
       assumptions: Array.isArray(row.assumptions) ? row.assumptions : [],
+      clarification_questions_th: Array.isArray(extMeta?.clarification_questions_th)
+        ? extMeta!.clarification_questions_th
+        : [],
+      coverage_warnings_th: Array.isArray(extMeta?.coverage_warnings_th)
+        ? extMeta!.coverage_warnings_th
+        : [],
+      rejected_calculations_diagnostic: Array.isArray(extMeta?.rejected_calculations_diagnostic)
+        ? extMeta!.rejected_calculations_diagnostic
+        : [],
       claims: claimsOut,
       unresolved_issues: Array.isArray(row.unresolved_issues) ? row.unresolved_issues : [],
       legacy_warning_th: row.legacy_warning_th,
-      execution_provenance: row.execution_provenance ?? null,
+      execution_provenance: cleanExecProvenance,
       verifier_metadata: {
         verifier_version: row.verifier_version,
         ruleset_version: row.ruleset_version,

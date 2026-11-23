@@ -346,6 +346,10 @@ export interface ClaimEvidenceReferenceDto {
   last_successful_verification_at: string | null;
   access_permission: AccessPermissionKind;
   access_conditions_th: string | null;
+  /** Verbatim excerpt of the pinned passage preserved across Save and exact Reopen. */
+  verbatim_excerpt_th?: string;
+  /** Original official title of the source document preserved across Save and exact Reopen. */
+  original_title_th?: string;
 }
 
 export interface ClaimBoundCalculationRecord {
@@ -432,6 +436,17 @@ export interface AnswerRevisionHistoryEntryDto {
   published_claims_count: number;
 }
 
+export interface RejectedCalculationDiagnosticDto {
+  /** Matches `qa_synthetic_fixture` (e.g. `"RC1_REJECTED_CALC"`) when triggered by a QA synthetic fixture, else `null`. */
+  fixture_id: string | null;
+  /** Deterministic claim/issue ID whose proposed calculation was rejected by the verifier. */
+  rejected_claim_or_issue_id: string;
+  /** Verifier rejection code (without leaking unverified numeric figures). */
+  rejection_code: string;
+  /** Redacted human-readable diagnostic reason (zero unverified rates or amounts). */
+  reason_th: string;
+}
+
 export interface TraceableAnswerEnvelope {
   schema_version: "reg24.citation-traceability.v1";
   answer_id: string;
@@ -446,9 +461,14 @@ export interface TraceableAnswerEnvelope {
   generated_at: string;
   as_of_date: string | null;
   status: "complete" | "partial" | "insufficient" | "legacy_unverified";
+  /** Preserves exact GroundedAnswer status (`ANSWERED` / `CONDITIONAL` / `NEEDS_CLARIFICATION` / `INSUFFICIENT_EVIDENCE` / `REVIEW_REQUIRED`) across Save & Reopen. */
+  grounded_answer_status?: import("./contracts").AnswerStatus;
   rendered_answer_th: string;
   user_supplied_facts: string[];
   assumptions: string[];
+  clarification_questions_th?: string[];
+  coverage_warnings_th?: string[];
+  rejected_calculations_diagnostic?: RejectedCalculationDiagnosticDto[];
   claims: PublishedAtomicClaimDto[];
   unresolved_issues: UnresolvedIssueDto[];
   legacy_warning_th: string | null;

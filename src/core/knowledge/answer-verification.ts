@@ -190,7 +190,7 @@ function stripProvenanceHeaderPrefix(claimText: string): string {
 function extractCanonicalSectionIds(normText: string): string[] {
   const out = new Set<string>();
   const matches = normText.matchAll(
-    /มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s*(อัฏฐารส|อัฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|จัตวา|เบญจ|สัตต|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ))?(?:\s*\(([0-9]{1,2})\))?/g
+    /มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s*(อัฏฐารส|อัฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|จัตวา|เบญจ|สัตต|อัฏฐ|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ))?(?:\s*\(([0-9]{1,2})\))?/g
   );
   for (const m of matches) {
     const num = m[1];
@@ -303,13 +303,14 @@ const EXCLUSIVE_LEGAL_DOMAINS: Array<{
   },
   {
     domain: "WITHHOLDING_TAX",
-    claimPattern: /หักภาษี\s*ณ\s*ที่จ่าย|หักภาษีจากเงินได้/,
-    sourcePattern: /หักภาษี\s*ณ\s*ที่จ่าย|หักภาษีจากเงินได้|หัก\s*ณ\s*ที่จ่าย|มาตรา\s*70|3\s*เตรส|มาตรา\s*50|ท\.ป\.\s*4\/2528/,
+    claimPattern: /หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|หักภาษีจากเงินได้/,
+    sourcePattern:
+      /หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย|หักภาษีจากเงินได้|หัก\s*ณ\s*ที่จ่าย|หักภาษี(?:เงินได้)?ไว้|หักและนำ(?:เงิน)?ส่ง|มาตรา\s*70|3\s*เตรส|มาตรา\s*50|มาตรา\s*52|มาตรา\s*53|มาตรา\s*54|41\s*ทวิ|49\s*ทวิ|ท\.ป\.\s*4\/2528/,
   },
   {
     domain: "SBT",
     claimPattern: /ภาษีธุรกิจเฉพาะ/,
-    sourcePattern: /ภาษีธุรกิจเฉพาะ|91\/|ฉบับที่\s*244/,
+    sourcePattern: /ภาษีธุรกิจเฉพาะ|91\/|ฉบับที่\s*244|ฉบับที่\s*342/,
   },
   {
     domain: "STAMP_DUTY",
@@ -532,14 +533,23 @@ export function evaluateSubstantiveClaimSupport(params: {
       for (const fam of SUBPARA_CONCEPT_FAMILIES) {
         if (!fam.pattern.test(localClaimWindow)) continue;
         if (fam.pattern.test(citedSlice)) continue;
+        // If the claim window explicitly negates or excludes this concept (e.g. "ทางอื่นนอกจากมรดก", "มิใช่มรดก",
+        // "ไม่รวมถึงบุตรบุญธรรม"), it is contrasting the sibling subparagraph, NOT misattributing its exception!
+        const negatedConceptInWindow = new RegExp(
+          `(?:มิใช่|ไม่ใช่|ไม่ได้|มิได้|ทางอื่นนอกจาก|นอกจาก|ไม่รวมถึง)[^\\n]{0,40}(?:${fam.pattern.source})`
+        ).test(localClaimWindow);
+        if (negatedConceptInWindow) continue;
+
         // Claim asserts this exception concept on `(${citedLetter})`, yet `(${citedLetter})` does NOT contain it
         // while a DIFFERENT sibling subparagraph `(ก)`–`(ช)` in the same cited text DOES!
-        // Skip only if the claim itself explicitly cites that matching sibling too (e.g. contrasting `มาตรา 50 (5) (ก) ... หรือ ... (ข)`).
+        // Skip if the cited subparagraph itself is defined by excluding that sibling (e.g. §50(5)(ข) "ได้มาโดยทางอื่นนอกจาก (ก)")
+        // or if the claim itself explicitly cites that matching sibling nearby.
         let matchingSibling: string | null = null;
         for (const [sibLetter, sibText] of siblingSlices.entries()) {
           if (sibLetter !== citedLetter && fam.pattern.test(sibText)) {
             const siblingAlsoCitedNearby = new RegExp(`\\(${sibLetter}\\)`).test(localClaimWindow);
-            if (!siblingAlsoCitedNearby) {
+            const citedSliceExcludesSibling = new RegExp(`นอกจาก\\s*\\(${sibLetter}\\)`).test(citedSlice);
+            if (!siblingAlsoCitedNearby && !citedSliceExcludesSibling) {
               matchingSibling = sibLetter;
               break;
             }
@@ -559,16 +569,24 @@ export function evaluateSubstantiveClaimSupport(params: {
 
   // 1c. Party & Asset-Type Grounding Check (e.g. Gift & Gratuitous Immovable Transfer):
   // Rejects any claim that applies a rule to the WRONG taxpayer party or WRONG asset type,
-  // even when the section number and arithmetic are otherwise correct!
-  const mentionsLandOrImmovable = /(?:ที่ดิน|อสังหาริมทรัพย์)/.test(normClaim);
+  // or states an unsupported recipient PIT figure (including zero / no-tax) on a gratuitous immovable transfer!
+  const rawBracketHeader = /^\s*\[([^\]]{2,320})\]/u.exec(params.claim_text || "")?.[1] || "";
+  const cites41BisWithoutCash =
+    params.passages.some((p) => p.doc_id === "prov.th.rc.41_ทวิ") &&
+    !/เงินสด|โอนเงิน/.test(normClaim);
+  const mentionsLandOrImmovable =
+    cites41BisWithoutCash ||
+    /(?:ที่ดิน|อสังหาริมทรัพย์|ห้องชุด|คอนโดมิเนียม|คอนโด|อาคารชุด|อาคารพาณิชย์|บ้านพร้อมที่ดิน|บ้านเดี่ยว|ตึกแถว|ทาวน์โฮม|ทาวน์เฮาส์|สิ่งปลูกสร้าง|สวนผลไม้|ที่นา)/.test(
+      `${rawBracketHeader} ${normClaim}`
+    );
   const mentionsMovableGiftSection =
     /มาตรา\s*42\s*\((?:27|28)\)|มาตรา\s*48\s*\((?:6|7)\)/.test(normClaim);
   const explicitlyDistinguishesMovableFromLand =
-    /ไม่นำเกณฑ์|เฉพาะ(?:กรณี)?(?:การให้)?สังหาริมทรัพย์|ไม่ใช่เงินสดหรือสังหาริมทรัพย์|ไม่ใช้บังคับกับการโอนที่ดิน/.test(
+    /ไม่นำเกณฑ์|เฉพาะ(?:กรณี)?(?:การให้)?สังหาริมทรัพย์|ไม่ใช่เงินสดหรือสังหาริมทรัพย์|ไม่ใช้บังคับกับการโอน|ไม่ได้บัญญัติสรุปภาระภาษี[^\n]{0,60}ผู้รับโอน|ไม่อาจระบุจำนวนภาษีของผู้รับโอน/.test(
       normClaim
     );
   const assertsRecipientTaxFigureForMovableRule =
-    /(?:ได้รับยกเว้น(?:ภาษี)?(?:เฉพาะส่วนที่ไม่เกิน|ไม่เกิน)?\s*(?:10,?000,?000|20,?000,?000|10\s*ล้าน|20\s*ล้าน)|เสียภาษี(?:อัตราร้อยละ|ร้อยละ)\s*5\s*(?:=|คิดเป็น)?\s*(?:250,?000|750,?000))/.test(
+    /(?:ได้รับยกเว้น(?:ภาษี)?(?:เฉพาะส่วนที่ไม่เกิน|ไม่เกิน)?\s*(?:10,?000,?000|20,?000,?000|10\s*ล้าน|20\s*ล้าน)|เสียภาษี(?:อัตราร้อยละ|ร้อยละ)\s*5\s*(?:=|คิดเป็น|เป็นเงิน|จำนวน)?\s*[0-9,]+)/.test(
       normClaim
     );
   if (
@@ -581,7 +599,7 @@ export function evaluateSubstantiveClaimSupport(params: {
       supported: false,
       reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
       detail_th:
-        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากนำเกณฑ์หรือตัวเลขภาษีการรับให้สังหาริมทรัพย์ (มาตรา 42 (27)-(28) / มาตรา 48 (6)-(7)) ไปปรับใช้โดยตรงกับการโอนอสังหาริมทรัพย์ (ที่ดิน) ซึ่งอยู่ภายใต้มาตรา 41 ทวิ และมาตรา 50 (5)-(6)",
+        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากนำเกณฑ์หรือตัวเลขภาษีการรับให้สังหาริมทรัพย์ (มาตรา 42 (27)-(28) / มาตรา 48 (6)-(7)) ไปปรับใช้โดยตรงกับการโอนอสังหาริมทรัพย์ ซึ่งอยู่ภายใต้มาตรา 41 ทวิ และมาตรา 50 (5)-(6)",
       overlap_ratio: 0,
     };
   }
@@ -591,11 +609,11 @@ export function evaluateSubstantiveClaimSupport(params: {
   const citesS42_26 = /มาตรา\s*42\s*\(26\)/.test(normClaim);
   if (citesS42_26) {
     const negatesS42_26 =
-      /ไม่ได้รับ(?:สิทธิ)?ยกเว้น|ไม่เข้าข้อยกเว้น|ไม่เข้าเกณฑ์|มิใช่บุตรชอบด้วยกฎหมาย|ไม่รวม(?:ถึง)?บุตรบุญธรรม|ไม่ใช่บุตรชอบด้วยกฎหมาย/.test(
+      /ไม่ได้รับ(?:สิทธิ)?ยกเว้น|ไม่เข้าข้อยกเว้น|ไม่เข้าเกณฑ์|มิใช่บุตรชอบด้วยกฎหมาย|ไม่รวม(?:ถึง)?บุตรบุญธรรม|ไม่ใช่บุตรชอบด้วยกฎหมาย|เฉพาะฝั่งผู้โอน/.test(
         normClaim
       );
     const appliesToNonLegitChild =
-      /(?:หลานสาว|หลานชาย|บุตรของพี่|บุตรของน้อง|บุตรของบุตร|บุตรบุญธรรม)[^\n]{0,60}(?:ได้รับยกเว้น|เข้าเกณฑ์)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
+      /(?:หลานสาว|หลานชาย|บุตรของพี่|บุตรของน้อง|บุตรของบุตร|บุตรสาวของหลาน|บุตรชายของหลาน|บุตรบุญธรรม)[^\n]{0,60}(?:ได้รับยกเว้น|เข้าเกณฑ์)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
         normClaim
       );
     const attributesS42_26ToRecipient =
@@ -613,22 +631,41 @@ export function evaluateSubstantiveClaimSupport(params: {
     }
   }
 
-  // Reject blanket zero-tax assertion on a non-legitimate-child land recipient without statutory authority,
-  // and reject treating pre-2558 ruling กค 0702/5958 as deciding 2025 recipient PIT without stating its §54/pre-2558 scope limit.
-  const mentionsNonLegitRecipient =
-    /(?:หลานสาว|หลานชาย|บุตรของพี่|บุตรของน้อง|บุตรของบุตร|บุตรบุญธรรม|พี่สาว|พี่ชาย|น้องสาว|น้องชาย|คู่สมรส)/.test(
-      normClaim
+  // Uniform Immovable-Gift Recipient PIT Rule (all relationships & all immovable property types):
+  // Where retrieved official authority (e.g. §41 bis donor deeming rule, §42(26) donor child exemption)
+  // does NOT establish the recipient's own PIT liability or blanket recipient exemption on immovable property,
+  // reject ANY claim that concludes the recipient owes no PIT / zero PIT / `0 บาท` / excludes the immovable
+  // property from the recipient's assessable income, or applies donor rule §41 bis to absolve the recipient!
+  const isRecipientPitHeader =
+    /(?:ผู้รับโอน|ผู้รับให้|ผู้รับมอบ|ภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?!ผู้โอน))/.test(
+      rawBracketHeader
+    ) &&
+    !/ผู้โอน(?:และ|ในฐานะ|เป็นหลัก)|การหักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ภาษีธุรกิจเฉพาะ|อากรแสตมป์/.test(
+      rawBracketHeader
     );
-  const claimsBlanketZeroRecipientTax =
-    /(?:ผู้รับโอน|หลานสาว|หลานชาย|บุตรบุญธรรม)[^\n]{0,40}(?:ไม่ต้องเสียภาษีเลย|ไม่มีภาระภาษีเงินได้|ภาระภาษีเป็นศูนย์|ได้รับยกเว้นภาษีทั้งหมด)/.test(
-      normClaim
-    ) && !/ไม่สมมติว่าผู้รับโอนไม่มีภาระภาษี/.test(normClaim);
-  if (mentionsLandOrImmovable && mentionsNonLegitRecipient && claimsBlanketZeroRecipientTax) {
+  // Strip explicit cautionary disclaimers ("ไม่อาจสรุปว่าผู้รับโอนไม่ต้องเสียภาษี...") before checking prohibited assertions
+  const claimWithoutLimitDisclaimers = normClaim.replace(
+    /(?:ไม่อาจสรุปว่า|ไม่สมมติว่า|ไม่ได้บัญญัติ(?:สรุป)?ว่า|ห้ามสรุปว่า)[^.;\n]{0,90}/g,
+    " "
+  );
+  const assertsZeroOrNoRecipientPitInRecipientIssue =
+    isRecipientPitHeader &&
+    /(?:ไม่ต้องเสียภาษี(?:เงินได้)?|ไม่มีภาระภาษี(?:เงินได้)?|ไม่ต้องนำ(?:มูลค่า)?[^\n]{0,55}มารวมคำนวณ|ภาระภาษี(?:เงินได้)?[^\n]{0,20}เป็นศูนย์|(?:เท่ากับ|เป็นเงิน|จำนวน|คิดเป็น|ภาษีเงินได้(?:บุคคลธรรมดา)?)\s*0\s*บาท)/.test(
+      claimWithoutLimitDisclaimers
+    );
+  const appliesDonorRuleToAbsolveRecipient =
+    /(?:ภาระภาษีเงินได้|หน้าที่เสียภาษีเงินได้)[^\n]{0,65}ตกอยู่แก่[^\n]{0,45}(?:มิใช่|ไม่ใช่)|(?:ไม่ต้องเสียภาษี(?:เงินได้)?|ไม่มีภาระภาษี(?:เงินได้)?|ไม่ต้องนำ(?:มูลค่า)?[^\n]{0,45}มารวมคำนวณ)[^\n]{0,45}จากการรับ(?:โอน|ให้|มอบ)|(?:ผู้รับโอน|ผู้รับให้|ผู้รับมอบ|บุตรบุญธรรม|หลานสาว|หลานชาย|หลาน|น้องชาย|พี่ชาย|คู่สมรส|บุตรสาวของหลาน|บุตรชายของหลาน)[^\n]{0,45}(?:ไม่ต้องเสียภาษีเลย|ไม่มีภาระภาษีเงินได้|ภาระภาษีเป็นศูนย์|ไม่ต้องนำ(?:มูลค่า)?[^\n]{0,45}มารวมคำนวณ)/.test(
+      claimWithoutLimitDisclaimers
+    );
+  if (
+    mentionsLandOrImmovable &&
+    (assertsZeroOrNoRecipientPitInRecipientIssue || appliesDonorRuleToAbsolveRecipient)
+  ) {
     return {
       supported: false,
       reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
       detail_th:
-        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากสรุปเหมารวมว่าผู้รับโอนที่ดิน (มิใช่บุตรชอบด้วยกฎหมาย) ไม่มีภาระภาษีเงินได้โดยไม่มีบทบัญญัติชี้ขาดรองรับ",
+        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากบทบัญญัติที่อ้างอิง (เช่น มาตรา 41 ทวิ ซึ่งกำหนดฝั่งผู้โอน) ไม่ได้บัญญัติรับรองว่าผู้รับโอนอสังหาริมทรัพย์ไม่มีภาระภาษีเงินได้หรือเสียภาษี 0 บาท จึงต้องอธิบายขอบเขตข้อจำกัดของบทบัญญัติโดยไม่ระบุตัวเลขภาษีฝั่งผู้รับโอน (รวมถึงศูนย์)",
       overlap_ratio: 0,
     };
   }
@@ -742,7 +779,7 @@ export function evaluateSubstantiveClaimSupport(params: {
   // 4. Per-document / per-source substantive relevance check (blocks attaching an unrelated source or irrelevant real passage, while allowing multi-unit sequential passages of the same verified document!)
   const groupedBySource = new Map<
     string,
-    { label: string; normWithMeta: string; normBodyOnly: string }
+    { docId: string; label: string; normWithMeta: string; normBodyOnly: string }
   >();
   for (let i = 0; i < params.passages.length; i++) {
     const rawP = params.passages[i];
@@ -751,6 +788,7 @@ export function evaluateSubstantiveClaimSupport(params: {
     const prev = groupedBySource.get(groupKey);
     if (!prev) {
       groupedBySource.set(groupKey, {
+        docId: groupKey,
         label: rawP.passage_id,
         normWithMeta: pNorm.normWithMeta,
         normBodyOnly: pNorm.normBodyOnly,
@@ -775,7 +813,22 @@ export function evaluateSubstantiveClaimSupport(params: {
     const sharedWithThisSource = claimShingles.filter((sh) => pShingleSet.has(sh));
     const perSourceRatio =
       claimShingles.length > 0 ? sharedWithThisSource.length / claimShingles.length : 0;
+    const provSecPart = srcGroup.docId.startsWith("prov.th.rc.")
+      ? srcGroup.docId.slice("prov.th.rc.".length)
+      : null;
+    const docIdGroundsClaimSection = Boolean(
+      provSecPart &&
+        (claimSections.includes(`ม.${provSecPart.replace(/_/g, "")}`) ||
+          claimSections.includes(`ม.${provSecPart.replace(/_/g, "/")}`))
+    );
+    const docIdGroundsInstrumentOrSchedule =
+      (srcGroup.docId === "sched.th.rc.stamp_duty" &&
+        /บัญชีอัตราอากรแสตมป์|อากรแสตมป์/.test(normClaim)) ||
+      (srcGroup.docId === "statute.th.rc_amendment_40_2558" &&
+        (claimInstruments.includes("พรฎ.40") || /พ\.ศ\.\s*2558/.test(normClaim)));
     const groundsExplicitClaimIdentifier =
+      docIdGroundsClaimSection ||
+      docIdGroundsInstrumentOrSchedule ||
       claimSections.some((s) => srcGroup.normWithMeta.includes(s)) ||
       claimRulings.some((r) => srcGroup.normWithMeta.includes(r.replace(/^กค\s*/, ""))) ||
       claimInstruments.some((inst) =>
@@ -891,10 +944,12 @@ function detectThaiTaxPolarity(text: string): {
   ];
 
   const exemptPatterns = [
-    /(?<!ไม่|มิได้|ที่จะ)ได้รับ(?:การ)?ยกเว้นภาษี/,
+    /(?<!ไม่|มิได้|ที่จะ)ได้รับ(?:การ)?ยกเว้น(?:ภาษี|ไม่ต้องรวมคำนวณ|ตามมาตรา)/,
     /ไม่ต้องเสียภาษี/,
     /ไม่เสียภาษี/,
     /ไม่ต้องนำมาเป็นมูลค่าฐานภาษี/,
+    /ไม่อยู่ในบังคับต้อง(?:เสีย|หัก)/,
+    /ไม่มีหน้าที่(?:ต้อง)?หักภาษี/,
     /มีสิทธิเสียภาษี(?:มูลค่าเพิ่ม)?ในอัตรา(?:ภาษี)?ร้อยละ\s*0/,
     /ได้รับสิทธิ\s*เสียภาษีมูลค่าเพิ่มในอัตราร้อยละ\s*0/,
     /(?<!not\s+)\bexempt\s+from\s+(?:vat|corporate\s+income\s+tax|tax)\b/i,
@@ -987,13 +1042,27 @@ export function verifyClaimAgainstPassages(
   const combinedSourceText = cited.map((p) => p.exact_text).join("\n");
   const sourcePol = detectThaiTaxPolarity(combinedSourceText);
 
+  const isAllStatutoryText = cited.every((p) => p.statement_role === "statutory_text");
+  const normStatementForPol = thaiDigitsToArabic(claim.statement).replace(/\s+/g, " ");
   const isAllStatutoryConditionApplication =
-    cited.every((p) => p.statement_role === "statutory_text") &&
+    isAllStatutoryText &&
     Boolean(claim.verified_calculation_numeric_tokens && claim.verified_calculation_numeric_tokens.length > 0);
+  const isStatutoryOutOfScopeApplication =
+    isAllStatutoryText &&
+    /ไม่อยู่ในบังคับต้อง(?:เสีย|หัก)|ไม่มีหน้าที่(?:ต้อง)?หักภาษี|มิใช่ตราสารที่ต้องปิดอากรแสตมป์/.test(
+      normStatementForPol
+    ) &&
+    !/ไม่ให้ถือเป็นรายจ่าย|ห้ามมิให้ถือเป็นรายจ่าย/.test(combinedSourceText);
+  const isStatutoryNonQualificationApplication =
+    isAllStatutoryText &&
+    /ไม่(?:ได้รับยกเว้น|เข้าข้อยกเว้น|เข้าเกณฑ์|อยู่ในเกณฑ์|ใช่บุตรชอบด้วยกฎหมาย|ใช่ผู้สืบสันดาน)|เกิน(?:กว่า)?\s*20,000,000|อยู่นอกช่วง/.test(
+      normStatementForPol
+    );
 
   // Contradiction 1: Claim asserts tax exemption / 0% / no tax, while source rules it is NOT exempt and MUST pay tax!
   if (
     !isAllStatutoryConditionApplication &&
+    !isStatutoryOutOfScopeApplication &&
     claimPol.claimsExemptionOrZeroRate &&
     !claimPol.claimsTaxableOrNonExempt &&
     sourcePol.claimsTaxableOrNonExempt &&
@@ -1009,6 +1078,7 @@ export function verifyClaimAgainstPassages(
 
   // Contradiction 2: Claim asserts non-exempt / taxable, while source unambiguously grants exemption / 0% without contrary clause
   if (
+    !isStatutoryNonQualificationApplication &&
     claimPol.claimsTaxableOrNonExempt &&
     !claimPol.claimsExemptionOrZeroRate &&
     sourcePol.claimsExemptionOrZeroRate &&

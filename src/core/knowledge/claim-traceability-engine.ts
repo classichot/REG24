@@ -1331,6 +1331,8 @@ export function validateAndBuildTraceableAnswer(
             ],
           required_group: grp.group_id,
           citation_label_th: buildThaiCitationLabel(doc, psg),
+          original_title_th: doc.original_title_th,
+          verbatim_excerpt_th: psg.verbatim_text,
           issuer_name_th: pubEntry?.name_th || doc.issuer_id,
           source_family: doc.source_family,
           source_family_label_th: SOURCE_FAMILY_LABELS_TH[doc.source_family],
@@ -2633,16 +2635,28 @@ export async function saveOrReviseAnswerServerVerified(
 
   // Build strict per-claim predecessor lookup keyed by `${claim.text}::${sortedEvidenceIds}` (server-verified only).
   // CRITICAL (Control B2): Bind calculation reuse strictly to the authoritative facts, as_of_date, and active
-  // taxable portion it was verified against! If question_text (or as_of_date) changed from the predecessor
-  // revision, or the verified taxable base is no longer active in question_text, NEVER carry forward the prior
-  // bound_calculation — force fresh re-verification against the new authoritative facts.
-  const normalizeFactKey = (s: string | null | undefined): string =>
-    thaiDigitsToArabic(s || "")
-      .replace(/\s+/g, " ")
-      .trim();
+  // taxable portion it was verified against! If monetary bases or as_of_date changed from the predecessor
+  // revision, or an explicit fact-override cue is present, NEVER carry forward the prior bound_calculation.
+  const prevQuestionNorm = thaiDigitsToArabic(authoritativePredecessorQuestionText || "");
+  const prevMonetaryBasesThb: number[] = [];
+  for (const pm of prevQuestionNorm.matchAll(
+    /(?:(?:THB|฿)\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)|([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท))/gi
+  )) {
+    const val = parseAmountVal(pm[1] || pm[2] || "", pm[3]);
+    if (val !== null) prevMonetaryBasesThb.push(val);
+  }
+  const hasExplicitFactChangeCue =
+    supersededQuestionBasesThb.size > 0 ||
+    /(?:ขอแก้ไข|ขอแก้ข้อเท็จจริง|เปลี่ยน(?:มูลค่า|ฐาน|ราคา|ผู้รับ|ข้อเท็จจริง|เป็นวันที่)|เลื่อนเป็นวันที่|\bchange\b|\brevise\b)/i.test(
+      questionNormForVat
+    );
+  const monetaryBasesMatchPredecessor =
+    prevMonetaryBasesThb.length === questionMonetaryBasesThb.length &&
+    prevMonetaryBasesThb.every((v, idx) => Math.abs(v - questionMonetaryBasesThb[idx]) <= 1);
   const predecessorFactsUnchanged =
     Boolean(authoritativePredecessorQuestionText) &&
-    normalizeFactKey(params.question_text) === normalizeFactKey(authoritativePredecessorQuestionText) &&
+    !hasExplicitFactChangeCue &&
+    monetaryBasesMatchPredecessor &&
     (sub.as_of_date ?? null) === (authoritativePredecessorEnvelope?.as_of_date ?? null);
 
   const predecessorVerifiedCalcsBySignature = new Map<string, ClaimBoundCalculationRecord>();
@@ -2749,10 +2763,69 @@ export async function saveOrReviseAnswerServerVerified(
       .map((r) => r.evidence_id)
       .sort()
       .join(",")}`;
-    const boundCalcForThisClaim =
+    let boundCalcForThisClaim =
       (rawClm.claim_id ? trustedCalcsByClaimId?.[rawClm.claim_id] ?? null : null) ??
       predecessorVerifiedCalcsBySignature.get(predSig) ??
       null;
+
+    // Server-side deterministic arithmetic & statutory-rate re-verification when UI Save submits a
+    // `bound_calculation` on a fresh revision (`r1`) before Neon predecessor exists (e.g. K1 200,000 THB):
+    // NEVER trusts arbitrary client numbers — requires tax_base_thb to match an active non-superseded
+    // base in question_text, exempt_amount_thb & rate_pct to match canonical cited passages, and exact math!
+    if (!boundCalcForThisClaim && rawClm.bound_calculation) {
+      const cand = rawClm.bound_calculation;
+      const tBase = typeof cand.inputs?.tax_base_thb === "number" ? cand.inputs.tax_base_thb : null;
+      const exAmt =
+        typeof cand.inputs?.exempt_amount_thb === "number" ? cand.inputs.exempt_amount_thb : 0;
+      const ratePct = typeof cand.inputs?.rate_pct === "number" ? cand.inputs.rate_pct : null;
+      const taxAmt =
+        typeof cand.outputs?.taxable_amount_thb === "number" ? cand.outputs.taxable_amount_thb : null;
+      const compTax =
+        typeof cand.outputs?.computed_tax_thb === "number" ? cand.outputs.computed_tax_thb : null;
+      const canonicalCitedBlob = thaiDigitsToArabic(
+        validRefs.map((r) => unified.passages[r.evidence_id]?.verbatim_text || "").join(" ")
+      );
+      const baseInQuestion =
+        tBase !== null &&
+        tBase > 0 &&
+        !supersededQuestionBasesThb.has(tBase) &&
+        questionMonetaryBasesThb.some((qb) => Math.abs(qb - tBase) <= 1);
+      const exemptGrounded =
+        exAmt === 0 ||
+        (exAmt === 20_000_000 &&
+          (canonicalCitedBlob.includes("ยี่สิบล้านบาท") ||
+            canonicalCitedBlob.includes("20,000,000"))) ||
+        (exAmt === 10_000_000 &&
+          (canonicalCitedBlob.includes("สิบล้านบาท") ||
+            canonicalCitedBlob.includes("10,000,000")));
+      const rateGrounded =
+        ratePct !== null &&
+        (canonicalCitedBlob.includes(String(ratePct)) ||
+          (ratePct === 5 && /ร้อยละ\s*(?:5|ห้า)|5%/.test(canonicalCitedBlob)) ||
+          (ratePct === 7 && /6\.3|หกจุดสาม|ร้อยละ\s*7|7%/.test(canonicalCitedBlob)) ||
+          (ratePct === 3.3 && /ร้อยละ\s*(?:3|สาม)|3\.3/.test(canonicalCitedBlob)) ||
+          (ratePct === 0.5 && /0\.5|หนึ่งบาท/.test(canonicalCitedBlob)));
+      const mathExact =
+        tBase !== null &&
+        taxAmt !== null &&
+        ratePct !== null &&
+        compTax !== null &&
+        Math.abs(Math.max(0, tBase - exAmt) - taxAmt) <= 1 &&
+        Math.abs((taxAmt * ratePct) / 100 - compTax) <= 1.5;
+      if (baseInQuestion && exemptGrounded && rateGrounded && mathExact) {
+        const reverifiedTokens = new Set<string>();
+        for (const nv of [tBase, exAmt, taxAmt, ratePct, compTax]) {
+          if (nv !== null && Number.isFinite(nv)) {
+            reverifiedTokens.add(String(nv));
+            reverifiedTokens.add(nv.toLocaleString("en-US"));
+          }
+        }
+        boundCalcForThisClaim = {
+          ...cand,
+          verified_numeric_tokens: Array.from(reverifiedTokens),
+        };
+      }
+    }
     const baseVerifiedTokens =
       boundCalcForThisClaim?.verified_numeric_tokens ??
       (rawClm.claim_id ? trustedCalcTokensByClaimId?.[rawClm.claim_id] : undefined) ??
@@ -2846,6 +2919,28 @@ export async function saveOrReviseAnswerServerVerified(
   });
   if (sub.execution_provenance) {
     serverValidated.execution_provenance = sub.execution_provenance;
+  }
+  if (
+    serverValidated.status === "complete" &&
+    (sub.status === "partial" || sub.grounded_answer_status === "CONDITIONAL")
+  ) {
+    serverValidated.status = "partial";
+  }
+  serverValidated.grounded_answer_status =
+    sub.grounded_answer_status ||
+    (serverValidated.status === "complete"
+      ? "ANSWERED"
+      : serverValidated.status === "partial"
+        ? "CONDITIONAL"
+        : "INSUFFICIENT_EVIDENCE");
+  if (sub.clarification_questions_th && sub.clarification_questions_th.length > 0) {
+    serverValidated.clarification_questions_th = [...sub.clarification_questions_th];
+  }
+  if (sub.coverage_warnings_th && sub.coverage_warnings_th.length > 0) {
+    serverValidated.coverage_warnings_th = [...sub.coverage_warnings_th];
+  }
+  if (sub.rejected_calculations_diagnostic && sub.rejected_calculations_diagnostic.length > 0) {
+    serverValidated.rejected_calculations_diagnostic = [...sub.rejected_calculations_diagnostic];
   }
 
   // Reject if caller tried to save an answer claiming to be supported when server validation found ZERO supported claims!
@@ -3238,7 +3333,7 @@ export function attachTraceableEnvelopeToGroundedAnswer(
     });
   }
 
-  return validateAndBuildTraceableAnswer(store, {
+  const builtEnvelope = validateAndBuildTraceableAnswer(store, {
     answer_id: `ans.${grounded.trace_id}`,
     channel: params.channel || "api",
     question: params.question,
@@ -3250,8 +3345,74 @@ export function attachTraceableEnvelopeToGroundedAnswer(
     proposed_claims: proposed,
     user_supplied_facts: userFacts,
     assumptions: grounded.assumptions,
-    persist_atomically: Boolean(params.persist),
+    persist_atomically: false,
   });
+
+  // Preserve exact upstream GroundedAnswer outcome (CONDITIONAL -> partial, NEEDS_CLARIFICATION / INSUFFICIENT_EVIDENCE / REVIEW_REQUIRED -> insufficient)
+  // so Save & Reopen never promote a CONDITIONAL/partial answer to ANSWERED/complete!
+  if (grounded.status === "CONDITIONAL" && builtEnvelope.status === "complete") {
+    builtEnvelope.status = "partial";
+  } else if (
+    (grounded.status === "NEEDS_CLARIFICATION" ||
+      grounded.status === "INSUFFICIENT_EVIDENCE" ||
+      grounded.status === "REVIEW_REQUIRED") &&
+    builtEnvelope.claims.filter((c) => c.verification_decision === "supported").length === 0
+  ) {
+    builtEnvelope.status = "insufficient";
+    if (grounded.answer && grounded.answer.trim().length > 0) {
+      builtEnvelope.rendered_answer_th = grounded.answer;
+    }
+  }
+  builtEnvelope.grounded_answer_status =
+    builtEnvelope.status === "insufficient" && grounded.status === "ANSWERED"
+      ? "INSUFFICIENT_EVIDENCE"
+      : grounded.status;
+  if (grounded.clarification_questions && grounded.clarification_questions.length > 0) {
+    builtEnvelope.clarification_questions_th = [...grounded.clarification_questions];
+  }
+  if (grounded.coverage_warnings && grounded.coverage_warnings.length > 0) {
+    builtEnvelope.coverage_warnings_th = [...grounded.coverage_warnings];
+  }
+  if (
+    grounded.rejected_calculations_diagnostic &&
+    grounded.rejected_calculations_diagnostic.length > 0
+  ) {
+    builtEnvelope.rejected_calculations_diagnostic = [
+      ...grounded.rejected_calculations_diagnostic,
+    ];
+  }
+  if (grounded.execution_provenance) {
+    builtEnvelope.execution_provenance = grounded.execution_provenance;
+  }
+
+  if (params.persist && (builtEnvelope.status === "complete" || builtEnvelope.status === "partial")) {
+    const linksToCommit = builtEnvelope.claims.flatMap((clm) =>
+      clm.evidence_references.map((ref) => ({
+        ...ref,
+        answer_revision: builtEnvelope.answer_revision,
+        claim_id: clm.claim_id,
+        verifier_or_reviewer_id: CLAIM_VERIFIER_VERSION,
+        ruleset_version: CLAIM_RULESET_VERSION,
+        verified_at: builtEnvelope.generated_at,
+      }))
+    );
+    const trustedTokensByClaimId: Record<string, string[]> = {};
+    const trustedCalcsByClaimId: Record<string, ClaimBoundCalculationRecord> = {};
+    for (const clm of builtEnvelope.claims) {
+      if (clm.bound_calculation) {
+        trustedCalcsByClaimId[clm.claim_id] = clm.bound_calculation;
+        trustedTokensByClaimId[clm.claim_id] = clm.bound_calculation.verified_numeric_tokens;
+      }
+    }
+    return commitTraceableAnswerAtomically(store, builtEnvelope, linksToCommit, {
+      actor: params.actor,
+      question_text: params.question,
+      trusted_calculation_tokens_by_claim_id: trustedTokensByClaimId,
+      trusted_calculations_by_claim_id: trustedCalcsByClaimId,
+    });
+  }
+
+  return builtEnvelope;
 }
 
 function generateDeterministicScanPageSvgDataUri(params: {
@@ -3646,12 +3807,14 @@ export function reopenSavedTraceableAnswer(
   error_th?: string;
 } {
   const view = getUnifiedCitationLedgerView(store);
+  const isExplicitRevisionRequest = /\.(?:legacy\.)?r\d+$/.test(answerRevisionOrId);
   const direct = view.published_answers[answerRevisionOrId];
-  const matched =
-    direct ||
-    Object.values(view.published_answers)
-      .filter((a) => a.answer_id === answerRevisionOrId)
-      .sort((a, b) => b.revision_number - a.revision_number)[0];
+  const matched = isExplicitRevisionRequest
+    ? direct
+    : direct ||
+      Object.values(view.published_answers)
+        .filter((a) => a.answer_id === answerRevisionOrId)
+        .sort((a, b) => b.revision_number - a.revision_number)[0];
 
   if (!matched) {
     return {
@@ -3734,6 +3897,8 @@ export function reopenSavedTraceableAnswer(
       if (!loc || !psg) return ref;
       return {
         ...ref,
+        original_title_th: doc?.original_title_th || ref.original_title_th,
+        verbatim_excerpt_th: psg.verbatim_text || ref.verbatim_excerpt_th,
         official_url: loc.exact_official_url,
         official_url_with_anchor: buildOfficialUrlWithAnchor(loc, psg, pub),
         link_health: loc.link_health,
@@ -3890,6 +4055,8 @@ export async function reopenSavedTraceableAnswerWithPostgres(
             };
         return {
           ...ref,
+          original_title_th: doc?.original_title_th || ref.original_title_th,
+          verbatim_excerpt_th: psg?.verbatim_text || ref.verbatim_excerpt_th,
           official_url: resolvedUrl,
           official_url_with_anchor: psg
             ? buildOfficialUrlWithAnchor(effectiveLoc, psg, pub)

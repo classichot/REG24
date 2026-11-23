@@ -328,6 +328,7 @@ function extractAmountsForTurn(
     const thb = m[2] === "ล้านบาท" ? numVal * 1_000_000 : numVal;
     const idx = m.index ?? 0;
     const leftCtx = norm.slice(Math.max(0, idx - 80), idx);
+    const immediateLeft = norm.slice(Math.max(0, idx - 50), idx);
 
     if (/ราคาประเมินทุนทรัพย์|ราคาประเมิน(?:ของทางราชการ)?/.test(leftCtx)) {
       upsertFact(factsMap, overrides, {
@@ -353,7 +354,43 @@ function extractAmountsForTurn(
         normalized_category: `CONSIDERATION_THB_${Math.round(thb)}`,
         source_turn: turnNumber,
       });
+    } else if (
+      /(?:หักภาษี(?:\s*เงินได้)?\s*ณ\s*ที่จ่าย(?:ไว้)?|ภาษี(?:\s*เงินได้)?หัก\s*ณ\s*ที่จ่าย|เสียอากรแสตมป์(?:อีก)?|ปิดอากรแสตมป์|เสียภาษี(?:เงินได้|ขาย|มูลค่าเพิ่ม)?(?:อีก|เป็นเงิน|จำนวน)|ภาษีขาย(?:เป็นเงิน|จำนวน)?|เบี้ยปรับ|เงินเพิ่ม)[^,.;0-9]{0,20}$/.test(
+        immediateLeft
+      )
+    ) {
+      // Never let a disputed/claimed withholding-tax, stamp-duty, or surcharge figure overwrite the principal asset/gift value!
+      const dutyOrTaxKey = /อากรแสตมป์|แสตมป์/.test(immediateLeft)
+        ? "disputed_or_stated_stamp_duty_thb"
+        : /หักภาษี|หัก\s*ณ\s*ที่จ่าย/.test(immediateLeft)
+          ? "disputed_or_stated_wht_thb"
+          : "disputed_or_stated_tax_thb";
+      const dutyOrTaxLabel = /อากรแสตมป์|แสตมป์/.test(immediateLeft)
+        ? "จำนวนอากรแสตมป์ที่กล่าวถึงในคำถาม (เพื่อตรวจสอบความถูกต้อง)"
+        : /หักภาษี|หัก\s*ณ\s*ที่จ่าย/.test(immediateLeft)
+          ? "จำนวนภาษีหัก ณ ที่จ่ายที่กล่าวถึงในคำถาม (เพื่อตรวจสอบความถูกต้อง)"
+          : "จำนวนภาษีที่กล่าวถึงในคำถาม";
+      upsertFact(factsMap, overrides, {
+        fact_key: dutyOrTaxKey,
+        label_th: dutyOrTaxLabel,
+        original_text_th: `${rawSpan} (${thb.toLocaleString("en-US")} บาท)`,
+        normalized_category: `DISPUTED_OR_STATED_TAX_THB_${Math.round(thb)}`,
+        source_turn: turnNumber,
+      });
     } else {
+      // Within the SAME turn, do not let a secondary trailing figure overwrite an already-captured principal asset value
+      // unless preceded by an explicit in-turn correction marker; cross-turn updates override normally.
+      const existingAssetVal = factsMap.get("stated_asset_value_thb");
+      const hasSameTurnCorrectionMarker = /(?:แก้ไข(?:เป็น)?|เปลี่ยน(?:เป็น)?|ที่ถูกต้องคือ|แทนจำนวนเดิม)/.test(
+        immediateLeft
+      );
+      if (
+        existingAssetVal &&
+        existingAssetVal.source_turn === turnNumber &&
+        !hasSameTurnCorrectionMarker
+      ) {
+        continue;
+      }
       upsertFact(factsMap, overrides, {
         fact_key: "stated_asset_value_thb",
         label_th: "มูลค่าทรัพย์สินที่ระบุในข้อเท็จจริง",
@@ -474,7 +511,28 @@ export function buildStructuredCaseFactLedger(input: {
     }
 
     // 3. Recipient & Kinship extraction (preserving exact noun & gender, never guessing ambiguous หลานสาว)
-    if (/(?:บุตรชายของน้องสาว|บุตรชายของน้องชาย|บุตรชายของพี่สาว|บุตรชายของพี่ชาย|ลูกชายของน้อง|ลูกชายของพี่)/.test(norm)) {
+    if (/(?:บุตร(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?|ลูก(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?)/.test(norm)) {
+      const isMaleGrand = /(?:บุตรชายของหลาน|ลูกชายของหลาน)/.test(norm);
+      const m = norm.match(
+        /((?:นางสาว|นาย|ด\.ญ\.|ด\.ช\.)?[ก-๙]+\s*ซึ่งเป็นบุตร(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?[^\n,.?]*(?:\([^)]+\))?|บุตร(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?[^\s,.;)]*(?:\s*\([^)]+\))?)/
+      );
+      recipientOriginalNounTh = m
+        ? m[1].trim()
+        : isMaleGrand
+          ? "บุตรชายของหลาน (เหลน — มิใช่บุตรชอบด้วยกฎหมาย)"
+          : "บุตรสาวของหลาน (เหลน — มิใช่บุตรชอบด้วยกฎหมาย)";
+      forbidNieceSubstitution = isMaleGrand;
+      recipientKinshipCategory =
+        "COLLATERAL_GRANDNIECE_OR_GRANDNEPHEW_NOT_DESCENDANT_NOT_LEGITIMATE_CHILD";
+      isAmbiguousLanSao = false;
+      upsertFact(factsMap, overrides, {
+        fact_key: "recipient_kinship",
+        label_th: "ผู้รับโอนและความสัมพันธ์ทางเครือญาติ",
+        original_text_th: recipientOriginalNounTh,
+        normalized_category: recipientKinshipCategory,
+        source_turn: turnNumber,
+      });
+    } else if (/(?:บุตรชายของน้องสาว|บุตรชายของน้องชาย|บุตรชายของพี่สาว|บุตรชายของพี่ชาย|ลูกชายของน้อง|ลูกชายของพี่)/.test(norm)) {
       const m = norm.match(/((?:นาย|ด\.ช\.)[ก-๙]+\s*ซึ่งเป็นหลานชาย\s*\([^)]+\)|หลานชาย\s*\([^)]+\)|บุตรชายของ(?:น้อง|พี่)(?:สาว|ชาย)[^\s,.;)]*)/);
       recipientOriginalNounTh = m ? m[1].trim() : "หลานชาย (บุตรของพี่น้อง)";
       forbidNieceSubstitution = true;
@@ -516,6 +574,21 @@ export function buildStructuredCaseFactLedger(input: {
         normalized_category: recipientKinshipCategory,
         source_turn: turnNumber,
       });
+    } else if (
+      /บุตรบุญธรรม/.test(norm) &&
+      !/ไม่ใช่บุตรบุญธรรม|มิใช่บุตรบุญธรรม|ไม่รวม(?:ถึง)?บุตรบุญธรรม/.test(raw)
+    ) {
+      recipientOriginalNounTh = "บุตรบุญธรรม (มิใช่บุตรชอบด้วยกฎหมายตามข้อยกเว้นมาตรา 42 (26))";
+      forbidNieceSubstitution = true;
+      recipientKinshipCategory = "ADOPTED_CHILD_NOT_LEGITIMATE_CHILD";
+      isAmbiguousLanSao = false;
+      upsertFact(factsMap, overrides, {
+        fact_key: "recipient_kinship",
+        label_th: "ผู้รับโอนและความสัมพันธ์ทางเครือญาติ",
+        original_text_th: recipientOriginalNounTh,
+        normalized_category: recipientKinshipCategory,
+        source_turn: turnNumber,
+      });
     } else if (/หลานชาย/.test(norm)) {
       recipientOriginalNounTh = "หลานชาย (ยังไม่ระบุว่าเป็นผู้สืบสันดานหรือบุตรของพี่น้อง)";
       forbidNieceSubstitution = true;
@@ -540,10 +613,37 @@ export function buildStructuredCaseFactLedger(input: {
         normalized_category: recipientKinshipCategory,
         source_turn: turnNumber,
       });
-    } else if (/บุตรชอบด้วยกฎหมาย/.test(norm)) {
-      recipientOriginalNounTh = "บุตรชอบด้วยกฎหมาย (มิใช่บุตรบุญธรรม)";
-      forbidNieceSubstitution = true;
+    } else if (
+      /บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย/.test(norm) &&
+      !/(?:ไม่ใช่|มิใช่)บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย/.test(raw)
+    ) {
+      const childGender = /บุตรสาวชอบด้วยกฎหมาย/.test(norm)
+        ? "บุตรสาวชอบด้วยกฎหมาย (มิใช่บุตรบุญธรรม)"
+        : /บุตรชายชอบด้วยกฎหมาย/.test(norm)
+          ? "บุตรชายชอบด้วยกฎหมาย (มิใช่บุตรบุญธรรม)"
+          : "บุตรชอบด้วยกฎหมาย (มิใช่บุตรบุญธรรม)";
+      recipientOriginalNounTh = childGender;
+      forbidNieceSubstitution = !/บุตรสาว/.test(norm);
       recipientKinshipCategory = "LEGITIMATE_CHILD_NON_ADOPTED";
+      isAmbiguousLanSao = false;
+      upsertFact(factsMap, overrides, {
+        fact_key: "recipient_kinship",
+        label_th: "ผู้รับโอนและความสัมพันธ์ทางเครือญาติ",
+        original_text_th: recipientOriginalNounTh,
+        normalized_category: recipientKinshipCategory,
+        source_turn: turnNumber,
+      });
+    } else if (
+      /(?:ให้(?:แก่)?|โอน[^\n]{0,45}ให้(?:แก่)?|มอบ[^\n]{0,45}ให้(?:แก่)?)[^\n]{0,25}?(บิดา(?:บังเกิดเกล้า|แท้ๆ)?|มารดา(?:บังเกิดเกล้า|แท้ๆ)?|พ่อ(?:บังเกิดเกล้า|แท้ๆ)?|แม่(?:บังเกิดเกล้า|แท้ๆ)?|บุพการี)/.test(
+        norm
+      )
+    ) {
+      const m = norm.match(
+        /(บิดา(?:บังเกิดเกล้า|แท้ๆ)?|มารดา(?:บังเกิดเกล้า|แท้ๆ)?|พ่อ(?:บังเกิดเกล้า|แท้ๆ)?|แม่(?:บังเกิดเกล้า|แท้ๆ)?|บุพการี)/
+      );
+      recipientOriginalNounTh = m ? `${m[1]} (บุพการี)` : "บุพการี";
+      forbidNieceSubstitution = true;
+      recipientKinshipCategory = "ASCENDANT_PARENT";
       isAmbiguousLanSao = false;
       upsertFact(factsMap, overrides, {
         fact_key: "recipient_kinship",
@@ -554,8 +654,26 @@ export function buildStructuredCaseFactLedger(input: {
       });
     }
 
-    // 4. Transfer consideration & occasion
-    if (/โดยไม่มีค่าตอบแทน|โดยเสน่หาไม่มีค่าตอบแทน|ยก[^\n]{0,25}ให้/.test(norm)) {
+    // 4. Transfer consideration, acquisition method & occasion
+    if (/ได้[^\n]{0,35}มาโดย(?:ทาง)?มรดก|รับมรดกมาจาก|ได้มาจากการให้โดยเสน่หา/.test(norm)) {
+      upsertFact(factsMap, overrides, {
+        fact_key: "acquisition_method",
+        label_th: "วิธีการได้มาซึ่งทรัพย์สินของผู้โอน",
+        original_text_th: /ให้โดยเสน่หา/.test(norm) ? "ได้มาจากการให้โดยเสน่หา" : "ได้มาโดยทางมรดก",
+        normalized_category: "ACQUIRED_BY_INHERITANCE_OR_GIFT",
+        source_turn: turnNumber,
+      });
+    } else if (/ได้[^\n]{0,35}มาโดยการซื้อ|ซื้อ(?:ที่ดิน|บ้าน|ห้องชุด|อาคาร)[^\n]{0,30}มา(?:เอง|จาก)/.test(norm)) {
+      upsertFact(factsMap, overrides, {
+        fact_key: "acquisition_method",
+        label_th: "วิธีการได้มาซึ่งทรัพย์สินของผู้โอน",
+        original_text_th: "ได้มาโดยการซื้อ (ทางอื่นนอกจากมรดกหรือการได้รับจากการให้โดยเสน่หา)",
+        normalized_category: "ACQUIRED_BY_PURCHASE",
+        source_turn: turnNumber,
+      });
+    }
+
+    if (/โดยไม่มีค่าตอบแทน|โดยเสน่หา|ยก[^\n]{0,25}ให้|มอบเงินสด[^\n]{0,35}ให้/.test(norm)) {
       upsertFact(factsMap, overrides, {
         fact_key: "consideration_type",
         label_th: "ลักษณะการโอน",
@@ -564,7 +682,7 @@ export function buildStructuredCaseFactLedger(input: {
         source_turn: turnNumber,
       });
     }
-    if (/ไม่ได้เกี่ยวกับพิธีหรือโอกาสตามขนบธรรมเนียมประเพณี|มิใช่[^\n]{0,20}ประเพณี/.test(raw)) {
+    if (/ไม่ได้เกี่ยวกับพิธีหรือโอกาสตามขนบธรรมเนียมประเพณี|ไม่เกี่ยวกับพิธีหรือประเพณี|ไม่เกี่ยวกับพิธีตามประเพณี|มิใช่[^\n]{0,20}ประเพณี/.test(raw)) {
       upsertFact(factsMap, overrides, {
         fact_key: "customary_occasion",
         label_th: "พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี",
@@ -572,12 +690,12 @@ export function buildStructuredCaseFactLedger(input: {
         normalized_category: "NOT_CUSTOMARY_OCCASION",
         source_turn: turnNumber,
       });
-    } else if (/งานสมรสตามประเพณี|พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี|อุปการะ/.test(norm)) {
-      const m = norm.match(/(งานสมรสตามประเพณี|พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี|อุปการะ[^\s,.;]{0,20})/);
+    } else if (/งานบวช[^\n,.;]{0,30}|พิธีอุปสมบท[^\n,.;]{0,30}|งานสมรสตามประเพณี|พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี|อุปการะ/.test(norm)) {
+      const m = norm.match(/(งานบวช[^\n,.;?]{0,35}|พิธีอุปสมบท[^\n,.;?]{0,35}|งานสมรสตามประเพณี|พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี|อุปการะ[^\s,.;]{0,20})/);
       upsertFact(factsMap, overrides, {
         fact_key: "customary_occasion",
         label_th: "พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี",
-        original_text_th: m ? m[1] : "พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี",
+        original_text_th: m ? m[1].trim() : "พิธีหรือโอกาสตามขนบธรรมเนียมประเพณี",
         normalized_category: "CUSTOMARY_OR_MORAL_OCCASION",
         source_turn: turnNumber,
       });

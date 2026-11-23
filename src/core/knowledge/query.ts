@@ -27,9 +27,15 @@ import {
   buildGroundedPassagePack,
   draftGroundedLegalAnswerWithLlm,
   GROUNDED_LLM_PROMPT_VERSION,
+  type GroundedLlmDraftResponse,
+  type GroundedLlmSpecialConstraints,
+  type GroundedThinkingLevel,
 } from "./grounded-llm-drafter";
 import { verifyAndRenderGroundedLlmDraft } from "./grounded-llm-verifier";
-import type { TraceablePublicationChannel } from "./citation-contracts";
+import type {
+  RejectedCalculationDiagnosticDto,
+  TraceablePublicationChannel,
+} from "./citation-contracts";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { sha256Bytes, thaiDigitsToArabic } from "./identity";
 import { analyzeLegalIssuesAndFacts } from "./legal-issue-fact-analyzer";
@@ -121,13 +127,17 @@ function selectRelevantPassagesForClaimWork(
     if (/\(10\)|มรดก/.test(claimStatementTh)) patterns.push(/\(10\)/);
   } else if (workId === "prov.th.rc.48") {
     if (/\(4\/1\)|4\/1/.test(claimStatementTh)) patterns.push(/\(4\/1\)/);
-    if (/\(6\)/.test(claimStatementTh)) patterns.push(/\(6\)/);
-    if (/\(7\)/.test(claimStatementTh)) patterns.push(/\(7\)/);
-    if (/\(4\)/.test(claimStatementTh)) patterns.push(/\(4\)/);
+    if (/\(6\)/.test(claimStatementTh)) patterns.push(/(?:^|\n)\s*\(6\)/);
+    if (/\(7\)/.test(claimStatementTh)) patterns.push(/(?:^|\n)\s*\(7\)/);
+    if (/\(4\)|165|ซื้อ|วิธีหักค่าใช้จ่าย/.test(claimStatementTh)) {
+      patterns.push(/ฉบับที่\s*165|\(4\)\s*เงินได้พึงประเมิน/);
+    }
   } else if (workId === "prov.th.rc.50") {
-    if (/\(6\)/.test(claimStatementTh)) patterns.push(/\(6\)/);
-    if (/\(5\)/.test(claimStatementTh)) patterns.push(/\(5\)/);
-    if (/\(1\)/.test(claimStatementTh)) patterns.push(/\(1\)/);
+    if (/\(6\)/.test(claimStatementTh)) patterns.push(/(?:-->\s*|^|\n\s*)\(6\)\s*ในกรณี/);
+    if (/\(5\)/.test(claimStatementTh)) patterns.push(/(?:-->\s*|^|\n\s*)\(5\)\s*ในกรณี/);
+    if (/\(1\)|โอนเงินสด|ผ่านธนาคาร/.test(claimStatementTh)) {
+      patterns.push(/(?:-->\s*|^|\n\s*)\([12]\)/);
+    }
   } else if (workId === "prov.th.rc.40") {
     if (/\(8\)/.test(claimStatementTh)) patterns.push(/\(8\)/);
     if (/\(1\)|\(2\)/.test(claimStatementTh)) patterns.push(/\(1\)|\(2\)/);
@@ -138,7 +148,7 @@ function selectRelevantPassagesForClaimWork(
     if (/กู้ยืมเงิน|ลักษณะแห่งตราสาร\s*5/.test(claimStatementTh)) patterns.push(/5\.\s*กู้ยืมเงิน/);
     if (/เช่าที่ดิน|ลักษณะแห่งตราสาร\s*1/.test(claimStatementTh)) patterns.push(/1\.\s*เช่าที่ดิน/);
   } else if (workId === "subreg.th.rc.royal_decree.342") {
-    patterns.push(/มาตรา\s*4|\(6\)|\(ข\)|\(ค\)/);
+    patterns.push(/มาตรา\s*4|\(6\)|\(ข\)|\(ค\)|\(ง\)/);
   } else if (workId === "subreg.th.rd.dg_vat.105") {
     patterns.push(/ข้อ\s*2|ต่างประเทศ|ร้อยละ\s*0/);
   }
@@ -346,13 +356,14 @@ function resolveMultiTurnFollowUpRequest(req: QueryRequest): {
   const anchorTokens = new Set<string>();
   let carriedDate: string | null = null;
   for (const turn of history) {
-    const tNorm = thaiDigitsToArabic(turn.content);
-    // CRITICAL ARCHITECTURAL FIX: Never carry `กค` ruling IDs from `assistant` turns!
-    // Otherwise an old ruling cited on Turn 1 hijacks Turn 2 (`+40.0` exact_id boost) when facts change!
-    if (turn.role === "user") {
-      const rulings = tNorm.match(/กค\s*0\d{3}\s*\/\s*\d+/g) || [];
-      for (const r of rulings) anchorTokens.add(r.replace(/\s+/g, " ").trim());
+    // CRITICAL ARCHITECTURAL FIX (WS5 / VAt2): Extract anchor law identifiers and topics STRICTLY from `user` turns!
+    // Never carry assistant-drafted citations (e.g. Turn 1 `พ.ร.ฎ. ฉบับที่ 799` or `กค` rulings) into Turn 2's question!
+    if (turn.role !== "user") {
+      continue;
     }
+    const tNorm = thaiDigitsToArabic(turn.content);
+    const rulings = tNorm.match(/กค\s*0\d{3}\s*\/\s*\d+/g) || [];
+    for (const r of rulings) anchorTokens.add(r.replace(/\s+/g, " ").trim());
     const sections =
       tNorm.match(
         /มาตรา\s*\d+(?:\/\d+)?(?:\s*(?:อัฏฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฏฐ))?(?:\s*\(\d+\))?/g
@@ -370,7 +381,7 @@ function resolveMultiTurnFollowUpRequest(req: QueryRequest): {
         /(?:ภาษีมูลค่าเพิ่ม|อัตราร้อยละ\s*0|ส่งออกบริการ|ใช้บริการในต่างประเทศ|หักภาษี\s*ณ\s*ที่จ่าย|หมายเรียก|บริจาคสถานศึกษา|รายจ่ายต้องห้าม|ภาษีธุรกิจเฉพาะ|อากรแสตมป์|ภาษีเงินได้นิติบุคคล|ภาษีเงินได้บุคคลธรรมดา)/g
       ) || [];
     for (const kt of keyTopics) anchorTokens.add(kt.trim());
-    if (turn.role === "user" && turn.applicable_date) {
+    if (turn.applicable_date) {
       carriedDate = turn.applicable_date;
     }
   }
@@ -609,6 +620,14 @@ export async function queryKnowledge(
     onRealAppEvidenceAssembly?: (capture: RealAppEvidenceAssemblyCapture) => void;
     /** When true, runs the full real app retrieval + evidence assembly and stops right before the LLM network call. */
     captureRealAppEvidenceAssemblyOnly?: boolean;
+    /** Non-production test hook for exercising the full grounded-LLM path deterministically. */
+    llmMockInvokerForTesting?: (args: {
+      question: string;
+      userPrompt: string;
+      requestedModel: string;
+      thinkingLevel: GroundedThinkingLevel;
+      specialConstraints?: GroundedLlmSpecialConstraints;
+    }) => Promise<GroundedLlmDraftResponse> | GroundedLlmDraftResponse;
   }
 ): Promise<GroundedAnswer> {
   const store = options?.store || getDefaultKnowledgeStore();
@@ -663,6 +682,7 @@ export async function queryKnowledge(
       calculation_verifier_version: "reg24-tax-calc-verifier-v1.0",
       ruleset_version: CLAIM_RULESET_VERSION,
       query_kind: "LEGAL_FACT_APPLICATION" as const,
+      execution_mode: "rule_only_model_not_invoked" as const,
       configuration: {
         store_topology_mode: topInfo.topology_mode,
         hierarchy_of_authority_retrieval: true,
@@ -743,6 +763,13 @@ async function executeCoreKnowledgeQuery(
     rawOriginalQuestion?: string;
     onRealAppEvidenceAssembly?: (capture: RealAppEvidenceAssemblyCapture) => void;
     captureRealAppEvidenceAssemblyOnly?: boolean;
+    llmMockInvokerForTesting?: (args: {
+      question: string;
+      userPrompt: string;
+      requestedModel: string;
+      thinkingLevel: GroundedThinkingLevel;
+      specialConstraints?: GroundedLlmSpecialConstraints;
+    }) => Promise<GroundedLlmDraftResponse> | GroundedLlmDraftResponse;
   }
 ): Promise<GroundedAnswer> {
   const startedAt = Date.now();
@@ -821,6 +848,7 @@ async function executeCoreKnowledgeQuery(
     calculation_verifier_version: "reg24-tax-calc-verifier-v1.0",
     ruleset_version: CLAIM_RULESET_VERSION,
     query_kind: issueAnalysis.queryKind,
+    execution_mode: "rule_only_model_not_invoked" as const,
     configuration: {
       store_topology_mode: topologyInfo.topology_mode,
       hierarchy_of_authority_retrieval: true,
@@ -829,6 +857,27 @@ async function executeCoreKnowledgeQuery(
       tax_foundation_pilot_enabled: foundationPilotEnabled,
     },
   });
+
+  const envProvider = (process.env.REG24_GROUNDED_LLM_PROVIDER || "").trim().toLowerCase();
+  const usesOpenAiChallenger =
+    req.challenger_provider === "openai" || (!req.challenger_provider && envProvider === "openai");
+  const hasLiveLlmCredentialsOrMock =
+    Boolean(options?.llmMockInvokerForTesting) ||
+    (usesOpenAiChallenger
+      ? Boolean((process.env.OPENAI_API_KEY || "").trim())
+      : Boolean(
+          (
+            process.env.GEMINI_API_KEY ||
+            process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+            process.env.GOOGLE_API_KEY ||
+            ""
+          ).trim()
+        ));
+  const shouldRouteAbstentionOrClarifyThroughLiveLlm =
+    isGroundedLlmStagingModeEnabled(req) &&
+    req.mode !== "exact_lookup" &&
+    !options?.captureRealAppEvidenceAssemblyOnly &&
+    hasLiveLlmCredentialsOrMock;
 
   // 1a-0. Explicit Supreme Court Decision (`คำพิพากษาศาลฎีกาที่ X/Y`) not in verified corpus -> Clean abstention (never substitute an unrelated ruling!)
   if (issueAnalysis.unverifiedAuthorityGuard.shouldAbstain && issueAnalysis.unverifiedAuthorityGuard.abstentionMessageTh) {
@@ -949,7 +998,19 @@ async function executeCoreKnowledgeQuery(
       ? retrievalEffectiveDateIso
       : null;
 
-  if (preIsDomesticVatRateQuery && (singlePreCutoffDate || splitHasPreCutoff)) {
+  const preCutoffVatConstraintForLlm =
+    preIsDomesticVatRateQuery && (singlePreCutoffDate || splitHasPreCutoff)
+      ? {
+          controlling_date_iso: singlePreCutoffDate || splitPointsPre[0]?.iso_date || "pre-2023-10-01",
+          raw_date_text:
+            preRetrievalFactLedger.temporal_facts.transaction_or_event_dates[0]?.raw_text ||
+            singlePreCutoffDate ||
+            "ก่อนวันที่ 1 ตุลาคม 2566",
+          verified_vat_window_start_iso: "2023-10-01" as const,
+        }
+      : null;
+
+  if (preCutoffVatConstraintForLlm && !shouldRouteAbstentionOrClarifyThroughLiveLlm) {
     const gapMsg = splitHasPreCutoff
       ? `ข้อจำกัดขอบเขตข้อมูล (กรณีแบ่งชำระหลายงวดที่มีวันเกิดความรับผิดก่อน 1 ตุลาคม 2566): ห้ามใช้วันที่ของงวดแรกบังคับกับทั้งธุรกรรม โดยแต่ละงวดต้องพิจารณาแยกตามวันเกิดความรับผิด ได้แก่ ${splitPointsPre
           .map(
@@ -1034,8 +1095,13 @@ async function executeCoreKnowledgeQuery(
 
   const coverageWarnings: string[] = [...(releaseRec?.coverage_gaps || [])];
 
+  const unresolvedRulingsForLlm =
+    shouldRouteAbstentionOrClarifyThroughLiveLlm && bundle.unresolved_explicit_ruling_ids.length > 0
+      ? [...bundle.unresolved_explicit_ruling_ids]
+      : [];
+
   // 1a. Explicit nonexistent or partially unresolved official ruling identifier -> Immediate clean abstention in ALL modes, ZERO silent substitution! (AT12a, B01-U10)
-  if (bundle.unresolved_explicit_ruling_ids.length > 0) {
+  if (bundle.unresolved_explicit_ruling_ids.length > 0 && !shouldRouteAbstentionOrClarifyThroughLiveLlm) {
     const missingLabel = bundle.unresolved_explicit_ruling_ids.join(", ");
     const resolvedIds = bundle.resolved_explicit_ruling_ids || [];
     const abstentionText =
@@ -1267,7 +1333,11 @@ async function executeCoreKnowledgeQuery(
   );
 
   // 3. Insufficient evidence gate when no relevant authorized passage is found
-  if (liveVerifiedHits.length === 0 || liveVerifiedHits[0].score < 1.15) {
+  if (
+    (liveVerifiedHits.length === 0 || liveVerifiedHits[0].score < 1.15) &&
+    unresolvedRulingsForLlm.length === 0 &&
+    !preCutoffVatConstraintForLlm
+  ) {
     const msg =
       "ไม่พบข้อมูล / หลักฐานไม่เพียงพอ — ไม่พบหลักฐานข้อกฎหมายหรือหนังสือตอบข้อหารือที่ได้รับอนุญาตและตรงกับประเด็นคำถามอย่างเพียงพอในคลังข้อมูลชุดปัจจุบัน ระบบจึงไม่คาดเดาคำตอบทางภาษี";
     return {
@@ -1450,11 +1520,11 @@ async function executeCoreKnowledgeQuery(
     ].join(" ");
     const isGiftContext =
       factLedger.material_facts.some((f) => f.normalized_category === "GRATUITOUS_TRANSFER_NO_CONSIDERATION") ||
-      /(?:ให้โดยเสน่หา|โดยไม่มีค่าตอบแทน|ยก[^\n]{0,20}ให้|โอน[^\n]{0,20}ให้)/.test(mergedUserBlob);
+      /(?:โดยเสน่หา|โดยไม่มีค่าตอบแทน|ภาษีการรับให้|อุปการะ|(?:ยก|โอน|มอบ)[^\n]{0,55}ให้)/.test(mergedUserBlob);
     const subsectionSelectionHint = [
       mergedUserBlob,
       isGiftContext ? "(26) (27) (28) (5) (6) (4/1) (7) (8)" : "",
-      /ภาษีธุรกิจเฉพาะ|ขายที่ดิน|มรดก/.test(mergedUserBlob) ? "มาตรา 4 (6) (ข) (ค) ใบรับ 28" : "",
+      /ภาษีธุรกิจเฉพาะ|ขายที่ดิน|มรดก|ซื้อ/.test(mergedUserBlob) ? "มาตรา 4 (6) (ข) (ค) (ง) 165 ใบรับ 28" : "",
     ]
       .filter(Boolean)
       .join(" ");
@@ -1494,7 +1564,11 @@ async function executeCoreKnowledgeQuery(
         subsectionSelectionHint
       );
       seenWorkIds.add(workId);
-      for (const u of narrowed.slice(0, 4)) {
+      const perWorkUnitCap =
+        workId === "prov.th.rc.50" || workId === "prov.th.rc.48" || workId === "prov.th.rc.42"
+          ? 5
+          : 4;
+      for (const u of narrowed.slice(0, perWorkUnitCap)) {
         if (!rawPassagesById.has(u.passage_id)) {
           rawPassagesById.set(u.passage_id, u);
           candidatePassages.push(u);
@@ -1553,6 +1627,7 @@ async function executeCoreKnowledgeQuery(
 
       // Genuinely missing 2018-10-01..2023-09-30 historical VAT reduction decrees (RD 669..766 between RD 646 and RD 780) -> Clean abstention!
       if (
+        !shouldRouteAbstentionOrClarifyThroughLiveLlm &&
         isDomesticVatRateQuery &&
         !asksExportOrZeroRate &&
         !asksExempt &&
@@ -1694,12 +1769,12 @@ async function executeCoreKnowledgeQuery(
       (candidatePassages as Passage[] & { __excludeDomesticVatDecrees?: boolean }).__excludeDomesticVatDecrees
     );
     for (const p of availablePassages) {
-      if (candidatePassages.length >= 24) break;
+      if (candidatePassages.length >= 32) break;
       if (p.statement_role !== "statutory_text" && p.statement_role !== "official_conclusion") {
         continue;
       }
       if (
-        excludeDomesticVatDecrees &&
+        (excludeDomesticVatDecrees || Boolean(preCutoffVatConstraintForLlm)) &&
         /^subreg\.th\.rc\.royal_decree\.(646|780|790|799|807)$/.test(p.work_id)
       ) {
         continue;
@@ -1730,7 +1805,7 @@ async function executeCoreKnowledgeQuery(
       state: freshState,
       controllingDateIso:
         hasDateConflictAmbiguity || isSplitPaymentMultiTaxPoint ? null : controllingDateIso,
-      maxPassages: 24,
+      maxPassages: 32,
       explicitWorkIds: explicitRulingWorkIds,
       historicalContextWorkIds,
       splitPaymentTaxPointDates: splitPaymentDatesForPack,
@@ -1738,11 +1813,17 @@ async function executeCoreKnowledgeQuery(
 
     const needsDateClarification =
       !isSplitPaymentMultiTaxPoint &&
+      !preCutoffVatConstraintForLlm &&
+      unresolvedRulingsForLlm.length === 0 &&
       (hasDateConflictAmbiguity ||
         (!controllingDateIso &&
           passagePack.some((item) => item.evidence_role === "conditional_branch_authority")));
     const preLlmStatus: RealAppEvidenceAssemblyCapture["pre_llm_response_status"] =
-      needsDateClarification ? "CLARIFICATION_OR_CONDITIONAL_NEEDED" : "READY_FOR_LLM_GROUNDED";
+      unresolvedRulingsForLlm.length > 0 || preCutoffVatConstraintForLlm
+        ? "INSUFFICIENT_EVIDENCE"
+        : needsDateClarification
+          ? "CLARIFICATION_OR_CONDITIONAL_NEEDED"
+          : "READY_FOR_LLM_GROUNDED";
     const dateClarificationQuestions = hasDateConflictAmbiguity
       ? [factLedger.temporal_facts.controlling_tax_point.ambiguity_reason_th!]
       : needsDateClarification
@@ -1778,7 +1859,10 @@ async function executeCoreKnowledgeQuery(
         official_url: item.official_url,
       })),
     });
-    if (options?.captureRealAppEvidenceAssemblyOnly || needsDateClarification) {
+    if (
+      options?.captureRealAppEvidenceAssemblyOnly ||
+      (needsDateClarification && !hasLiveLlmCredentialsOrMock)
+    ) {
       const clarifyAnswer =
         dateClarificationQuestions[0] ||
         "กรุณาระบุวันที่เกิดความรับผิดในการเสียภาษีมูลค่าเพิ่ม (tax point ตามมาตรา 78 หรือมาตรา 78/1 (1)) ให้ชัดเจน ระบบยังไม่ระบุอัตราภาษีหรือคำนวณภาษี และไม่เลือกอ้างพระราชกฤษฎีกาฉบับใดโดยอัตโนมัติจนกว่าจะยืนยันวันที่";
@@ -1802,16 +1886,31 @@ async function executeCoreKnowledgeQuery(
       };
     }
 
+    const specialConstraints: GroundedLlmSpecialConstraints | undefined =
+      unresolvedRulingsForLlm.length > 0 || preCutoffVatConstraintForLlm || needsDateClarification
+        ? {
+            ...(unresolvedRulingsForLlm.length > 0
+              ? { unresolved_explicit_ruling_ids: unresolvedRulingsForLlm }
+              : {}),
+            ...(preCutoffVatConstraintForLlm
+              ? { pre_cutoff_vat_coverage_constraint: preCutoffVatConstraintForLlm }
+              : {}),
+            ...(needsDateClarification ? { needs_vat_date_clarification: true } : {}),
+          }
+        : undefined;
+
     const llmRes = await draftGroundedLegalAnswerWithLlm({
       question: rawQ,
       factLedger,
       passagePack,
+      specialConstraints,
       challengerProvider:
         process.env.VERCEL_ENV !== "production" ? req.challenger_provider ?? null : null,
       overrideModel:
         process.env.VERCEL_ENV !== "production" ? req.override_model ?? null : null,
       thinkingLevel:
         process.env.VERCEL_ENV !== "production" ? req.thinking_level ?? null : null,
+      mockInvokerForTesting: options?.llmMockInvokerForTesting,
     });
 
     const verifiedOutcome = verifyAndRenderGroundedLlmDraft({
@@ -1825,6 +1924,7 @@ async function executeCoreKnowledgeQuery(
       invocationAudit: llmRes.invocation_audit,
       qaSyntheticFixture:
         process.env.VERCEL_ENV !== "production" ? req.qa_synthetic_fixture ?? null : null,
+      specialConstraints,
       stagingFlagActive: true,
     });
 
@@ -1848,11 +1948,18 @@ async function executeCoreKnowledgeQuery(
       model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
       trace_id: traceId,
       latency_ms: Math.max(1, Date.now() - startedAt),
+      rejected_calculations_diagnostic:
+        verifiedOutcome.rejected_calculations_diagnostic.length > 0
+          ? verifiedOutcome.rejected_calculations_diagnostic
+          : undefined,
       execution_provenance: {
         ...buildProvenance(),
         model_id: actualModelLabel,
         model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
         generation_mode: "llm_grounded",
+        execution_mode: llmRes.invocation_audit.live_provider_called
+          ? "llm_invoked"
+          : "rule_only_model_not_invoked",
         provider_invocation: llmRes.invocation_audit as unknown as Record<string, unknown>,
         configuration: {
           ...buildProvenance().configuration,
@@ -1863,6 +1970,8 @@ async function executeCoreKnowledgeQuery(
       llm_audit_trace: verifiedOutcome.audit_trace as unknown as Record<string, unknown>,
     };
   }
+
+  const baselineRejectedCalcDiagnostics: RejectedCalculationDiagnosticDto[] = [];
 
   if (isComparisonMode) {
     // Guard historical period comparisons (`APPLICABLE_LAW_AT_TIME`) against unverified historical statutory versions or anachronistic rulings
@@ -3168,9 +3277,29 @@ async function executeCoreKnowledgeQuery(
               calc.steps_th.map((st) => `- ${st}`).join("\n")
           );
         } else {
-          coverageWarnings.push(
-            `ระงับการแสดงข้อสรุปการคำนวณ (${calc.calculation_id}) เนื่องจากไม่ผ่านการตรวจสอบหลักฐานอ้างอิงอย่างครบถ้วน (${appVerCheck.reason || "UNSUPPORTED"})`
+          const redactedReason = (appVerCheck.reason || "UNSUPPORTED").replace(
+            /999,?888|88\.5%?|1,?129,?808/g,
+            "[REDACTED_REJECTED_VALUE]"
           );
+          coverageWarnings.push(
+            `ระงับการแสดงข้อสรุปการคำนวณ (${calc.calculation_id}) เนื่องจากไม่ผ่านการตรวจสอบหลักฐานอ้างอิงอย่างครบถ้วน (${redactedReason})`
+          );
+          baselineRejectedCalcDiagnostics.push({
+            rejected_claim_or_issue_id: calc.calculation_id,
+            rejection_code:
+              calc.calculation_id === "calc.qa.rc1_synthetic_ungrounded_fixture"
+                ? "SYNTHETIC_RC1_REJECTED_FIXTURE"
+                : "UNGROUNDED_CALCULATION_REJECTED",
+            reason_th:
+              calc.calculation_id === "calc.qa.rc1_synthetic_ungrounded_fixture"
+                ? "ระงับการคำนวณทดสอบสังเคราะห์ RC1 เนื่องจากไม่มีหลักฐานอัตราภาษีและมาตราที่อ้างอิงในหลักฐานต้นฉบับ"
+                : `ระงับการคำนวณเนื่องจากไม่ผ่านการตรวจสอบหลักฐานอ้างอิง (${redactedReason})`,
+            fixture_id:
+              calc.calculation_id === "calc.qa.rc1_synthetic_ungrounded_fixture" ||
+              req.qa_synthetic_fixture === "RC1_REJECTED_CALC"
+                ? "RC1_REJECTED_CALC"
+                : null,
+          });
         }
       }
       if (calcBlocks.length > 0) {
@@ -3283,6 +3412,11 @@ async function executeCoreKnowledgeQuery(
     calculation_verifications:
       issueAnalysis.verifiedCalculations.length > 0
         ? (issueAnalysis.verifiedCalculations as unknown as Array<Record<string, unknown>>)
+        : undefined,
+    rejected_calculations_diagnostic:
+      typeof baselineRejectedCalcDiagnostics !== "undefined" &&
+      baselineRejectedCalcDiagnostics.length > 0
+        ? baselineRejectedCalcDiagnostics
         : undefined,
     execution_provenance: buildProvenance(),
     tax_foundation_trace: foundationConsult

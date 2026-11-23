@@ -666,13 +666,16 @@ const GROUNDED_SYSTEM_INSTRUCTION = `คุณคือทนายความ�
    - แยกแยะลำดับศักดิ์แหล่งอ้างอิงอย่างชัดเจน: กฎหมายแม่บท/ประมวลรัษฎากร (CONTROLLING_STATUTE), กฎหมายลำดับรอง/พระราชกฤษฎีกา/ประกาศอธิบดี (CONTROLLING_SUBORDINATE_LEGISLATION), คู่มือ/คำแนะนำ (OFFICIAL_GUIDANCE) และหนังสือตอบข้อหารือเฉพาะราย (CASE_SPECIFIC_TAX_RULING ซึ่งผูกพันเฉพาะข้อเท็จจริงและกฎหมาย ณ เวลาที่วินิจฉัย — หากเป็นข้อหารือก่อนการแก้ไขกฎหมาย พ.ศ. 2558 ให้ระบุข้อจำกัดดังกล่าวอย่างตรงไปตรงมา)
    - ห้ามนำหนังสือตอบข้อหารือที่ไม่ตรงประเภทธุรกรรม (เช่น ข้อหารือส่งออกสินค้า/รองเท้า หรือเงินชดเชยเลิกจ้าง) มาใช้ตอบแทนหลักกฎหมาย
 3. แยกวิเคราะห์แต่ละประเด็นและภาระภาษีของแต่ละฝ่ายให้ครบถ้วน รวมทั้งข้อยกเว้นที่เกี่ยวข้อง:
-   - สำหรับการโอนอสังหาริมทรัพย์โดยไม่มีค่าตอบแทน (เช่น ห้องชุด/ที่ดิน) ให้แยกประเด็นอย่างชัดเจนเสมอระหว่าง:
-     (ก) ภาระภาษีเงินได้และการหักภาษี ณ ที่จ่ายในวันจดทะเบียนของผู้โอน (มาตรา 41 ทวิ, มาตรา 49 ทวิ ที่ใช้ราคาประเมินทุนทรัพย์ของทางราชการมิใช่ราคาตามสัญญา, มาตรา 50 (5)/(6), และข้อยกเว้นมาตรา 42 (26) เฉพาะบุตรชอบด้วยกฎหมายเท่านั้น)
-     (ข) ความรับผิดกรณีหักภาษี ณ ที่จ่ายขาดตามมาตรา 54 (หากมี)
-     (ค) ภาระภาษีเงินได้บุคคลธรรมดาของผู้รับโอน (ตรวจสอบขอบเขตมาตรา 42 (27) เฉพาะบุพการี ผู้สืบสันดาน หรือคู่สมรส และมาตรา 42 (28) สำหรับการให้ตามหน้าที่ธรรมจรรยาหรือตามพิธี/โอกาสแห่งขนบธรรมเนียมประเพณี และแยกให้ชัดว่าเมื่อโอนอสังหาริมทรัพย์โดยเสน่หา กฎหมายถือว่าผู้โอนเป็นผู้มีเงินได้ตามมาตรา 41 ทวิ พร้อมระบุประเด็นความเห็น/ข้อหารือหากปรากฏใน PASSAGE_PACK)
+   - สำหรับการโอนอสังหาริมทรัพย์โดยไม่มีค่าตอบแทนหรือให้โดยเสน่หา (เช่น ที่ดิน ห้องชุด บ้านเดี่ยวพร้อมที่ดิน อาคารพาณิชย์) ให้ใช้โครงสร้างแยกประเด็นมาตรฐานเดียวกันทุกกรณีเสมอ (ไม่ว่าความสัมพันธ์หรือถ้อยคำจะเปลี่ยนไปอย่างไร):
+     (ก) ภาระภาษีเงินได้และการหักภาษี ณ ที่จ่ายในวันจดทะเบียนโอนกรรมสิทธิ์ของผู้โอน: ประมวลรัษฎากร มาตรา 41 ทวิ กำหนดให้ถือว่าผู้โอนเป็นผู้มีเงินได้พึงประเมิน, มาตรา 49 ทวิ กำหนดให้ใช้ราคาประเมินทุนทรัพย์เพื่อเรียกเก็บค่าธรรมเนียมจดทะเบียนสิทธิและนิติกรรมตามประมวลกฎหมายที่ดินเป็นฐานคำนวณ (ไม่ใช่ราคาที่ระบุในสัญญาให้), มาตรา 42 (26) และมาตรา 50 (6) ยกเว้นเฉพาะกรณีบิดาหรือมารดาโอนอสังหาริมทรัพย์ให้แก่บุตรชอบด้วยกฎหมายซึ่งไม่รวมถึงบุตรบุญธรรม เฉพาะส่วนที่ไม่เกิน 20,000,000 บาทตลอดปีภาษี (ส่วนที่เกิน 20,000,000 บาท เสียและหักภาษี ณ ที่จ่ายร้อยละ 5 ตามมาตรา 48 (4/1) และมาตรา 50 (6)); หากผู้รับโอนเป็นบุตรบุญธรรม หลาน บุตรของหลาน หรือบุคคลอื่น จะไม่ได้รับยกเว้นตามมาตรา 42 (26) และต้องหักภาษีเงินได้ ณ ที่จ่ายในวันจดทะเบียนตามมาตรา 50 (5) (ก) (กรณีอสังหาริมทรัพย์อันเป็นมรดกหรือได้รับจากการให้โดยเสน่หา) หรือมาตรา 50 (5) (ข) ประกอบพระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529 (กรณีอสังหาริมทรัพย์ที่ได้มาโดยทางอื่นนอกจาก (ก) เช่น ได้มาโดยการซื้อ)
+     (ข) ความรับผิดกรณีหักภาษีเงินได้ ณ ที่จ่ายและนำส่งไม่ครบถ้วนตามมาตรา 54: เมื่อธุรกรรมนั้นมีหน้าที่ต้องหักภาษีเงินได้ ณ ที่จ่ายในวันจดทะเบียน (เช่น โอนให้ผู้รับที่ไม่ใช่บุตรชอบด้วยกฎหมาย หรือโอนให้บุตรชอบด้วยกฎหมายในส่วนที่เกิน 20,000,000 บาท) ต้องแยกประเด็นอธิบายความรับผิดร่วมตามมาตรา 54 เสมอพร้อมอ้างอิง passage ของมาตรา 54; แต่หากธุรกรรมได้รับยกเว้นเต็มจำนวนจนไม่มีหน้าที่ต้องหักภาษี ณ ที่จ่าย (เช่น โอนให้บุตรชอบด้วยกฎหมายไม่เกิน 20,000,000 บาท) ห้ามใส่มาตรา 54 แบบเหมารวม
+     (ค) ภาระภาษีเงินได้บุคคลธรรมดาของผู้รับโอนอสังหาริมทรัพย์: ห้ามนำหลักเกณฑ์ฝั่งผู้โอนตามมาตรา 41 ทวิ หรือข้อยกเว้นมาตรา 42 (26)-(28) มาสรุปว่าผู้รับโอนอสังหาริมทรัพย์ "ไม่ต้องเสียภาษี", "ไม่มีภาระภาษีเงินได้", "ไม่ต้องนำมารวมคำนวณ" หรือระบุจำนวนเงินภาษีของผู้รับโอนเป็นตัวเลขใดๆ รวมถึงห้ามระบุ 0 หรือ 0 บาท เด็ดขาด! ให้ชี้แจงข้อจำกัดตามตัวบทใน PASSAGE_PACK อย่างตรงไปตรงมาว่า มาตรา 41 ทวิ เป็นบทบัญญัติกำหนดให้ผู้โอนเป็นผู้มีเงินได้ และมาตรา 42 (26) กำหนดข้อยกเว้นเฉพาะฝั่งผู้โอนที่โอนอสังหาริมทรัพย์ให้บุตรชอบด้วยกฎหมาย ส่วนตัวบทมาตรา 41 ทวิ และมาตรา 42 (26)-(28) ในชุดหลักฐานที่ตรวจสอบแล้วไม่ได้บัญญัติสรุปภาระภาษีเงินได้บุคคลธรรมดาหรือวงเงินยกเว้นเฉพาะฝั่งผู้รับโอนอสังหาริมทรัพย์ไว้โดยตรง (หากคำถามระบุ "หลานสาว/หลานชาย" โดยไม่ระบุสายโลหิตว่าเป็นบุตรของบุตรหรือบุตรของพี่น้อง หรือเป็นการให้ในงานบวชของบุคคลอื่น ให้ชี้แจงความกำกวมของข้อเท็จจริงและขอบเขตถ้อยคำตามมาตรา 42 (27)-(28) ประกอบด้วย) จึงไม่อาจระบุภาระภาษีเงินได้ของผู้รับโอนอสังหาริมทรัพย์เป็นตัวเลขใดๆ ได้ (รวมถึงห้ามระบุ 0 บาท) และต้องไม่ส่ง proposed_calculation (หรือตั้ง is_computable_from_stated_facts = false, computed_tax_thb = null) สำหรับประเด็นผู้รับโอนอสังหาริมทรัพย์เสมอ และเมื่อยังมีข้อจำกัดหลักฐานฝั่งผู้รับโอนดังกล่าว ให้ตั้ง answer_status = "CONDITIONAL"
+   - สำหรับการให้สังหาริมทรัพย์หรือเงินสด (เช่น มอบเงินสดหรือโอนเงินสดผ่านธนาคารให้บิดา/มารดาซึ่งเป็นบุพการี): ใช้มาตรา 42 (27) (ยกเว้นส่วนที่ไม่เกิน 20,000,000 บาทตลอดปีภาษี) และมาตรา 48 (6) (ส่วนที่เกิน 20,000,000 บาท เลือกเสียภาษีอัตราร้อยละ 5 ได้); สำหรับผู้โอนและธนาคารในการโอนเงินสดให้โดยเสน่หา ธนาคารไม่มีหน้าที่หักภาษีเงินได้ ณ ที่จ่ายตามมาตรา 50 และธุรกรรมโอนเงินสดผ่านธนาคารไม่อยู่ในบัญชีอัตราอากรแสตมป์ที่ต้องเสียอากรแสตมป์ตามมาตรา 103 และมาตรา 104
    - ห้ามสรุปตัวเลขภาษีที่คำนวณไม่ได้หากขาดข้อมูลสำคัญ (เช่น วิธีการได้มา ระยะเวลาถือครอง หรือราคาประเมินทุนทรัพย์ของทางราชการ) ให้ตั้งค่า is_computable_from_stated_facts = false, computed_tax_thb = null และระบุ missing_inputs_th ให้ชัดเจน
-4. กรณีหลักฐานใน PASSAGE_PACK ครอบคลุมเพียงบางส่วน (เช่น ขาดตัวบทพระราชกฤษฎีการอบปีก่อนหน้า):
-   - ให้ตอบส่วนที่มีหลักฐานรองรับอย่างแม่นยำ (เช่น มาตรา 80 แห่งประมวลรัษฎากร และระบุชัดว่าพระราชกฤษฎีกาฉบับที่ปรากฏในคลังไม่ครอบคลุมวันที่เกิดธุรกรรม) ตั้ง answer_status = "CONDITIONAL" หรือ "NEEDS_CLARIFICATION" และระบุช่องว่างหลักฐานใน evidence_gaps_th โดยห้ามเดาเลขพระราชกฤษฎีกาที่ไม่มีใน PASSAGE_PACK
+4. กรณีหลักฐานใน PASSAGE_PACK ครอบคลุมเพียงบางส่วน หรือมีการอ้างอิงข้ามตัวบท:
+   - หากตัวบทแม่บทใน PASSAGE_PACK กล่าวถึงพระราชกฤษฎีกาเพียงในวงเล็บอ้างอิง เช่น "( ดูพระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529 )" ในมาตรา 50 (5) (ข) หรือมาตรา 48 (4) (ข) โดยไม่มีตัวบทมาตราของพระราชกฤษฎีกาฉบับนั้นแยกอยู่ใน PASSAGE_PACK ห้ามประดิษฐ์เลขมาตราของพระราชกฤษฎีกานั้น (เช่น ห้ามเขียน "พระราชกฤษฎีกา (ฉบับที่ 165) มาตรา 4") ให้ระบุชื่อ "พระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529" ตามที่อ้างในมาตรา 50 (5) (ข) / มาตรา 48 (4) (ข) และระบุใน evidence_gaps_th ว่าตารางอัตราค่าใช้จ่ายเหมาตามจำนวนปีถือครองในพระราชกฤษฎีกาดังกล่าวไม่ได้รวมอยู่ในชุดหลักฐานที่ส่งให้
+   - หาก special_constraints ในข้อมูลคำขอระบุ unresolved_explicit_ruling_ids (ผู้ใช้ถามยืนยันเลขที่หนังสือตอบข้อหารือ กค ที่ไม่พบใน PASSAGE_PACK) หรือ pre_cutoff_vat_coverage_constraint (ธุรกรรม VAT ก่อนวันที่ 1 ตุลาคม 2566 ซึ่งอยู่นอกขอบเขตพระราชกฤษฎีกาลดอัตรา VAT ที่รับรองต้นฉบับแล้วในคลังรุ่นนี้): ต้องตั้ง answer_status = "INSUFFICIENT_EVIDENCE", issues = [] และชี้แจงข้อจำกัดใน overall_summary_th และ evidence_gaps_th โดยห้ามเดาอัตราภาษี ห้ามคำนวณตัวเลขภาษี และห้ามนำบทบัญญัติอื่นมาสรุปยืนยันแทนข้อหารือที่ไม่มีต้นฉบับ หากระบุ needs_vat_date_clarification ให้ตั้ง answer_status = "NEEDS_CLARIFICATION" และถามวันรับชำระเงินและวันออกใบกำกับภาษีใน clarification_questions_th โดยไม่คำนวณตัวเลขภาษีขายตายตัว
+   - กรณีอื่นๆ ที่หลักฐานครอบคลุมบางส่วน ให้ตอบเฉพาะส่วนที่มีหลักฐานรองรับ ตั้ง answer_status = "CONDITIONAL" หรือ "NEEDS_CLARIFICATION" และระบุช่องว่างหลักฐานใน evidence_gaps_th โดยห้ามเดาเลขพระราชกฤษฎีกาที่ไม่มีใน PASSAGE_PACK
 5. เขียนคำตอบภาษาไทยที่เป็นมืออาชีพ กระชับ ชัดเจน นำบทบัญญัติมาปรับใช้กับข้อเท็จจริงโดยตรง ห้ามคัดลอกตัวบทกฎหมายทั้งดุ้นมาแปะแทนการวิเคราะห์
 6. ส่งคืนเป็น JSON ที่ตรงตาม schema ที่กำหนดเท่านั้น`;
 
@@ -733,13 +736,25 @@ function extractOutputTextFromGeminiInteraction(interaction: unknown): {
   return { text: "", resolvedModel, status };
 }
 
+export interface GroundedLlmSpecialConstraints {
+  unresolved_explicit_ruling_ids?: string[];
+  pre_cutoff_vat_coverage_constraint?: {
+    controlling_date_iso: string;
+    raw_date_text: string;
+    verified_vat_window_start_iso: "2023-10-01";
+  } | null;
+  needs_vat_date_clarification?: boolean;
+}
+
 export function buildGroundedLlmUserPrompt(params: {
   question: string;
   factLedger: StructuredCaseFactLedger;
   passagePack: GroundedPassagePackItem[];
+  specialConstraints?: GroundedLlmSpecialConstraints;
 }): string {
   const payload = {
     active_user_question: params.question,
+    ...(params.specialConstraints ? { special_constraints: params.specialConstraints } : {}),
     structured_case_fact_ledger: {
       turn_count: params.factLedger.turn_count,
       is_new_conversation: params.factLedger.is_new_conversation,
@@ -1069,10 +1084,18 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
   question: string;
   factLedger: StructuredCaseFactLedger;
   passagePack: GroundedPassagePackItem[];
+  specialConstraints?: GroundedLlmSpecialConstraints;
   challengerProvider?: GroundedLlmProviderId | null;
   overrideModel?: string | null;
   thinkingLevel?: GroundedThinkingLevel | null;
   timeoutMs?: number;
+  mockInvokerForTesting?: (args: {
+    question: string;
+    userPrompt: string;
+    requestedModel: string;
+    thinkingLevel: GroundedThinkingLevel;
+    specialConstraints?: GroundedLlmSpecialConstraints;
+  }) => Promise<GroundedLlmDraftResponse> | GroundedLlmDraftResponse;
 }): Promise<{
   ok: boolean;
   draft: GroundedLlmDraftResponse | null;
@@ -1110,7 +1133,64 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
     question: params.question,
     factLedger: params.factLedger,
     passagePack: params.passagePack,
+    specialConstraints: params.specialConstraints,
   });
+
+  if (params.mockInvokerForTesting && process.env.VERCEL_ENV !== "production") {
+    const mockStart = Date.now();
+    const rawDraft = await params.mockInvokerForTesting({
+      question: params.question,
+      userPrompt,
+      requestedModel,
+      thinkingLevel: thinking_level,
+      specialConstraints: params.specialConstraints,
+    });
+    const normalized = normalizeParsedDraftResponse(rawDraft);
+    const rawText = JSON.stringify(normalized);
+    return {
+      ok: true,
+      draft: normalized,
+      raw_output_text: rawText,
+      invocation_audit: {
+        provider: "google-gemini",
+        api_surface: "interactions-v1beta",
+        requested_model: requestedModel,
+        resolved_model: requestedModel,
+        actual_model_invoked: requestedModel,
+        pinned_settings: {
+          thinking_level,
+          thinking_level_note: thinkingNote,
+          temperature: 0.0,
+          max_output_tokens,
+          timeout_ms: timeoutMs,
+          store: false,
+        },
+        prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+        live_provider_called: true,
+        silent_fallback_disabled: true,
+        provider_interaction_id: "mock.interaction.test",
+        provider_response_status: "completed",
+        failure_classification: "NONE",
+        latency_ms: Math.max(1, Date.now() - mockStart),
+        input_tokens: 512,
+        output_tokens: 256,
+        thought_tokens: 64,
+        total_tokens: 832,
+        estimated_cost_usd: 0.0038,
+        attempts: [
+          {
+            provider: "google-gemini",
+            model: requestedModel,
+            thinking_level,
+            status: "succeeded",
+            http_status: 200,
+            latency_ms: Math.max(1, Date.now() - mockStart),
+          },
+        ],
+        error_summary: null,
+      },
+    };
+  }
 
   // Separate explicit OpenAI Responses API challenger path (never triggered automatically as fallback!)
   if (provider === "openai") {
@@ -1173,69 +1253,120 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
 
   const client = new GoogleGenAI({ apiKey });
   const attempts: ProviderAttemptRecord[] = [];
-  const attemptStart = Date.now();
+  const maxSameModelAttempts = 2;
+  let lastFailureClass: ProviderFailureClassification = "PROVIDER_UNAVAILABLE";
+  let lastErrorMsg = "Unknown provider failure";
+  let lastResolvedModel: string | null = null;
+  let lastInteractionId: string | null = null;
+  let lastProviderStatus: string | null = null;
+  let lastRawOutputText: string | null = null;
 
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    let interaction: Awaited<ReturnType<typeof client.interactions.create>>;
-    try {
-      interaction = await client.interactions.create(
-        {
-          model: requestedModel,
-          store: false,
-          system_instruction: GROUNDED_SYSTEM_INSTRUCTION,
-          input: userPrompt,
-          generation_config: {
-            temperature: 0.0,
-            max_output_tokens,
-            thinking_level,
-          },
-          response_format: {
-            type: "text",
-            mime_type: "application/json",
-            schema: GROUNDED_LLM_RESPONSE_SCHEMA,
-          } as unknown as Record<string, unknown>,
-        },
-        { signal: controller.signal }
-      );
-    } finally {
-      clearTimeout(timer);
+  for (let attemptIdx = 0; attemptIdx < maxSameModelAttempts; attemptIdx++) {
+    const elapsedMs = Date.now() - overallStart;
+    const remainingBudgetMs = timeoutMs - elapsedMs;
+    if (attemptIdx > 0 && remainingBudgetMs < 35_000) {
+      break;
     }
+    const perAttemptTimeoutMs =
+      attemptIdx === 0 && timeoutMs >= 140_000
+        ? Math.min(remainingBudgetMs, 115_000)
+        : Math.max(15_000, remainingBudgetMs);
+    const attemptStart = Date.now();
 
-    const attemptLatency = Date.now() - attemptStart;
-    const {
-      text: outputText,
-      resolvedModel,
-      status: providerStatus,
-    } = extractOutputTextFromGeminiInteraction(interaction);
-    const effectiveModel = resolvedModel || requestedModel;
-    const interactionId =
-      typeof (interaction as unknown as Record<string, unknown>)?.id === "string"
-        ? String((interaction as unknown as Record<string, unknown>).id)
-        : null;
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), perAttemptTimeoutMs);
+      let interaction: Awaited<ReturnType<typeof client.interactions.create>>;
+      try {
+        interaction = await client.interactions.create(
+          {
+            model: requestedModel,
+            store: false,
+            system_instruction: GROUNDED_SYSTEM_INSTRUCTION,
+            input: userPrompt,
+            generation_config: {
+              temperature: 0.0,
+              max_output_tokens,
+              thinking_level,
+            },
+            response_format: {
+              type: "text",
+              mime_type: "application/json",
+              schema: GROUNDED_LLM_RESPONSE_SCHEMA,
+            } as unknown as Record<string, unknown>,
+          },
+          { signal: controller.signal }
+        );
+      } finally {
+        clearTimeout(timer);
+      }
 
-    // Handle blocked / incomplete / empty response explicitly — NEVER pass unverified or truncated output!
-    if (
-      (providerStatus &&
-        providerStatus !== "completed" &&
-        providerStatus !== "COMPLETED") ||
-      !outputText
-    ) {
-      const msg = `Provider returned status='${providerStatus || "empty"}' without complete output.`;
+      const attemptLatency = Date.now() - attemptStart;
+      const {
+        text: outputText,
+        resolvedModel,
+        status: providerStatus,
+      } = extractOutputTextFromGeminiInteraction(interaction);
+      const effectiveModel = resolvedModel || requestedModel;
+      const interactionId =
+        typeof (interaction as unknown as Record<string, unknown>)?.id === "string"
+          ? String((interaction as unknown as Record<string, unknown>).id)
+          : null;
+
+      // Handle blocked / incomplete / empty response: allow 1 same-model retry when budget permits, NEVER switch models!
+      if (
+        (providerStatus &&
+          providerStatus !== "completed" &&
+          providerStatus !== "COMPLETED") ||
+        !outputText
+      ) {
+        const msg = `Provider returned status='${providerStatus || "empty"}' without complete output.`;
+        attempts.push({
+          provider: "google-gemini",
+          model: requestedModel,
+          thinking_level,
+          status: "error",
+          http_status: 200,
+          latency_ms: attemptLatency,
+          error_message: msg,
+        });
+        lastFailureClass = "BLOCKED_OR_INCOMPLETE";
+        lastErrorMsg = msg;
+        lastResolvedModel = resolvedModel;
+        lastInteractionId = interactionId;
+        lastProviderStatus = providerStatus;
+        lastRawOutputText = outputText || null;
+        continue;
+      }
+
+      const parsed = normalizeParsedDraftResponse(JSON.parse(outputText) as GroundedLlmDraftResponse);
+      if (!parsed || !Array.isArray(parsed.issues)) {
+        throw new Error("Invalid JSON output: missing required 'issues' array.");
+      }
+
+      const usage = (interaction as unknown as Record<string, unknown>)?.usage as
+        | Record<string, number>
+        | undefined;
+      const inputTokens = Number(usage?.total_input_tokens ?? usage?.input_tokens ?? 0);
+      const outputTokens = Number(usage?.total_output_tokens ?? usage?.output_tokens ?? 0);
+      const thoughtTokens = Number(usage?.total_thought_tokens ?? usage?.thought_tokens ?? 0);
+      const totalTokens = Number(
+        usage?.total_tokens ?? inputTokens + outputTokens + thoughtTokens
+      );
+
       attempts.push({
         provider: "google-gemini",
         model: requestedModel,
         thinking_level,
-        status: "error",
+        status: "succeeded",
         http_status: 200,
         latency_ms: attemptLatency,
-        error_message: msg,
       });
+
       return {
-        ok: false,
-        draft: null,
-        raw_output_text: outputText || null,
+        ok: true,
+        draft: parsed,
+        raw_output_text: outputText,
         invocation_audit: {
           provider: "google-gemini",
           api_surface: "interactions-v1beta",
@@ -1247,115 +1378,77 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
           live_provider_called: true,
           silent_fallback_disabled: true,
           provider_interaction_id: interactionId,
-          provider_response_status: providerStatus,
-          failure_classification: "BLOCKED_OR_INCOMPLETE",
+          provider_response_status: providerStatus || "completed",
+          failure_classification: "NONE",
           latency_ms: Date.now() - overallStart,
-          input_tokens: 0,
-          output_tokens: 0,
-          thought_tokens: 0,
-          total_tokens: 0,
-          estimated_cost_usd: 0,
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          thought_tokens: thoughtTokens,
+          total_tokens: totalTokens,
+          estimated_cost_usd: estimateCostUsd(effectiveModel, inputTokens, outputTokens + thoughtTokens),
           attempts,
-          error_summary: msg,
+          error_summary: null,
         },
       };
-    }
+    } catch (err) {
+      const attemptLatency = Date.now() - attemptStart;
+      const msg = err instanceof Error ? err.message : String(err);
+      const statusMatch = msg.match(/\b(400|401|403|404|429|500|502|503|504)\b/);
+      const httpStatus = statusMatch ? Number(statusMatch[1]) : null;
+      const failureClass = classifyProviderFailure(httpStatus, msg);
 
-    const parsed = normalizeParsedDraftResponse(JSON.parse(outputText) as GroundedLlmDraftResponse);
-    if (!parsed || !Array.isArray(parsed.issues)) {
-      throw new Error("Invalid JSON output: missing required 'issues' array.");
-    }
-
-    const usage = (interaction as unknown as Record<string, unknown>)?.usage as
-      | Record<string, number>
-      | undefined;
-    const inputTokens = Number(usage?.total_input_tokens ?? usage?.input_tokens ?? 0);
-    const outputTokens = Number(usage?.total_output_tokens ?? usage?.output_tokens ?? 0);
-    const thoughtTokens = Number(usage?.total_thought_tokens ?? usage?.thought_tokens ?? 0);
-    const totalTokens = Number(
-      usage?.total_tokens ?? inputTokens + outputTokens + thoughtTokens
-    );
-
-    attempts.push({
-      provider: "google-gemini",
-      model: requestedModel,
-      thinking_level,
-      status: "succeeded",
-      http_status: 200,
-      latency_ms: attemptLatency,
-    });
-
-    return {
-      ok: true,
-      draft: parsed,
-      raw_output_text: outputText,
-      invocation_audit: {
+      attempts.push({
         provider: "google-gemini",
-        api_surface: "interactions-v1beta",
-        requested_model: requestedModel,
-        resolved_model: resolvedModel,
-        actual_model_invoked: effectiveModel,
-        pinned_settings: pinnedSettings,
-        prompt_version: GROUNDED_LLM_PROMPT_VERSION,
-        live_provider_called: true,
-        silent_fallback_disabled: true,
-        provider_interaction_id: interactionId,
-        provider_response_status: providerStatus || "completed",
-        failure_classification: "NONE",
-        latency_ms: Date.now() - overallStart,
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        thought_tokens: thoughtTokens,
-        total_tokens: totalTokens,
-        estimated_cost_usd: estimateCostUsd(effectiveModel, inputTokens, outputTokens + thoughtTokens),
-        attempts,
-        error_summary: null,
-      },
-    };
-  } catch (err) {
-    const attemptLatency = Date.now() - attemptStart;
-    const msg = err instanceof Error ? err.message : String(err);
-    const statusMatch = msg.match(/\b(400|401|403|404|429|500|502|503|504)\b/);
-    const httpStatus = statusMatch ? Number(statusMatch[1]) : null;
-    const failureClass = classifyProviderFailure(httpStatus, msg);
+        model: requestedModel,
+        thinking_level,
+        status: "error",
+        http_status: httpStatus,
+        latency_ms: attemptLatency,
+        error_message: msg.slice(0, 320),
+      });
 
-    attempts.push({
-      provider: "google-gemini",
-      model: requestedModel,
-      thinking_level,
-      status: "error",
-      http_status: httpStatus,
-      latency_ms: attemptLatency,
-      error_message: msg.slice(0, 320),
-    });
+      lastFailureClass = failureClass;
+      lastErrorMsg = msg.slice(0, 320);
 
-    // NO SILENT FALLBACK TO FLASH / FLASH-LITE / OPENAI / TEMPLATES!
-    return {
-      ok: false,
-      draft: null,
-      raw_output_text: null,
-      invocation_audit: {
-        provider: "google-gemini",
-        api_surface: "interactions-v1beta",
-        requested_model: requestedModel,
-        resolved_model: null,
-        actual_model_invoked: null,
-        pinned_settings: pinnedSettings,
-        prompt_version: GROUNDED_LLM_PROMPT_VERSION,
-        live_provider_called: true,
-        silent_fallback_disabled: true,
-        provider_interaction_id: null,
-        provider_response_status: null,
-        failure_classification: failureClass,
-        latency_ms: Date.now() - overallStart,
-        input_tokens: 0,
-        output_tokens: 0,
-        thought_tokens: 0,
-        total_tokens: 0,
-        estimated_cost_usd: 0,
-        attempts,
-        error_summary: msg.slice(0, 320),
-      },
-    };
+      // Retry SAME pinned model once only on transient incomplete / JSON / 5xx / per-attempt timeout (never on 401/403/404/429)
+      const isRetryableSameModel =
+        failureClass === "BLOCKED_OR_INCOMPLETE" ||
+        failureClass === "INVALID_OUTPUT" ||
+        failureClass === "TIMEOUT" ||
+        (failureClass === "PROVIDER_UNAVAILABLE" &&
+          (httpStatus === null || httpStatus >= 500));
+      if (!isRetryableSameModel) {
+        break;
+      }
+    }
   }
+
+  // NO SILENT FALLBACK TO FLASH / FLASH-LITE / OPENAI / TEMPLATES!
+  return {
+    ok: false,
+    draft: null,
+    raw_output_text: lastRawOutputText,
+    invocation_audit: {
+      provider: "google-gemini",
+      api_surface: "interactions-v1beta",
+      requested_model: requestedModel,
+      resolved_model: lastResolvedModel,
+      actual_model_invoked: lastResolvedModel || requestedModel,
+      pinned_settings: pinnedSettings,
+      prompt_version: GROUNDED_LLM_PROMPT_VERSION,
+      live_provider_called: true,
+      silent_fallback_disabled: true,
+      provider_interaction_id: lastInteractionId,
+      provider_response_status: lastProviderStatus,
+      failure_classification: lastFailureClass,
+      latency_ms: Date.now() - overallStart,
+      input_tokens: 0,
+      output_tokens: 0,
+      thought_tokens: 0,
+      total_tokens: 0,
+      estimated_cost_usd: 0,
+      attempts,
+      error_summary: lastErrorMsg,
+    },
+  };
 }

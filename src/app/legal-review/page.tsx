@@ -298,7 +298,7 @@ export default function LegalTeamReviewStudioPage() {
             work_id: ref.doc_id,
             version_id: ref.version_id,
             official_identifier: ref.citation_label_th,
-            title_th: ref.citation_label_th,
+            title_th: ref.original_title_th || ref.citation_label_th,
             authority_type:
               ref.source_family === "revenue_department_ruling"
                 ? "TaxRuling"
@@ -312,7 +312,7 @@ export default function LegalTeamReviewStudioPage() {
             statement_role: "statutory_text",
             issue_or_effective_date: ref.date_relied_on,
             raw_date_text: ref.date_relied_on,
-            exact_excerpt: ref.locator.human_pinpoint_th,
+            exact_excerpt: ref.verbatim_excerpt_th || ref.locator.human_pinpoint_th,
             locator: {
               kind: ref.locator.physical_page_start !== null ? "pdf_page" : "html_structural",
               artifact_id: ref.version_id,
@@ -326,11 +326,12 @@ export default function LegalTeamReviewStudioPage() {
         release_id: env.verifier_metadata.release_id,
         knowledge_snapshot_at: env.generated_at,
         status:
-          env.status === "complete"
+          env.grounded_answer_status ||
+          (env.status === "complete"
             ? "ANSWERED"
             : env.status === "partial"
               ? "CONDITIONAL"
-              : "INSUFFICIENT_EVIDENCE",
+              : "INSUFFICIENT_EVIDENCE"),
         answer: env.rendered_answer_th,
         claims: env.claims.map((c) => ({
           claim_id: c.claim_id,
@@ -353,8 +354,9 @@ export default function LegalTeamReviewStudioPage() {
         })),
         evidence: evidenceCards,
         assumptions: env.assumptions,
-        clarification_questions: [],
-        coverage_warnings: [],
+        clarification_questions: env.clarification_questions_th || [],
+        coverage_warnings: env.coverage_warnings_th || [],
+        rejected_calculations_diagnostic: env.rejected_calculations_diagnostic || undefined,
         applicable_date: env.as_of_date,
         model_policy_version:
           env.execution_provenance?.model_policy_version || env.verifier_metadata.verifier_version,
@@ -1752,12 +1754,39 @@ export default function LegalTeamReviewStudioPage() {
                           ? "#14532d"
                           : answerResult.status === "CONDITIONAL"
                             ? "#713f12"
-                            : "#1e3a8a",
+                            : answerResult.status === "REVIEW_REQUIRED"
+                              ? "#7f1d1d"
+                              : "#1e3a8a",
                       color: "#fff",
                     }}
                   >
                     สถานะคำตอบ: {answerResult.status}
                   </span>
+                  {answerResult.execution_provenance ? (
+                    <span
+                      style={{
+                        padding: "3px 9px",
+                        fontSize: "11.5px",
+                        fontWeight: 700,
+                        border:
+                          answerResult.execution_provenance.execution_mode === "llm_invoked"
+                            ? "1px solid #22c55e"
+                            : "1px solid #f59e0b",
+                        background:
+                          answerResult.execution_provenance.execution_mode === "llm_invoked"
+                            ? "rgba(22, 163, 74, 0.16)"
+                            : "rgba(245, 158, 11, 0.14)",
+                        color:
+                          answerResult.execution_provenance.execution_mode === "llm_invoked"
+                            ? "#86efac"
+                            : "#fde68a",
+                      }}
+                    >
+                      {answerResult.execution_provenance.execution_mode === "llm_invoked"
+                        ? `Actual Execution: Model Invoked (${answerResult.execution_provenance.model_id})`
+                        : "Actual Execution: Rule-only / model not invoked"}
+                    </span>
+                  ) : null}
                   <span style={{ fontSize: "12px", color: "#9ca3af" }}>
                     หลักฐานที่ผูกอ้างอิง: <strong>{answerResult.evidence.length}</strong> รายการ ·
                     Trace ID: <code>{answerResult.trace_id}</code>

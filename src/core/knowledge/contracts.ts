@@ -10,7 +10,11 @@
  */
 
 import type { KnowledgeEntityType, KnowledgeTypedPredicate } from "../graph/graph-schema";
-import type { ClaimBoundCalculationRecord, TraceableAnswerEnvelope } from "./citation-contracts";
+import type {
+  ClaimBoundCalculationRecord,
+  RejectedCalculationDiagnosticDto,
+  TraceableAnswerEnvelope,
+} from "./citation-contracts";
 
 export type BatchId =
   | "B01"
@@ -558,6 +562,8 @@ export interface ExecutionProvenanceMetadata {
     template_fallback_disabled?: boolean;
   };
   generation_mode?: "llm_grounded" | "baseline_deterministic";
+  /** Per-answer actual execution record distinguishing live model reasoning from deterministic rule-only responses. */
+  execution_mode?: "llm_invoked" | "rule_only_model_not_invoked";
   provider_invocation?: Record<string, unknown>;
 }
 
@@ -578,6 +584,7 @@ export interface GroundedAnswer {
   latency_ms: number;
   traceable_answer?: TraceableAnswerEnvelope;
   calculation_verifications?: Array<Record<string, unknown>>;
+  rejected_calculations_diagnostic?: RejectedCalculationDiagnosticDto[];
   execution_provenance?: ExecutionProvenanceMetadata;
   tax_foundation_trace?: Record<string, unknown>;
   llm_audit_trace?: Record<string, unknown>;

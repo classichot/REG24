@@ -153,6 +153,7 @@ export async function POST(req: Request) {
         body.persist_answer &&
         answer.status !== "NEEDS_CLARIFICATION" &&
         answer.status !== "INSUFFICIENT_EVIDENCE" &&
+        answer.status !== "REVIEW_REQUIRED" &&
         answer.traceable_answer &&
         (answer.traceable_answer.status === "complete" ||
           answer.traceable_answer.status === "partial")
