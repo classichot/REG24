@@ -589,4 +589,60 @@ describe("Candidate 5 — Section 47 (`มาตรา 47`) Verifier, OBS-2 & Re
       setDefaultKnowledgeStoreForTesting(null);
     }
   });
+
+  it("6. Regression lock for live gemini-4-neon draft patterns D1 (itemized intro & child subtotal), D2 ([psg.e4ec78f644930e] hex digits), and D3 (derived child ages 9 ปี / 6 ปี on POS-3)", async () => {
+    clearSection47RestrictedDiagnosticsForTest();
+
+    // D1 + D2 + D3 combined on POS-3
+    const pos3LivePatternAns = await queryKnowledge(
+      {
+        question: POS_FIXTURES.POS3.prompt,
+        release_id: "rel.B01.rc8",
+        answer_generation_mode: "llm_grounded",
+      },
+      TEST_ACTOR,
+      {
+        store,
+        persistAnswerAtomically: false,
+        llmMockInvokerForTesting: async (): Promise<GroundedLlmDraftResponse> => ({
+          answer_status: "ANSWERED",
+          overall_summary_th: "รวม 210,000 บาท",
+          case_facts_used: [],
+          issues: [
+            {
+              issue_id: "pos3.live_d1_d2_d3",
+              issue_title_th: "สิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47 ปีภาษี 2568",
+              party_or_scope_th: "นางสาวกานดา",
+              conclusion_th:
+                "นางสาวกานดามีสิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47 (1) (ก), (ข) และ (ค) (1) รวมทั้งสิ้น 210,000 บาท",
+              material_facts_relied_on: [],
+              governing_passage_ids: [S47_PSG_ID],
+              application_explanation_th:
+                "รายละเอียดการรวมค่าลดหย่อนตามมาตรา 47 [psg.e4ec78f644930e] มีดังนี้: (1) ผู้มีเงินได้ตามมาตรา 47 (1) (ก) จำนวน 60,000 บาท (2) คู่สมรสไม่มีเงินได้ตามมาตรา 47 (1) (ข) จำนวน 60,000 บาท และ (3) บุตรชอบด้วยกฎหมาย 2 คน ในปีภาษี 2568 คนแรกเกิดปี พ.ศ. 2559 อายุ 9 ปี และคนที่สองเกิดปี พ.ศ. 2562 อายุ 6 ปี จึงเป็นผู้เยาว์ทั้งคู่ โดยบุตรคนแรกหักได้ 30,000 บาท และบุตรคนที่สองเกิดตั้งแต่ปี พ.ศ. 2561 หักได้ 30,000 บาท และหักเพิ่มได้อีก 30,000 บาท รวมเป็นเงินทั้งสิ้น 60,000 บาท ดังนั้น รวมยอดค่าลดหย่อนตามมาตรา 47 ทั้งสิ้น 210,000 บาท",
+              authority_distinction_note_th: "",
+              proposed_calculation: {
+                is_computable_from_stated_facts: true,
+                formula_description_th: "60,000 + 60,000 + 30,000 + 60,000 = 210,000",
+                tax_base_thb: 60_000,
+                exempt_amount_thb: 210_000,
+                taxable_amount_thb: null,
+                rate_pct: null,
+                computed_tax_thb: 210_000,
+                missing_inputs_th: [],
+                steps_th: [],
+              },
+              missing_facts_or_uncertainties_th: [],
+            },
+          ],
+          assumptions_th: [],
+          clarification_questions_th: [],
+          evidence_gaps_th: [],
+        }),
+      }
+    );
+
+    expect(pos3LivePatternAns.status).toBe("ANSWERED");
+    expect(pos3LivePatternAns.claims.length).toBe(1);
+    expect(getRecentSection47RestrictedDiagnostics().at(-1)?.outcome).toBe("PASSED");
+  });
 });

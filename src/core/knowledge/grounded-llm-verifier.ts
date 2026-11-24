@@ -593,13 +593,22 @@ function verifyProposedCalculation(params: {
         .join(" "),
       citedVerbatimText: params.citedItems.map((p) => p.verbatim_text).join("\n"),
     });
-    const proposedAllowanceAmt =
-      calc.exempt_amount_thb ?? calc.computed_tax_thb ?? calc.tax_base_thb ?? calc.taxable_amount_thb;
-    if (s47Eval.applicable && proposedAllowanceAmt !== null && Number.isFinite(proposedAllowanceAmt)) {
-      const roundedProposed = Math.round(proposedAllowanceAmt);
+    const candidateCalcValues = [
+      calc.exempt_amount_thb,
+      calc.computed_tax_thb,
+      calc.taxable_amount_thb,
+      calc.tax_base_thb,
+    ]
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0)
+      .map((v) => Math.round(v));
+    if (s47Eval.applicable && candidateCalcValues.length > 0) {
+      const allValid = candidateCalcValues.every((v) => s47Eval.validAmountsThb.includes(v));
       const matchesExpectedTotalOrComponent = params.isSingleSummaryIssue
-        ? s47Eval.expectedTotalThb !== null && roundedProposed === s47Eval.expectedTotalThb
-        : s47Eval.validAmountsThb.includes(roundedProposed);
+        ? allValid &&
+          s47Eval.expectedTotalThb !== null &&
+          candidateCalcValues.includes(s47Eval.expectedTotalThb) &&
+          Math.max(...candidateCalcValues) === s47Eval.expectedTotalThb
+        : allValid;
       if (matchesExpectedTotalOrComponent) {
         return {
           accepted: true,
@@ -1801,7 +1810,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // and the explanation also mentions the child-income proviso (`มาตรา 42`) or `ฉบับที่ 44` from that unit!
     if (
       finalPassageIds.includes("psg.e4ec78f644930e") &&
-      /มาตรา\s*42|ฉบับที่\s*44/.test(normStmtPreBind) &&
+      /มาตรา\s*42|ฉบับที่\s*44|ฉบับที่\s*46|ผู้เยาว์|25\s*ปี|ยี่สิบห้าปี|ศึกษา/.test(normStmtPreBind) &&
       !finalPassageIds.includes("psg.cfc975a6134b54")
     ) {
       const p47Unit2 = params.passagePack.find((p) => p.passage_id === "psg.cfc975a6134b54");

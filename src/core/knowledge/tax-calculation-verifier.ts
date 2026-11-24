@@ -2316,6 +2316,29 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
   for (const cnt of [legitCount, adoptedCount, eligibleAdoptedCount, parentCount, disabledCount]) {
     if (cnt > 0) tokenSet.add(String(cnt));
   }
+  // Cause D3: Ground deterministic child ages (`taxYearBe - birthYearBe`, e.g. 2568 - 2559 = 9 ปี, 2568 - 2562 = 6 ปี)
+  // and statutory minor/student/parent age thresholds (20, 25, 60) for unit-quantity checks without adding them to `validAmountsThb`!
+  const taxYearBeMatch = userNorm.match(/ปีภาษี(?:\s*พ\.ศ\.)?\s*(25\d{2})/);
+  const statedTaxYearBe = taxYearBeMatch ? Number(taxYearBeMatch[1]) : null;
+  for (const ymAll of userNorm.matchAll(
+    /เกิด(?:เมื่อ|ใน|ปี)?(?:\s*พ\.ศ\.|\s*ค\.ศ\.)?\s*((?:25\d{2}|20\d{2})(?:\s*(?:,|และ|\s)\s*(?:พ\.ศ\.|ค\.ศ\.)?\s*(?:25\d{2}|20\d{2}))*)/g
+  )) {
+    for (const yTok of ymAll[1].matchAll(/25\d{2}|20\d{2}/g)) {
+      const rawY = Number(yTok[0]);
+      const yrBe = rawY < 2400 ? rawY + 543 : rawY;
+      if (statedTaxYearBe !== null && statedTaxYearBe >= yrBe && statedTaxYearBe - yrBe <= 120) {
+        tokenSet.add(String(statedTaxYearBe - yrBe));
+      }
+    }
+  }
+  if (legitCount > 0 || adoptedCount > 0) {
+    tokenSet.add("20");
+    tokenSet.add("25");
+    tokenSet.add("3"); // statutory 3-child cap in §47(1)(ค)(2)
+  }
+  if (parentCount > 0) {
+    tokenSet.add("60");
+  }
 
   const absentComponentCategories: Section47ExtractedFacts["absentComponentCategories"] = [];
   if (!hasNoIncomeSpouse) absentComponentCategories.push("spouse");
@@ -2395,8 +2418,10 @@ export function evaluateSection47ClaimAmountsAndSubclauses(params: {
 } {
   const toArabic = (s: string) =>
     (s || "").replace(/[๐-๙]/g, (d) => String("๐๑๒๓๔๕๖๗๘๙".indexOf(d)));
-  const normConclusion = toArabic(params.conclusionTh || "");
-  const normFull = toArabic(params.fullClaimStatement || "");
+  const scrubInternalIds = (s: string) =>
+    s.replace(/\b(?:psg|ver|prov|work|subreg|sched|doc|art|clm|trc|ans)\.[a-zA-Z0-9._-]+/g, " ");
+  const normConclusion = scrubInternalIds(toArabic(params.conclusionTh || ""));
+  const normFull = scrubInternalIds(toArabic(params.fullClaimStatement || ""));
   const bracketEnd = normFull.startsWith("[") ? normFull.indexOf("]") : -1;
   const normBody = bracketEnd > 0 ? normFull.slice(bracketEnd + 1).trim() : normFull;
   const normUser = toArabic(params.userContextText || "");
@@ -2626,18 +2651,22 @@ export function evaluateSection47ClaimAmountsAndSubclauses(params: {
       /(?:โสด|คู่สมรส|สามี|ภริยา|ภรรยา|มีบุตร|ไม่มีบุตร|บิดา|มารดา|คนพิการ)/.test(normUser));
 
   if (expectedTotal !== null) {
-    // 3a. Any explicit overall-total phrase in `normBody` must equal `expectedTotal`
+    // 3a. Any explicit overall-total summary phrase (without wildcard bridging into itemized breakdown lists
+    //     like "รายละเอียดการรวมค่าลดหย่อน... 1) ผู้มีเงินได้ 60,000 บาท", and excluding single-component subtotals
+    //     like "บุตรคนที่สอง... รวมเป็นเงินทั้งสิ้น 60,000 บาท") must equal `expectedTotal`!
     const overallTotalRe =
-      /(?:รวม(?:ยอด|สิทธิ|รายการ)?(?:การ)?(?:หัก)?(?:ค่า)?ลดหย่อน(?!(?:เฉพาะ)?(?:บุตร|บิดา|มารดา|คู่สมรส)(?!\s*(?:และ|รวมทั้งสิ้น)))[^\d\n();]{0,60}?(?:ทั้งสิ้น|ทั้งหมด|เป็นเงิน(?:ทั้งสิ้น)?|จำนวน|เท่ากับ|ได้)?|รวมเป็นเงินทั้งสิ้น|รวมทั้งสิ้น|ยอดรวม(?:สิทธิ)?(?:การ)?(?:หัก)?(?:ค่า)?ลดหย่อน[^\d\n();]{0,35}?|ผลรวม(?:สิทธิ)?(?:การ)?(?:หัก)?(?:ค่า)?ลดหย่อน[^\d\n();]{0,35}?)\s*\(?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,9}|0)\s*(?:บาท)?\s*\)?/g;
+      /(?:รวม(?:ยอด|สิทธิ)?(?:การ)?(?:หัก)?(?:ค่า)?ลดหย่อน(?:ส่วนตัว(?:และครอบครัว)?|ตาม(?:ประมวลรัษฎากร\s*)?มาตรา\s*47(?:\s*\(\s*1\s*\)(?:\s*\(\s*ก\s*\)\s*(?:[-–,]|ถึง|และ)\s*\(\s*ค\s*\))?)?|ทั้งหมด|ทุกรายการ|ในส่วนนี้)?\s*(?:เป็นเงิน)?(?:ทั้งสิ้น|ทั้งหมด|เท่ากับ|จำนวน)|รวมเป็นเงินทั้งสิ้น|รวมทั้งสิ้น)\s*\(?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,9}|0)\s*บาท\s*\)?/g;
     for (const tm of normBody.matchAll(overallTotalRe)) {
       const mIdx = tm.index ?? 0;
       const left35 = normBody.slice(Math.max(0, mIdx - 35), mIdx);
       if (/(?:ไม่|มิใช่|ไม่ใช่|ผิด|แทนที่จะเป็น)/.test(left35)) continue;
-      // Skip child/parent-only subtotal lines like "ค่าลดหย่อนบุตร 2 คน รวมทั้งสิ้น 60,000 บาท"
-      const left60 = normBody.slice(Math.max(0, mIdx - 60), mIdx);
+      // Skip single-component / child-only / spouse-only subtotals (e.g. "บุตรคนที่สอง ... รวมทั้งสิ้น 60,000 บาท" or "บุตร 3 คน คนละ 30,000 บาท รวมเป็นเงินทั้งสิ้น 90,000 บาท")
+      const left95 = normBody.slice(Math.max(0, mIdx - 95), mIdx);
       if (
-        /(?:ค่าลดหย่อนบุตร|สำหรับบุตร|เฉพาะบุตร|ลดหย่อนบิดามารดา)[^\n.;]{0,35}$/.test(left60) &&
-        !/(?:ผู้มีเงินได้|ส่วนตัว|คู่สมรส)/.test(left60)
+        /(?:ค่าลดหย่อนบุตร|สำหรับบุตร|เฉพาะบุตร|บุตรคน(?:แรก|ที่สอง|ที่\s*[123])|คนละ\s*30,?000|ลดหย่อนบิดามารดา)/.test(
+          left95
+        ) &&
+        !/(?:ผู้มีเงินได้|ลดหย่อนส่วนตัว)/.test(left95)
       ) {
         continue;
       }
@@ -2660,7 +2689,7 @@ export function evaluateSection47ClaimAmountsAndSubclauses(params: {
     if (asksTaxpayerTotal) {
       const conclusionAmounts: number[] = [];
       for (const cm of normConclusion.matchAll(
-        /(?:([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท|(?<![0-9,])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,])|(?<![0-9,])([1-9][0-9]{4,6})(?![0-9,]))/g
+        /(?:([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท|(?<![0-9,a-zA-Z._-])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,a-zA-Z._-])|(?<![0-9,a-zA-Z._-])([1-9][0-9]{4,6})(?![0-9,a-zA-Z._-]))/g
       )) {
         const rawNum = (cm[1] || cm[2] || cm[3] || "").replace(/,/g, "");
         const val = Number(rawNum);
@@ -2707,7 +2736,7 @@ export function evaluateSection47ClaimAmountsAndSubclauses(params: {
 
   // --- Rule 4: Scan all monetary Baht figures in `normBody` against `validSet` + statutory unit rates (`10,000` only if contrasted, `30,000`, `60,000`) ---
   for (const bm of normBody.matchAll(
-    /(?:([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท|(?<![0-9,])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,])|(?<![0-9,])([1-9][0-9]{4,6})(?![0-9,]))/g
+    /(?:([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท|(?<![0-9,a-zA-Z._-])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,a-zA-Z._-])|(?<![0-9,a-zA-Z._-])([1-9][0-9]{4,6})(?![0-9,a-zA-Z._-]))/g
   )) {
     const rawNum = (bm[1] || bm[2] || bm[3] || "").replace(/,/g, "");
     const val = Number(rawNum);
