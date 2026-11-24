@@ -156,6 +156,23 @@ function extractInviteToken(req: Request): string | null {
     const val = auth.replace(/^bearer\s+/i, "").trim();
     return val.length > 0 ? val : null;
   }
+  // Allow HttpOnly reviewer session cookie strictly on read-only GET endpoints (e.g. direct browser-tab
+  // GET /api/v1/knowledge/answers/{rev}?require_db=1) while keeping explicit header auth for POST mutations!
+  if ((req.method || "GET").toUpperCase() === "GET") {
+    const rawCookie = req.headers.get("cookie") || "";
+    for (const part of rawCookie.split(";")) {
+      const eqIdx = part.indexOf("=");
+      if (eqIdx === -1) continue;
+      if (part.slice(0, eqIdx).trim() === "reg24_trial_session") {
+        try {
+          const decoded = decodeURIComponent(part.slice(eqIdx + 1).trim());
+          if (decoded.length > 0) return decoded;
+        } catch {
+          return null;
+        }
+      }
+    }
+  }
   return null;
 }
 

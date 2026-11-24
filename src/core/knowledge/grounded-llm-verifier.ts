@@ -532,7 +532,7 @@ function verifyProposedCalculation(params: {
     /(?:ผู้รับโอน|ผู้รับให้|ภาระภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?:นางสาว|นาย|นาง|หลาน|บุตร))/.test(
       issueScopeBlob
     ) &&
-    !/(?:หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ความรับผิดร่วม|ผู้โอนเป็นหลัก|ภาษีธุรกิจเฉพาะ|อากรแสตมป์)/.test(
+    !/(?:ผู้โอน(?!และผู้รับ)|ผู้ให้|หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ความรับผิดร่วม|ผู้โอนเป็นหลัก|ภาษีธุรกิจเฉพาะ|อากรแสตมป์)/.test(
       `${params.issue.issue_title_th} ${params.issue.party_or_scope_th}`
     );
 
@@ -923,6 +923,22 @@ function renderNeutralGroundedLlmAnswerTh(params: {
     return `- **${p.official_identifier}** — ${p.title_th} | *${AUTHORITY_TIER_LABEL_TH[p.authority_tier]}* | รุ่น \`${p.version_id}\` | ตำแหน่งอ้างอิง: \`${p.pinpoint}\` | ${windowStr} | รูปแบบ: ${repLabel} | ${urlNote}`;
   });
   if (sourceLines.length > 0) {
+    const fullAnswerDraftText = `${params.verifiedIssues
+      .map((v) => `${v.conclusion_th} ${v.application_explanation_th}`)
+      .join(" ")} ${params.evidenceGaps.join(" ")}`;
+    if (
+      /(?:ฉบับที่\s*165|พ\.ร\.ฎ\.[^\n]{0,20}165)/.test(thaiDigitsToArabic(fullAnswerDraftText)) &&
+      !params.usedPassages.some((p) => p.work_id === "subreg.th.rc.royal_decree.165")
+    ) {
+      const ref50 = params.usedPassages.find(
+        (p) => p.work_id === "prov.th.rc.50" && thaiDigitsToArabic(p.verbatim_text).includes("165")
+      );
+      if (ref50?.official_url) {
+        sourceLines.push(
+          `- **พระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529 (อ้างถึงใน ${ref50.official_identifier} มาตรา 50 (5) (ข) \`[${ref50.passage_id}]\`)** — ตัวบทอ้างอิงที่มาตรา 50: ${ref50.official_url} *(หมายเหตุข้อจำกัดคลังข้อมูล: ตารางอัตราค่าใช้จ่ายเหมาตามจำนวนปีถือครองของ พ.ร.ฎ. (ฉบับที่ 165) พ.ศ. 2529 แยกต่างหากยังไม่ได้รวมอยู่ในคลังรุ่นนี้)*`
+        );
+      }
+    }
     sections.push(`**4. แหล่งอ้างอิงที่ตรวจสอบแล้ว (Verified Authorities)**\n${sourceLines.join("\n")}`);
   }
 
@@ -1265,9 +1281,36 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     const issueScopeNorm = thaiDigitsToArabic(`${iss.issue_title_th} ${iss.party_or_scope_th}`);
     const isRecipientOnImmovable =
       /(?:ผู้รับโอน|ผู้รับให้|ภาระภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?:นางสาว|นาย|นาง|หลาน|บุตร))/.test(issueScopeNorm) &&
-      !/(?:หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ความรับผิดร่วม|ผู้โอนเป็นหลัก|เงินสด)/.test(issueScopeNorm) &&
+      !/(?:ผู้โอน(?!และผู้รับ)|ผู้ให้|หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ความรับผิดร่วม|ผู้โอนเป็นหลัก|เงินสด)/.test(issueScopeNorm) &&
       citedPackItems.some((p) => p.work_id === "prov.th.rc.41_ทวิ" || /\(26\)/.test(p.verbatim_text));
     if (!isRecipientOnImmovable && calcCheck.accepted) {
+      const hasMaritalHalfShareAuthority =
+        /คนละกึ่งหนึ่ง|คนละส่วนเท่ากัน/.test(citedVerbatimNorm) ||
+        params.factLedger.material_facts.some(
+          (f) => f.normalized_category === "MARITAL_COMMUNITY_PROPERTY_CO_OWNED_SIN_SOMROT"
+        );
+      if (hasMaritalHalfShareAuthority) {
+        const maritalBases = extractMonetaryAmountsThb(
+          [
+            ...params.factLedger.material_facts
+              .filter(
+                (f) =>
+                  f.fact_key === "official_appraised_value_thb" ||
+                  f.fact_key === "appraised_value_thb" ||
+                  f.fact_key === "stated_asset_value_thb"
+              )
+              .map((f) => f.original_text_th),
+            ...params.factLedger.user_turns.map((t) => t.raw_text),
+          ].join(" ")
+        );
+        for (const baseVal of maritalBases) {
+          if (baseVal > 0 && baseVal % 2 === 0) {
+            const halfShare = baseVal / 2;
+            trustedTokens.add(String(halfShare));
+            trustedTokens.add(halfShare.toLocaleString("en-US"));
+          }
+        }
+      }
       if (citedVerbatimNorm.includes("ยี่สิบล้านบาท")) {
         trustedTokens.add("20000000");
         trustedTokens.add("20,000,000");
@@ -1304,6 +1347,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // derived combined rate `7` / `0.7` / `6.3` when explaining the combined rate alongside local tax!
     const citesVatReductionDecree = citedPackItems.some(
       (p) =>
+        p.work_id === "subreg.th.rc.royal_decree.646" ||
         p.work_id === "subreg.th.rc.royal_decree.780" ||
         p.work_id === "subreg.th.rc.royal_decree.790" ||
         p.work_id === "subreg.th.rc.royal_decree.799" ||
@@ -1395,6 +1439,34 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       ? `[${iss.issue_title_th} — ${iss.party_or_scope_th}] ${iss.conclusion_th} (${iss.application_explanation_th})`
       : `[${iss.issue_title_th} — ${iss.party_or_scope_th}] ${iss.conclusion_th}`;
     let finalPassageIds = [...validPassageIds];
+    const normStmtPreBind = thaiDigitsToArabic(fullIssueClaimStatement);
+    // Minor 1 (G1): Auto-bind กค 0702/3889 (psg.1285e0045e3266 / rd.go.th/66517.html) when referenced or when
+    // marital co-owned immovable property (`สินสมรส`) is transferred to a legitimate child under §42(26)!
+    if (
+      /0702\/3889/.test(normStmtPreBind) ||
+      (/สินสมรส/.test(normStmtPreBind) && /42\s*\(26\)/.test(normStmtPreBind))
+    ) {
+      const p3889 = params.passagePack.find(
+        (p) =>
+          p.work_id === "work.th.rd.gk_0702_3889_2022_0d0a6d5b" &&
+          !finalPassageIds.includes(p.passage_id)
+      );
+      if (p3889) {
+        finalPassageIds.push(p3889.passage_id);
+      }
+    }
+    // Minor 3 (M1t3): Auto-bind §50(5)(ข) passage containing "( ดูพระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529 )" when RD 165 is cited!
+    if (/(?:ฉบับที่\s*165|พ\.ร\.ฎ\.[^\n]{0,20}165)/.test(normStmtPreBind)) {
+      const p50_165 = params.passagePack.find(
+        (p) =>
+          p.work_id === "prov.th.rc.50" &&
+          thaiDigitsToArabic(p.verbatim_text).includes("165") &&
+          !finalPassageIds.includes(p.passage_id)
+      );
+      if (p50_165) {
+        finalPassageIds.push(p50_165.passage_id);
+      }
+    }
     const excludedContextInstruments = extractExplicitlyExcludedContextInstruments({
       issue: iss,
       validPassageIds: finalPassageIds,
@@ -1421,7 +1493,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       const normStmtForSec = thaiDigitsToArabic(fullIssueClaimStatement);
       const mentionedRcNums = new Set<string>();
       for (const sm of normStmtForSec.matchAll(
-        /มาตรา\s*(\d+(?:\/\d+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฏฐ|เตรส))?)/g
+        /มาตรา\s*(\d+(?:\/\d+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ(?!บับ|พาะ|ุกเฉิน)|สัตต|อัฏฐ|เตรส))?)/g
       )) {
         mentionedRcNums.add(sm[1].replace(/\s+/g, "_"));
       }
@@ -1714,7 +1786,18 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       "กรุณาระบุวันที่รับชำระค่าบริการและวันที่ออกใบกำกับภาษี (ตามมาตรา 78/1 (1)) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับและคำนวณภาษีขาย"
     );
   }
-  const evidenceGaps = params.draft.evidence_gaps_th || [];
+  const evidenceGaps = [...(params.draft.evidence_gaps_th || [])];
+  const usesRd646Governing =
+    Boolean(params.specialConstraints?.rd646_original_sec4_limitation) ||
+    usedPackItems.some((p) => p.work_id === "subreg.th.rc.royal_decree.646");
+  if (
+    usesRd646Governing &&
+    !evidenceGaps.some((g) => thaiDigitsToArabic(g).includes("646") && thaiDigitsToArabic(g).includes("มาตรา 4"))
+  ) {
+    evidenceGaps.push(
+      "หมายเหตุข้อจำกัดต้นฉบับ พ.ร.ฎ. (ฉบับที่ 646) พ.ศ. 2560: ตัวบทมาตรา 4 ฉบับแรกเริ่มตามราชกิจจานุเบกษาไม่ได้แยกอยู่ในคลังหลักฐาน (คลังมีเฉพาะเอกสารฉบับประมวลของกรมสรรพากรซึ่งแสดงข้อความมาตรา 4 ที่แก้ไขเพิ่มเติมในภายหลัง)"
+    );
+  }
 
   const coverageWarnings: string[] = [
     ...evidenceGaps,

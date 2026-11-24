@@ -2226,10 +2226,166 @@ export function computeCanonicalSavePayloadSha256(params: {
   return sha256Bytes(JSON.stringify(canonical));
 }
 
+function sanitizeGroundedAnswerSnapshot(
+  raw?:
+    | GroundedAnswer
+    | TraceableAnswerEnvelope["grounded_answer_snapshot"]
+    | null
+): TraceableAnswerEnvelope["grounded_answer_snapshot"] {
+  if (!raw || typeof raw !== "object") return null;
+  const clone = { ...(raw as unknown as Record<string, unknown>) };
+  delete clone.traceable_answer;
+  delete clone.llm_audit_trace;
+  return clone as unknown as TraceableAnswerEnvelope["grounded_answer_snapshot"];
+}
+
+/**
+ * Server-side pre-flight conversation isolation guard for `POST /api/v1/knowledge/query`:
+ * Rejects (`400 CROSS_CONVERSATION_REVISION_FORBIDDEN_400` / `403 ANSWER_OWNERSHIP_FORBIDDEN_403`)
+ * any follow-up write whose `reopened_from_revision` or `prior_saved_answer_revision` belongs to a
+ * different `conversation_id` or whose `conversation_history` mixes turns from another matter.
+ */
+export async function assertFollowUpConversationIntegrity(
+  store: DurableKnowledgeStore,
+  actor: Actor,
+  ctx: {
+    conversation_id?: string | null;
+    prior_saved_answer_revision?: string | null;
+    reopened_from_revision?: string | null;
+    conversation_history?: ConversationTurnInput[];
+  }
+): Promise<void> {
+  const convId = ctx.conversation_id?.trim() || null;
+  const explicitPriorRev = ctx.prior_saved_answer_revision?.trim() || null;
+  const reopenedRev = ctx.reopened_from_revision?.trim() || null;
+  const history = Array.isArray(ctx.conversation_history) ? ctx.conversation_history : [];
+
+  if (reopenedRev && explicitPriorRev && reopenedRev !== explicitPriorRev) {
+    throw new Error(
+      `CROSS_CONVERSATION_REVISION_FORBIDDEN_400: Follow-up reopened revision '${reopenedRev}' conflicts with submitted prior_saved_answer_revision '${explicitPriorRev}'.`
+    );
+  }
+
+  for (const turn of history) {
+    const tConv = turn.conversation_id?.trim() || null;
+    if (convId && tConv && tConv !== convId) {
+      throw new Error(
+        `CROSS_CONVERSATION_REVISION_FORBIDDEN_400: Conversation history contains turn from '${tConv}' which does not match active conversation '${convId}'.`
+      );
+    }
+  }
+
+  const lastSavedAssistantTurn = [...history]
+    .reverse()
+    .find(
+      (t) =>
+        t.role === "assistant" &&
+        typeof t.saved_answer_revision === "string" &&
+        t.saved_answer_revision.trim().length > 0
+    );
+  const historyPriorRev = lastSavedAssistantTurn?.saved_answer_revision?.trim() || null;
+  if (reopenedRev && historyPriorRev && reopenedRev !== historyPriorRev) {
+    throw new Error(
+      `CROSS_CONVERSATION_REVISION_FORBIDDEN_400: Follow-up reopened revision '${reopenedRev}' conflicts with conversation_history revision '${historyPriorRev}'.`
+    );
+  }
+
+  const targetParentRev = reopenedRev || explicitPriorRev || historyPriorRev;
+  if (!targetParentRev) return;
+
+  const priorUserTurns = history.filter(
+    (t) => t.role === "user" && typeof t.content === "string" && t.content.trim().length > 0
+  );
+  if (priorUserTurns.length === 0) {
+    throw new Error(
+      `INVALID_PRIOR_CONVERSATION_REVISION_400: First answer in a fresh conversation cannot reference prior revision '${targetParentRev}'.`
+    );
+  }
+  const priorUserQuestionSet = new Set(priorUserTurns.map((t) => t.content.trim()));
+
+  if (hasActiveCitationPostgresStore()) {
+    const revRec = await lookupSavedRevisionRecordInPostgres(targetParentRev);
+    if (!revRec.exists || !revRec.answer_id) {
+      throw new Error(
+        `INVALID_PRIOR_CONVERSATION_REVISION_400: Referenced prior answer revision '${targetParentRev}' does not exist in durable PostgreSQL storage.`
+      );
+    }
+    const priorChain = await inspectExistingAnswerOwnershipInPostgres(revRec.answer_id);
+    const isSameOwner =
+      priorChain.owner_actor_id === actor.actor_id &&
+      (priorChain.owner_tenant_id || "PUBLIC") === actor.tenant_id;
+    if (!isSameOwner) {
+      throw new Error(
+        `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${actor.actor_id}' cannot link a follow-up to answer '${revRec.answer_id}' owned by '${priorChain.owner_actor_id}'.`
+      );
+    }
+    const recordedConvTags = priorChain.revisions
+      .map((r) => extractConversationTagFromReason(r.revision_reason))
+      .filter((tag): tag is string => Boolean(tag));
+    const hasConvIdMismatch =
+      Boolean(convId) && recordedConvTags.length > 0 && !recordedConvTags.includes(convId!);
+    const hasForeignSavedTurnInHistory = history.some(
+      (t) =>
+        t.role === "assistant" &&
+        ((t.saved_answer_id && t.saved_answer_id !== revRec.answer_id) ||
+          (t.saved_answer_revision &&
+            !t.saved_answer_revision.startsWith(`${revRec.answer_id}.`)))
+    );
+    const matchesConversationQuestions = priorChain.question_texts.some((qt) =>
+      priorUserQuestionSet.has(qt.trim())
+    );
+    if (!matchesConversationQuestions || hasConvIdMismatch || hasForeignSavedTurnInHistory) {
+      throw new Error(
+        `CROSS_CONVERSATION_REVISION_FORBIDDEN_400: Follow-up answer can only link to a saved revision from the same conversation ('${targetParentRev}' belongs to a different conversation).`
+      );
+    }
+  } else {
+    const unified = getUnifiedCitationLedgerView(store);
+    const localRev = unified.published_answers[targetParentRev];
+    if (!localRev) {
+      throw new Error(
+        `INVALID_PRIOR_CONVERSATION_REVISION_400: Referenced prior answer revision '${targetParentRev}' does not exist in durable storage.`
+      );
+    }
+    const localChain = Object.values(unified.published_answers)
+      .filter((a) => a.answer_id === localRev.answer_id)
+      .sort((a, b) => a.revision_number - b.revision_number);
+    const firstLocal = localChain[0] || localRev;
+    const localOwner = firstLocal.owner_actor_id || firstLocal.actor_id;
+    const localTenant = firstLocal.owner_tenant_id || firstLocal.tenant_id;
+    if (localOwner !== actor.actor_id || localTenant !== actor.tenant_id) {
+      throw new Error(
+        `ANSWER_OWNERSHIP_FORBIDDEN_403: Caller '${actor.actor_id}' cannot link a follow-up to answer '${localRev.answer_id}' owned by '${localOwner}'.`
+      );
+    }
+    const recordedConvTags = localChain
+      .map((r) => extractConversationTagFromReason(r.revision_reason))
+      .filter((tag): tag is string => Boolean(tag));
+    const hasConvIdMismatch =
+      Boolean(convId) && recordedConvTags.length > 0 && !recordedConvTags.includes(convId!);
+    const hasForeignSavedTurnInHistory = history.some(
+      (t) =>
+        t.role === "assistant" &&
+        ((t.saved_answer_id && t.saved_answer_id !== localRev.answer_id) ||
+          (t.saved_answer_revision &&
+            !t.saved_answer_revision.startsWith(`${localRev.answer_id}.`)))
+    );
+    const matchesConversationQuestions = localChain.some((r) =>
+      priorUserQuestionSet.has((r.question_text || "").trim())
+    );
+    if (!matchesConversationQuestions || hasConvIdMismatch || hasForeignSavedTurnInHistory) {
+      throw new Error(
+        `CROSS_CONVERSATION_REVISION_FORBIDDEN_400: Follow-up answer can only link to a saved revision from the same conversation ('${targetParentRev}' belongs to a different conversation).`
+      );
+    }
+  }
+}
+
 export async function saveOrReviseAnswerServerVerified(
   store: DurableKnowledgeStore,
   params: {
     submitted_envelope: Partial<TraceableAnswerEnvelope>;
+    grounded_answer_snapshot?: GroundedAnswer | null;
     question_text: string;
     revision_reason?: string;
     actor: Actor;
@@ -2237,6 +2393,7 @@ export async function saveOrReviseAnswerServerVerified(
     query_persistence_context?: {
       conversation_id?: string | null;
       prior_saved_answer_revision?: string | null;
+      reopened_from_revision?: string | null;
       conversation_history?: ConversationTurnInput[];
       /** Per-claim verified calculation tokens keyed strictly by claim_id (zero cross-claim pooling). */
       trusted_calculation_tokens_by_claim_id?: Record<string, string[]>;
@@ -2265,13 +2422,20 @@ export async function saveOrReviseAnswerServerVerified(
 
   if (params.query_persistence_context) {
     const qCtx = params.query_persistence_context;
+    await assertFollowUpConversationIntegrity(store, params.actor, {
+      conversation_id: qCtx.conversation_id,
+      prior_saved_answer_revision: qCtx.prior_saved_answer_revision,
+      reopened_from_revision: qCtx.reopened_from_revision,
+      conversation_history: qCtx.conversation_history,
+    });
     const convId = qCtx.conversation_id?.trim() || null;
     const history = Array.isArray(qCtx.conversation_history) ? qCtx.conversation_history : [];
     const priorUserTurns = history.filter(
       (t) => t.role === "user" && typeof t.content === "string" && t.content.trim().length > 0
     );
     const hasPriorConversationTurns = priorUserTurns.length > 0;
-    const explicitPriorRev = qCtx.prior_saved_answer_revision?.trim() || null;
+    const explicitPriorRev =
+      qCtx.reopened_from_revision?.trim() || qCtx.prior_saved_answer_revision?.trim() || null;
     const lastSavedAssistantTurn = [...history]
       .reverse()
       .find(
@@ -2740,6 +2904,7 @@ export async function saveOrReviseAnswerServerVerified(
   const shouldRemapClaimIds = requestedAnswerId !== sub.answer_id || nextRevHint > 1;
   const subClaimIdRemap = new Map<string, string>();
   const VAT_REDUCTION_WORK_IDS = new Set([
+    "subreg.th.rc.royal_decree.646",
     "subreg.th.rc.royal_decree.780",
     "subreg.th.rc.royal_decree.790",
     "subreg.th.rc.royal_decree.799",
@@ -2898,6 +3063,17 @@ export async function saveOrReviseAnswerServerVerified(
       mergedPerClaimTokens.add("10,000,000");
       mergedPerClaimTokens.add("10");
     }
+    if (/คนละกึ่งหนึ่ง|คนละส่วนเท่ากัน/.test(citedThresholdBlob)) {
+      const candidateMaritalBases =
+        questionMonetaryBasesThb.length > 0 ? questionMonetaryBasesThb : prevMonetaryBasesThb;
+      for (const mb of candidateMaritalBases) {
+        if (mb > 0 && mb % 2 === 0) {
+          const halfMb = mb / 2;
+          mergedPerClaimTokens.add(String(halfMb));
+          mergedPerClaimTokens.add(halfMb.toLocaleString("en-US"));
+        }
+      }
+    }
     if (questionMonetaryBasesThb.length === 0 && supersededQuestionBasesThb.size === 0) {
       for (const pb of prevMonetaryBasesThb) {
         mergedPerClaimTokens.add(String(pb));
@@ -2998,7 +3174,9 @@ export async function saveOrReviseAnswerServerVerified(
   }
   if (
     serverValidated.status === "complete" &&
-    (sub.status === "partial" || sub.grounded_answer_status === "CONDITIONAL")
+    (sub.status === "partial" ||
+      sub.grounded_answer_status === "CONDITIONAL" ||
+      sub.grounded_answer_status === "NEEDS_CLARIFICATION")
   ) {
     serverValidated.status = "partial";
   }
@@ -3024,6 +3202,32 @@ export async function saveOrReviseAnswerServerVerified(
     throw new Error(
       "UNSUPPORTED_ANSWER_REJECTED_422: Plausible conclusion or answer cannot be saved as supported without valid, eligible supporting evidence."
     );
+  }
+  // For genuine abstention / clarification outcomes (`NEEDS_CLARIFICATION` / `INSUFFICIENT_EVIDENCE`),
+  // preserve the exact rendered abstention/clarification notice and unresolved issues across Save & Reopen!
+  if (serverValidated.status === "insufficient" && !callerClaimedSupported) {
+    if (typeof sub.rendered_answer_th === "string" && sub.rendered_answer_th.trim().length > 0) {
+      serverValidated.rendered_answer_th = sub.rendered_answer_th;
+    }
+    if (Array.isArray(sub.unresolved_issues) && sub.unresolved_issues.length > 0) {
+      serverValidated.unresolved_issues = [...sub.unresolved_issues];
+    }
+  }
+
+  const effectiveConversationId =
+    params.query_persistence_context?.conversation_id?.trim() ||
+    sub.conversation_id ||
+    extractConversationTagFromReason(effectiveRevisionReason) ||
+    null;
+  serverValidated.conversation_id = effectiveConversationId;
+  const sanitizedSnapshot = sanitizeGroundedAnswerSnapshot(
+    params.grounded_answer_snapshot ?? sub.grounded_answer_snapshot ?? null
+  );
+  if (sanitizedSnapshot) {
+    serverValidated.grounded_answer_snapshot = {
+      ...sanitizedSnapshot,
+      status: serverValidated.grounded_answer_status || sanitizedSnapshot.status,
+    };
   }
 
   const allLinks = serverValidated.claims.flatMap((clm) =>
@@ -3443,6 +3647,13 @@ export function attachTraceableEnvelopeToGroundedAnswer(
     builtEnvelope.status === "insufficient" && grounded.status === "ANSWERED"
       ? "INSUFFICIENT_EVIDENCE"
       : grounded.status;
+  if (
+    builtEnvelope.status === "insufficient" &&
+    grounded.status !== "ANSWERED" &&
+    grounded.answer.trim().length > 0
+  ) {
+    builtEnvelope.rendered_answer_th = grounded.answer;
+  }
   if (grounded.clarification_questions && grounded.clarification_questions.length > 0) {
     builtEnvelope.clarification_questions_th = [...grounded.clarification_questions];
   }
@@ -3460,8 +3671,15 @@ export function attachTraceableEnvelopeToGroundedAnswer(
   if (grounded.execution_provenance) {
     builtEnvelope.execution_provenance = grounded.execution_provenance;
   }
+  builtEnvelope.grounded_answer_snapshot = sanitizeGroundedAnswerSnapshot(grounded);
 
-  if (params.persist && (builtEnvelope.status === "complete" || builtEnvelope.status === "partial")) {
+  if (
+    params.persist &&
+    grounded.status !== "REVIEW_REQUIRED" &&
+    (builtEnvelope.status === "complete" ||
+      builtEnvelope.status === "partial" ||
+      builtEnvelope.status === "insufficient")
+  ) {
     const linksToCommit = builtEnvelope.claims.flatMap((clm) =>
       clm.evidence_references.map((ref) => ({
         ...ref,
@@ -3879,6 +4097,9 @@ export function reopenSavedTraceableAnswer(
   found: boolean;
   http_status: 200 | 404;
   answer?: TraceableAnswerEnvelope;
+  grounded_answer?: GroundedAnswer | null;
+  conversation_id?: string | null;
+  conversation_turns?: ConversationTurnInput[];
   question_text?: string;
   error_th?: string;
 } {
@@ -4002,19 +4223,61 @@ export function reopenSavedTraceableAnswer(
       published_claims_count: r.claims.length,
     }));
 
+  const resolvedLocalConvId =
+    matched.conversation_id ||
+    extractConversationTagFromReason(matched.revision_reason) ||
+    allRevsForAnswer
+      .map((r) => extractConversationTagFromReason(r.revision_reason))
+      .find(Boolean) ||
+    `conv.reopened.${matched.answer_id}`;
+
+  const localTurns: ConversationTurnInput[] = [];
+  for (const r of allRevsForAnswer) {
+    if (r.revision_number > matched.revision_number) continue;
+    const rQ = (r.question_text || "").trim();
+    const rAns = r.grounded_answer_snapshot?.answer || r.rendered_answer_th || "";
+    if (rQ) {
+      localTurns.push({
+        role: "user",
+        content: rQ,
+        applicable_date: r.as_of_date ?? null,
+        conversation_id: resolvedLocalConvId,
+      });
+    }
+    localTurns.push({
+      role: "assistant",
+      content: rAns,
+      saved_answer_id: matched.answer_id,
+      saved_answer_revision: r.answer_revision,
+      conversation_id: resolvedLocalConvId,
+    });
+  }
+
+  const reopenedLocalEnvelope: TraceableAnswerEnvelope = {
+    ...matched,
+    conversation_id: resolvedLocalConvId,
+    owner_actor_id: matched.owner_actor_id || matched.actor_id,
+    owner_tenant_id: matched.owner_tenant_id || matched.tenant_id,
+    revision_reason: matched.revision_reason || "Initial verified publication",
+    revision_history: revisionHistory,
+    claims: refreshedClaims,
+    update_notices: updateNotices,
+  };
+  const rehydratedLocalGrounded: GroundedAnswer | null = matched.grounded_answer_snapshot
+    ? {
+        ...matched.grounded_answer_snapshot,
+        traceable_answer: reopenedLocalEnvelope,
+      }
+    : null;
+
   return {
     found: true,
     http_status: 200,
     question_text: matched.question_text,
-    answer: {
-      ...matched,
-      owner_actor_id: matched.owner_actor_id || matched.actor_id,
-      owner_tenant_id: matched.owner_tenant_id || matched.tenant_id,
-      revision_reason: matched.revision_reason || "Initial verified publication",
-      revision_history: revisionHistory,
-      claims: refreshedClaims,
-      update_notices: updateNotices,
-    },
+    conversation_id: resolvedLocalConvId,
+    conversation_turns: localTurns,
+    grounded_answer: rehydratedLocalGrounded,
+    answer: reopenedLocalEnvelope,
   };
 }
 
@@ -4034,6 +4297,9 @@ export async function reopenSavedTraceableAnswerWithPostgres(
   http_status: 200 | 404;
   persistence_source?: "neon_postgres" | "local_store" | "none";
   answer?: TraceableAnswerEnvelope;
+  grounded_answer?: GroundedAnswer | null;
+  conversation_id?: string | null;
+  conversation_turns?: ConversationTurnInput[];
   question_text?: string;
   audit_events?: import("./citation-contracts").TraceabilityAuditEventRecord[];
   error_th?: string;
@@ -4142,17 +4408,27 @@ export async function reopenSavedTraceableAnswerWithPostgres(
         };
       }),
     }));
+    const refreshedPgEnvelope: TraceableAnswerEnvelope = {
+      ...pgLoaded.answer,
+      claims: refreshedPgClaims,
+      update_notices: updateNotices,
+    };
+    const refreshedGrounded: GroundedAnswer | null = pgLoaded.grounded_answer
+      ? {
+          ...pgLoaded.grounded_answer,
+          traceable_answer: refreshedPgEnvelope,
+        }
+      : null;
     return {
       found: true,
       http_status: 200,
       persistence_source: "neon_postgres",
       question_text: pgLoaded.question_text,
+      conversation_id: pgLoaded.conversation_id ?? refreshedPgEnvelope.conversation_id ?? null,
+      conversation_turns: pgLoaded.conversation_turns || [],
+      grounded_answer: refreshedGrounded,
       audit_events: pgLoaded.audit_events || [],
-      answer: {
-        ...pgLoaded.answer,
-        claims: refreshedPgClaims,
-        update_notices: updateNotices,
-      },
+      answer: refreshedPgEnvelope,
     };
   }
 

@@ -28,6 +28,26 @@ const PRIVILEGED_ROLES = new Set<ActorRole>([
   "data_operator",
 ]);
 
+function extractReadOnlySessionCookieInvite(req: Request): string | null {
+  if ((req.method || "GET").toUpperCase() !== "GET") return null;
+  const rawCookie = req.headers.get("cookie") || "";
+  if (!rawCookie) return null;
+  for (const part of rawCookie.split(";")) {
+    const eqIdx = part.indexOf("=");
+    if (eqIdx === -1) continue;
+    const k = part.slice(0, eqIdx).trim();
+    if (k === "reg24_trial_session") {
+      try {
+        const v = decodeURIComponent(part.slice(eqIdx + 1).trim());
+        return v.length > 0 ? v : null;
+      } catch {
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 export function resolveServerActor(req: Request, opts?: { requireCsrfForMutation?: boolean }): Actor {
   if (opts?.requireCsrfForMutation) {
     const csrfHeader = req.headers.get("x-reg24-csrf");
@@ -64,6 +84,7 @@ export function resolveServerActor(req: Request, opts?: { requireCsrfForMutation
       .get("authorization")
       ?.replace(/^bearer\s+/i, "")
       .trim() ||
+    extractReadOnlySessionCookieInvite(req) ||
     "";
   const credentialHash14 = inviteOrBearer ? sha256Bytes(inviteOrBearer).slice(0, 14) : null;
   const credentialActorId = credentialHash14

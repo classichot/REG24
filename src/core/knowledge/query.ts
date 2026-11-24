@@ -986,17 +986,31 @@ async function executeCoreKnowledgeQuery(
     !preAsksCrossBorderInbound &&
     (preExplicitlyAsksDomesticRate || issueAnalysis.implicatedRegimes.includes("VAT_RATE"));
 
+  const isSupportedVatCoverageIso = (iso: string): boolean =>
+    (iso >= "2017-10-01" && iso <= "2018-09-30") || iso >= VAT_RATE_VERIFIED_COVERAGE_START_ISO;
   const splitPointsPre = preRetrievalFactLedger.temporal_facts.split_payment_tax_points || [];
   const splitHasPreCutoff =
     preRetrievalIsSplitPayment &&
-    splitPointsPre.some((p) => p.iso_date < VAT_RATE_VERIFIED_COVERAGE_START_ISO);
+    splitPointsPre.some((p) => !isSupportedVatCoverageIso(p.iso_date));
   const singlePreCutoffDate =
     !preRetrievalIsSplitPayment &&
     !preRetrievalHasDateConflict &&
     retrievalEffectiveDateIso &&
-    retrievalEffectiveDateIso < VAT_RATE_VERIFIED_COVERAGE_START_ISO
+    !isSupportedVatCoverageIso(retrievalEffectiveDateIso)
       ? retrievalEffectiveDateIso
       : null;
+
+  const isRd646WindowForVat =
+    preIsDomesticVatRateQuery &&
+    !preRetrievalHasDateConflict &&
+    (Boolean(
+      !preRetrievalIsSplitPayment &&
+        retrievalEffectiveDateIso &&
+        retrievalEffectiveDateIso >= "2017-10-01" &&
+        retrievalEffectiveDateIso <= "2018-09-30"
+    ) ||
+      (preRetrievalIsSplitPayment &&
+        splitPointsPre.some((p) => p.iso_date >= "2017-10-01" && p.iso_date <= "2018-09-30")));
 
   const preCutoffVatConstraintForLlm =
     preIsDomesticVatRateQuery && (singlePreCutoffDate || splitHasPreCutoff)
@@ -1625,7 +1639,7 @@ async function executeCoreKnowledgeQuery(
         ((!asksExportOrZeroRate && !asksExempt && !asksMixedUse && !asksCrossBorderInbound) ||
           explicitlyAsksDomesticRate);
 
-      // Genuinely missing 2018-10-01..2023-09-30 historical VAT reduction decrees (RD 669..766 between RD 646 and RD 780) -> Clean abstention!
+      // Genuinely missing historical VAT reduction decrees (< 2017-10-01 or 2018-10-01..2023-09-30 between RD 646 and RD 780) -> Clean abstention!
       if (
         !shouldRouteAbstentionOrClarifyThroughLiveLlm &&
         isDomesticVatRateQuery &&
@@ -1634,8 +1648,7 @@ async function executeCoreKnowledgeQuery(
         !asksMixedUse &&
         !asksCrossBorderInbound &&
         ctrlDate &&
-        ctrlDate >= "2018-10-01" &&
-        ctrlDate < "2023-10-01"
+        (ctrlDate < "2017-10-01" || (ctrlDate >= "2018-10-01" && ctrlDate < "2023-10-01"))
       ) {
         const gapMsg = `ไม่พบหลักฐานเพียงพอสำหรับวันที่ ${ctrlDate} — คลังข้อมูล ${releaseId} มีพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่ตรวจสอบต้นฉบับราชกิจจานุเบกษาแล้วเฉพาะช่วง พ.ร.ฎ. ฉบับที่ 780/790/799/807 (ตั้งแต่ 1 ตุลาคม 2566 – 30 กันยายน 2570) แต่ยังไม่มีต้นฉบับพระราชกฤษฎีกาขยายเวลาลดอัตรารายปีในช่วงระหว่าง 1 ตุลาคม 2560 – 30 กันยายน 2566 ระบบจึงระงับการสรุปอัตราภาษีและไม่นำ พ.ร.ฎ. ฉบับที่ 790/799/807 มาสวมรอยแทน`;
         options?.onRealAppEvidenceAssembly?.({
@@ -1725,8 +1738,11 @@ async function executeCoreKnowledgeQuery(
         } else if (iso >= "2023-10-01" && iso <= "2024-09-30") {
           activeGoverningDecreeWorkIds.add("subreg.th.rc.royal_decree.780");
           vatCoreWorkIds.push("subreg.th.rc.royal_decree.780");
+        } else if (iso >= "2017-10-01" && iso <= "2018-09-30") {
+          activeGoverningDecreeWorkIds.add("subreg.th.rc.royal_decree.646");
+          vatCoreWorkIds.push("subreg.th.rc.royal_decree.646");
         }
-        // Pre-2023-10-01 dates NEVER add consolidated RD 646 as governing!
+        // 2018-10-01..2023-09-30 and < 2017-10-01 NEVER add consolidated RD 646 as governing!
       };
       if (isDomesticVatRateQuery) {
         vatCoreWorkIds.push("prov.th.rc.80", "prov.th.rc.78", "prov.th.rc.78/1", "subreg.th.rd.vat_local_tax_guide");
@@ -1887,7 +1903,10 @@ async function executeCoreKnowledgeQuery(
     }
 
     const specialConstraints: GroundedLlmSpecialConstraints | undefined =
-      unresolvedRulingsForLlm.length > 0 || preCutoffVatConstraintForLlm || needsDateClarification
+      unresolvedRulingsForLlm.length > 0 ||
+      preCutoffVatConstraintForLlm ||
+      needsDateClarification ||
+      isRd646WindowForVat
         ? {
             ...(unresolvedRulingsForLlm.length > 0
               ? { unresolved_explicit_ruling_ids: unresolvedRulingsForLlm }
@@ -1896,6 +1915,7 @@ async function executeCoreKnowledgeQuery(
               ? { pre_cutoff_vat_coverage_constraint: preCutoffVatConstraintForLlm }
               : {}),
             ...(needsDateClarification ? { needs_vat_date_clarification: true } : {}),
+            ...(isRd646WindowForVat ? { rd646_original_sec4_limitation: true } : {}),
           }
         : undefined;
 

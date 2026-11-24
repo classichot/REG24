@@ -903,7 +903,13 @@ export async function persistAnswerRevisionToPostgres(params: {
             clarification_questions_th: env.clarification_questions_th ?? [],
             coverage_warnings_th: env.coverage_warnings_th ?? [],
             rejected_calculations_diagnostic: env.rejected_calculations_diagnostic ?? [],
+            conversation_id:
+              env.conversation_id ??
+              (params.revision_reason?.match(/\[conv:([^\]]+)\]/)?.[1]?.trim() || null),
           },
+          ...(env.grounded_answer_snapshot
+            ? { __full_grounded_answer_snapshot: env.grounded_answer_snapshot }
+            : {}),
         }),
         hasIdempKey ? params.save_operation_key!.trim() : null,
         params.save_payload_sha256 ?? null,
@@ -1067,7 +1073,13 @@ export async function persistAnswerRevisionToPostgres(params: {
           clarification_questions_th: env.clarification_questions_th ?? [],
           coverage_warnings_th: env.coverage_warnings_th ?? [],
           rejected_calculations_diagnostic: env.rejected_calculations_diagnostic ?? [],
+          conversation_id:
+            env.conversation_id ??
+            (params.revision_reason?.match(/\[conv:([^\]]+)\]/)?.[1]?.trim() || null),
         },
+        ...(env.grounded_answer_snapshot
+          ? { __full_grounded_answer_snapshot: env.grounded_answer_snapshot }
+          : {}),
       }),
     ]
   );
@@ -1162,6 +1174,9 @@ export async function loadSavedAnswerFromPostgres(
   forbidden_restricted?: boolean;
   question_text?: string;
   answer?: TraceableAnswerEnvelope;
+  grounded_answer?: import("./contracts").GroundedAnswer | null;
+  conversation_id?: string | null;
+  conversation_turns?: import("./contracts").ConversationTurnInput[];
   audit_events?: TraceabilityAuditEventRecord[];
 }> {
   const db = resolveActiveCitationDbTransport();
@@ -1230,11 +1245,13 @@ export async function loadSavedAnswerFromPostgres(
     return { found: false, forbidden_restricted: true };
   }
 
-  // Fetch full ordered revision history for this `answer_id`
+  // Fetch full ordered revision history & conversation turn lineage for this `answer_id`
   const histRes = await db<{
     answer_revision_id: string;
     revision_number: number;
     supersedes_revision_id: string | null;
+    question_text?: string;
+    rendered_answer_th?: string;
     generated_at: string;
     as_of_date_raw: string | null;
     status: TraceableAnswerEnvelope["status"];
@@ -1242,10 +1259,12 @@ export async function loadSavedAnswerFromPostgres(
     owner_actor_id: string;
     revision_reason: string;
     ordered_claim_ids: string[];
+    execution_provenance?: Record<string, unknown> | null;
   }>(
     `SELECT answer_revision_id, revision_number, supersedes_revision_id,
+            question_text, rendered_answer_th,
             generated_at::text AS generated_at, as_of_date_raw, status,
-            actor_id, owner_actor_id, revision_reason, ordered_claim_ids
+            actor_id, owner_actor_id, revision_reason, ordered_claim_ids, execution_provenance
      FROM citation_published_answer
      WHERE answer_id = $1
      ORDER BY revision_number ASC`,
@@ -1480,10 +1499,23 @@ export async function loadSavedAnswerFromPostgres(
           clarification_questions_th?: string[];
           coverage_warnings_th?: string[];
           rejected_calculations_diagnostic?: TraceableAnswerEnvelope["rejected_calculations_diagnostic"];
+          conversation_id?: string | null;
         })
+      : null;
+  const rawGroundedSnapshot =
+    rawProvObj &&
+    typeof rawProvObj.__full_grounded_answer_snapshot === "object" &&
+    rawProvObj.__full_grounded_answer_snapshot
+      ? (rawProvObj.__full_grounded_answer_snapshot as Omit<
+          import("./contracts").GroundedAnswer,
+          "traceable_answer" | "llm_audit_trace"
+        >)
       : null;
   if (rawProvObj && "__envelope_extensions" in rawProvObj) {
     delete rawProvObj.__envelope_extensions;
+  }
+  if (rawProvObj && "__full_grounded_answer_snapshot" in rawProvObj) {
+    delete rawProvObj.__full_grounded_answer_snapshot;
   }
   const cleanExecProvenance =
     rawProvObj && Object.keys(rawProvObj).length > 0
@@ -1491,54 +1523,129 @@ export async function loadSavedAnswerFromPostgres(
       : null;
   const restoredGroundedStatus: NonNullable<TraceableAnswerEnvelope["grounded_answer_status"]> =
     extMeta?.grounded_answer_status ||
+    rawGroundedSnapshot?.status ||
     (row.status === "complete"
       ? "ANSWERED"
       : row.status === "partial"
         ? "CONDITIONAL"
         : "INSUFFICIENT_EVIDENCE");
 
+  const parseConvTag = (reason?: string | null): string | null =>
+    reason?.match(/\[conv:([^\]]+)\]/)?.[1]?.trim() || null;
+  const resolvedConversationId =
+    extMeta?.conversation_id ||
+    parseConvTag(row.revision_reason) ||
+    histRes.rows.map((h) => parseConvTag(h.revision_reason)).find(Boolean) ||
+    `conv.reopened.${row.answer_id}`;
+
+  const targetRevNum = Number(row.revision_number);
+  const conversationTurns: import("./contracts").ConversationTurnInput[] = [];
+  for (const h of histRes.rows) {
+    if (Number(h.revision_number) > targetRevNum) continue;
+    const hQ = (h.question_text ?? (Number(h.revision_number) === targetRevNum ? row.question_text : "")).trim();
+    const hSnap =
+      h.execution_provenance &&
+      typeof h.execution_provenance === "object" &&
+      typeof (h.execution_provenance as Record<string, unknown>).__full_grounded_answer_snapshot === "object"
+        ? ((h.execution_provenance as Record<string, unknown>).__full_grounded_answer_snapshot as {
+            answer?: string;
+          })
+        : null;
+    const hAnsText =
+      hSnap?.answer ||
+      h.rendered_answer_th ||
+      (Number(h.revision_number) === targetRevNum ? row.rendered_answer_th : "");
+    if (hQ) {
+      conversationTurns.push({
+        role: "user",
+        content: hQ,
+        applicable_date: h.as_of_date_raw ?? null,
+        conversation_id: resolvedConversationId,
+      });
+    }
+    conversationTurns.push({
+      role: "assistant",
+      content: hAnsText,
+      saved_answer_id: row.answer_id,
+      saved_answer_revision: h.answer_revision_id,
+      conversation_id: resolvedConversationId,
+    });
+  }
+
+  const envelopeOut: TraceableAnswerEnvelope = {
+    schema_version: "reg24.citation-traceability.v1",
+    answer_id: row.answer_id,
+    answer_revision: row.answer_revision_id,
+    revision_number: Number(row.revision_number),
+    supersedes_answer_revision: row.supersedes_revision_id,
+    owner_actor_id: row.owner_actor_id,
+    owner_tenant_id: row.owner_tenant_id,
+    revision_reason: row.revision_reason,
+    revision_history: revisionHistory,
+    conversation_id: resolvedConversationId,
+    channel: row.channel,
+    generated_at: row.generated_at,
+    as_of_date: row.as_of_date_raw,
+    status: row.status,
+    grounded_answer_status: restoredGroundedStatus,
+    rendered_answer_th: row.rendered_answer_th,
+    user_supplied_facts: Array.isArray(row.user_supplied_facts) ? row.user_supplied_facts : [],
+    assumptions: Array.isArray(row.assumptions) ? row.assumptions : [],
+    clarification_questions_th: Array.isArray(extMeta?.clarification_questions_th)
+      ? extMeta!.clarification_questions_th
+      : [],
+    coverage_warnings_th: Array.isArray(extMeta?.coverage_warnings_th)
+      ? extMeta!.coverage_warnings_th
+      : [],
+    rejected_calculations_diagnostic: Array.isArray(extMeta?.rejected_calculations_diagnostic)
+      ? extMeta!.rejected_calculations_diagnostic
+      : [],
+    claims: claimsOut,
+    unresolved_issues: Array.isArray(row.unresolved_issues) ? row.unresolved_issues : [],
+    legacy_warning_th: row.legacy_warning_th,
+    execution_provenance: cleanExecProvenance,
+    verifier_metadata: {
+      verifier_version: row.verifier_version,
+      ruleset_version: row.ruleset_version,
+      release_id: row.release_id,
+      publication_gate_mode: "enforced",
+    },
+  };
+
+  const rehydratedGroundedAnswer: import("./contracts").GroundedAnswer | null = rawGroundedSnapshot
+    ? {
+        ...rawGroundedSnapshot,
+        status: restoredGroundedStatus,
+        assumptions:
+          Array.isArray(rawGroundedSnapshot.assumptions) && rawGroundedSnapshot.assumptions.length > 0
+            ? rawGroundedSnapshot.assumptions
+            : envelopeOut.assumptions,
+        clarification_questions:
+          Array.isArray(rawGroundedSnapshot.clarification_questions) &&
+          rawGroundedSnapshot.clarification_questions.length > 0
+            ? rawGroundedSnapshot.clarification_questions
+            : envelopeOut.clarification_questions_th || [],
+        coverage_warnings:
+          Array.isArray(rawGroundedSnapshot.coverage_warnings) &&
+          rawGroundedSnapshot.coverage_warnings.length > 0
+            ? rawGroundedSnapshot.coverage_warnings
+            : envelopeOut.coverage_warnings_th || [],
+        rejected_calculations_diagnostic:
+          rawGroundedSnapshot.rejected_calculations_diagnostic ??
+          envelopeOut.rejected_calculations_diagnostic,
+        execution_provenance: cleanExecProvenance ?? rawGroundedSnapshot.execution_provenance,
+        traceable_answer: envelopeOut,
+      }
+    : null;
+
   return {
     found: true,
     question_text: row.question_text,
+    conversation_id: resolvedConversationId,
+    conversation_turns: conversationTurns,
+    grounded_answer: rehydratedGroundedAnswer,
     audit_events: auditRes.rows,
-    answer: {
-      schema_version: "reg24.citation-traceability.v1",
-      answer_id: row.answer_id,
-      answer_revision: row.answer_revision_id,
-      revision_number: Number(row.revision_number),
-      supersedes_answer_revision: row.supersedes_revision_id,
-      owner_actor_id: row.owner_actor_id,
-      owner_tenant_id: row.owner_tenant_id,
-      revision_reason: row.revision_reason,
-      revision_history: revisionHistory,
-      channel: row.channel,
-      generated_at: row.generated_at,
-      as_of_date: row.as_of_date_raw,
-      status: row.status,
-      grounded_answer_status: restoredGroundedStatus,
-      rendered_answer_th: row.rendered_answer_th,
-      user_supplied_facts: Array.isArray(row.user_supplied_facts) ? row.user_supplied_facts : [],
-      assumptions: Array.isArray(row.assumptions) ? row.assumptions : [],
-      clarification_questions_th: Array.isArray(extMeta?.clarification_questions_th)
-        ? extMeta!.clarification_questions_th
-        : [],
-      coverage_warnings_th: Array.isArray(extMeta?.coverage_warnings_th)
-        ? extMeta!.coverage_warnings_th
-        : [],
-      rejected_calculations_diagnostic: Array.isArray(extMeta?.rejected_calculations_diagnostic)
-        ? extMeta!.rejected_calculations_diagnostic
-        : [],
-      claims: claimsOut,
-      unresolved_issues: Array.isArray(row.unresolved_issues) ? row.unresolved_issues : [],
-      legacy_warning_th: row.legacy_warning_th,
-      execution_provenance: cleanExecProvenance,
-      verifier_metadata: {
-        verifier_version: row.verifier_version,
-        ruleset_version: row.ruleset_version,
-        release_id: row.release_id,
-        publication_gate_mode: "enforced",
-      },
-    },
+    answer: envelopeOut,
   };
 }
 

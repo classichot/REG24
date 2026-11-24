@@ -190,7 +190,7 @@ function stripProvenanceHeaderPrefix(claimText: string): string {
 function extractCanonicalSectionIds(normText: string): string[] {
   const out = new Set<string>();
   const matches = normText.matchAll(
-    /มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s*(อัฏฐารส|อัฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|จัตวา|เบญจ|สัตต|อัฏฐ|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ))?(?:\s*\(([0-9]{1,2})\))?/g
+    /มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s*(อัฏฐารส|อัฐารส|สัตตรส|เอกาทศ|ทวาทศ|ปัณรส|จตุทศ|เตรส|โสฬส|จัตวา|เบญจ|สัตต|อัฏฐ|ทวิ|ตรี|อัฐ|นว|ทศ|ฉ(?!บับ|พาะ|ุกเฉิน)))?(?:\s*\(([0-9]{1,2})\))?/g
   );
   for (const m of matches) {
     const num = m[1];
@@ -604,8 +604,35 @@ export function evaluateSubstantiveClaimSupport(params: {
     };
   }
 
+  // Clarified Locked Key Alignment (Defect 4):
+  // - Parent-to-legitimate-child (`บุตรชอบด้วยกฎหมาย`, excluding `บุตรบุญธรรม`) gratuitous immovable transfers
+  //   (`G1`, `M1t1`, `G3t2` + unseen legitimate-child variants): recipient IS NOT TAXED (`ไม่ต้องเสียภาษีเงินได้บุคคลธรรมดา`),
+  //   supported by `มาตรา 41 ทวิ` / `มาตรา 42 (26)`.
+  // - ALL non-legitimate-child cases (`G2a`, `G2b`, `G3`, `G4`, `G5`, `M1t2`, `M1t3`, collateral/adopted/ambiguous):
+  //   recipient MUST stay unsettled with NO figure (including zero / `0 บาท` / `"ไม่ต้องเสียภาษี"`).
+  const claimWithoutLimitDisclaimers = normClaim
+    .replace(
+      /(?:ไม่อาจสรุปว่า|ไม่สมมติว่า|ไม่ได้บัญญัติ(?:สรุป)?ว่า|ห้ามสรุปว่า)[^.;\n]{0,90}/g,
+      " "
+    )
+    .replace(/(?:ไม่รวม(?:ถึง)?|ไม่ใช่|มิใช่)\s*บุตรบุญธรรม/g, " ");
+  const mentionsLegitimateChildRecipient =
+    /บุตร(?:สาว|ชาย)?(?:ที่)?ชอบด้วยกฎหมาย/.test(normClaim) &&
+    !/(?:บุตรบุญธรรม|หลานสาว|หลานชาย|หลาน|บุตรสาวของหลาน|บุตรชายของหลาน|นายภูมิ|นางสาวปาริชาติ|ปาริชาติ)[^\n]{0,65}(?:ไม่ต้องเสียภาษี|ไม่มีภาระภาษี|ได้รับยกเว้น|ไม่ต้องนำ[^\n]{0,45}มารวมคำนวณ)/.test(
+      claimWithoutLimitDisclaimers
+    ) &&
+    !/เป็นบุตรบุญธรรม/.test(rawBracketHeader);
+  const assertsNumericZeroBahtRecipient =
+    /(?:เท่ากับ|เป็นเงิน|จำนวน|คิดเป็น|ภาษีเงินได้(?:บุคคลธรรมดา)?)\s*0\s*บาท/.test(
+      claimWithoutLimitDisclaimers
+    );
+  const isSupportedLegitimateChildRecipientNotTaxed =
+    mentionsLegitimateChildRecipient &&
+    !assertsNumericZeroBahtRecipient &&
+    (/มาตรา\s*41\s*ทวิ/.test(normClaim) || /มาตรา\s*42\s*\(26\)/.test(normClaim));
+
   // Reject applying §42(26) legitimate-child immovable exemption to a non-legitimate-child (niece/granddaughter/adopted child)
-  // or attributing §42(26) exemption to the recipient instead of the donor!
+  // or attributing §42(26) exemption to a non-legitimate-child recipient!
   const citesS42_26 = /มาตรา\s*42\s*\(26\)/.test(normClaim);
   if (citesS42_26) {
     const negatesS42_26 =
@@ -616,26 +643,23 @@ export function evaluateSubstantiveClaimSupport(params: {
       /(?:หลานสาว|หลานชาย|บุตรของพี่|บุตรของน้อง|บุตรของบุตร|บุตรสาวของหลาน|บุตรชายของหลาน|บุตรบุญธรรม)[^\n]{0,60}(?:ได้รับยกเว้น|เข้าเกณฑ์)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
         normClaim
       );
-    const attributesS42_26ToRecipient =
-      /(?:ผู้รับโอน|บุตรผู้รับโอน|หลานสาวผู้รับโอน)[^\n]{0,40}(?:ได้รับยกเว้น(?:ภาษี)?)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
+    const attributesS42_26ToNonChildRecipient =
+      !isSupportedLegitimateChildRecipientNotTaxed &&
+      /(?:ผู้รับโอน|หลานสาวผู้รับโอน|หลานชายผู้รับโอน|บุตรบุญธรรมผู้รับโอน)[^\n]{0,40}(?:ได้รับยกเว้น(?:ภาษี)?)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
         normClaim
-      ) && !/ผู้โอน[^\n]{0,30}เป็นผู้มีเงินได้/.test(normClaim);
-    if ((appliesToNonLegitChild && !negatesS42_26) || attributesS42_26ToRecipient) {
+      ) &&
+      !/ผู้โอน[^\n]{0,30}เป็นผู้มีเงินได้/.test(normClaim);
+    if ((appliesToNonLegitChild && !negatesS42_26) || attributesS42_26ToNonChildRecipient) {
       return {
         supported: false,
         reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
         detail_th:
-          "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากปรับใช้มาตรา 42 (26) ผิดตัวผู้เสียภาษีหรือผิดความสัมพันธ์ (มาตรา 42 (26) เป็นข้อยกเว้นฝั่งผู้โอนเฉพาะกรณีโอนให้บุตรชอบด้วยกฎหมายไม่รวมบุตรบุญธรรมเท่านั้น)",
+          "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากปรับใช้มาตรา 42 (26) ผิดตัวผู้เสียภาษีหรือผิดความสัมพันธ์ (มาตรา 42 (26) เป็นข้อยกเว้นเฉพาะกรณีโอนให้บุตรชอบด้วยกฎหมายไม่รวมบุตรบุญธรรมเท่านั้น)",
         overlap_ratio: 0,
       };
     }
   }
 
-  // Uniform Immovable-Gift Recipient PIT Rule (all relationships & all immovable property types):
-  // Where retrieved official authority (e.g. §41 bis donor deeming rule, §42(26) donor child exemption)
-  // does NOT establish the recipient's own PIT liability or blanket recipient exemption on immovable property,
-  // reject ANY claim that concludes the recipient owes no PIT / zero PIT / `0 บาท` / excludes the immovable
-  // property from the recipient's assessable income, or applies donor rule §41 bis to absolve the recipient!
   const isRecipientPitHeader =
     /(?:ผู้รับโอน|ผู้รับให้|ผู้รับมอบ|ภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?!ผู้โอน))/.test(
       rawBracketHeader
@@ -643,29 +667,28 @@ export function evaluateSubstantiveClaimSupport(params: {
     !/ผู้โอน(?:และ|ในฐานะ|เป็นหลัก)|การหักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ภาษีธุรกิจเฉพาะ|อากรแสตมป์/.test(
       rawBracketHeader
     );
-  // Strip explicit cautionary disclaimers ("ไม่อาจสรุปว่าผู้รับโอนไม่ต้องเสียภาษี...") before checking prohibited assertions
-  const claimWithoutLimitDisclaimers = normClaim.replace(
-    /(?:ไม่อาจสรุปว่า|ไม่สมมติว่า|ไม่ได้บัญญัติ(?:สรุป)?ว่า|ห้ามสรุปว่า)[^.;\n]{0,90}/g,
-    " "
-  );
   const assertsZeroOrNoRecipientPitInRecipientIssue =
     isRecipientPitHeader &&
+    !isSupportedLegitimateChildRecipientNotTaxed &&
     /(?:ไม่ต้องเสียภาษี(?:เงินได้)?|ไม่มีภาระภาษี(?:เงินได้)?|ไม่ต้องนำ(?:มูลค่า)?[^\n]{0,55}มารวมคำนวณ|ภาระภาษี(?:เงินได้)?[^\n]{0,20}เป็นศูนย์|(?:เท่ากับ|เป็นเงิน|จำนวน|คิดเป็น|ภาษีเงินได้(?:บุคคลธรรมดา)?)\s*0\s*บาท)/.test(
       claimWithoutLimitDisclaimers
     );
-  const appliesDonorRuleToAbsolveRecipient =
+  const appliesDonorRuleToAbsolveNonChildRecipient =
+    !isSupportedLegitimateChildRecipientNotTaxed &&
     /(?:ภาระภาษีเงินได้|หน้าที่เสียภาษีเงินได้)[^\n]{0,65}ตกอยู่แก่[^\n]{0,45}(?:มิใช่|ไม่ใช่)|(?:ไม่ต้องเสียภาษี(?:เงินได้)?|ไม่มีภาระภาษี(?:เงินได้)?|ไม่ต้องนำ(?:มูลค่า)?[^\n]{0,45}มารวมคำนวณ)[^\n]{0,45}จากการรับ(?:โอน|ให้|มอบ)|(?:ผู้รับโอน|ผู้รับให้|ผู้รับมอบ|บุตรบุญธรรม|หลานสาว|หลานชาย|หลาน|น้องชาย|พี่ชาย|คู่สมรส|บุตรสาวของหลาน|บุตรชายของหลาน)[^\n]{0,45}(?:ไม่ต้องเสียภาษีเลย|ไม่มีภาระภาษีเงินได้|ภาระภาษีเป็นศูนย์|ไม่ต้องนำ(?:มูลค่า)?[^\n]{0,45}มารวมคำนวณ)/.test(
       claimWithoutLimitDisclaimers
     );
   if (
     mentionsLandOrImmovable &&
-    (assertsZeroOrNoRecipientPitInRecipientIssue || appliesDonorRuleToAbsolveRecipient)
+    (assertsZeroOrNoRecipientPitInRecipientIssue ||
+      appliesDonorRuleToAbsolveNonChildRecipient ||
+      (isRecipientPitHeader && assertsNumericZeroBahtRecipient))
   ) {
     return {
       supported: false,
       reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
       detail_th:
-        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากบทบัญญัติที่อ้างอิง (เช่น มาตรา 41 ทวิ ซึ่งกำหนดฝั่งผู้โอน) ไม่ได้บัญญัติรับรองว่าผู้รับโอนอสังหาริมทรัพย์ไม่มีภาระภาษีเงินได้หรือเสียภาษี 0 บาท จึงต้องอธิบายขอบเขตข้อจำกัดของบทบัญญัติโดยไม่ระบุตัวเลขภาษีฝั่งผู้รับโอน (รวมถึงศูนย์)",
+        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากบทบัญญัติที่อ้างอิง (เช่น มาตรา 41 ทวิ ซึ่งกำหนดฝั่งผู้โอน) ไม่ได้บัญญัติรับรองว่าผู้รับโอนอสังหาริมทรัพย์ที่มิใช่บุตรชอบด้วยกฎหมายไม่มีภาระภาษีเงินได้หรือเสียภาษี 0 บาท จึงต้องอธิบายขอบเขตข้อจำกัดของบทบัญญัติโดยไม่ระบุตัวเลขภาษีฝั่งผู้รับโอน (รวมถึงศูนย์)",
       overlap_ratio: 0,
     };
   }
@@ -827,7 +850,11 @@ export function evaluateSubstantiveClaimSupport(params: {
       (srcGroup.docId === "sched.th.rc.stamp_duty" &&
         /บัญชีอัตราอากรแสตมป์|อากรแสตมป์/.test(normClaim)) ||
       (srcGroup.docId === "statute.th.rc_amendment_40_2558" &&
-        (claimInstruments.includes("พรฎ.40") || /พ\.ศ\.\s*2558/.test(normClaim)));
+        (claimInstruments.includes("พรฎ.40") || /พ\.ศ\.\s*2558/.test(normClaim))) ||
+      (srcGroup.docId === "work.th.rd.gk_0702_3889_2022_0d0a6d5b" &&
+        (/0702\/3889/.test(normClaim) || (/สินสมรส/.test(normClaim) && /42\s*\(26\)/.test(normClaim)))) ||
+      (srcGroup.docId === "subreg.th.rc.royal_decree.646" &&
+        (claimInstruments.includes("พรฎ.646") || /646/.test(normClaim)));
     const groundsExplicitClaimIdentifier =
       docIdGroundsClaimSection ||
       docIdGroundsInstrumentOrSchedule ||

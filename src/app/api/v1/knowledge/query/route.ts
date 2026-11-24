@@ -12,7 +12,10 @@ import {
 } from "../../../../../core/knowledge/http-auth";
 import type { TraceablePublicationChannel } from "../../../../../core/knowledge/citation-contracts";
 import type { ConversationTurnInput } from "../../../../../core/knowledge/contracts";
-import { saveOrReviseAnswerServerVerified } from "../../../../../core/knowledge/claim-traceability-engine";
+import {
+  assertFollowUpConversationIntegrity,
+  saveOrReviseAnswerServerVerified,
+} from "../../../../../core/knowledge/claim-traceability-engine";
 import {
   assertReleaseProjectionArtifactsReady,
   isStrictSingleReleasePreviewMode,
@@ -38,6 +41,7 @@ export async function POST(req: Request) {
       conversation_history?: ConversationTurnInput[];
       conversation_id?: string | null;
       prior_saved_answer_revision?: string | null;
+      reopened_from_revision?: string | null;
       attachment_doc_ids?: string[];
       channel?: TraceablePublicationChannel;
       persist_answer?: boolean;
@@ -103,6 +107,16 @@ export async function POST(req: Request) {
       assertReleaseProjectionArtifactsReady(store, pinnedActiveRelease);
     }
 
+    // Defect 1 Hard Server-Side Guard: immediately reject (400/403) any follow-up write whose parent revision
+    // (`reopened_from_revision` or `prior_saved_answer_revision`) belongs to a different `conversation_id`
+    // or whose `conversation_history` mixes turns from another matter BEFORE calling the LLM!
+    await assertFollowUpConversationIntegrity(store, actor, {
+      conversation_id: body.conversation_id ?? null,
+      prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
+      reopened_from_revision: body.reopened_from_revision ?? null,
+      conversation_history: body.conversation_history,
+    });
+
     const qClean = body.question.trim();
     const effectiveAsOf = body.applicable_date ?? body.as_of_date ?? null;
     const wantsStream =
@@ -151,12 +165,11 @@ export async function POST(req: Request) {
       let persistMs = 0;
       if (
         body.persist_answer &&
-        answer.status !== "NEEDS_CLARIFICATION" &&
-        answer.status !== "INSUFFICIENT_EVIDENCE" &&
         answer.status !== "REVIEW_REQUIRED" &&
         answer.traceable_answer &&
         (answer.traceable_answer.status === "complete" ||
-          answer.traceable_answer.status === "partial")
+          answer.traceable_answer.status === "partial" ||
+          answer.traceable_answer.status === "insufficient")
       ) {
         const persistStartedAt = performance.now();
         // STRICT PER-CLAIM CALCULATION BINDING (ZERO CROSS-CLAIM POOLING!):
@@ -216,6 +229,7 @@ export async function POST(req: Request) {
             ...answer.traceable_answer,
             execution_provenance: answer.execution_provenance ?? null,
           },
+          grounded_answer_snapshot: answer,
           question_text: qClean,
           revision_reason: isFollowUpSave
             ? "Persisted follow-up verified answer from query endpoint"
@@ -225,6 +239,7 @@ export async function POST(req: Request) {
           query_persistence_context: {
             conversation_id: body.conversation_id ?? null,
             prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
+            reopened_from_revision: body.reopened_from_revision ?? null,
             conversation_history: body.conversation_history,
             trusted_calculation_tokens_by_claim_id:
               Object.keys(trustedCalcTokensByClaimId).length > 0

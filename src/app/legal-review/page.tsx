@@ -89,6 +89,7 @@ export default function LegalTeamReviewStudioPage() {
     `conv.init.${Math.random().toString(36).slice(2, 8)}`
   );
   const [conversationHistory, setConversationHistory] = useState<ConversationTurnInput[]>([]);
+  const [reopenedFromRevision, setReopenedFromRevision] = useState<string | null>(null);
   const [attachedDocIds, setAttachedDocIds] = useState<string[]>([]);
   const [attachmentSummary, setAttachmentSummary] = useState<string | null>(null);
 
@@ -322,6 +323,23 @@ export default function LegalTeamReviewStudioPage() {
           });
         }
       }
+      const derivedTraceId = env.answer_revision.startsWith("ans.trc.")
+        ? env.answer_revision.replace(/^ans\./, "").replace(/\.r\d+$/, "")
+        : env.answer_revision;
+      const provLatency =
+        typeof (
+          env.execution_provenance as unknown as {
+            provider_invocation?: { latency_ms?: unknown };
+          } | null
+        )?.provider_invocation?.latency_ms === "number"
+          ? Number(
+              (
+                env.execution_provenance as unknown as {
+                  provider_invocation: { latency_ms: number };
+                }
+              ).provider_invocation.latency_ms
+            )
+          : 0;
       return {
         release_id: env.verifier_metadata.release_id,
         knowledge_snapshot_at: env.generated_at,
@@ -360,8 +378,8 @@ export default function LegalTeamReviewStudioPage() {
         applicable_date: env.as_of_date,
         model_policy_version:
           env.execution_provenance?.model_policy_version || env.verifier_metadata.verifier_version,
-        trace_id: env.answer_revision,
-        latency_ms: 0,
+        trace_id: derivedTraceId,
+        latency_ms: provLatency,
         execution_provenance: env.execution_provenance ?? undefined,
         traceable_answer: env,
       };
@@ -400,7 +418,49 @@ export default function LegalTeamReviewStudioPage() {
         }
         const env: TraceableAnswerEnvelope = json.answer;
         setTraceableEnvelope(env);
-        setAnswerResult(buildGroundedAnswerFromEnvelope(env));
+        const rehydratedGrounded: GroundedAnswer = json.grounded_answer
+          ? {
+              ...(json.grounded_answer as GroundedAnswer),
+              execution_provenance:
+                env.execution_provenance ??
+                (json.grounded_answer as GroundedAnswer).execution_provenance,
+              traceable_answer: env,
+            }
+          : buildGroundedAnswerFromEnvelope(env);
+        setAnswerResult(rehydratedGrounded);
+
+        // Defect 1 Fix: bind active conversation_id, conversationHistory, and reopened parent revision
+        // STRICTLY to the reopened revision's own matter (never keeping a prior session's active conversation)!
+        const reopenedConvId: string =
+          (typeof json.conversation_id === "string" && json.conversation_id.trim()) ||
+          env.conversation_id ||
+          `conv.reopened.${env.answer_id}`;
+        const reopenedTurns: ConversationTurnInput[] = Array.isArray(json.conversation_turns) &&
+          json.conversation_turns.length > 0
+          ? (json.conversation_turns as ConversationTurnInput[])
+          : [
+              ...(json.question_text
+                ? [
+                    {
+                      role: "user" as const,
+                      content: String(json.question_text),
+                      applicable_date: env.as_of_date || null,
+                      conversation_id: reopenedConvId,
+                    },
+                  ]
+                : []),
+              {
+                role: "assistant" as const,
+                content: rehydratedGrounded.answer || env.rendered_answer_th,
+                saved_answer_id: env.answer_id,
+                saved_answer_revision: env.answer_revision,
+                conversation_id: reopenedConvId,
+              },
+            ];
+        setConversationId(reopenedConvId);
+        setConversationHistory(reopenedTurns);
+        setReopenedFromRevision(env.answer_revision);
+
         setQuestion(json.question_text || "");
         setAsOfDate(env.as_of_date || "");
         setAsOfDateSetByPreset(false);
@@ -425,7 +485,12 @@ export default function LegalTeamReviewStudioPage() {
         setReopenBusy(false);
       }
     },
-    [buildHeaders, buildGroundedAnswerFromEnvelope, reopenRevInput]
+    [
+      buildHeaders,
+      buildGroundedAnswerFromEnvelope,
+      envInfo?.shared_neon_postgres_connected,
+      reopenRevInput,
+    ]
   );
 
   useEffect(() => {
@@ -450,6 +515,7 @@ export default function LegalTeamReviewStudioPage() {
     setQueryMode(sc.mode || "standard");
     setConversationId(createFreshConversationId());
     setConversationHistory([]);
+    setReopenedFromRevision(null);
     setAttachedDocIds([]);
     setAttachmentSummary(null);
     setAnswerResult(null);
@@ -483,6 +549,7 @@ export default function LegalTeamReviewStudioPage() {
     setQueryMode(sc.mode || "standard");
     setConversationId(createFreshConversationId());
     setConversationHistory([]);
+    setReopenedFromRevision(null);
     setAttachedDocIds([]);
     setAttachmentSummary(null);
     setShowAttachmentForm(false);
@@ -503,6 +570,7 @@ export default function LegalTeamReviewStudioPage() {
     setQueryMode("standard");
     setConversationId(createFreshConversationId());
     setConversationHistory([]);
+    setReopenedFromRevision(null);
     setAttachedDocIds([]);
     setAttachmentSummary(null);
     setShowAttachmentForm(false);
@@ -610,6 +678,7 @@ export default function LegalTeamReviewStudioPage() {
     const activeConvId = isFollowUpCall ? conversationId : createFreshConversationId();
     if (!isFollowUpCall) {
       setConversationId(activeConvId);
+      setReopenedFromRevision(null);
       if (promptChangedFromPreset) {
         setActiveScenario(null);
         setActiveSpotcheckId("UNSEEN-CUSTOM");
@@ -624,6 +693,12 @@ export default function LegalTeamReviewStudioPage() {
           .reverse()
           .find((t) => t.role === "assistant" && Boolean(t.saved_answer_revision))
       : undefined;
+    const effectivePriorRevision = isFollowUpCall
+      ? reopenedFromRevision ||
+        priorSavedTurn?.saved_answer_revision ||
+        traceableEnvelope?.answer_revision ||
+        null
+      : null;
 
     try {
       const res = await fetch("/api/v1/knowledge/query", {
@@ -640,7 +715,8 @@ export default function LegalTeamReviewStudioPage() {
           persist_answer: true,
           stream: true,
           conversation_id: activeConvId,
-          prior_saved_answer_revision: priorSavedTurn?.saved_answer_revision ?? null,
+          prior_saved_answer_revision: effectivePriorRevision,
+          reopened_from_revision: isFollowUpCall ? reopenedFromRevision : null,
           conversation_history: historyForCall,
           attachment_doc_ids: attachedDocIds,
           qa_synthetic_fixture: syntheticFixture ?? null,
@@ -758,13 +834,15 @@ export default function LegalTeamReviewStudioPage() {
       setAsOfDate(dateToRun || "");
 
       const savedRev =
-        ans.status !== "NEEDS_CLARIFICATION" &&
-        ans.status !== "INSUFFICIENT_EVIDENCE" &&
+        ans.status !== "REVIEW_REQUIRED" &&
         env &&
-        (env.status === "complete" || env.status === "partial")
+        (env.status === "complete" ||
+          env.status === "partial" ||
+          env.status === "insufficient")
           ? env.answer_revision
           : null;
       const savedAnsId = savedRev && env ? env.answer_id : null;
+      setReopenedFromRevision(null);
       if (savedRev) {
         setReopenRevInput(savedRev);
         if (typeof window !== "undefined") {

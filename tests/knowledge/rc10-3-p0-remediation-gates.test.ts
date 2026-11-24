@@ -188,8 +188,8 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       expectHistorical807?: boolean;
     }> = [
       {
-        dateIso: "2018-06-15",
-        thaiDate: "15 มิถุนายน 2561",
+        dateIso: "2017-06-15",
+        thaiDate: "15 มิถุนายน 2560",
         expectedGoverningDecree: null,
         forbiddenGoverningDecrees: [
           "subreg.th.rc.royal_decree.646",
@@ -199,6 +199,17 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
           "subreg.th.rc.royal_decree.807",
         ],
         expectPreCutoffAbstention: true,
+      },
+      {
+        dateIso: "2018-06-15",
+        thaiDate: "15 มิถุนายน 2561",
+        expectedGoverningDecree: "subreg.th.rc.royal_decree.646",
+        forbiddenGoverningDecrees: [
+          "subreg.th.rc.royal_decree.780",
+          "subreg.th.rc.royal_decree.790",
+          "subreg.th.rc.royal_decree.799",
+          "subreg.th.rc.royal_decree.807",
+        ],
       },
       {
         dateIso: "2023-09-30",
@@ -775,11 +786,11 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
   it("7. Track 2 VAT Coverage Acceptance (Thai free text, NO applicable_date override): 15 Jun 2018, interior 2565, 30 Sep / 1 Oct 2566 boundary, decree handover, missing/ambiguous date, and split-payment diagnostic", async () => {
     const store = new DurableKnowledgeStore(STORE_DIR);
 
-    // A) Pre-cutoff unsupported dates (NO rate, NO calculation, NO consolidated RD 646 citation!)
+    // A) Pre-cutoff / inter-decree unsupported dates (< 2017-10-01 and 2018-10-01..2023-09-30: NO rate, NO calculation, NO consolidated RD 646 citation!)
     const preCutoffQuestions = [
       {
-        label: "2018-06-15 (15 มิถุนายน 2561)",
-        q: "บริษัทขายสินค้าในประเทศและส่งมอบวันที่ 15 มิถุนายน 2561 มูลค่า 100,000 บาท ต้องคิดภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใดและเป็นเงินกี่บาท",
+        label: "2017-06-15 (15 มิถุนายน 2560 — before RD 646)",
+        q: "บริษัทขายสินค้าในประเทศและส่งมอบวันที่ 15 มิถุนายน 2560 มูลค่า 100,000 บาท ต้องคิดภาษีมูลค่าเพิ่มอัตราร้อยละเท่าใดและเป็นเงินกี่บาท",
       },
       {
         label: "2022-05-15 (interior 2565)",

@@ -464,9 +464,25 @@ export function buildStructuredCaseFactLedger(input: {
         normalized_category: "IMMOVABLE_PROPERTY_CONDOMINIUM_UNIT",
         source_turn: turnNumber,
       });
-    } else if (/อาคารพาณิชย์พร้อมที่ดิน|อาคารพาณิชย์|บ้านพร้อมที่ดิน|ทาวน์เฮาส์/.test(norm)) {
-      const m = norm.match(/(อาคารพาณิชย์พร้อมที่ดิน|อาคารพาณิชย์|บ้านพร้อมที่ดิน|ทาวน์เฮาส์)/);
-      assetOriginalNounTh = m ? m[1] : "อาคารพร้อมที่ดิน";
+    } else if (
+      /(?:ที่ดินพร้อมอาคารพาณิชย์|อาคารพาณิชย์พร้อมที่ดิน|ที่ดินพร้อมสิ่งปลูกสร้าง|ที่ดินพร้อมอาคาร|ที่ดินพร้อมบ้าน(?:เดี่ยว)?|บ้านเดี่ยวพร้อมที่ดิน|บ้านพร้อมที่ดิน|อาคารพาณิชย์|ตึกแถว|ทาวน์โฮม|ทาวน์เฮาส์)/.test(
+        norm
+      )
+    ) {
+      const m = norm.match(
+        /(ที่ดินพร้อมอาคารพาณิชย์|อาคารพาณิชย์พร้อมที่ดิน|ที่ดินพร้อมสิ่งปลูกสร้าง|ที่ดินพร้อมอาคาร|ที่ดินพร้อมบ้านเดี่ยว|ที่ดินพร้อมบ้าน|บ้านเดี่ยวพร้อมที่ดิน|บ้านพร้อมที่ดิน|อาคารพาณิชย์|ตึกแถว|ทาวน์โฮม|ทาวน์เฮาส์)/
+      );
+      const existingBuildingAsset = factsMap.get("asset");
+      const matchedBuildingLabel = m ? m[1] : "อาคารพร้อมที่ดิน";
+      // Preserve a more specific Turn 1 phrase (e.g. "ที่ดินพร้อมอาคารพาณิชย์") if a later turn uses shorthand "ที่ดินพร้อมอาคาร"
+      const effectiveBuildingLabel =
+        existingBuildingAsset?.normalized_category === "IMMOVABLE_PROPERTY_BUILDING_AND_LAND" &&
+        existingBuildingAsset.original_text_th.includes("พาณิชย์") &&
+        !matchedBuildingLabel.includes("พาณิชย์") &&
+        !/เปลี่ยนทรัพย์สิน/.test(norm)
+          ? existingBuildingAsset.original_text_th
+          : matchedBuildingLabel;
+      assetOriginalNounTh = effectiveBuildingLabel;
       forbidLandSubstitution = false;
       upsertFact(factsMap, overrides, {
         fact_key: "asset",
@@ -476,18 +492,32 @@ export function buildStructuredCaseFactLedger(input: {
         source_turn: turnNumber,
       });
     } else if (/ที่ดิน|อสังหาริมทรัพย์/.test(norm)) {
-      const m = norm.match(/(ที่ดินแปลง[^\s,.;]{0,20}|ที่ดินสองแปลง|ที่ดิน|อสังหาริมทรัพย์)/);
-      assetOriginalNounTh = m ? m[1] : "ที่ดิน";
-      forbidLandSubstitution = false;
-      upsertFact(factsMap, overrides, {
-        fact_key: "asset",
-        label_th: "ทรัพย์สินที่โอน",
-        original_text_th: assetOriginalNounTh,
-        normalized_category: "IMMOVABLE_PROPERTY_LAND",
-        source_turn: turnNumber,
-      });
-    } else if (/เงินสด|โอนเงิน|เงินโอน|สังหาริมทรัพย์|หุ้น/.test(norm)) {
-      const m = norm.match(/(เงินสด|เงินโอน|สังหาริมทรัพย์|หุ้น[^\s,.;]{0,15})/);
+      const existingSpecificImmovable = factsMap.get("asset");
+      const hasExplicitAssetTypeChange =
+        /(?:เปลี่ยนทรัพย์สิน|ที่ดินเปล่า|เปลี่ยนจาก[^\n]{0,30}เป็น\s*ที่ดิน)/.test(norm);
+      if (
+        existingSpecificImmovable &&
+        (existingSpecificImmovable.normalized_category === "IMMOVABLE_PROPERTY_BUILDING_AND_LAND" ||
+          existingSpecificImmovable.normalized_category ===
+            "IMMOVABLE_PROPERTY_CONDOMINIUM_UNIT") &&
+        !hasExplicitAssetTypeChange
+      ) {
+        // Do NOT collapse a prior turn's "ที่ดินพร้อมอาคารพาณิชย์" / "บ้านเดี่ยวพร้อมที่ดิน" / "ห้องชุด" to generic "ที่ดิน"!
+        assetOriginalNounTh = existingSpecificImmovable.original_text_th;
+      } else {
+        const m = norm.match(/(ที่ดินแปลง[^\s,.;]{0,20}|ที่ดินสองแปลง|ที่ดินเปล่า|ที่ดิน|อสังหาริมทรัพย์)/);
+        assetOriginalNounTh = m ? m[1] : "ที่ดิน";
+        forbidLandSubstitution = false;
+        upsertFact(factsMap, overrides, {
+          fact_key: "asset",
+          label_th: "ทรัพย์สินที่โอน",
+          original_text_th: assetOriginalNounTh,
+          normalized_category: "IMMOVABLE_PROPERTY_LAND",
+          source_turn: turnNumber,
+        });
+      }
+    } else if (/(?:เงินสด|โอนเงิน|เงินโอน|สังหาริมทรัพย์|(?<!ห้าง)หุ้น(?!ส่วน))/.test(norm)) {
+      const m = norm.match(/(เงินสด|เงินโอน|สังหาริมทรัพย์|(?<!ห้าง)หุ้น(?!ส่วน)[^\s,.;]{0,15})/);
       assetOriginalNounTh = m ? m[1] : "เงินสด/สังหาริมทรัพย์";
       forbidLandSubstitution = true;
       upsertFact(factsMap, overrides, {

@@ -61,6 +61,17 @@ export async function GET(req: Request) {
         : null
     );
 
+    const responseHeaders: Record<string, string> = { "Cache-Control": "private, no-store" };
+    const explicitHeaderInvite = req.headers.get("x-reg24-trial-invite")?.trim() || "";
+    const isHttps = reqUrl.protocol === "https:" || process.env.VERCEL === "1";
+    if (explicitHeaderInvite && authenticatedReviewer.verified) {
+      responseHeaders["Set-Cookie"] =
+        `reg24_trial_session=${encodeURIComponent(explicitHeaderInvite)}; Path=/api/v1/knowledge; HttpOnly; SameSite=Lax; Max-Age=43200${isHttps ? "; Secure" : ""}`;
+    } else if (explicitHeaderInvite && !authenticatedReviewer.verified) {
+      responseHeaders["Set-Cookie"] =
+        `reg24_trial_session=; Path=/api/v1/knowledge; HttpOnly; SameSite=Lax; Max-Age=0${isHttps ? "; Secure" : ""}`;
+    }
+
     return NextResponse.json(
       {
         ok: true,
@@ -118,7 +129,7 @@ export async function GET(req: Request) {
       },
       {
         status: 200,
-        headers: { "Cache-Control": "private, no-store" },
+        headers: responseHeaders,
       }
     );
   } catch (err) {

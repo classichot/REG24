@@ -474,6 +474,13 @@ export interface TraceableAnswerEnvelope {
   legacy_warning_th: string | null;
   update_notices?: NewerMaterialUpdateNoticeDto[];
   execution_provenance?: import("./contracts").ExecutionProvenanceMetadata | null;
+  /** Durable conversation lineage identifier bound to this revision chain for cross-matter isolation. */
+  conversation_id?: string | null;
+  /** Optional full GroundedAnswer snapshot persisted & rehydrated verbatim across Save and Reopen. */
+  grounded_answer_snapshot?: Omit<
+    import("./contracts").GroundedAnswer,
+    "traceable_answer" | "llm_audit_trace"
+  > | null;
   verifier_metadata: {
     verifier_version: string;
     ruleset_version: string;

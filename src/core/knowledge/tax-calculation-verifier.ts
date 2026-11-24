@@ -1079,7 +1079,10 @@ export function verifyVatRateAndAmountCalculation(params: {
   const isInRd799Window = Boolean(dt && dt >= "2025-10-01" && dt <= "2026-09-30");
   const isInRd790Window = Boolean(dt && dt >= "2024-10-01" && dt <= "2025-09-30");
   const isInRd780Window = Boolean(dt && dt >= "2023-10-01" && dt <= "2024-09-30");
-  const isBeforeVerifiedCutoff = Boolean(dt && dt < "2023-10-01");
+  const isInRd646Window = Boolean(dt && dt >= "2017-10-01" && dt <= "2018-09-30");
+  const isBeforeVerifiedCutoff = Boolean(
+    dt && (dt < "2017-10-01" || (dt >= "2018-10-01" && dt < "2023-10-01"))
+  );
   const isDateMissing = !dt;
 
   if (isAfterRd807Expiry) {
@@ -1216,14 +1219,18 @@ export function verifyVatRateAndAmountCalculation(params: {
         ? "subreg.th.rc.royal_decree.790"
         : isInRd780Window
           ? "subreg.th.rc.royal_decree.780"
-          : "subreg.th.rc.royal_decree.799";
+          : isInRd646Window
+            ? "subreg.th.rc.royal_decree.646"
+            : "subreg.th.rc.royal_decree.799";
   const activeDecreeTitle = isInRd807Window
     ? "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2569 ถึง 30 กันยายน 2570)"
     : isInRd799Window
       ? "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 799) พ.ศ. 2568 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2568 ถึง 30 กันยายน 2569)"
       : isInRd790Window
         ? "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 790) พ.ศ. 2567 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2567 ถึง 30 กันยายน 2568)"
-        : "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 780) พ.ศ. 2566 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2566 ถึง 30 กันยายน 2567)";
+        : isInRd780Window
+          ? "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 780) พ.ศ. 2566 (ใช้บังคับสำหรับความรับผิดตั้งแต่ 1 ตุลาคม 2566 ถึง 30 กันยายน 2567)"
+          : "พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 646) พ.ศ. 2560 (ใช้บังคับตั้งแต่วันที่ 1 ตุลาคม 2560 ถึง 30 กันยายน 2561; หมายเหตุข้อจำกัด: คลังหลักฐานมีเฉพาะฉบับประมวลของกรมสรรพากรโดยไม่ได้แยกตัวบทมาตรา 4 ฉบับแรกเริ่มไว้ต่างหาก)";
 
   const vatBaht = params.taxBaseBaht !== null ? Math.round(params.taxBaseBaht * 7) / 100 : null;
 
@@ -1263,10 +1270,16 @@ export function verifyVatRateAndAmountCalculation(params: {
       7,
       10,
       0,
+      780,
+      790,
       799,
       807,
       646,
       105,
+      2560,
+      2561,
+      2566,
+      2567,
       2568,
       2569,
       2570,

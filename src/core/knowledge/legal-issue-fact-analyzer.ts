@@ -646,7 +646,7 @@ export function analyzeLegalIssuesAndFacts(params: {
     for (const turnText of userTurnsCleaned) {
       // 1) Asset classification & exact asset label preservation (never overwrite condo/shophouse with land!)
       const turnHasMovable =
-        /(?:เงินสด|โอนเงิน|ทองคำ|หุ้น|สังหาริมทรัพย์)/.test(turnText) &&
+        /(?:เงินสด|โอนเงิน|ทองคำ|(?<!ห้าง)หุ้น(?!ส่วน)|สังหาริมทรัพย์)/.test(turnText) &&
         !/(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อาคารพาณิชย์|ตึกแถว|อสังหาริมทรัพย์)/.test(turnText);
       const turnHasImmovable =
         /(?:ที่ดิน|บ้าน|คอนโด|ห้องชุด|อาคารชุด|อาคารพาณิชย์|ตึกแถว|อสังหาริมทรัพย์|condominium|condo|land|real\s+estate|immovable\s+property)/i.test(turnText);
@@ -657,18 +657,29 @@ export function analyzeLegalIssuesAndFacts(params: {
           ? "เงินสด/สังหาริมทรัพย์"
           : /ทองคำ/.test(turnText)
             ? "ทองคำ (สังหาริมทรัพย์)"
-            : /หุ้น/.test(turnText)
+            : /(?<!ห้าง)หุ้น(?!ส่วน)/.test(turnText)
               ? "หุ้น (สังหาริมทรัพย์)"
               : "เงินสด/สังหาริมทรัพย์";
       } else if (turnHasImmovable) {
         isImmovable = true;
-        if (/อาคารพาณิชย์พร้อมที่ดิน/.test(turnText)) assetLabelTh = "อาคารพาณิชย์พร้อมที่ดิน";
+        if (/ที่ดินพร้อมอาคารพาณิชย์/.test(turnText)) assetLabelTh = "ที่ดินพร้อมอาคารพาณิชย์";
+        else if (/อาคารพาณิชย์พร้อมที่ดิน/.test(turnText)) assetLabelTh = "อาคารพาณิชย์พร้อมที่ดิน";
         else if (/อาคารพาณิชย์/.test(turnText)) assetLabelTh = "อาคารพาณิชย์";
         else if (/ห้องชุด|อาคารชุด|คอนโด/.test(turnText)) assetLabelTh = "ห้องชุด";
+        else if (/บ้านเดี่ยวพร้อมที่ดิน/.test(turnText)) assetLabelTh = "บ้านเดี่ยวพร้อมที่ดิน";
         else if (/บ้านพร้อมที่ดิน/.test(turnText)) assetLabelTh = "บ้านพร้อมที่ดิน";
         else if (/ที่ดินเปล่า/.test(turnText)) assetLabelTh = "ที่ดินเปล่า";
-        else if (/ที่ดิน/.test(turnText)) assetLabelTh = "ที่ดิน";
-        else assetLabelTh = "อสังหาริมทรัพย์";
+        else if (/ที่ดิน/.test(turnText)) {
+          if (
+            !assetLabelTh ||
+            assetLabelTh === "อสังหาริมทรัพย์" ||
+            /เปลี่ยนทรัพย์สิน/.test(turnText)
+          ) {
+            assetLabelTh = "ที่ดิน";
+          }
+        } else if (!assetLabelTh) {
+          assetLabelTh = "อสังหาริมทรัพย์";
+        }
       }
 
       // 2) Recipient kinship & gender-faithful display label (explicit kinship overrides generic หลาน)
@@ -862,6 +873,14 @@ export function analyzeLegalIssuesAndFacts(params: {
       controlling.add("prov.th.rc.49_ทวิ");
       controlling.add("statute.th.rc_amendment_40_2558");
       controlling.add("prov.th.rc.40");
+      if (
+        acquisitionMethod !== null ||
+        holdingYears !== null ||
+        /(?:มรดก|ถือครอง|ซื้อ[^\n]{0,40}เมื่อวันที่|ภาษีธุรกิจเฉพาะ)/.test(mergedContext)
+      ) {
+        controlling.add("prov.th.rc.91/2");
+        controlling.add("subreg.th.rc.royal_decree.342");
+      }
       if (recipientRole === "LEGITIMATE_CHILD") {
         controlling.add("work.th.rd.gk_0702_3889_2022_0d0a6d5b");
       } else {
@@ -1119,10 +1138,12 @@ export function analyzeLegalIssuesAndFacts(params: {
         controlling.add("prov.th.rc.77/2");
       }
 
-      const isPreCutoffVatDate = Boolean(taxPointIso && taxPointIso < "2023-10-01");
+      const isPreCutoffVatDate = Boolean(
+        taxPointIso &&
+          (taxPointIso < "2017-10-01" || (taxPointIso >= "2018-10-01" && taxPointIso < "2023-10-01"))
+      );
       if (isPreCutoffVatDate) {
-        // Pre-1 Oct 2566 (2023-10-01) VAT-rate cutoff: NEVER route consolidated RD 646 as governing
-        // and NEVER run a VAT rate calculation! (query.ts enforces clean INSUFFICIENT_EVIDENCE abstention.)
+        // Unsupported historical VAT windows (< 2017-10-01 or 2018-10-01..2023-09-30): NEVER route consolidated RD 646 as governing!
         controlling.delete("subreg.th.rc.royal_decree.646");
       } else if (!taxPointIso) {
         controlling.add("prov.th.rc.78/1");
@@ -1133,6 +1154,8 @@ export function analyzeLegalIssuesAndFacts(params: {
         missingQuestions.push(
           "กรุณาระบุวันเกิดความรับผิดในการเสียภาษีมูลค่าเพิ่ม (tax point ตามมาตรา 78 หรือมาตรา 78/1 (1) ได้แก่ วันที่ส่งมอบสินค้า/วันที่ได้รับชำระราคา วันที่ออกใบกำกับภาษี หรือวันที่ใช้บริการ แล้วแต่วันใดเกิดก่อน) เพื่อระบุพระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่ใช้บังคับตรงตามช่วงเวลาโดยไม่คาดเดา"
         );
+      } else if (taxPointIso >= "2017-10-01" && taxPointIso <= "2018-09-30") {
+        controlling.add("subreg.th.rc.royal_decree.646");
       } else if (taxPointIso >= "2024-10-01" && taxPointIso <= "2025-09-30") {
         controlling.add("subreg.th.rc.royal_decree.790");
       } else if (taxPointIso >= "2025-10-01" && taxPointIso <= "2026-09-30") {

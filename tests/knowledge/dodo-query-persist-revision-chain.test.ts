@@ -221,6 +221,8 @@ function createStrictFkEnforcingPostgresSimulator() {
         actor_id: params[21],
         tenant_id: params[22],
         revision_reason: params[23],
+        environment_scope: params[24],
+        execution_provenance: parseJson(params[25]),
       });
       return { rows: [] as T[], rowCount: 1 };
     }
@@ -634,11 +636,13 @@ describe("Dodo Round 2 Blocker Regression — Answer Revision Write & Conversati
     const pg = createStrictFkEnforcingPostgresSimulator();
     setCustomCitationDbTransportForTesting(pg.transport);
 
-    // 3A. Turn 1 abstains (`NEEDS_CLARIFICATION`, unsaved) -> Turn 2 supplies year and saves cleanly as `r1` (`supersedes = null`)!
-    const convClarify = "conv.clarify.flow";
+    // 3A. Turn 1 abstains (`NEEDS_CLARIFICATION`):
+    //     - With `persist_answer: true` (audit-trail requirement), Turn 1 persists as `r1`, and Turn 2 links to `r1` -> `r2`!
+    //     - With `persist_answer: false` (unsaved Turn 1), Turn 2 saves cleanly as `r1` (`supersedes = null`)!
+    const convClarifyPersisted = "conv.clarify.persisted";
     const t1ClarifyQ =
       "บริษัทจ่ายเงินบริจาคให้สถานศึกษาของรัฐเมื่อวันที่ 15 มิถุนายน หักรายจ่ายตามประมวลรัษฎากร มาตรา 65 ตรี ได้เท่าไร?";
-    const t1Res = await queryPost(
+    const t1PersistedRes = await queryPost(
       new Request("https://staging.reg24.th/api/v1/knowledge/query", {
         method: "POST",
         headers: {
@@ -648,6 +652,27 @@ describe("Dodo Round 2 Blocker Regression — Answer Revision Write & Conversati
         body: JSON.stringify({
           question: t1ClarifyQ,
           persist_answer: true,
+          conversation_id: convClarifyPersisted,
+          conversation_history: [],
+        }),
+      })
+    );
+    const t1PersistedJson = await t1PersistedRes.json();
+    expect(t1PersistedRes.status).toBe(200);
+    expect(t1PersistedJson.answer.status).toBe("NEEDS_CLARIFICATION");
+    expect(pg.tables.answers.has(t1PersistedJson.traceable_answer.answer_revision)).toBe(true);
+
+    const convClarify = "conv.clarify.flow";
+    const t1Res = await queryPost(
+      new Request("https://staging.reg24.th/api/v1/knowledge/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-reg24-actor-id": "dodo@7ladvisory.review",
+        },
+        body: JSON.stringify({
+          question: t1ClarifyQ,
+          persist_answer: false,
           conversation_id: convClarify,
           conversation_history: [],
         }),
@@ -656,7 +681,6 @@ describe("Dodo Round 2 Blocker Regression — Answer Revision Write & Conversati
     const t1Json = await t1Res.json();
     expect(t1Res.status).toBe(200);
     expect(t1Json.answer.status).toBe("NEEDS_CLARIFICATION");
-    expect(pg.tables.answers.size).toBe(0);
 
     // Turn 2 supplies full date + deterministic calculation (`1,000,000 * 7% = 70,000` VAT check or donation year)
     const t2CalcQ =
