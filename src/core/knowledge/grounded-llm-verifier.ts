@@ -1529,6 +1529,18 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         finalPassageIds.push(p50_165.passage_id);
       }
     }
+    // DEF-C3-2 (s.47): Auto-bind sibling `prov.th.rc.47` unit `psg.cfc975a6134b54` when `psg.e4ec78f644930e` is cited
+    // and the explanation also mentions the child-income proviso (`มาตรา 42`) or `ฉบับที่ 44` from that unit!
+    if (
+      finalPassageIds.includes("psg.e4ec78f644930e") &&
+      /มาตรา\s*42|ฉบับที่\s*44/.test(normStmtPreBind) &&
+      !finalPassageIds.includes("psg.cfc975a6134b54")
+    ) {
+      const p47Unit2 = params.passagePack.find((p) => p.passage_id === "psg.cfc975a6134b54");
+      if (p47Unit2) {
+        finalPassageIds.push(p47Unit2.passage_id);
+      }
+    }
     const excludedContextInstruments = extractExplicitlyExcludedContextInstruments({
       issue: iss,
       validPassageIds: finalPassageIds,

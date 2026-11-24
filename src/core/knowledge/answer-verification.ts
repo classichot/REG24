@@ -494,9 +494,12 @@ export function evaluateSubstantiveClaimSupport(params: {
     { label: "public_charity", pattern: /การกุศลสาธารณะ|สาธารณกุศล|สาธารณประโยชน์/ },
     { label: "government_agency", pattern: /ส่วนราชการ|องค์การของรัฐบาล/ },
   ];
+  const bracketHeaderEndIdx = normClaim.startsWith("[") ? normClaim.indexOf("]") : -1;
+  const normClaimForSubpara =
+    bracketHeaderEndIdx > 0 ? normClaim.slice(bracketHeaderEndIdx + 1).trim() : normClaim;
   const subparaLetterMatches = Array.from(
-    normClaim.matchAll(
-      /มาตรา\s*([0-9]+(?:\/[0-9]+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ|สัตต|อัฐ|นว|ทศ))?)\s*\(([0-9]{1,2})\)\s*\(([ก-ช])\)/g
+    normClaimForSubpara.matchAll(
+      /มาตรา\s*([0-9]+(?:\/[0-9]+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ(?!บับ|พาะ|ุกเฉิน)|สัตต|อัฐ|นว|ทศ))?)\s*\(([0-9]{1,2})\)\s*\(([ก-ช])\)/g
     )
   );
   if (subparaLetterMatches.length > 0) {
@@ -529,7 +532,10 @@ export function evaluateSubstantiveClaimSupport(params: {
         };
       }
       const mIdx = sm.index ?? 0;
-      const localClaimWindow = normClaim.slice(Math.max(0, mIdx - 120), Math.min(normClaim.length, mIdx + 120));
+      const localClaimWindow = normClaimForSubpara.slice(
+        Math.max(0, mIdx - 120),
+        Math.min(normClaimForSubpara.length, mIdx + 120)
+      );
       for (const fam of SUBPARA_CONCEPT_FAMILIES) {
         if (!fam.pattern.test(localClaimWindow)) continue;
         if (fam.pattern.test(citedSlice)) continue;
@@ -540,16 +546,23 @@ export function evaluateSubstantiveClaimSupport(params: {
         ).test(localClaimWindow);
         if (negatedConceptInWindow) continue;
 
-        // Claim asserts this exception concept on `(${citedLetter})`, yet `(${citedLetter})` does NOT contain it
+        // Claim asserts this exception concept near `(${citedLetter})`, yet `(${citedLetter})` does NOT contain it
         // while a DIFFERENT sibling subparagraph `(ก)`–`(ช)` in the same cited text DOES!
-        // Skip if the cited subparagraph itself is defined by excluding that sibling (e.g. §50(5)(ข) "ได้มาโดยทางอื่นนอกจาก (ก)")
-        // or if the claim itself explicitly cites that matching sibling nearby.
+        // Skip if the cited subparagraph itself excludes that sibling (e.g. §50(5)(ข) "ได้มาโดยทางอื่นนอกจาก (ก)")
+        // or if the claim body ALSO explicitly cites that matching sibling subparagraph `(${sibLetter})`
+        // (e.g. multi-allowance enumeration citing `มาตรา 47 (1) (ก), (ข) และ (ค)` in the same claim).
         let matchingSibling: string | null = null;
         for (const [sibLetter, sibText] of siblingSlices.entries()) {
           if (sibLetter !== citedLetter && fam.pattern.test(sibText)) {
-            const siblingAlsoCitedNearby = new RegExp(`\\(${sibLetter}\\)`).test(localClaimWindow);
+            const siblingAlsoCitedInClaim = new RegExp(`\\(${sibLetter}\\)`).test(
+              normClaimForSubpara
+            );
             const citedSliceExcludesSibling = new RegExp(`นอกจาก\\s*\\(${sibLetter}\\)`).test(citedSlice);
-            if (!siblingAlsoCitedNearby && !citedSliceExcludesSibling) {
+            const isSec47PersonalSubclause =
+              sm[1].trim() === "47" &&
+              citedLetter === "ก" &&
+              /ผู้มีเงินได้[^\n]{0,35}60,?000/.test(normClaimForSubpara);
+            if (!siblingAlsoCitedInClaim && !citedSliceExcludesSibling && !isSec47PersonalSubclause) {
               matchingSibling = sibLetter;
               break;
             }
