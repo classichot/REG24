@@ -11,6 +11,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { getVerifiedStatutoryCorpus } from "../data/verified-statutory-loader";
 import { evaluateSubstantiveClaimSupport } from "./answer-verification";
+import { verifySection47AllowanceComponentsFromFacts } from "./tax-calculation-verifier";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { arabicDigitsToThai, sha256Bytes, thaiDigitsToArabic } from "./identity";
 import { formatOfficialLinkStatusNoticeTh } from "./link-health";
@@ -2388,6 +2389,7 @@ export async function saveOrReviseAnswerServerVerified(
     grounded_answer_snapshot?: GroundedAnswer | null;
     question_text: string;
     revision_reason?: string;
+    parent_answer_revision?: string | null;
     actor: Actor;
     save_operation_key?: string | null;
     query_persistence_context?: {
@@ -2749,12 +2751,14 @@ export async function saveOrReviseAnswerServerVerified(
   //     (never trusting client-supplied numbers or pooling across sibling claims!).
   let authoritativePredecessorEnvelope: TraceableAnswerEnvelope | null = null;
   let authoritativePredecessorQuestionText: string | null = null;
+  let authoritativePredecessorStoredSha: string | null = null;
   if (authoritativeSupersedes) {
     if (pgActive) {
       const prevLoaded = await loadSavedAnswerFromPostgres(authoritativeSupersedes, params.actor);
       if (prevLoaded.found && prevLoaded.answer) {
         authoritativePredecessorEnvelope = prevLoaded.answer;
         authoritativePredecessorQuestionText = prevLoaded.question_text || null;
+        authoritativePredecessorStoredSha = prevLoaded.save_payload_sha256 || null;
       }
     } else {
       const localPrev = unified.published_answers[authoritativeSupersedes] || null;
@@ -2763,43 +2767,102 @@ export async function saveOrReviseAnswerServerVerified(
     }
   }
 
-  // Unmodified re-save of an already-committed revision (e.g., clicking Save in UI after query auto-persisted r1):
-  // when no explicit edit revision_reason was supplied and the canonical payload matches the latest committed revision
-  // verbatim, return that exact committed revision (`__idempotent_replay = true`) without bumping r1 -> r2.
+  // DEF-C3-1 Fix:
+  // 1) Unchanged Save on ANY stored revision (`r1`, `r2`, etc.) is a strict idempotent NO-OP
+  //    (zero new revision, zero model/verifier run, `latest_answer_revision` untouched, snapshot preserved).
+  // 2) Non-no-op Save / Edit enforces server-side optimistic concurrency: parent revision MUST equal
+  //    `authoritativeSupersedes` (the latest committed revision), else reject with `STALE_PARENT_REVISION_409`.
   const hasExplicitEditReason = Boolean(
     params.revision_reason && params.revision_reason.trim().length > 0
   );
-  if (
-    !params.query_persistence_context &&
-    !hasExplicitEditReason &&
-    authoritativePredecessorEnvelope &&
-    sub.answer_revision === authoritativeSupersedes
-  ) {
-    const prevCanonicalSha = computeCanonicalSavePayloadSha256({
-      question_text: authoritativePredecessorQuestionText ?? params.question_text,
-      as_of_date: authoritativePredecessorEnvelope.as_of_date ?? null,
-      rendered_answer_th: authoritativePredecessorEnvelope.rendered_answer_th ?? null,
-      claims: (authoritativePredecessorEnvelope.claims || [])
-        .filter(
-          (c) =>
-            c.claim_type !== "user_fact_or_assumption" &&
-            c.claim_type !== "scoped_unresolved_notice"
-        )
-        .map((c) => ({
-          text: c.text,
-          claim_type: c.claim_type,
-          evidence_references: (c.evidence_references || []).map((r) => ({
-            evidence_id: r.evidence_id,
-            support_role: r.support_role,
+  if (!params.query_persistence_context) {
+    const rawSubmittedRev =
+      typeof sub.answer_revision === "string" ? sub.answer_revision.trim() : "";
+    const referencedRevisionId = /\.(?:legacy\.)?r\d+$/.test(rawSubmittedRev)
+      ? rawSubmittedRev
+      : null;
+    const callerParentRevision =
+      (typeof params.parent_answer_revision === "string" &&
+        params.parent_answer_revision.trim()) ||
+      referencedRevisionId ||
+      (typeof sub.supersedes_answer_revision === "string" &&
+        sub.supersedes_answer_revision.trim()) ||
+      null;
+
+    let referencedEnvelope: TraceableAnswerEnvelope | null = null;
+    let referencedQuestionText: string | null = null;
+    let referencedStoredSha: string | null = null;
+
+    if (referencedRevisionId) {
+      if (referencedRevisionId === authoritativeSupersedes && authoritativePredecessorEnvelope) {
+        referencedEnvelope = authoritativePredecessorEnvelope;
+        referencedQuestionText = authoritativePredecessorQuestionText;
+        referencedStoredSha = authoritativePredecessorStoredSha;
+      } else if (pgActive) {
+        const refLoaded = await loadSavedAnswerFromPostgres(referencedRevisionId, params.actor);
+        if (refLoaded.found && refLoaded.answer) {
+          referencedEnvelope = refLoaded.answer;
+          referencedQuestionText = refLoaded.question_text || null;
+          referencedStoredSha = refLoaded.save_payload_sha256 || null;
+        }
+      } else {
+        const localRef = unified.published_answers[referencedRevisionId] || null;
+        referencedEnvelope = localRef;
+        referencedQuestionText = localRef?.question_text || null;
+      }
+    }
+
+    if (!hasExplicitEditReason && referencedEnvelope) {
+      const refCanonicalSha = computeCanonicalSavePayloadSha256({
+        question_text: referencedQuestionText ?? params.question_text,
+        as_of_date: referencedEnvelope.as_of_date ?? null,
+        rendered_answer_th: referencedEnvelope.rendered_answer_th ?? null,
+        claims: (referencedEnvelope.claims || [])
+          .filter(
+            (c) =>
+              c.claim_type !== "user_fact_or_assumption" &&
+              c.claim_type !== "scoped_unresolved_notice"
+          )
+          .map((c) => ({
+            text: c.text,
+            claim_type: c.claim_type,
+            evidence_references: (c.evidence_references || []).map((r) => ({
+              evidence_id: r.evidence_id,
+              support_role: r.support_role,
+            })),
           })),
-        })),
-    });
-    if (prevCanonicalSha === canonicalSavePayloadSha256) {
-      const replayEnv = { ...authoritativePredecessorEnvelope } as TraceableAnswerEnvelope & {
-        __idempotent_replay?: boolean;
-      };
-      replayEnv.__idempotent_replay = true;
-      return replayEnv;
+      });
+      if (
+        (referencedStoredSha && referencedStoredSha === canonicalSavePayloadSha256) ||
+        refCanonicalSha === canonicalSavePayloadSha256
+      ) {
+        const replayEnv = { ...referencedEnvelope } as TraceableAnswerEnvelope & {
+          __idempotent_replay?: boolean;
+        };
+        replayEnv.__idempotent_replay = true;
+        return replayEnv;
+      }
+    }
+
+    if (
+      authoritativeSupersedes &&
+      callerParentRevision &&
+      callerParentRevision !== authoritativeSupersedes
+    ) {
+      throw new Error(
+        `STALE_PARENT_REVISION_409: Optimistic concurrency check failed — parent revision '${callerParentRevision}' does not match latest committed revision '${authoritativeSupersedes}'. Saving or editing an older reopened revision cannot supersede a newer revision; reopen '${authoritativeSupersedes}' first.`
+      );
+    }
+
+    const inheritedConvId =
+      authoritativePredecessorEnvelope?.conversation_id?.trim() ||
+      extractConversationTagFromReason(authoritativePredecessorEnvelope?.revision_reason) ||
+      null;
+    if (inheritedConvId) {
+      const baseSaveReason = effectiveRevisionReason || "Saved answer revision";
+      if (!baseSaveReason.includes("[conv:")) {
+        effectiveRevisionReason = `${baseSaveReason} [conv:${inheritedConvId}]`;
+      }
     }
   }
 
@@ -3128,6 +3191,25 @@ export async function saveOrReviseAnswerServerVerified(
       verifiedTokensForThisClaimOnly = Array.from(tokenSet);
     }
 
+    const citesSection47InClaim = validRefs.some((r) => {
+      const docRec = unified.documents[r.doc_id];
+      return docRec?.canonical_work_id === "prov.th.rc.47" || r.doc_id === "prov.th.rc.47";
+    });
+    if (!params.query_persistence_context && citesSection47InClaim) {
+      const citedS47Verbatim = validRefs
+        .map((r) => unified.passages[r.evidence_id]?.verbatim_text || "")
+        .join("\n");
+      const s47Reverify = verifySection47AllowanceComponentsFromFacts({
+        userContextText: params.question_text || "",
+        citedVerbatimText: citedS47Verbatim,
+      });
+      if (s47Reverify.applicable && s47Reverify.verifiedNumericTokens.length > 0) {
+        verifiedTokensForThisClaimOnly = Array.from(
+          new Set([...(verifiedTokensForThisClaimOnly || []), ...s47Reverify.verifiedNumericTokens])
+        );
+      }
+    }
+
     if (boundCalcForThisClaim) {
       remappedTrustedCalcsByClaimId[nextClaimId] = {
         ...boundCalcForThisClaim,
@@ -3176,7 +3258,8 @@ export async function saveOrReviseAnswerServerVerified(
     serverValidated.status === "complete" &&
     (sub.status === "partial" ||
       sub.grounded_answer_status === "CONDITIONAL" ||
-      sub.grounded_answer_status === "NEEDS_CLARIFICATION")
+      sub.grounded_answer_status === "NEEDS_CLARIFICATION" ||
+      sub.grounded_answer_status === "REVIEW_REQUIRED")
   ) {
     serverValidated.status = "partial";
   }
@@ -3203,8 +3286,8 @@ export async function saveOrReviseAnswerServerVerified(
       "UNSUPPORTED_ANSWER_REJECTED_422: Plausible conclusion or answer cannot be saved as supported without valid, eligible supporting evidence."
     );
   }
-  // For genuine abstention / clarification outcomes (`NEEDS_CLARIFICATION` / `INSUFFICIENT_EVIDENCE`),
-  // preserve the exact rendered abstention/clarification notice and unresolved issues across Save & Reopen!
+  // For genuine abstention / clarification / review-required outcomes (`NEEDS_CLARIFICATION`, `INSUFFICIENT_EVIDENCE`, `REVIEW_REQUIRED`),
+  // preserve the exact rendered notice and unresolved issues across Save & Reopen!
   if (serverValidated.status === "insufficient" && !callerClaimedSupported) {
     if (typeof sub.rendered_answer_th === "string" && sub.rendered_answer_th.trim().length > 0) {
       serverValidated.rendered_answer_th = sub.rendered_answer_th;
@@ -3217,7 +3300,9 @@ export async function saveOrReviseAnswerServerVerified(
   const effectiveConversationId =
     params.query_persistence_context?.conversation_id?.trim() ||
     sub.conversation_id ||
+    authoritativePredecessorEnvelope?.conversation_id ||
     extractConversationTagFromReason(effectiveRevisionReason) ||
+    extractConversationTagFromReason(authoritativePredecessorEnvelope?.revision_reason) ||
     null;
   serverValidated.conversation_id = effectiveConversationId;
   const sanitizedSnapshot = sanitizeGroundedAnswerSnapshot(

@@ -17,6 +17,7 @@ import {
   extractCanonicalInstrumentNumbers,
   verifyClaimAgainstPassages,
 } from "./answer-verification";
+import { verifySection47AllowanceComponentsFromFacts } from "./tax-calculation-verifier";
 import type { StructuredCaseFactLedger } from "./case-fact-ledger";
 import type {
   ClaimBoundCalculationRecord,
@@ -568,6 +569,51 @@ function verifyProposedCalculation(params: {
 
   if (!calc || !calc.is_computable_from_stated_facts) {
     return { accepted: true, verifiedCalc: null, verifiedNumericTokens: [] };
+  }
+
+  // Statutory Section 47 (`มาตรา 47`) allowance sum check (no tax rate_pct; verifies exact multi-allowance sum
+  // against stated family facts and suppresses mislabelling an allowance sum as `ภาษีที่คำนวณได้`):
+  const citesSection47OnlyAllowance =
+    params.citedItems.some((p) => p.work_id === "prov.th.rc.47") &&
+    !params.citedItems.some((p) => p.work_id === "prov.th.rc.48" || p.work_id === "sched.th.rc.income_tax_rate") &&
+    (calc.rate_pct === null || calc.rate_pct === 0);
+  if (citesSection47OnlyAllowance) {
+    const s47Eval = verifySection47AllowanceComponentsFromFacts({
+      userContextText: params.factLedger.user_turns
+        .map((t) => t.cleaned_active_text || t.raw_text)
+        .join(" "),
+      citedVerbatimText: params.citedItems.map((p) => p.verbatim_text).join("\n"),
+    });
+    const proposedAllowanceAmt =
+      calc.exempt_amount_thb ?? calc.computed_tax_thb ?? calc.tax_base_thb ?? calc.taxable_amount_thb;
+    if (s47Eval.applicable && proposedAllowanceAmt !== null && Number.isFinite(proposedAllowanceAmt)) {
+      const roundedProposed = Math.round(proposedAllowanceAmt);
+      if (s47Eval.validAmountsThb.includes(roundedProposed)) {
+        return {
+          accepted: true,
+          verifiedCalc: null,
+          verifiedNumericTokens: s47Eval.verifiedNumericTokens,
+        };
+      }
+      return {
+        accepted: false,
+        verifiedCalc: null,
+        verifiedNumericTokens: [],
+        rejection: {
+          issue_id: params.issue.issue_id,
+          issue_title_th: params.issue.issue_title_th,
+          proposed_values: {
+            tax_base_thb: calc.tax_base_thb,
+            exempt_amount_thb: calc.exempt_amount_thb,
+            taxable_amount_thb: calc.taxable_amount_thb,
+            rate_pct: calc.rate_pct,
+            computed_tax_thb: calc.computed_tax_thb,
+          },
+          rejection_code: "ARITHMETIC_MISMATCH",
+          rejection_reason_th: `ยอดรวมค่าลดหย่อนตามมาตรา 47 ที่เสนอ (${roundedProposed.toLocaleString("en-US")} บาท) ไม่ตรงกับผลรวมตามข้อเท็จจริงและบทบัญญัติที่อ้างอิง${s47Eval.expectedTotalThb !== null ? ` (คาดหวัง ${s47Eval.expectedTotalThb.toLocaleString("en-US")} บาท)` : ""}`,
+        },
+      };
+    }
   }
 
   // Out-of-scope / non-applicable duty guard (e.g. K2 bank cash transfer: no WHT duty under §50 / not a dutiable stamp-duty instrument under §103-104):
@@ -1340,6 +1386,22 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         trustedTokens.add("10000000");
         trustedTokens.add("10,000,000");
         trustedTokens.add("10");
+      }
+    }
+    // DEF-C3-2: When `prov.th.rc.47` (`มาตรา 47` personal/spouse/child/parent allowances) is cited and
+    // no calculation was rejected, deterministically ground ONLY the exact statutory allowance component
+    // and subset-sum figures warranted by the stated family facts (e.g. 60,000 + 60,000 + 30,000×2 = 180,000).
+    if (calcCheck.accepted && citedPackItems.some((p) => p.work_id === "prov.th.rc.47")) {
+      const s47TokensEval = verifySection47AllowanceComponentsFromFacts({
+        userContextText: params.factLedger.user_turns
+          .map((t) => t.cleaned_active_text || t.raw_text)
+          .join(" "),
+        citedVerbatimText: citedVerbatimNorm,
+      });
+      if (s47TokensEval.applicable) {
+        for (const tok of s47TokensEval.verifiedNumericTokens) {
+          trustedTokens.add(tok);
+        }
       }
     }
     // If cited passages include a statutory 6.3% VAT reduction decree (RD 799/807) AND the supplied

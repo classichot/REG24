@@ -119,6 +119,7 @@ export function OfficialCitationTraceabilityPanel({
         body: JSON.stringify({
           traceable_answer: envelope,
           question_text: questionText,
+          parent_answer_revision: envelope.answer_revision,
           save_operation_key: stableSaveKey,
         }),
       });
@@ -128,10 +129,14 @@ export function OfficialCitationTraceabilityPanel({
         setReopenInputId(json.saved_answer_revision);
         setActionToast(
           json.idempotent_replay
-            ? `ยืนยันรุ่นคำตอบที่บันทึกไว้แล้ว (Idempotent): ${json.saved_answer_revision}`
+            ? `ไม่พบการแก้ไขเนื้อหา — คงรุ่นคำตอบเดิมโดยไม่สร้างรุ่นใหม่ (Idempotent No-Op): ${json.saved_answer_revision}`
             : `บันทึกคำตอบตามรุ่นสำเร็จ: ${json.saved_answer_revision}`
         );
-        if (json.answer && onReopenedEnvelope) {
+        if (
+          json.answer &&
+          onReopenedEnvelope &&
+          !(json.idempotent_replay && json.saved_answer_revision === envelope.answer_revision)
+        ) {
           onReopenedEnvelope(json.answer, questionText);
         }
       } else {

@@ -581,6 +581,21 @@ export function analyzeLegalIssuesAndFacts(params: {
     }
   }
 
+  // --- Regime D2: Personal Income Tax Allowances (`มาตรา 47`, `พ.ร.บ. 44 พ.ศ. 2560`, `พ.ร.บ. 46 พ.ศ. 2561`) ---
+  const asksPitAllowancesS47 =
+    !asksPoliticalPartyDonation &&
+    !asksPublicCharityDonation &&
+    (/มาตรา\s*47\b|\bsection\s*47\b/i.test(mergedContext) ||
+      /(?:หักลดหย่อน|ค่าลดหย่อน|ลดหย่อนส่วนตัว|ลดหย่อนคู่สมรส|ลดหย่อนบุตร|ลดหย่อนบิดามารดา)/.test(
+        mergedContext
+      ));
+  if (asksPitAllowancesS47) {
+    regimes.add("PIT_ALLOWANCES_S47");
+    controlling.add("prov.th.rc.47");
+    controlling.add("statute.th.rc_amendment_44_2560");
+    demoteRulingsBeforeIso = "2017-01-28";
+  }
+
   // --- Regime E: Salary Expense Standard Deduction (`มาตรา 42 ทวิ` + `พ.ร.บ. 44`) ---
   const asksS42Bis =
     /มาตรา\s*42\s*ทวิ|หักค่าใช้จ่ายเป็นการเหมา[\s\S]{0,40}(?:เงินเดือน|40\s*\(1\))/.test(activeClean);

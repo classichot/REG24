@@ -1437,7 +1437,7 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
     expect(r2.unresolved_issues.length).toBe(0);
 
     // Case C (Negative Control): Tampered ungrounded amount (99,999 บาท) in r3 MUST STILL be withheld/blocked!
-    const tamperedClaims = r1.claims.map((c, idx) =>
+    const tamperedClaims = r2.claims.map((c, idx) =>
       idx === 1 ? { ...c, text: `${c.text} โดยต้องเสียภาษีเพิ่มเติม 99,999 บาท` } : c
     );
     const r3 = await saveOrReviseAnswerServerVerified(store, {
@@ -1445,7 +1445,7 @@ describe("REG24 Batch 1 RC10.3 — P0-1, P0-2, and P0-3 Remediation Gates", () =
       question_text: questionText,
       revision_reason: "Negative control tampered numeric claim",
       save_operation_key: `op.tampered_r3.${Date.now()}`,
-      submitted_envelope: { ...r1, claims: tamperedClaims },
+      submitted_envelope: { ...r2, claims: tamperedClaims },
     });
     expect(r3.status).toBe("partial");
     expect(r3.claims.filter((c) => c.verification_decision === "supported").length).toBe(1);

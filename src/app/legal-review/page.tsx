@@ -323,6 +323,17 @@ export default function LegalTeamReviewStudioPage() {
           });
         }
       }
+      if (env.grounded_answer_snapshot) {
+        return {
+          ...env.grounded_answer_snapshot,
+          status:
+            env.grounded_answer_status ||
+            env.grounded_answer_snapshot.status,
+          execution_provenance:
+            env.execution_provenance ?? env.grounded_answer_snapshot.execution_provenance,
+          traceable_answer: env,
+        };
+      }
       const derivedTraceId = env.answer_revision.startsWith("ans.trc.")
         ? env.answer_revision.replace(/^ans\./, "").replace(/\.r\d+$/, "")
         : env.answer_revision;
@@ -398,7 +409,13 @@ export default function LegalTeamReviewStudioPage() {
         return;
       }
       setReopenBusy(true);
-      setStatusBanner(null);
+      setAnswerResult(null);
+      setTraceableEnvelope(null);
+      setReopenedFromRevision(null);
+      setStatusBanner({
+        kind: "info",
+        text: `กำลังเปิดรุ่นคำตอบ ${target} จากฐานข้อมูล Neon PostgreSQL…`,
+      });
       try {
         const requireDbQuery = envInfo?.shared_neon_postgres_connected ? "?require_db=1" : "";
         const res = await fetch(
@@ -834,7 +851,6 @@ export default function LegalTeamReviewStudioPage() {
       setAsOfDate(dateToRun || "");
 
       const savedRev =
-        ans.status !== "REVIEW_REQUIRED" &&
         env &&
         (env.status === "complete" ||
           env.status === "partial" ||
@@ -1810,7 +1826,19 @@ export default function LegalTeamReviewStudioPage() {
             </div>
 
             {/* Answer & Official Citation Traceability Output */}
-            {answerResult ? (
+            {reopenBusy ? (
+              <div
+                style={{
+                  background: "#11151c",
+                  border: "1px solid #3b82f6",
+                  padding: "18px 16px",
+                  fontSize: "13px",
+                  color: "#bfdbfe",
+                }}
+              >
+                📂 กำลังเปิดรุ่นคำตอบที่บันทึกไว้จากฐานข้อมูล Neon PostgreSQL… (ซ่อนคำตอบก่อนหน้าเพื่อป้องกันข้อมูลค้างระหว่างโหลด)
+              </div>
+            ) : answerResult ? (
               <div
                 style={{
                   background: "#11151c",
@@ -1981,7 +2009,8 @@ export default function LegalTeamReviewStudioPage() {
                     ) : null}
                     {traceableEnvelope &&
                     (traceableEnvelope.status === "complete" ||
-                      traceableEnvelope.status === "partial") ? (
+                      traceableEnvelope.status === "partial" ||
+                      traceableEnvelope.status === "insufficient") ? (
                       <>
                         {" "}
                         · SavedRev: <code>{traceableEnvelope.answer_revision}</code> (r

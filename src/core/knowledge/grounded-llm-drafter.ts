@@ -826,6 +826,16 @@ export function buildGroundedLlmUserPrompt(params: {
       "สำหรับวันเกิดความรับผิดในช่วง 1 ตุลาคม 2560 ถึง 30 กันยายน 2561 (2017-10-01 ถึง 2018-09-30): ให้ตั้ง answer_status = 'CONDITIONAL' สรุปคำตอบแบบจำกัดขอบเขตว่าใช้อัตราภาษีมูลค่าเพิ่มร้อยละ 7.0 (ร้อยละ 6.3 ตามพระราชกฤษฎีกา (ฉบับที่ 646) พ.ศ. 2560 รวมภาษีท้องถิ่นร้อยละ 0.7 ตามคู่มือกรมสรรพากร) พร้อมคำนวณภาษีขายและยอดรวมทั้งสิ้นตามฐานค่าบริการที่ระบุในโจทย์ และต้องระบุหมายเหตุข้อจำกัดไว้ทั้งในคำอธิบายและใน evidence_gaps_th อย่างชัดเจนว่า 'ตัวบทมาตรา 4 ฉบับแรกเริ่มตามราชกิจจานุเบกษาของพระราชกฤษฎีกา (ฉบับที่ 646) พ.ศ. 2560 ไม่ได้แยกอยู่ในคลังหลักฐาน (คลังมีเฉพาะไฟล์ประมวลของกรมสรรพากรซึ่งแสดงข้อความมาตรา 4 ที่แก้ไขเพิ่มเติมในภายหลัง)'"
     );
   }
+  if (params.specialConstraints?.needs_vat_date_clarification) {
+    packGroundingReminders.push(
+      "สำหรับคำถามที่ยังไม่ระบุวันเกิดความรับผิดทางภาษีมูลค่าเพิ่ม (needs_vat_date_clarification = true): ให้ตั้ง answer_status = 'NEEDS_CLARIFICATION', สร้าง issues เพียง 1 ประเด็นกระชับเพื่อระบุหลักเกณฑ์วันเกิดความรับผิดตามมาตรา 78/1 (1) (สำหรับบริการ) หรือมาตรา 78 (สำหรับขายสินค้า) ประกอบเพดานอัตราตามมาตรา 80 และการลดอัตราเป็นการชั่วคราวตามช่วงเวลาของพระราชกฤษฎีกาใน PASSAGE_PACK โดยตั้ง proposed_calculation = null (ห้ามคำนวณตัวเลขภาษีตายตัวและห้ามเขียนแจกแจงซ้ำซ้อนยาวเกินความจำเป็น) พร้อมถามวันรับชำระเงินและวันออกใบกำกับภาษีอย่างชัดเจนใน clarification_questions_th"
+    );
+  }
+  if (params.passagePack.some((p) => p.work_id === "prov.th.rc.47")) {
+    packGroundingReminders.push(
+      "สำหรับคำถามสิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47: ให้อ้างอิง passage_id ของมาตรา 47 ที่ระบุรายการลดหย่อนนั้นโดยตรง (เช่น psg.e4ec78f644930e สำหรับมาตรา 47 (1) (ก) ผู้มีเงินได้ 60,000 บาท, (ข) สามีหรือภริยา 60,000 บาท, (ค) (1) บุตรชอบด้วยกฎหมายคนละ 30,000 บาท และบวกเพิ่มอีกคนละ 30,000 บาทเฉพาะบุตรชอบด้วยกฎหมายตั้งแต่คนที่สองเป็นต้นไปที่เกิดในหรือหลังปี พ.ศ. 2561 เท่านั้น — หากบุตรเกิดก่อนปี พ.ศ. 2561 ห้ามบวกเพิ่ม 30,000 บาท) แสดงรายละเอียดแต่ละรายการและผลรวมค่าลดหย่อนใน conclusion_th และ application_explanation_th ให้ครบถ้วน และหากโจทย์ถามเฉพาะยอดรวมค่าลดหย่อนโดยไม่ได้ถามภาษีที่ต้องชำระตามอัตราก้าวหน้า ให้ตั้ง proposed_calculation = null"
+    );
+  }
   const payload = {
     active_user_question: params.question,
     ...(params.specialConstraints ? { special_constraints: params.specialConstraints } : {}),
@@ -1347,7 +1357,7 @@ export async function draftGroundedLegalAnswerWithLlm(params: {
     }
     const perAttemptTimeoutMs =
       attemptIdx === 0 && timeoutMs >= 200_000
-        ? Math.min(remainingBudgetMs, 175_000)
+        ? Math.min(remainingBudgetMs, 115_000)
         : Math.max(20_000, remainingBudgetMs);
     const attemptStart = Date.now();
 

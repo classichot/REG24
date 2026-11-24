@@ -151,6 +151,10 @@ function selectRelevantPassagesForClaimWork(
     patterns.push(/มาตรา\s*4|\(6\)|\(ข\)|\(ค\)|\(ง\)/);
   } else if (workId === "subreg.th.rd.dg_vat.105") {
     patterns.push(/ข้อ\s*2|ต่างประเทศ|ร้อยละ\s*0/);
+  } else if (workId === "prov.th.rc.47") {
+    patterns.push(/60,000|30,000|120,000|บิดามารดา|คนพิการ|บริจาค/);
+  } else if (/^subreg\.th\.rc\.royal_decree\.(780|790|799|807)$/.test(workId)) {
+    patterns.push(/6\.3|หกจุดสาม|มาตรา\s*4/);
   }
 
   if (patterns.length === 0) return pool;
@@ -1543,7 +1547,21 @@ async function executeCoreKnowledgeQuery(
       .filter(Boolean)
       .join(" ");
 
-    const appendWorkPassages = (workId: string, seedOverride?: Passage) => {
+    const isMissingVatTaxPointPreCheck =
+      !factLedger.temporal_facts.controlling_tax_point.iso_date &&
+      !(
+        factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+        (factLedger.temporal_facts.split_payment_tax_points?.length || 0) >= 2
+      ) &&
+      (/ภาษีมูลค่าเพิ่ม|\bVAT\b/i.test(mergedUserBlob) ||
+        factLedger.material_facts.some((f) => f.fact_key === "vat_transaction_type")) &&
+      bundle.explicit_ruling_ids_in_query.length === 0;
+
+    const appendWorkPassages = (
+      workId: string,
+      seedOverride?: Passage,
+      maxUnitsOverride?: number
+    ) => {
       if (seenWorkIds.has(workId)) return;
       const seed =
         seedOverride ||
@@ -1578,10 +1596,20 @@ async function executeCoreKnowledgeQuery(
         subsectionSelectionHint
       );
       seenWorkIds.add(workId);
+      const defaultMissingVatCap = isMissingVatTaxPointPreCheck
+        ? /^subreg\.th\.rc\.royal_decree\.(780|790|799|807)$/.test(workId)
+          ? 1
+          : 2
+        : undefined;
       const perWorkUnitCap =
-        workId === "prov.th.rc.50" || workId === "prov.th.rc.48" || workId === "prov.th.rc.42"
+        maxUnitsOverride ??
+        defaultMissingVatCap ??
+        (workId === "prov.th.rc.50" ||
+        workId === "prov.th.rc.48" ||
+        workId === "prov.th.rc.42" ||
+        workId === "prov.th.rc.47"
           ? 5
-          : 4;
+          : 4);
       for (const u of narrowed.slice(0, perWorkUnitCap)) {
         if (!rawPassagesById.has(u.passage_id)) {
           rawPassagesById.set(u.passage_id, u);
@@ -1771,20 +1799,38 @@ async function executeCoreKnowledgeQuery(
           addDecreeForIso(ctrlDate);
         }
       }
+      const isDomesticVatMissingTaxPoint =
+        isDomesticVatRateQuery && !isSplitPaymentForVat && !ctrlDate;
       for (const vWid of Array.from(new Set(vatCoreWorkIds))) {
-        appendWorkPassages(vWid);
+        const unitCapOverride =
+          isDomesticVatMissingTaxPoint &&
+          (/^subreg\.th\.rc\.royal_decree\.(780|790|799|807)$/.test(vWid) ||
+            vWid === "prov.th.rc.78" ||
+            vWid === "subreg.th.rd.vat_local_tax_guide")
+            ? 2
+            : undefined;
+        appendWorkPassages(vWid, undefined, unitCapOverride);
       }
       (candidatePassages as Passage[] & { __historicalWorkIds?: Set<string> }).__historicalWorkIds =
         historicalContextWorkIds;
       (candidatePassages as Passage[] & { __excludeDomesticVatDecrees?: boolean }).__excludeDomesticVatDecrees =
         !isDomesticVatRateQuery;
+      (candidatePassages as Passage[] & { __skipBackfillForVatDateClarification?: boolean }).__skipBackfillForVatDateClarification =
+        isDomesticVatMissingTaxPoint && bundle.explicit_ruling_ids_in_query.length === 0;
     }
 
     // 3. Add top domain-compatible retrieved passages (hybrid+graph) up to pack budget
+    //    (DEF-C3-4: when `VC` is a pure missing-tax-point VAT rate clarification without explicit ruling IDs,
+    //    skip stuffing noisy TaxRuling backfills so the model packet stays lean and fast!)
     const excludeDomesticVatDecrees = Boolean(
       (candidatePassages as Passage[] & { __excludeDomesticVatDecrees?: boolean }).__excludeDomesticVatDecrees
     );
+    const skipBackfillForVatDateClarification = Boolean(
+      (candidatePassages as Passage[] & { __skipBackfillForVatDateClarification?: boolean })
+        .__skipBackfillForVatDateClarification
+    );
     for (const p of availablePassages) {
+      if (skipBackfillForVatDateClarification) break;
       if (candidatePassages.length >= 32) break;
       if (p.statement_role !== "statutory_text" && p.statement_role !== "official_conclusion") {
         continue;

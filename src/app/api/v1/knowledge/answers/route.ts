@@ -61,6 +61,7 @@ export async function POST(req: Request) {
       traceable_answer?: Partial<TraceableAnswerEnvelope>;
       question_text?: string;
       revision_reason?: string;
+      parent_answer_revision?: string | null;
       save_operation_key?: string | null;
     };
 
@@ -79,6 +80,11 @@ export async function POST(req: Request) {
       submitted_envelope: body.traceable_answer,
       question_text: body.question_text || "",
       revision_reason: body.revision_reason,
+      parent_answer_revision:
+        (typeof body.parent_answer_revision === "string" && body.parent_answer_revision.trim()) ||
+        (typeof body.traceable_answer.answer_revision === "string" &&
+          body.traceable_answer.answer_revision.trim()) ||
+        null,
       save_operation_key: saveOperationKey,
       actor,
     });

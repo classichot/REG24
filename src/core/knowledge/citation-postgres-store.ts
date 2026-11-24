@@ -1175,6 +1175,7 @@ export async function loadSavedAnswerFromPostgres(
   question_text?: string;
   answer?: TraceableAnswerEnvelope;
   grounded_answer?: import("./contracts").GroundedAnswer | null;
+  save_payload_sha256?: string | null;
   conversation_id?: string | null;
   conversation_turns?: import("./contracts").ConversationTurnInput[];
   audit_events?: TraceabilityAuditEventRecord[];
@@ -1207,6 +1208,7 @@ export async function loadSavedAnswerFromPostgres(
     tenant_id: string;
     revision_reason: string;
     execution_provenance?: TraceableAnswerEnvelope["execution_provenance"];
+    save_payload_sha256?: string | null;
   }>(
     isExplicitRevisionLookup
       ? `SELECT answer_revision_id, answer_id, revision_number, supersedes_revision_id,
@@ -1214,7 +1216,7 @@ export async function loadSavedAnswerFromPostgres(
                 status, rendered_answer_th, unresolved_issues, user_supplied_facts,
                 assumptions, legacy_warning_th, release_id, verifier_version, ruleset_version,
                 owner_actor_id, owner_tenant_id, actor_id, tenant_id, revision_reason,
-                execution_provenance
+                execution_provenance, save_payload_sha256
          FROM citation_published_answer
          WHERE answer_revision_id = $1
          LIMIT 1`
@@ -1223,7 +1225,7 @@ export async function loadSavedAnswerFromPostgres(
                 status, rendered_answer_th, unresolved_issues, user_supplied_facts,
                 assumptions, legacy_warning_th, release_id, verifier_version, ruleset_version,
                 owner_actor_id, owner_tenant_id, actor_id, tenant_id, revision_reason,
-                execution_provenance
+                execution_provenance, save_payload_sha256
          FROM citation_published_answer
          WHERE answer_id = $1
          ORDER BY revision_number DESC
@@ -1604,6 +1606,7 @@ export async function loadSavedAnswerFromPostgres(
     unresolved_issues: Array.isArray(row.unresolved_issues) ? row.unresolved_issues : [],
     legacy_warning_th: row.legacy_warning_th,
     execution_provenance: cleanExecProvenance,
+    ...(rawGroundedSnapshot ? { grounded_answer_snapshot: rawGroundedSnapshot } : {}),
     verifier_metadata: {
       verifier_version: row.verifier_version,
       ruleset_version: row.ruleset_version,
@@ -1641,6 +1644,7 @@ export async function loadSavedAnswerFromPostgres(
   return {
     found: true,
     question_text: row.question_text,
+    save_payload_sha256: row.save_payload_sha256 ?? null,
     conversation_id: resolvedConversationId,
     conversation_turns: conversationTurns,
     grounded_answer: rehydratedGroundedAnswer,

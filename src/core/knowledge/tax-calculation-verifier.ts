@@ -16,6 +16,7 @@
 export type TaxCalculationRegime =
   | "CIT_RATE_AND_TAX"
   | "PIT_PROGRESSIVE_BRACKETS"
+  | "PIT_ALLOWANCES_S47"
   | "PIT_SALARY_DEDUCTION_S42_BIS"
   | "PIT_GIFT_EXEMPTION_S42"
   | "VAT_RATE_AND_AMOUNT"
@@ -1936,5 +1937,212 @@ export function verifySummonsDeadlineSection19Calculation(params: {
         : `เมื่อข้อเท็จจริงเปลี่ยนเป็นอธิบดีกรมสรรพากรได้อนุมัติให้ขยายระยะเวลาการออกหมายเรียกเพราะมีเหตุอันควรสงสัยว่าผู้ยื่นรายการมีเจตนาหลีกเลี่ยงภาษีอากร **ผลทางกฎหมายตามประมวลรัษฎากร มาตรา 19 ย่อมเปลี่ยนแปลงไป**: จากวันยื่นแบบ \`${params.returnFilingDateIso}\` ขยายเวลาได้ไม่เกิน **5 ปี** คือถึงวันที่ \`${deadline5YrIso}\` ดังนั้น หมายเรียกวันที่ \`${params.summonsDateIso}\` จึงอยู่ภายในกรอบระยะเวลา 5 ปี และ **เจ้าพนักงานประเมินมีอำนาจออกหมายเรียกได้โดยชอบด้วยประมวลรัษฎากร มาตรา 19** (ทั้งนี้ เป็นการตรวจสอบเฉพาะกรอบระยะเวลาตามข้อเท็จจริงที่ระบุว่าอธิบดีอนุมัติแล้ว **โดยไม่วินิจฉัยชี้ขาดหรือสันนิษฐานข้อเท็จจริงแห่งความสงสัยว่ามีเจตนาหลีกเลี่ยงภาษีจริงหรือไม่** และต้องให้เวลาล่วงหน้าไม่น้อยกว่า 7 วันนับแต่วันส่งหมาย)`
       : `ตามประมวลรัษฎากร มาตรา 19 เมื่อบริษัทยื่นแบบแสดงรายการเมื่อวันที่ \`${params.returnFilingDateIso}\` กำหนดเวลาออกหมายเรียกตามหลักทั่วไป **2 ปีนับแต่วันที่ได้ยื่นรายการ** สิ้นสุดลงเมื่อวันที่ \`${deadline2YrIso}\` เมื่อไม่มีข้อเท็จจริงเรื่องเจตนาหลีกเลี่ยงภาษีอากรหรือการขอคืนภาษีอากรที่อธิบดีอนุมัติให้ขยายเวลา (ไม่เกิน 5 ปี) การออกหมายเรียกในวันที่ \`${params.summonsDateIso}\` จึงพ้นกำหนดเวลา 2 ปีแล้ว **เจ้าพนักงานประเมินของกรมสรรพากรจึงไม่สามารถออกหมายเรียกตามมาตรา 19 ได้**`,
     arithmetic_verified: true,
+  };
+}
+
+/**
+ * Deterministic Revenue Code Section 47 (`มาตรา 47`) Allowance Component & Sum Verifier.
+ *
+ * Computes the exact statutory allowance components and subset sums authorized by the taxpayer's
+ * stated family/deduction facts when `prov.th.rc.47` is cited, without waiving numeric verification.
+ */
+export function verifySection47AllowanceComponentsFromFacts(params: {
+  userContextText: string;
+  citedVerbatimText: string;
+}): {
+  applicable: boolean;
+  componentsThb: number[];
+  validAmountsThb: number[];
+  expectedTotalThb: number | null;
+  verifiedNumericTokens: string[];
+} {
+  const toArabic = (s: string) =>
+    (s || "").replace(/[๐-๙]/g, (d) => String("๐๑๒๓๔๕๖๗๘๙".indexOf(d)));
+  const citedNorm = toArabic(params.citedVerbatimText || "");
+  const userNorm = toArabic(params.userContextText || "");
+
+  const citesSection47 =
+    /มาตรา\s*47\b/.test(citedNorm) ||
+    (citedNorm.includes("60,000") && citedNorm.includes("30,000") && /ลดหย่อน/.test(citedNorm));
+  if (!citesSection47) {
+    return {
+      applicable: false,
+      componentsThb: [],
+      validAmountsThb: [],
+      expectedTotalThb: null,
+      verifiedNumericTokens: [],
+    };
+  }
+
+  const parseThaiCountWord = (w: string): number | null => {
+    const t = (w || "").trim();
+    if (/^\d+$/.test(t)) return Number(t);
+    const map: Record<string, number> = {
+      หนึ่ง: 1,
+      คนเดียว: 1,
+      สอง: 2,
+      คู่: 2,
+      สาม: 3,
+      สี่: 4,
+      ห้า: 5,
+      หก: 6,
+    };
+    return map[t] ?? null;
+  };
+
+  const components: number[] = [];
+  const unitTokens = new Set<number>();
+
+  // 1. Personal / Partnership / Estate allowance (`(1)(ก)`, `(4)`, `(5)`, `(6)`)
+  const isOrdinaryPartnership = /ห้างหุ้นส่วนสามัญ|คณะบุคคลที่มิใช่นิติบุคคล/.test(userNorm);
+  if (isOrdinaryPartnership) {
+    const partnerMatch = userNorm.match(
+      /(?:หุ้นส่วน|บุคคลในคณะบุคคล)[^\d\n]{0,25}(\d+|หนึ่ง|สอง|สาม|สี่)\s*คน/
+    );
+    const pCount = Math.max(1, parseThaiCountWord(partnerMatch?.[1] || "2") || 2);
+    const pAllow = Math.min(120_000, pCount * 60_000);
+    components.push(pAllow);
+    unitTokens.add(60_000);
+  } else {
+    components.push(60_000);
+    unitTokens.add(60_000);
+  }
+
+  // 2. Spouse allowance (`(1)(ข)` or `(2)`)
+  const isSingle = /(?:\bโสด\b|ไม่มีคู่สมรส|ยังไม่ได้สมรส)/.test(userNorm);
+  const hasNoIncomeSpouse =
+    !isSingle &&
+    /(?:คู่สมรส|สามี|ภริยา|ภรรยา)[^\n]{0,40}(?:ไม่มีเงินได้|ไม่มีรายได้)|ต่างฝ่ายต่างมีเงินได้[^\n]{0,40}รวมกัน/.test(
+      userNorm
+    );
+  if (hasNoIncomeSpouse) {
+    components.push(60_000);
+    unitTokens.add(60_000);
+  }
+
+  // 3. Children allowance (`(1)(ค)(1)` legitimate & `(1)(ค)(2)` adopted)
+  const hasNoChildren = /ไม่มีบุตร/.test(userNorm);
+  let legitCount = 0;
+  let adoptedCount = 0;
+  if (!hasNoChildren) {
+    const legitMatch = userNorm.match(
+      /บุตรชอบด้วยกฎหมาย(?:\s*ของผู้มีเงินได้)?(?:\s*จำนวน)?\s*(\d+|หนึ่ง|สอง|สาม|สี่|ห้า|หก)\s*คน/
+    );
+    const genericChildMatch =
+      !legitMatch && !/บุตรบุญธรรม/.test(userNorm)
+        ? userNorm.match(/มีบุตร(?:\s*จำนวน)?\s*(\d+|หนึ่ง|สอง|สาม|สี่|ห้า|หก)\s*คน/)
+        : null;
+    legitCount = parseThaiCountWord(legitMatch?.[1] || genericChildMatch?.[1] || "") || 0;
+
+    const adoptedMatch = userNorm.match(
+      /บุตรบุญธรรม(?:\s*ของผู้มีเงินได้)?(?:\s*จำนวน)?\s*(\d+|หนึ่ง|สอง|สาม|สี่)\s*คน/
+    );
+    adoptedCount = parseThaiCountWord(adoptedMatch?.[1] || "") || 0;
+  }
+
+  if (legitCount > 0) {
+    unitTokens.add(30_000);
+    const explicitlyAllPre2561 =
+      /เกิดก่อน(?:ปี(?:\s*พ\.ศ\.)?)?\s*2561\s*(?:ทั้งคู่|ทุกคน|ทั้งหมด|ทั้งสองคน)?/.test(userNorm) &&
+      !/เกิด(?:ในหรือหลัง|ตั้งแต่|ปี(?:\s*พ\.ศ\.)?)\s*(?:256[1-9]|257\d)/.test(userNorm);
+
+    let post2561SecondPlusCount = 0;
+    if (!explicitlyAllPre2561 && legitCount >= 2) {
+      const explicitBirthYearsBe: number[] = [];
+      for (const ym of userNorm.matchAll(
+        /เกิด(?:เมื่อ|ใน|ปี)?(?:\s*พ\.ศ\.|\s*ค\.ศ\.)?\s*(25\d{2}|20\d{2})/g
+      )) {
+        const rawYr = Number(ym[1]);
+        const yrBe = rawYr < 2400 ? rawYr + 543 : rawYr;
+        const leftCtx = userNorm.slice(Math.max(0, (ym.index ?? 0) - 20), (ym.index ?? 0) + 12);
+        if (/เกิดก่อน/.test(leftCtx) && yrBe === 2561) continue;
+        explicitBirthYearsBe.push(yrBe);
+      }
+
+      if (explicitBirthYearsBe.length >= legitCount) {
+        const sortedAsc = [...explicitBirthYearsBe].slice(0, legitCount).sort((a, b) => a - b);
+        post2561SecondPlusCount = sortedAsc.slice(1).filter((yr) => yr >= 2561).length;
+      } else if (
+        /เกิด(?:ในหรือหลัง|หลัง)(?:ปี(?:\s*พ\.ศ\.)?)?\s*2561\s*(?:ทั้งคู่|ทุกคน|ทั้งหมด)/.test(
+          userNorm
+        )
+      ) {
+        post2561SecondPlusCount = legitCount - 1;
+      } else if (
+        /(?:คนที่\s*(?:2|สอง)|บุตรคนเล็ก)[^\n]{0,45}เกิด(?:ในหรือหลัง|เมื่อ|ปี)?(?:\s*พ\.ศ\.)?\s*(?:256[1-9]|257\d)/.test(
+          userNorm
+        )
+      ) {
+        post2561SecondPlusCount = 1;
+      }
+    }
+
+    for (let i = 0; i < legitCount; i++) {
+      const isPost2561BonusChild = i >= legitCount - post2561SecondPlusCount;
+      const childAmt = isPost2561BonusChild ? 60_000 : 30_000;
+      components.push(childAmt);
+    }
+  }
+
+  if (adoptedCount > 0) {
+    unitTokens.add(30_000);
+    const eligibleAdopted = legitCount >= 3 ? 0 : Math.min(adoptedCount, 3 - legitCount, 3);
+    for (let i = 0; i < eligibleAdopted; i++) {
+      components.push(30_000);
+    }
+  }
+
+  // 4. Parental care `(1)(ญ)` (`30,000` per eligible parent age >= 60, max 4)
+  if (
+    /อุปการะเลี้ยงดูบิดามารดา|ลดหย่อนบิดามารดา|(?:บิดา|มารดา)[^\n]{0,45}อายุ\s*(?:6\d|7\d|8\d|9\d)/.test(
+      userNorm
+    )
+  ) {
+    const pMatch = userNorm.match(
+      /(?:บิดามารดา|บิดาและมารดา)[^\d\n]{0,20}(\d+|หนึ่ง|สอง|สาม|สี่)\s*คน/
+    );
+    const bothMentioned = /บิดาและมารดา/.test(userNorm);
+    const pCount = Math.min(4, parseThaiCountWord(pMatch?.[1] || "") || (bothMentioned ? 2 : 1));
+    unitTokens.add(30_000);
+    for (let i = 0; i < pCount; i++) components.push(30_000);
+  }
+
+  // 5. Disabled / incapacitated care `(1)(ฎ)` (`60,000` per eligible person)
+  if (/คนพิการ|ทุพพลภาพ/.test(userNorm)) {
+    const dMatch = userNorm.match(
+      /(?:คนพิการ|ผู้พิการ|ทุพพลภาพ)[^\d\n]{0,20}(\d+|หนึ่ง|สอง|สาม)\s*คน/
+    );
+    const dCount = Math.min(4, parseThaiCountWord(dMatch?.[1] || "") || 1);
+    unitTokens.add(60_000);
+    for (let i = 0; i < dCount; i++) components.push(60_000);
+  }
+
+  const subsetSums = new Set<number>();
+  subsetSums.add(0);
+  for (const c of components) {
+    const current = Array.from(subsetSums);
+    for (const s of current) {
+      subsetSums.add(s + c);
+    }
+  }
+  subsetSums.delete(0);
+  for (const u of unitTokens) subsetSums.add(u);
+
+  const validAmountsThb = Array.from(subsetSums).sort((a, b) => a - b);
+  const expectedTotalThb =
+    components.length > 0 ? components.reduce((acc, v) => acc + v, 0) : null;
+
+  const tokenSet = new Set<string>();
+  for (const amt of validAmountsThb) {
+    tokenSet.add(String(amt));
+    tokenSet.add(formatBahtTh(amt));
+  }
+
+  return {
+    applicable: true,
+    componentsThb: components,
+    validAmountsThb,
+    expectedTotalThb,
+    verifiedNumericTokens: Array.from(tokenSet),
   };
 }

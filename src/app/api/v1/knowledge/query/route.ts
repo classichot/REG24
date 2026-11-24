@@ -165,7 +165,6 @@ export async function POST(req: Request) {
       let persistMs = 0;
       if (
         body.persist_answer &&
-        answer.status !== "REVIEW_REQUIRED" &&
         answer.traceable_answer &&
         (answer.traceable_answer.status === "complete" ||
           answer.traceable_answer.status === "partial" ||
