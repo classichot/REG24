@@ -2010,7 +2010,7 @@ async function executeCoreKnowledgeQuery(
       assumptions: verifiedOutcome.assumptions_th,
       clarification_questions: verifiedOutcome.clarification_questions_th,
       coverage_warnings: [...coverageWarnings, ...verifiedOutcome.coverage_warnings_th],
-      applicable_date: req.applicable_date ?? null,
+      applicable_date: req.applicable_date ?? factLedger.temporal_facts.legal_as_of_date ?? null,
       model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
       trace_id: traceId,
       latency_ms: Math.max(1, Date.now() - startedAt),

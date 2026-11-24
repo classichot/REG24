@@ -1946,20 +1946,69 @@ export function verifySummonsDeadlineSection19Calculation(params: {
  * Computes the exact statutory allowance components and subset sums authorized by the taxpayer's
  * stated family/deduction facts when `prov.th.rc.47` is cited, without waiving numeric verification.
  */
-export function verifySection47AllowanceComponentsFromFacts(params: {
-  userContextText: string;
-  citedVerbatimText: string;
-}): {
+export interface Section47ExtractedFacts {
+  isOrdinaryPartnership: boolean;
+  isSingle: boolean;
+  hasNoIncomeSpouse: boolean;
+  spouseHasSeparateIncome: boolean;
+  hasNoChildrenOverall: boolean;
+  hasNoLegitChildren: boolean;
+  hasNoAdoptedChildren: boolean;
+  legitCount: number;
+  post2561SecondPlusCount: number;
+  adoptedCount: number;
+  eligibleAdoptedCount: number;
+  parentCount: number;
+  disabledCount: number;
+  needsChildCountClarification: boolean;
+  zeroAllowedForAbsentComponents: boolean;
+  absentComponentCategories: Array<
+    "spouse" | "legit_child" | "adopted_child" | "adopted_excess" | "parent" | "disabled"
+  >;
+}
+
+export interface Section47AllowanceEvalResult {
   applicable: boolean;
   componentsThb: number[];
   validAmountsThb: number[];
   expectedTotalThb: number | null;
   verifiedNumericTokens: string[];
-} {
+  needsChildCountClarification: boolean;
+  zeroAllowedForAbsentComponents: boolean;
+  legitChildSubtotalThb: number;
+  adoptedChildSubtotalThb: number;
+  parentSubtotalThb: number;
+  disabledSubtotalThb: number;
+  extractedFacts: Section47ExtractedFacts;
+}
+
+export function verifySection47AllowanceComponentsFromFacts(params: {
+  userContextText: string;
+  citedVerbatimText: string;
+}): Section47AllowanceEvalResult {
   const toArabic = (s: string) =>
     (s || "").replace(/[๐-๙]/g, (d) => String("๐๑๒๓๔๕๖๗๘๙".indexOf(d)));
   const citedNorm = toArabic(params.citedVerbatimText || "");
   const userNorm = toArabic(params.userContextText || "");
+
+  const emptyFacts: Section47ExtractedFacts = {
+    isOrdinaryPartnership: false,
+    isSingle: false,
+    hasNoIncomeSpouse: false,
+    spouseHasSeparateIncome: false,
+    hasNoChildrenOverall: false,
+    hasNoLegitChildren: false,
+    hasNoAdoptedChildren: false,
+    legitCount: 0,
+    post2561SecondPlusCount: 0,
+    adoptedCount: 0,
+    eligibleAdoptedCount: 0,
+    parentCount: 0,
+    disabledCount: 0,
+    needsChildCountClarification: false,
+    zeroAllowedForAbsentComponents: false,
+    absentComponentCategories: [],
+  };
 
   const citesSection47 =
     /มาตรา\s*47\b/.test(citedNorm) ||
@@ -1971,8 +2020,22 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
       validAmountsThb: [],
       expectedTotalThb: null,
       verifiedNumericTokens: [],
+      needsChildCountClarification: false,
+      zeroAllowedForAbsentComponents: false,
+      legitChildSubtotalThb: 0,
+      adoptedChildSubtotalThb: 0,
+      parentSubtotalThb: 0,
+      disabledSubtotalThb: 0,
+      extractedFacts: emptyFacts,
     };
   }
+
+  // Strip parenthetical negations such as "(ไม่ใช่บุตรบุญธรรม)" or "(ไม่ได้มีคู่สมรสที่ไม่มีเงินได้)"
+  // so negated side-clauses never block child-count regexes or trigger false spouse matches.
+  const cleanNoNegParens = userNorm
+    .replace(/\(\s*(?:ไม่(?:ได้|ใช่|รวม(?:ถึง)?)?|มิ(?:ได้|ใช่)|เคยหย่า)[^)]{0,80}\)/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   const parseThaiCountWord = (w: string): number | null => {
     const t = (w || "").trim();
@@ -1986,6 +2049,10 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
       สี่: 4,
       ห้า: 5,
       หก: 6,
+      เจ็ด: 7,
+      แปด: 8,
+      เก้า: 9,
+      สิบ: 10,
     };
     return map[t] ?? null;
   };
@@ -1994,10 +2061,10 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
   const unitTokens = new Set<number>();
 
   // 1. Personal / Partnership / Estate allowance (`(1)(ก)`, `(4)`, `(5)`, `(6)`)
-  const isOrdinaryPartnership = /ห้างหุ้นส่วนสามัญ|คณะบุคคลที่มิใช่นิติบุคคล/.test(userNorm);
+  const isOrdinaryPartnership = /ห้างหุ้นส่วนสามัญ|คณะบุคคลที่มิใช่นิติบุคคล/.test(cleanNoNegParens);
   if (isOrdinaryPartnership) {
-    const partnerMatch = userNorm.match(
-      /(?:หุ้นส่วน|บุคคลในคณะบุคคล)[^\d\n]{0,25}(\d+|หนึ่ง|สอง|สาม|สี่)\s*คน/
+    const partnerMatch = cleanNoNegParens.match(
+      /(?:หุ้นส่วน|บุคคลในคณะบุคคล)[^\d\n]{0,25}(\d+|หนึ่ง|สอง|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ)\s*คน/
     );
     const pCount = Math.max(1, parseThaiCountWord(partnerMatch?.[1] || "2") || 2);
     const pAllow = Math.min(120_000, pCount * 60_000);
@@ -2008,68 +2075,157 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
     unitTokens.add(60_000);
   }
 
-  // 2. Spouse allowance (`(1)(ข)` or `(2)`)
-  const isSingle = /(?:\bโสด\b|ไม่มีคู่สมรส|ยังไม่ได้สมรส)/.test(userNorm);
+  // 2. Spouse allowance (`(1)(ข)` or `(2)`) — Thai-safe single detection (replaces ASCII-only `\bโสด\b`)
+  const isSingle =
+    /(?:สถานะโสด|สถานภาพโสด|เป็นโสด|คนโสด|ผู้มีเงินได้โสด|(?<![ก-๙])โสด)(?!า|\s*หนึ่ง)|ไม่มีคู่สมรส|ยังไม่ได้สมรส/.test(
+      cleanNoNegParens
+    ) && !/(?:ไม่โสด|ไม่ได้เป็นโสด|มิใช่คนโสด|ไม่ใช่คนโสด)/.test(userNorm);
+  const spouseHasSeparateIncome =
+    /(?:คู่สมรส|สามี|ภริยา|ภรรยา)[^\n]{0,65}(?:มีเงินได้(?:ของตนเอง|พึงประเมิน)?[^\n]{0,35}แยกยื่น|แยกยื่น(?:แบบ|รายการ))/.test(
+      cleanNoNegParens
+    );
   const hasNoIncomeSpouse =
     !isSingle &&
-    /(?:คู่สมรส|สามี|ภริยา|ภรรยา)[^\n]{0,40}(?:ไม่มีเงินได้|ไม่มีรายได้)|ต่างฝ่ายต่างมีเงินได้[^\n]{0,40}รวมกัน/.test(
-      userNorm
-    );
+    !spouseHasSeparateIncome &&
+    (/(?:คู่สมรส|สามี|ภริยา|ภรรยา)[^\n]{0,75}(?:ไม่มีเงินได้|ไม่มีรายได้)/.test(cleanNoNegParens) ||
+      /ต่างฝ่ายต่างมีเงินได้[^\n]{0,45}รวมกัน/.test(cleanNoNegParens));
   if (hasNoIncomeSpouse) {
     components.push(60_000);
     unitTokens.add(60_000);
   }
 
   // 3. Children allowance (`(1)(ค)(1)` legitimate & `(1)(ค)(2)` adopted)
-  const hasNoChildren = /ไม่มีบุตร/.test(userNorm);
+  //    Distinguish "ไม่มีบุตร" overall from "ไม่มีบุตรบุญธรรม" and "ไม่มีบุตรชอบด้วยกฎหมาย"
+  const hasNoLegitChildren = /ไม่มีบุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย/.test(cleanNoNegParens);
+  const hasNoAdoptedChildren = /ไม่มีบุตรบุญธรรม/.test(cleanNoNegParens);
+  const hasNoChildrenOverall =
+    /(?:ไม่มีบุตรเลย|ไม่มีบุตร(?!\s*(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย|\s*บุญธรรม))/.test(
+      cleanNoNegParens
+    );
+
   let legitCount = 0;
   let adoptedCount = 0;
-  if (!hasNoChildren) {
-    const legitMatch = userNorm.match(
-      /บุตรชอบด้วยกฎหมาย(?:\s*ของผู้มีเงินได้)?(?:\s*จำนวน)?\s*(\d+|หนึ่ง|สอง|สาม|สี่|ห้า|หก)\s*คน/
-    );
-    const genericChildMatch =
-      !legitMatch && !/บุตรบุญธรรม/.test(userNorm)
-        ? userNorm.match(/มีบุตร(?:\s*จำนวน)?\s*(\d+|หนึ่ง|สอง|สาม|สี่|ห้า|หก)\s*คน/)
-        : null;
-    legitCount = parseThaiCountWord(legitMatch?.[1] || genericChildMatch?.[1] || "") || 0;
+  let post2561SecondPlusCount = 0;
+  let eligibleAdoptedCount = 0;
+  let legitChildSubtotalThb = 0;
+  let adoptedChildSubtotalThb = 0;
 
-    const adoptedMatch = userNorm.match(
-      /บุตรบุญธรรม(?:\s*ของผู้มีเงินได้)?(?:\s*จำนวน)?\s*(\d+|หนึ่ง|สอง|สาม|สี่)\s*คน/
+  if (!hasNoChildrenOverall && !hasNoLegitChildren) {
+    // Allow up to ~35 non-digit qualifier chars (e.g. "ที่มีชีวิตอยู่", "อีก", "รวม", "ทั้งหมด")
+    // without crossing "บุตรบุญธรรม" or a negation!
+    const legitMatches = Array.from(
+      cleanNoNegParens.matchAll(
+        /(?<!ไม่มี\s*|มิใช่\s*|ไม่ใช่\s*)บุตร(ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย(?:(?!บุตรบุญธรรม|ไม่มี)[^\d\n();]){0,35}?(\d+|หนึ่ง|คนเดียว|สอง|คู่|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ)\s*คน/g
+      )
     );
-    adoptedCount = parseThaiCountWord(adoptedMatch?.[1] || "") || 0;
+    if (legitMatches.length === 1) {
+      legitCount = parseThaiCountWord(legitMatches[0][2] || "") || 0;
+    } else if (legitMatches.length >= 2) {
+      const hasGenderSplit =
+        legitMatches.some((m) => m[1] === "ชาย") && legitMatches.some((m) => m[1] === "สาว");
+      const hasAdditiveConnector = /และ(?:มี)?บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย/.test(
+        cleanNoNegParens
+      );
+      if (hasGenderSplit || hasAdditiveConnector) {
+        legitCount = legitMatches.reduce(
+          (sum, m) => sum + (parseThaiCountWord(m[2] || "") || 0),
+          0
+        );
+      } else {
+        legitCount = parseThaiCountWord(legitMatches[0][2] || "") || 0;
+      }
+    }
+
+    if (legitCount === 0 && !/บุตรบุญธรรม/.test(cleanNoNegParens)) {
+      const genericChildMatch = cleanNoNegParens.match(
+        /(?<!ไม่)มีบุตร(?:(?!บุตรบุญธรรม|ไม่มี)[^\d\n();]){0,25}?(\d+|หนึ่ง|คนเดียว|สอง|คู่|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ)\s*คน/
+      );
+      legitCount = parseThaiCountWord(genericChildMatch?.[1] || "") || 0;
+    }
+
+    // Fallback for named children listed one by one (e.g. "มีบุตรชอบด้วยกฎหมาย คือ ด.ช.เอก ... และ ด.ญ.โท ...")
+    if (
+      legitCount === 0 &&
+      /(?<!ไม่มี\s*|มิใช่\s*|ไม่ใช่\s*)บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย/.test(cleanNoNegParens)
+    ) {
+      const namedPrefixes = Array.from(
+        cleanNoNegParens.matchAll(/(?:ด\.ช\.|ด\.ญ\.|เด็กชาย|เด็กหญิง)\s*[ก-๙]+/g)
+      );
+      if (namedPrefixes.length >= 1) {
+        legitCount = namedPrefixes.length;
+      }
+    }
   }
+
+  if (!hasNoChildrenOverall && !hasNoAdoptedChildren) {
+    const adoptedMatches = Array.from(
+      cleanNoNegParens.matchAll(
+        /(?<!ไม่มี\s*|มิใช่\s*|ไม่ใช่\s*|ไม่รวม(?:ถึง)?\s*)บุตรบุญธรรม(?:(?!บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย|ไม่มี)[^\d\n();]){0,45}?(\d+|หนึ่ง|คนเดียว|สอง|คู่|สาม|สี่|ห้า|หก|เจ็ด|แปด|เก้า|สิบ)\s*คน/g
+      )
+    );
+    if (adoptedMatches.length > 0) {
+      adoptedCount = parseThaiCountWord(adoptedMatches[0][1] || "") || 0;
+    }
+  }
+
+  // Change 2: Flag unquantified child facts (e.g. "มีบุตรชอบด้วยกฎหมายหลายคน", "มีบุตรบุญธรรมอยู่ในความอุปการะ")
+  // so the caller routes to NEEDS_CLARIFICATION instead of silently treating as 0 children!
+  const mentionsPositiveLegitChild =
+    !hasNoChildrenOverall &&
+    !hasNoLegitChildren &&
+    /(?:(?<!ไม่)มีบุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย|บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย\s*(?:หลายคน|จำนวนหนึ่ง|หลายราย|ซึ่ง|ที่กำลัง|อยู่ในความอุปการะ))/.test(
+      cleanNoNegParens
+    );
+  const mentionsPositiveAdoptedChild =
+    !hasNoChildrenOverall &&
+    !hasNoAdoptedChildren &&
+    /(?:(?<!ไม่)มีบุตรบุญธรรม|บุตรบุญธรรม\s*(?:หลายคน|จำนวนหนึ่ง|หลายราย|ซึ่ง|ที่กำลัง|อยู่ในความอุปการะ))/.test(
+      cleanNoNegParens
+    );
+  const mentionsPositiveGenericChild =
+    !hasNoChildrenOverall &&
+    !hasNoLegitChildren &&
+    !hasNoAdoptedChildren &&
+    !/บุตรบุญธรรม/.test(cleanNoNegParens) &&
+    /(?<!ไม่)มีบุตร(?!\s*(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย|\s*บุญธรรม)/.test(cleanNoNegParens);
+
+  const needsChildCountClarification =
+    (mentionsPositiveLegitChild && legitCount === 0) ||
+    (mentionsPositiveAdoptedChild && adoptedCount === 0) ||
+    (mentionsPositiveGenericChild && legitCount === 0 && adoptedCount === 0);
 
   if (legitCount > 0) {
     unitTokens.add(30_000);
     const explicitlyAllPre2561 =
-      /เกิดก่อน(?:ปี(?:\s*พ\.ศ\.)?)?\s*2561\s*(?:ทั้งคู่|ทุกคน|ทั้งหมด|ทั้งสองคน)?/.test(userNorm) &&
-      !/เกิด(?:ในหรือหลัง|ตั้งแต่|ปี(?:\s*พ\.ศ\.)?)\s*(?:256[1-9]|257\d)/.test(userNorm);
+      /เกิดก่อน(?:ปี(?:\s*พ\.ศ\.)?)?\s*2561\s*(?:ทั้งคู่|ทุกคน|ทั้งหมด|ทั้งสองคน|ทั้งสามคน)?/.test(
+        userNorm
+      ) && !/เกิด(?:ในหรือหลัง|ตั้งแต่|ปี(?:\s*พ\.ศ\.)?)\s*(?:256[1-9]|257\d)/.test(userNorm);
 
-    let post2561SecondPlusCount = 0;
     if (!explicitlyAllPre2561 && legitCount >= 2) {
       const explicitBirthYearsBe: number[] = [];
       for (const ym of userNorm.matchAll(
-        /เกิด(?:เมื่อ|ใน|ปี)?(?:\s*พ\.ศ\.|\s*ค\.ศ\.)?\s*(25\d{2}|20\d{2})/g
+        /เกิด(?:เมื่อ|ใน|ปี)?(?:\s*พ\.ศ\.|\s*ค\.ศ\.)?\s*((?:25\d{2}|20\d{2})(?:\s*(?:,|และ|\s)\s*(?:พ\.ศ\.|ค\.ศ\.)?\s*(?:25\d{2}|20\d{2}))*)/g
       )) {
-        const rawYr = Number(ym[1]);
-        const yrBe = rawYr < 2400 ? rawYr + 543 : rawYr;
         const leftCtx = userNorm.slice(Math.max(0, (ym.index ?? 0) - 20), (ym.index ?? 0) + 12);
-        if (/เกิดก่อน/.test(leftCtx) && yrBe === 2561) continue;
-        explicitBirthYearsBe.push(yrBe);
+        const yearTokens = Array.from(ym[1].matchAll(/25\d{2}|20\d{2}/g)).map((x) => Number(x[0]));
+        for (const rawYr of yearTokens) {
+          const yrBe = rawYr < 2400 ? rawYr + 543 : rawYr;
+          if (/เกิดก่อน/.test(leftCtx) && yrBe === 2561 && yearTokens.length === 1) continue;
+          explicitBirthYearsBe.push(yrBe);
+        }
       }
 
       if (explicitBirthYearsBe.length >= legitCount) {
         const sortedAsc = [...explicitBirthYearsBe].slice(0, legitCount).sort((a, b) => a - b);
         post2561SecondPlusCount = sortedAsc.slice(1).filter((yr) => yr >= 2561).length;
       } else if (
-        /เกิด(?:ในหรือหลัง|หลัง)(?:ปี(?:\s*พ\.ศ\.)?)?\s*2561\s*(?:ทั้งคู่|ทุกคน|ทั้งหมด)/.test(
+        /เกิด(?:ในหรือหลัง|หลัง|ตั้งแต่)(?:ปี(?:\s*พ\.ศ\.)?)?\s*2561\s*(?:ทั้งคู่|ทุกคน|ทั้งหมด|ทั้งสองคน|ทั้งสามคน|ทั้ง\s*\d+\s*คน)/.test(
           userNorm
         )
       ) {
         post2561SecondPlusCount = legitCount - 1;
       } else if (
-        /(?:คนที่\s*(?:2|สอง)|บุตรคนเล็ก)[^\n]{0,45}เกิด(?:ในหรือหลัง|เมื่อ|ปี)?(?:\s*พ\.ศ\.)?\s*(?:256[1-9]|257\d)/.test(
+        /(?:คนที่\s*(?:2|สอง)|บุตรคนเล็ก|คนรอง)[^\n]{0,45}เกิด(?:ในหรือหลัง|เมื่อ|ปี)?(?:\s*พ\.ศ\.)?\s*(?:256[1-9]|257\d)/.test(
           userNorm
         )
       ) {
@@ -2081,40 +2237,59 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
       const isPost2561BonusChild = i >= legitCount - post2561SecondPlusCount;
       const childAmt = isPost2561BonusChild ? 60_000 : 30_000;
       components.push(childAmt);
+      legitChildSubtotalThb += childAmt;
+      if (isPost2561BonusChild) unitTokens.add(60_000);
     }
   }
 
   if (adoptedCount > 0) {
     unitTokens.add(30_000);
-    const eligibleAdopted = legitCount >= 3 ? 0 : Math.min(adoptedCount, 3 - legitCount, 3);
-    for (let i = 0; i < eligibleAdopted; i++) {
+    eligibleAdoptedCount = legitCount >= 3 ? 0 : Math.min(adoptedCount, 3 - legitCount, 3);
+    for (let i = 0; i < eligibleAdoptedCount; i++) {
       components.push(30_000);
+      adoptedChildSubtotalThb += 30_000;
     }
   }
 
   // 4. Parental care `(1)(ญ)` (`30,000` per eligible parent age >= 60, max 4)
+  let parentCount = 0;
+  let parentSubtotalThb = 0;
   if (
-    /อุปการะเลี้ยงดูบิดามารดา|ลดหย่อนบิดามารดา|(?:บิดา|มารดา)[^\n]{0,45}อายุ\s*(?:6\d|7\d|8\d|9\d)/.test(
-      userNorm
+    /อุปการะเลี้ยงดูบิดา|อุปการะเลี้ยงดูมารดา|ลดหย่อนบิดา|ลดหย่อนมารดา|(?:บิดา|มารดา)[^\n]{0,55}อายุ(?:เกิน|ตั้งแต่|ครบ)?\s*(?:6\d|7\d|8\d|9\d)/.test(
+      cleanNoNegParens
     )
   ) {
-    const pMatch = userNorm.match(
-      /(?:บิดามารดา|บิดาและมารดา)[^\d\n]{0,20}(\d+|หนึ่ง|สอง|สาม|สี่)\s*คน/
+    const pMatch = cleanNoNegParens.match(
+      /(?:บิดามารดา|บิดาและมารดา)[^\d\n]{0,25}(\d+|หนึ่ง|สอง|สาม|สี่)\s*คน/
     );
-    const bothMentioned = /บิดาและมารดา/.test(userNorm);
-    const pCount = Math.min(4, parseThaiCountWord(pMatch?.[1] || "") || (bothMentioned ? 2 : 1));
+    const bothParentsListed =
+      /บิดา/.test(cleanNoNegParens) &&
+      /มารดา/.test(cleanNoNegParens) &&
+      !/บิดาหรือมารดา/.test(cleanNoNegParens);
+    parentCount = Math.min(
+      4,
+      parseThaiCountWord(pMatch?.[1] || "") || (bothParentsListed ? 2 : 1)
+    );
     unitTokens.add(30_000);
-    for (let i = 0; i < pCount; i++) components.push(30_000);
+    for (let i = 0; i < parentCount; i++) {
+      components.push(30_000);
+      parentSubtotalThb += 30_000;
+    }
   }
 
   // 5. Disabled / incapacitated care `(1)(ฎ)` (`60,000` per eligible person)
-  if (/คนพิการ|ทุพพลภาพ/.test(userNorm)) {
-    const dMatch = userNorm.match(
-      /(?:คนพิการ|ผู้พิการ|ทุพพลภาพ)[^\d\n]{0,20}(\d+|หนึ่ง|สอง|สาม)\s*คน/
+  let disabledCount = 0;
+  let disabledSubtotalThb = 0;
+  if (/คนพิการ|ผู้พิการ|ทุพพลภาพ/.test(cleanNoNegParens)) {
+    const dMatch = cleanNoNegParens.match(
+      /(?:คนพิการ|ผู้พิการ|ทุพพลภาพ)[^\d\n]{0,25}(\d+|หนึ่ง|สอง|สาม|สี่)\s*คน/
     );
-    const dCount = Math.min(4, parseThaiCountWord(dMatch?.[1] || "") || 1);
+    disabledCount = Math.min(4, parseThaiCountWord(dMatch?.[1] || "") || 1);
     unitTokens.add(60_000);
-    for (let i = 0; i < dCount; i++) components.push(60_000);
+    for (let i = 0; i < disabledCount; i++) {
+      components.push(60_000);
+      disabledSubtotalThb += 60_000;
+    }
   }
 
   const subsetSums = new Set<number>();
@@ -2125,6 +2300,7 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
       subsetSums.add(s + c);
     }
   }
+  // Never authorize 0 as a valid overall total or positive component amount!
   subsetSums.delete(0);
   for (const u of unitTokens) subsetSums.add(u);
 
@@ -2137,6 +2313,42 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
     tokenSet.add(String(amt));
     tokenSet.add(formatBahtTh(amt));
   }
+  for (const cnt of [legitCount, adoptedCount, eligibleAdoptedCount, parentCount, disabledCount]) {
+    if (cnt > 0) tokenSet.add(String(cnt));
+  }
+
+  const absentComponentCategories: Section47ExtractedFacts["absentComponentCategories"] = [];
+  if (!hasNoIncomeSpouse) absentComponentCategories.push("spouse");
+  if (legitCount === 0) absentComponentCategories.push("legit_child");
+  if (eligibleAdoptedCount === 0) absentComponentCategories.push("adopted_child");
+  if (adoptedCount > eligibleAdoptedCount) absentComponentCategories.push("adopted_excess");
+  if (parentCount === 0) absentComponentCategories.push("parent");
+  if (disabledCount === 0) absentComponentCategories.push("disabled");
+
+  const zeroAllowedForAbsentComponents =
+    !hasNoIncomeSpouse ||
+    (legitCount === 0 && eligibleAdoptedCount === 0) ||
+    eligibleAdoptedCount === 0 ||
+    adoptedCount > eligibleAdoptedCount;
+
+  const extractedFacts: Section47ExtractedFacts = {
+    isOrdinaryPartnership,
+    isSingle,
+    hasNoIncomeSpouse,
+    spouseHasSeparateIncome,
+    hasNoChildrenOverall,
+    hasNoLegitChildren,
+    hasNoAdoptedChildren,
+    legitCount,
+    post2561SecondPlusCount,
+    adoptedCount,
+    eligibleAdoptedCount,
+    parentCount,
+    disabledCount,
+    needsChildCountClarification,
+    zeroAllowedForAbsentComponents,
+    absentComponentCategories,
+  };
 
   return {
     applicable: true,
@@ -2144,5 +2356,390 @@ export function verifySection47AllowanceComponentsFromFacts(params: {
     validAmountsThb,
     expectedTotalThb,
     verifiedNumericTokens: Array.from(tokenSet),
+    needsChildCountClarification,
+    zeroAllowedForAbsentComponents,
+    legitChildSubtotalThb,
+    adoptedChildSubtotalThb,
+    parentSubtotalThb,
+    disabledSubtotalThb,
+    extractedFacts,
+  };
+}
+
+/**
+ * Evaluates a drafted §47 claim against:
+ *   - Change 3: Context-scoped zero token check (`"0 บาท"` permitted ONLY for absent/barred components,
+ *     NEVER as a stated overall total and NEVER for a component supported by the stated facts),
+ *   - Change 5: Overall total must equal `expectedTotalThb` (rejects subset sums such as `150,000` or
+ *     `120,000` on `POS-2` facts where `expectedTotalThb = 180,000`), and
+ *   - Change 6: Subclause-to-amount binding (`(ก)/(ข) → 60,000`, `(ค)(1) → 30,000|60,000|childSubtotal`,
+ *     `(ค)(2) → 30,000|adoptedSubtotal`, rejecting uninvolved subclauses like `(ง)` cited for family/total allowances).
+ */
+export function evaluateSection47ClaimAmountsAndSubclauses(params: {
+  conclusionTh: string;
+  applicationExplanationTh: string;
+  fullClaimStatement: string;
+  userContextText: string;
+  s47Eval: Section47AllowanceEvalResult;
+  isSingleSummaryIssue: boolean;
+}): {
+  ok: boolean;
+  allowZeroTokenInClaim: boolean;
+  draftNumericTokens: string[];
+  stageCode?:
+    | "S47_AUTHORIZED_SET_TOTAL_MISMATCH"
+    | "S47_SUBCLAUSE_AMOUNT_MISMATCH"
+    | "S47_TOKEN_NOT_IN_AUTHORIZED_SET";
+  rejectedToken?: string;
+  publicRedactedReasonTh?: string;
+} {
+  const toArabic = (s: string) =>
+    (s || "").replace(/[๐-๙]/g, (d) => String("๐๑๒๓๔๕๖๗๘๙".indexOf(d)));
+  const normConclusion = toArabic(params.conclusionTh || "");
+  const normFull = toArabic(params.fullClaimStatement || "");
+  const bracketEnd = normFull.startsWith("[") ? normFull.indexOf("]") : -1;
+  const normBody = bracketEnd > 0 ? normFull.slice(bracketEnd + 1).trim() : normFull;
+  const normUser = toArabic(params.userContextText || "");
+
+  const draftNumericTokens = Array.from(
+    normBody.matchAll(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท/g)
+  ).map((m) => `${m[1].replace(/,/g, "")} บาท`);
+
+  const facts = params.s47Eval.extractedFacts;
+  const expectedTotal = params.s47Eval.expectedTotalThb;
+  const validSet = new Set(params.s47Eval.validAmountsThb);
+
+  // --- Rule 1 (Change 6): Subclause-to-amount & fact-scope binding ---
+  // 1a. Subclauses `(ง)`, `(จ)`, `(ฉ)`, `(ช)`, `(ซ)`, `(ฌ)`, `(ฏ)` (plus `(ญ)` when parentCount===0, `(ฎ)` when disabledCount===0)
+  for (const sm of normBody.matchAll(
+    /(?:มาตรา\s*47\s*\(\s*1\s*\)|\(\s*1\s*\))\s*\(\s*([งจฉชซฌญฎฏ])\s*\)/g
+  )) {
+    const letter = sm[1];
+    const idx = sm.index ?? 0;
+    const win = normBody.slice(Math.max(0, idx - 45), Math.min(normBody.length, idx + 90));
+    if (letter === "ญ" && facts.parentCount > 0) {
+      const amtMatch = normBody
+        .slice(idx, Math.min(normBody.length, idx + 55))
+        .match(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท/);
+      if (amtMatch) {
+        const val = Number(amtMatch[1].replace(/,/g, ""));
+        if (val !== 30_000 && val !== params.s47Eval.parentSubtotalThb && val !== expectedTotal) {
+          return {
+            ok: false,
+            allowZeroTokenInClaim: false,
+            draftNumericTokens,
+            stageCode: "S47_SUBCLAUSE_AMOUNT_MISMATCH",
+            rejectedToken: `47(1)(ญ):${val}`,
+            publicRedactedReasonTh:
+              "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากจำนวนเงินค่าลดหย่อนไม่สอดคล้องกับอนุมาตราของมาตรา 47 (1) ที่อ้างอิง [รหัสขั้นตอน: S47_SUBCLAUSE_AMOUNT_MISMATCH]",
+          };
+        }
+      }
+      continue;
+    }
+    if (letter === "ฎ" && facts.disabledCount > 0) {
+      const amtMatch = normBody
+        .slice(idx, Math.min(normBody.length, idx + 55))
+        .match(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท/);
+      if (amtMatch) {
+        const val = Number(amtMatch[1].replace(/,/g, ""));
+        if (val !== 60_000 && val !== params.s47Eval.disabledSubtotalThb && val !== expectedTotal) {
+          return {
+            ok: false,
+            allowZeroTokenInClaim: false,
+            draftNumericTokens,
+            stageCode: "S47_SUBCLAUSE_AMOUNT_MISMATCH",
+            rejectedToken: `47(1)(ฎ):${val}`,
+            publicRedactedReasonTh:
+              "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากจำนวนเงินค่าลดหย่อนไม่สอดคล้องกับอนุมาตราของมาตรา 47 (1) ที่อ้างอิง [รหัสขั้นตอน: S47_SUBCLAUSE_AMOUNT_MISMATCH]",
+          };
+        }
+      }
+      continue;
+    }
+    const explicitlyExcluded =
+      /(?:ไม่มี|ไม่ได้|มิได้|ไม่เกี่ยวข้อง|ไม่เข้าเงื่อนไข|ไม่ได้ใช้สิทธิ|ไม่ปรากฏ|(?<![0-9.,])0\s*บาท)/.test(win);
+    if (!explicitlyExcluded) {
+      return {
+        ok: false,
+        allowZeroTokenInClaim: false,
+        draftNumericTokens,
+        stageCode: "S47_SUBCLAUSE_AMOUNT_MISMATCH",
+        rejectedToken: `มาตรา 47 (1) (${letter})`,
+        publicRedactedReasonTh:
+          "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากมีการอ้างอิงอนุมาตราย่อยของมาตรา 47 (1) ที่ไม่ตรงกับประเภทค่าลดหย่อนหรือจำนวนเงินตามข้อเท็จจริง [รหัสขั้นตอน: S47_SUBCLAUSE_AMOUNT_MISMATCH]",
+      };
+    }
+  }
+
+  // 1b. Standalone `(1)(ก)` must bind to `60,000` (or partnership `<= 120,000`), never `30,000` / `180,000` / `210,000`
+  for (const gm of normBody.matchAll(
+    /มาตรา\s*47\s*\(\s*1\s*\)\s*\(\s*ก\s*\)(?!\s*(?:[-–,~]|ถึง|และ|\(\s*[ขคง]\s*\)))/g
+  )) {
+    const idx = gm.index ?? 0;
+    const rightSlice = normBody.slice(idx + gm[0].length, Math.min(normBody.length, idx + gm[0].length + 45));
+    if (/รวม|ทั้งสิ้น/.test(rightSlice) || /รวม[^\n]{0,30}$/.test(normBody.slice(Math.max(0, idx - 35), idx))) {
+      continue;
+    }
+    const amtMatch = rightSlice.match(/^[^,;()\n]*?([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท/);
+    if (amtMatch) {
+      const val = Number(amtMatch[1].replace(/,/g, ""));
+      const maxPersonal = facts.isOrdinaryPartnership ? 120_000 : 60_000;
+      if (val !== 60_000 && val !== maxPersonal) {
+        return {
+          ok: false,
+          allowZeroTokenInClaim: false,
+          draftNumericTokens,
+          stageCode: "S47_SUBCLAUSE_AMOUNT_MISMATCH",
+          rejectedToken: `47(1)(ก):${val}`,
+          publicRedactedReasonTh:
+            "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากจำนวนเงินที่ผูกกับมาตรา 47 (1) (ก) ไม่ตรงกับจำนวนที่กฎหมายกำหนด [รหัสขั้นตอน: S47_SUBCLAUSE_AMOUNT_MISMATCH]",
+        };
+      }
+    }
+  }
+
+  // 1c. Standalone `(1)(ข)` must bind to `60,000` (or `0` when absent), and cannot grant positive deduction when `!hasNoIncomeSpouse`
+  for (const km of normBody.matchAll(
+    /มาตรา\s*47\s*\(\s*1\s*\)\s*\(\s*ข\s*\)(?!\s*(?:[-–,~]|ถึง|และ|\(\s*[คง]\s*\)))/g
+  )) {
+    const idx = km.index ?? 0;
+    const rightSlice = normBody.slice(idx + km[0].length, Math.min(normBody.length, idx + km[0].length + 45));
+    if (/รวม|ทั้งสิ้น/.test(rightSlice)) continue;
+    const amtMatch = rightSlice.match(/^[^,;()\n]*?([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท/);
+    if (amtMatch) {
+      const val = Number(amtMatch[1].replace(/,/g, ""));
+      if (val !== 60_000 && val !== 0) {
+        return {
+          ok: false,
+          allowZeroTokenInClaim: false,
+          draftNumericTokens,
+          stageCode: "S47_SUBCLAUSE_AMOUNT_MISMATCH",
+          rejectedToken: `47(1)(ข):${val}`,
+          publicRedactedReasonTh:
+            "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากจำนวนเงินที่ผูกกับมาตรา 47 (1) (ข) ไม่ตรงกับจำนวนที่กฎหมายกำหนด [รหัสขั้นตอน: S47_SUBCLAUSE_AMOUNT_MISMATCH]",
+        };
+      }
+      if (val === 60_000 && !facts.hasNoIncomeSpouse) {
+        const winAround = normBody.slice(Math.max(0, idx - 45), Math.min(normBody.length, idx + km[0].length + 110));
+        const negatedSpouse =
+          /(?:ไม่มีสิทธิ|ไม่ได้รับสิทธิ|หักไม่ได้|ไม่เข้าเงื่อนไข|ไม่อาจหัก|โสด|มีเงินได้แยกยื่น|(?<![0-9.,])0\s*บาท)/.test(
+            winAround
+          );
+        if (!negatedSpouse) {
+          return {
+            ok: false,
+            allowZeroTokenInClaim: false,
+            draftNumericTokens,
+            stageCode: "S47_SUBCLAUSE_AMOUNT_MISMATCH",
+            rejectedToken: "47(1)(ข):60000",
+            publicRedactedReasonTh:
+              "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากข้อเท็จจริงไม่เข้าเงื่อนไขหักลดหย่อนคู่สมรสตามมาตรา 47 (1) (ข) [รหัสขั้นตอน: S47_SUBCLAUSE_AMOUNT_MISMATCH]",
+          };
+        }
+      }
+    }
+  }
+
+  // 1d. Standalone `(1)(ค)(1)` unit rate (`คนละ X บาท`) must be `30,000` or `60,000`; `(1)(ค)(2)` unit rate must be `30,000` (never `60,000` post-2561 bonus!)
+  for (const c2m of normBody.matchAll(/\(\s*ค\s*\)\s*\(\s*2\s*\)/g)) {
+    const idx = c2m.index ?? 0;
+    const rightSlice = normBody.slice(idx + c2m[0].length, Math.min(normBody.length, idx + c2m[0].length + 55));
+    const unitMatch = rightSlice.match(/คนละ\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท/);
+    if (unitMatch) {
+      const val = Number(unitMatch[1].replace(/,/g, ""));
+      if (val !== 30_000) {
+        return {
+          ok: false,
+          allowZeroTokenInClaim: false,
+          draftNumericTokens,
+          stageCode: "S47_SUBCLAUSE_AMOUNT_MISMATCH",
+          rejectedToken: `47(1)(ค)(2):${val}`,
+          publicRedactedReasonTh:
+            "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากจำนวนเงินต่อคนที่ผูกกับมาตรา 47 (1) (ค) (2) ไม่ตรงกับที่กฎหมายกำหนด [รหัสขั้นตอน: S47_SUBCLAUSE_AMOUNT_MISMATCH]",
+        };
+      }
+    }
+  }
+
+  // --- Rule 2 (Change 3): Context-scoped `"0 บาท"` check ---
+  const zeroMatches = Array.from(normBody.matchAll(/(?<![0-9.,])0\s*บาท/g));
+  let allowZeroTokenInClaim = false;
+  if (zeroMatches.length > 0) {
+    const statesZeroOverallTotal =
+      /(?:รวม(?:ยอด|สิทธิ|ค่าลดหย่อน|ทั้งสิ้น|ทั้งหมด|เป็นเงิน)?[^\d\n]{0,40}?|มีสิทธิหักลดหย่อน(?:ส่วนตัว)?(?:ตามมาตรา\s*47)?(?:\s*รวม)?(?:\s*ได้|\s*เท่ากับ|\s*จำนวน|\s*ทั้งสิ้น)\s*)\(?\s*(?<![0-9.,])0\s*บาท/.test(
+        normBody
+      );
+    if (statesZeroOverallTotal) {
+      return {
+        ok: false,
+        allowZeroTokenInClaim: false,
+        draftNumericTokens,
+        stageCode: "S47_AUTHORIZED_SET_TOTAL_MISMATCH",
+        rejectedToken: "0 บาท",
+        publicRedactedReasonTh:
+          "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากยอดรวมค่าลดหย่อนตามมาตรา 47 ในคำร่างไม่ตรงกับยอดที่ได้รับอนุญาตตามข้อเท็จจริง [รหัสขั้นตอน: S47_AUTHORIZED_SET_TOTAL_MISMATCH]",
+      };
+    }
+
+    for (const zm of zeroMatches) {
+      const idx = zm.index ?? 0;
+      const ctx = normBody.slice(Math.max(0, idx - 95), Math.min(normBody.length, idx + 30));
+      const validAbsentSpouse =
+        !facts.hasNoIncomeSpouse && /(?:คู่สมรส|สามี|ภริยา|ภรรยา|\(\s*ข\s*\)|โสด)/.test(ctx);
+      const validAbsentAllChildren =
+        facts.legitCount === 0 &&
+        facts.eligibleAdoptedCount === 0 &&
+        /(?:บุตร|\(\s*ค\s*\))/.test(ctx);
+      const validBarredOrExcessAdopted =
+        (facts.eligibleAdoptedCount === 0 || facts.adoptedCount > facts.eligibleAdoptedCount) &&
+        /(?:บุตรบุญธรรม|\(\s*ค\s*\)\s*\(\s*2\s*\)|คนที่เกิน|ส่วนที่เกิน)/.test(ctx);
+      const validAbsentParentOrDisabled =
+        (facts.parentCount === 0 && /(?:บิดา|มารดา|\(\s*ญ\s*\))/.test(ctx)) ||
+        (facts.disabledCount === 0 && /(?:คนพิการ|ผู้พิการ|ทุพพลภาพ|\(\s*ฎ\s*\))/.test(ctx));
+
+      if (
+        !validAbsentSpouse &&
+        !validAbsentAllChildren &&
+        !validBarredOrExcessAdopted &&
+        !validAbsentParentOrDisabled
+      ) {
+        return {
+          ok: false,
+          allowZeroTokenInClaim: false,
+          draftNumericTokens,
+          stageCode: "S47_TOKEN_NOT_IN_AUTHORIZED_SET",
+          rejectedToken: "0 บาท",
+          publicRedactedReasonTh:
+            "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากมีการระบุค่าศูนย์ในรายการค่าลดหย่อนที่ข้อเท็จจริงมีสิทธิได้รับตามมาตรา 47 [รหัสขั้นตอน: S47_TOKEN_NOT_IN_AUTHORIZED_SET]",
+        };
+      }
+    }
+    allowZeroTokenInClaim = true;
+  }
+
+  // --- Rule 3 (Change 5): Overall total must equal `expectedTotalThb` (subset sums allowed ONLY for components!) ---
+  const asksTaxpayerTotal =
+    params.isSingleSummaryIssue &&
+    expectedTotal !== null &&
+    (/(?:เท่าใด|เท่าไหร่|กี่บาท|รวม|คำนวณ)/.test(normUser) ||
+      /(?:โสด|คู่สมรส|สามี|ภริยา|ภรรยา|มีบุตร|ไม่มีบุตร|บิดา|มารดา|คนพิการ)/.test(normUser));
+
+  if (expectedTotal !== null) {
+    // 3a. Any explicit overall-total phrase in `normBody` must equal `expectedTotal`
+    const overallTotalRe =
+      /(?:รวม(?:ยอด|สิทธิ|รายการ)?(?:การ)?(?:หัก)?(?:ค่า)?ลดหย่อน(?!(?:เฉพาะ)?(?:บุตร|บิดา|มารดา|คู่สมรส)(?!\s*(?:และ|รวมทั้งสิ้น)))[^\d\n();]{0,60}?(?:ทั้งสิ้น|ทั้งหมด|เป็นเงิน(?:ทั้งสิ้น)?|จำนวน|เท่ากับ|ได้)?|รวมเป็นเงินทั้งสิ้น|รวมทั้งสิ้น|ยอดรวม(?:สิทธิ)?(?:การ)?(?:หัก)?(?:ค่า)?ลดหย่อน[^\d\n();]{0,35}?|ผลรวม(?:สิทธิ)?(?:การ)?(?:หัก)?(?:ค่า)?ลดหย่อน[^\d\n();]{0,35}?)\s*\(?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,9}|0)\s*(?:บาท)?\s*\)?/g;
+    for (const tm of normBody.matchAll(overallTotalRe)) {
+      const mIdx = tm.index ?? 0;
+      const left35 = normBody.slice(Math.max(0, mIdx - 35), mIdx);
+      if (/(?:ไม่|มิใช่|ไม่ใช่|ผิด|แทนที่จะเป็น)/.test(left35)) continue;
+      // Skip child/parent-only subtotal lines like "ค่าลดหย่อนบุตร 2 คน รวมทั้งสิ้น 60,000 บาท"
+      const left60 = normBody.slice(Math.max(0, mIdx - 60), mIdx);
+      if (
+        /(?:ค่าลดหย่อนบุตร|สำหรับบุตร|เฉพาะบุตร|ลดหย่อนบิดามารดา)[^\n.;]{0,35}$/.test(left60) &&
+        !/(?:ผู้มีเงินได้|ส่วนตัว|คู่สมรส)/.test(left60)
+      ) {
+        continue;
+      }
+      const statedTotal = Number(tm[1].replace(/,/g, ""));
+      if (Number.isFinite(statedTotal) && statedTotal !== expectedTotal) {
+        return {
+          ok: false,
+          allowZeroTokenInClaim: false,
+          draftNumericTokens,
+          stageCode: "S47_AUTHORIZED_SET_TOTAL_MISMATCH",
+          rejectedToken: `${statedTotal} บาท`,
+          publicRedactedReasonTh:
+            "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากยอดรวมค่าลดหย่อนตามมาตรา 47 ที่สรุปในคำร่างไม่ตรงกับผลรวมตามข้อเท็จจริงและบทบัญญัติที่อ้างอิง [รหัสขั้นตอน: S47_AUTHORIZED_SET_TOTAL_MISMATCH]",
+        };
+      }
+    }
+
+    // 3b. On a single summary §47 issue answering taxpayer facts, `conclusion_th` MUST contain `expectedTotal`
+    //     and MUST NOT assert any unauthorized or > expectedTotal monetary figure!
+    if (asksTaxpayerTotal) {
+      const conclusionAmounts: number[] = [];
+      for (const cm of normConclusion.matchAll(
+        /(?:([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท|(?<![0-9,])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,])|(?<![0-9,])([1-9][0-9]{4,6})(?![0-9,]))/g
+      )) {
+        const rawNum = (cm[1] || cm[2] || cm[3] || "").replace(/,/g, "");
+        const val = Number(rawNum);
+        if (!Number.isFinite(val)) continue;
+        // Skip 4-digit BE/CE years if matched with บาท? Years never have บาท, and cm[3] is >= 5 digits (10000..9999999).
+        const cIdx = cm.index ?? 0;
+        const leftCtx = normConclusion.slice(Math.max(0, cIdx - 35), cIdx);
+        if (/(?:ไม่ใช่|มิใช่|ไม่ได้หักรวม|ไม่อาจรวม)/.test(leftCtx) && val !== 0) continue;
+        conclusionAmounts.push(val);
+      }
+
+      const positiveConclusionAmounts = conclusionAmounts.filter((v) => v > 0);
+      for (const v of positiveConclusionAmounts) {
+        if (!validSet.has(v) || v > expectedTotal) {
+          return {
+            ok: false,
+            allowZeroTokenInClaim: false,
+            draftNumericTokens,
+            stageCode: "S47_AUTHORIZED_SET_TOTAL_MISMATCH",
+            rejectedToken: `${v} บาท`,
+            publicRedactedReasonTh:
+              "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากตัวเลขค่าลดหย่อนในข้อสรุปไม่อยู่ในชุดตัวเลขที่ได้รับอนุญาตตามข้อเท็จจริงและมาตรา 47 [รหัสขั้นตอน: S47_AUTHORIZED_SET_TOTAL_MISMATCH]",
+          };
+        }
+      }
+
+      if (!positiveConclusionAmounts.includes(expectedTotal)) {
+        const wrongCandidate =
+          positiveConclusionAmounts.length > 0
+            ? `${positiveConclusionAmounts[positiveConclusionAmounts.length - 1]} บาท`
+            : "MISSING_EXPECTED_TOTAL";
+        return {
+          ok: false,
+          allowZeroTokenInClaim: false,
+          draftNumericTokens,
+          stageCode: "S47_AUTHORIZED_SET_TOTAL_MISMATCH",
+          rejectedToken: wrongCandidate,
+          publicRedactedReasonTh:
+            "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากข้อสรุปไม่ได้ระบุยอดรวมค่าลดหย่อนตามมาตรา 47 ที่ครบถ้วนตามข้อเท็จจริง (ระงับผลรวมย่อยที่ไม่ครบองค์ประกอบ) [รหัสขั้นตอน: S47_AUTHORIZED_SET_TOTAL_MISMATCH]",
+        };
+      }
+    }
+  }
+
+  // --- Rule 4: Scan all monetary Baht figures in `normBody` against `validSet` + statutory unit rates (`10,000` only if contrasted, `30,000`, `60,000`) ---
+  for (const bm of normBody.matchAll(
+    /(?:([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)\s*บาท|(?<![0-9,])([0-9]{1,3}(?:,[0-9]{3})+)(?![0-9,])|(?<![0-9,])([1-9][0-9]{4,6})(?![0-9,]))/g
+  )) {
+    const rawNum = (bm[1] || bm[2] || bm[3] || "").replace(/,/g, "");
+    const val = Number(rawNum);
+    if (!Number.isFinite(val)) continue;
+    if (val === 0) continue; // already validated by Rule 2!
+    if (validSet.has(val)) continue;
+    // Allow citing statutory unit `60,000` or `30,000` when contrasting an absent/barred `(ข)` or `(ค)` subclause in explanation!
+    if (val === 60_000 || val === 30_000) {
+      const bIdx = bm.index ?? 0;
+      const win = normBody.slice(Math.max(0, bIdx - 70), Math.min(normBody.length, bIdx + 95));
+      if (
+        /(?:ไม่มีสิทธิ|ไม่ได้รับสิทธิ|หักไม่ได้|ไม่เข้าเงื่อนไข|ไม่อาจนำมาหัก|(?<![0-9.,])0\s*บาท|แต่เนื่องจาก)/.test(
+          win
+        )
+      ) {
+        continue;
+      }
+    }
+    return {
+      ok: false,
+      allowZeroTokenInClaim: false,
+      draftNumericTokens,
+      stageCode: "S47_TOKEN_NOT_IN_AUTHORIZED_SET",
+      rejectedToken: `${val} บาท`,
+      publicRedactedReasonTh:
+        "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากพบตัวเลขจำนวนเงินในคำอธิบายที่ไม่อยู่ในชุดค่าลดหย่อนที่ได้รับอนุญาตตามข้อเท็จจริงและมาตรา 47 [รหัสขั้นตอน: S47_TOKEN_NOT_IN_AUTHORIZED_SET]",
+    };
+  }
+
+  return {
+    ok: true,
+    allowZeroTokenInClaim,
+    draftNumericTokens,
   };
 }

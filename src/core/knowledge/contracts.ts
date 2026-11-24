@@ -953,6 +953,15 @@ export interface ConversationTurnInput {
   conversation_id?: string | null;
 }
 
+export type QaSyntheticFixtureId =
+  | "RC1_REJECTED_CALC"
+  | "S47_NEG_1_TOTAL_240K"
+  | "S47_NEG_2_TOTAL_210K_PRE2561"
+  | "S47_NEG_3_SINGLE_120K"
+  | "S47_NEG_4_ADOPTED_BAR_240K"
+  | "S47_NEG_5_WRONG_SUBPARA_47_1_NGOR"
+  | "S47_NEG_6_SUBSET_TOTAL_150K";
+
 export interface QueryRequest {
   question: string;
   release_id?: string;
@@ -965,8 +974,8 @@ export interface QueryRequest {
   attachment_doc_ids?: string[];
   /** Opt-in isolated staging flag for Separate Mission: Thai Tax Foundation A/B pilot (defaults to false). */
   enable_tax_foundation_pilot?: boolean;
-  /** Non-production staging-only QA fixture hook (e.g., RC1 deterministic rejected-calculation leak verification). */
-  qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
+  /** Non-production staging-only QA fixture hook (e.g., RC1 deterministic rejected-calculation leak verification & S47 negative controls). */
+  qa_synthetic_fixture?: QaSyntheticFixtureId | null;
   /** Staging-only flag to select the grounded LLM answer path vs frozen deterministic baseline (disabled in production). */
   answer_generation_mode?: "llm_grounded" | "baseline_deterministic" | null;
   /** Staging-only explicit provider selection ("google-gemini" default, or "openai" for separate challenger — never silent fallback). */

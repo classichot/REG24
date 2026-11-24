@@ -11,7 +11,11 @@ import {
   resolveServerActor,
 } from "../../../../../core/knowledge/http-auth";
 import type { TraceablePublicationChannel } from "../../../../../core/knowledge/citation-contracts";
-import type { ConversationTurnInput } from "../../../../../core/knowledge/contracts";
+import type {
+  ConversationTurnInput,
+  QaSyntheticFixtureId,
+} from "../../../../../core/knowledge/contracts";
+import { flushPendingSection47RestrictedDiagnostics } from "../../../../../core/knowledge/s47-restricted-diagnostics";
 import {
   assertFollowUpConversationIntegrity,
   saveOrReviseAnswerServerVerified,
@@ -47,7 +51,7 @@ export async function POST(req: Request) {
       persist_answer?: boolean;
       save_operation_key?: string | null;
       stream?: boolean;
-      qa_synthetic_fixture?: "RC1_REJECTED_CALC" | null;
+      qa_synthetic_fixture?: QaSyntheticFixtureId | null;
       answer_generation_mode?: "llm_grounded" | "baseline_deterministic" | null;
       challenger_provider?: "google-gemini" | "openai" | null;
       override_model?: string | null;
@@ -117,11 +121,86 @@ export async function POST(req: Request) {
       conversation_history: body.conversation_history,
     });
 
-    const qClean = body.question.trim();
+    const rawTrimmedQuestion = body.question.trim();
+    const ALLOWED_PREVIEW_FIXTURES = new Set<QaSyntheticFixtureId>([
+      "RC1_REJECTED_CALC",
+      "S47_NEG_1_TOTAL_240K",
+      "S47_NEG_2_TOTAL_210K_PRE2561",
+      "S47_NEG_3_SINGLE_120K",
+      "S47_NEG_4_ADOPTED_BAR_240K",
+      "S47_NEG_5_WRONG_SUBPARA_47_1_NGOR",
+      "S47_NEG_6_SUBSET_TOTAL_150K",
+    ]);
+    let inlinePreviewFixture: QaSyntheticFixtureId | null = null;
+    let qClean = rawTrimmedQuestion;
+    if (process.env.VERCEL_ENV !== "production") {
+      const prefixMatch = rawTrimmedQuestion.match(
+        /^\[QA_PREVIEW_FIXTURE:([A-Z0-9_]+)\]\s*([\s\S]+)$/
+      );
+      if (
+        prefixMatch &&
+        ALLOWED_PREVIEW_FIXTURES.has(prefixMatch[1] as QaSyntheticFixtureId) &&
+        prefixMatch[2].trim()
+      ) {
+        inlinePreviewFixture = prefixMatch[1] as QaSyntheticFixtureId;
+        qClean = prefixMatch[2].trim();
+      }
+    }
+    const effectiveSyntheticFixture: QaSyntheticFixtureId | null =
+      process.env.VERCEL_ENV !== "production"
+        ? body.qa_synthetic_fixture ?? inlinePreviewFixture ?? null
+        : null;
     const effectiveAsOf = body.applicable_date ?? body.as_of_date ?? null;
     const wantsStream =
       body.stream === true ||
       (req.headers.get("accept") || "").toLowerCase().includes("text/event-stream");
+
+    const sanitizePublicLlmAuditTraceForHttp = (
+      rawTrace: Record<string, unknown> | undefined
+    ): Record<string, unknown> | undefined => {
+      if (!rawTrace || typeof rawTrace !== "object") return undefined;
+      const redactNums = (s: unknown): string =>
+        typeof s === "string"
+          ? s
+              .replace(
+                /\(\s*[0-9๐-๙][0-9๐-๙,.\s]*(?:บาท|ล้านบาท|%|เปอร์เซ็นต์|วัน|เดือน|ปี)?\s*\)/g,
+                "(ตัวเลขถูกระงับ)"
+              )
+              .replace(/[0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})+\s*(?:บาท|ล้านบาท)?/g, "[ตัวเลขถูกระงับ]")
+              .replace(/(?<![0-9๐-๙])[0-9๐-๙]+\s*(?:บาท|ล้านบาท)/g, "[จำนวนเงินถูกระงับ]")
+          : "";
+      const rawRejClaims = Array.isArray(rawTrace.rejected_claims)
+        ? (rawTrace.rejected_claims as Array<Record<string, unknown>>)
+        : [];
+      const rawRejCalcs = Array.isArray(rawTrace.rejected_calculations)
+        ? (rawTrace.rejected_calculations as Array<Record<string, unknown>>)
+        : [];
+      return {
+        ...rawTrace,
+        // Never leak unverified pre-check draft conclusions or rejected numbers over the HTTP API (Exit Criterion #5 & K3/RC1)
+        claims_before_verification: Array.isArray(rawTrace.claims_before_verification)
+          ? (rawTrace.claims_before_verification as Array<Record<string, unknown>>).map((c) => ({
+              issue_id: c.issue_id,
+              issue_title_th: c.issue_title_th,
+              governing_passage_ids: c.governing_passage_ids,
+              has_proposed_calculation: c.has_proposed_calculation,
+            }))
+          : [],
+        rejected_claims: rawRejClaims.map((rc) => ({
+          issue_id: rc.issue_id,
+          issue_title_th: rc.issue_title_th,
+          cited_passage_ids: rc.cited_passage_ids,
+          rejection_code: rc.rejection_code,
+          rejection_reason_th: redactNums(rc.rejection_reason_th),
+        })),
+        rejected_calculations: rawRejCalcs.map((rc) => ({
+          issue_id: rc.issue_id,
+          issue_title_th: rc.issue_title_th,
+          rejection_code: rc.rejection_code,
+          rejection_reason_th: redactNums(rc.rejection_reason_th),
+        })),
+      };
+    };
 
     const executeQueryPipeline = async () => {
       // IMPORTANT: Keep `persistAnswerAtomically: false` during `queryKnowledge` so unpersisted in-memory
@@ -142,8 +221,7 @@ export async function POST(req: Request) {
           prior_saved_answer_revision: body.prior_saved_answer_revision ?? null,
           attachment_doc_ids: body.attachment_doc_ids,
           enable_tax_foundation_pilot: false,
-          qa_synthetic_fixture:
-            process.env.VERCEL_ENV !== "production" ? body.qa_synthetic_fixture ?? null : null,
+          qa_synthetic_fixture: effectiveSyntheticFixture,
           answer_generation_mode:
             process.env.VERCEL_ENV !== "production" ? body.answer_generation_mode ?? null : null,
           challenger_provider:
@@ -293,6 +371,11 @@ export async function POST(req: Request) {
       };
       if (auditStatus.error) {
         headers["x-reg24-audit-error"] = auditStatus.error.slice(0, 200);
+      }
+
+      await flushPendingSection47RestrictedDiagnostics();
+      if (answer.llm_audit_trace && typeof answer.llm_audit_trace === "object") {
+        answer.llm_audit_trace = sanitizePublicLlmAuditTraceForHttp(answer.llm_audit_trace);
       }
 
       return {

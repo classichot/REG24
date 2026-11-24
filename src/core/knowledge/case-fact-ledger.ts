@@ -540,8 +540,117 @@ export function buildStructuredCaseFactLedger(input: {
       });
     }
 
+    const hasTransferOrGiftVerb =
+      /(?:ให้(?:แก่|โดยเสน่หา)|โอน(?:กรรมสิทธิ์|ที่ดิน|ห้องชุด|บ้าน|อาคาร|เงิน|หุ้น|ทรัพย์สิน)?|ยก[^\n]{0,25}ให้|มอบ[^\n]{0,35}ให้|ผู้รับโอน|ผู้รับให้|ขายฝาก|แลกเปลี่ยน)/.test(
+        norm
+      );
+    const isSection47AllowanceTurn =
+      !hasTransferOrGiftVerb &&
+      (/มาตรา\s*47\b|section\s*47\b/i.test(norm) || /(?:หักลดหย่อน|ค่าลดหย่อน)/.test(norm));
+
+    // 3a. Section 47 Personal / Family Allowance Facts (OBS-2: list taxpayer, spouse income status, children + birth year, and tax year instead of gift-transfer recipient label!)
+    if (isSection47AllowanceTurn) {
+      const namedTaxpayerMatch = norm.match(
+        /^((?:นาย|นางสาว|นาง|ดร\.)\s*[ก-๙]+(?:\s+[ก-๙]+)?)(?=\s+(?:มี|โสด|เป็นโสด|สถานะ|สถานภาพ|สมรส|จดทะเบียน|ไม่มี|อุปการะ|ปีภาษี))/
+      );
+      const isSingleTurn =
+        /(?:สถานะโสด|สถานภาพโสด|เป็นโสด|คนโสด|ผู้มีเงินได้โสด|(?<![ก-๙])โสด)(?!า|\s*หนึ่ง)|ไม่มีคู่สมรส|ยังไม่ได้สมรส/.test(
+          norm
+        ) && !/(?:ไม่โสด|ไม่ได้เป็นโสด|มิใช่คนโสด|ไม่ใช่คนโสด)/.test(norm);
+
+      upsertFact(factsMap, overrides, {
+        fact_key: "s47_taxpayer",
+        label_th: "ผู้มีเงินได้",
+        original_text_th: namedTaxpayerMatch
+          ? `${namedTaxpayerMatch[1].trim()} (บุคคลธรรมดา)`
+          : isSingleTurn
+            ? "ผู้มีเงินได้บุคคลธรรมดา (โสด)"
+            : "ผู้มีเงินได้บุคคลธรรมดา",
+        normalized_category: "S47_INDIVIDUAL_TAXPAYER",
+        source_turn: turnNumber,
+      });
+
+      if (isSingleTurn) {
+        upsertFact(factsMap, overrides, {
+          fact_key: "s47_spouse_status",
+          label_th: "สถานภาพสมรสและเงินได้ของคู่สมรส",
+          original_text_th: "โสด (ไม่มีคู่สมรส)",
+          normalized_category: "S47_SPOUSE_NONE_SINGLE",
+          source_turn: turnNumber,
+        });
+      } else if (
+        /(?:คู่สมรส|สามี|ภริยา|ภรรยา)[^\n]{0,75}(?:ไม่มีเงินได้|ไม่มีรายได้)/.test(norm)
+      ) {
+        upsertFact(factsMap, overrides, {
+          fact_key: "s47_spouse_status",
+          label_th: "สถานภาพสมรสและเงินได้ของคู่สมรส",
+          original_text_th: "มีคู่สมรสที่ไม่มีเงินได้",
+          normalized_category: "S47_SPOUSE_NO_INCOME",
+          source_turn: turnNumber,
+        });
+      } else if (
+        /(?:คู่สมรส|สามี|ภริยา|ภรรยา)[^\n]{0,65}(?:มีเงินได้(?:ของตนเอง|พึงประเมิน)?[^\n]{0,35}แยกยื่น|แยกยื่น(?:แบบ|รายการ))/.test(
+          norm
+        )
+      ) {
+        upsertFact(factsMap, overrides, {
+          fact_key: "s47_spouse_status",
+          label_th: "สถานภาพสมรสและเงินได้ของคู่สมรส",
+          original_text_th: "มีคู่สมรสที่มีเงินได้แยกยื่นรายการ",
+          normalized_category: "S47_SPOUSE_SEPARATE_INCOME",
+          source_turn: turnNumber,
+        });
+      }
+
+      if (/(?:ไม่มีบุตรเลย|ไม่มีบุตร(?!\s*(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย|\s*บุญธรรม))/.test(norm)) {
+        upsertFact(factsMap, overrides, {
+          fact_key: "s47_children",
+          label_th: "ข้อมูลบุตรและปี พ.ศ. ที่เกิด",
+          original_text_th: "ไม่มีบุตร",
+          normalized_category: "S47_CHILDREN_NONE",
+          source_turn: turnNumber,
+        });
+      } else {
+        const childClauseParts: string[] = [];
+        const legitSnippet = norm.match(
+          /((?:ไม่มี)?บุตร(?:ชาย|สาว)?(?:ที่)?ชอบด้วยกฎหมาย[^\n?;]*?(?=\s+และ(?:มี|ไม่มี)?บุตรบุญธรรม|\s+แต่มีบุตรบุญธรรม|\s+ปีภาษี|\s+มีสิทธิหัก|\s+หักลดหย่อน|$))/
+        );
+        if (legitSnippet && legitSnippet[1].trim()) {
+          childClauseParts.push(legitSnippet[1].trim());
+        }
+        const adoptedSnippet = norm.match(
+          /((?:ไม่มี)?บุตรบุญธรรม[^\n?;]*?(?=\s+ปีภาษี|\s+มีสิทธิหัก|\s+หักลดหย่อน|$))/
+        );
+        if (adoptedSnippet && adoptedSnippet[1].trim()) {
+          childClauseParts.push(adoptedSnippet[1].trim());
+        }
+        if (childClauseParts.length > 0) {
+          upsertFact(factsMap, overrides, {
+            fact_key: "s47_children",
+            label_th: "ข้อมูลบุตรและปี พ.ศ. ที่เกิด",
+            original_text_th: childClauseParts.join("; "),
+            normalized_category: "S47_CHILDREN_STATED",
+            source_turn: turnNumber,
+          });
+        }
+      }
+
+      const taxYearMatch = norm.match(/ปีภาษี(?:\s*พ\.ศ\.)?\s*(25\d{2})/);
+      if (taxYearMatch) {
+        upsertFact(factsMap, overrides, {
+          fact_key: "s47_tax_year",
+          label_th: "ปีภาษีที่พิจารณา",
+          original_text_th: `ปีภาษี ${taxYearMatch[1]}`,
+          normalized_category: `S47_TAX_YEAR_BE_${taxYearMatch[1]}`,
+          source_turn: turnNumber,
+        });
+      }
+    }
+
     // 3. Recipient & Kinship extraction (preserving exact noun & gender, never guessing ambiguous หลานสาว)
-    if (/(?:บุตร(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?|ลูก(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?)/.test(norm)) {
+    if (isSection47AllowanceTurn) {
+      // Pure §47 personal allowance turn: do not emit gift/transfer `recipient_kinship` facts!
+    } else if (/(?:บุตร(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?|ลูก(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?)/.test(norm)) {
       const isMaleGrand = /(?:บุตรชายของหลาน|ลูกชายของหลาน)/.test(norm);
       const m = norm.match(
         /((?:นางสาว|นาย|ด\.ญ\.|ด\.ช\.)?[ก-๙]+\s*ซึ่งเป็นบุตร(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?[^\n,.?]*(?:\([^)]+\))?|บุตร(?:สาว|ชาย)?ของหลาน(?:ชาย|สาว)?[^\s,.;)]*(?:\s*\([^)]+\))?)/
@@ -812,9 +921,10 @@ export function buildStructuredCaseFactLedger(input: {
 
   // Three-way temporal resolution:
   // 1) transaction_or_event_dates (all dated events across turns, keeping latest turn override if same event_type)
-  // 2) legal_as_of_date (explicit req.applicableDate only — never silently fabricated!)
+  // 2) legal_as_of_date (explicit req.applicableDate, or explicit `ปีภาษี 25XX` on pure §47 allowance queries — never silently fabricated!)
   // 3) controlling_tax_point (derived strictly from statutory event rules without guessing when ambiguous!)
-  const legalAsOfDate = input.applicableDate ?? null;
+  const s47TaxYearFact = factsMap.get("s47_tax_year");
+  const legalAsOfDate = input.applicableDate ?? (s47TaxYearFact ? s47TaxYearFact.original_text_th : null);
 
   const isVatCase = factsMap.has("vat_transaction_type") || /ภาษีมูลค่าเพิ่ม|VAT/i.test(allUserTurns.map((t) => t.raw_text).join(" "));
   const nonQuestionDates = allTemporalEvents.filter((e) => e.event_type !== "QUESTION_DATE");

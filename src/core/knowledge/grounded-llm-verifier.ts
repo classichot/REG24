@@ -17,13 +17,18 @@ import {
   extractCanonicalInstrumentNumbers,
   verifyClaimAgainstPassages,
 } from "./answer-verification";
-import { verifySection47AllowanceComponentsFromFacts } from "./tax-calculation-verifier";
+import {
+  evaluateSection47ClaimAmountsAndSubclauses,
+  verifySection47AllowanceComponentsFromFacts,
+  type Section47AllowanceEvalResult,
+} from "./tax-calculation-verifier";
+import { recordSection47RestrictedDiagnostic } from "./s47-restricted-diagnostics";
 import type { StructuredCaseFactLedger } from "./case-fact-ledger";
 import type {
   ClaimBoundCalculationRecord,
   RejectedCalculationDiagnosticDto,
 } from "./citation-contracts";
-import type { ClaimLedgerItem, EvidenceCard, Passage } from "./contracts";
+import type { ClaimLedgerItem, EvidenceCard, Passage, QaSyntheticFixtureId } from "./contracts";
 import type {
   AuthorityHierarchyTier,
   GroundedLlmDraftResponse,
@@ -46,7 +51,10 @@ export interface RejectedClaimAuditEntry {
     | "OUT_OF_EFFECTIVE_DATE_WINDOW"
     | "SILENT_LATEST_DECREE_DEFAULT"
     | "CASE_FACT_SUBSTITUTION_VIOLATION"
-    | "UNGROUNDED_OR_CONTRADICTED_CLAIM";
+    | "UNGROUNDED_OR_CONTRADICTED_CLAIM"
+    | "S47_AUTHORIZED_SET_TOTAL_MISMATCH"
+    | "S47_SUBCLAUSE_AMOUNT_MISMATCH"
+    | "S47_TOKEN_NOT_IN_AUTHORIZED_SET";
   rejection_reason_th: string;
 }
 
@@ -507,6 +515,7 @@ function verifyProposedCalculation(params: {
   issue: LlmDraftedIssue;
   citedItems: GroundedPassagePackItem[];
   factLedger: StructuredCaseFactLedger;
+  isSingleSummaryIssue?: boolean;
 }): {
   accepted: boolean;
   verifiedCalc: (LlmProposedCalculation & { verification_status: "VERIFIED_BY_REG24" }) | null;
@@ -588,7 +597,10 @@ function verifyProposedCalculation(params: {
       calc.exempt_amount_thb ?? calc.computed_tax_thb ?? calc.tax_base_thb ?? calc.taxable_amount_thb;
     if (s47Eval.applicable && proposedAllowanceAmt !== null && Number.isFinite(proposedAllowanceAmt)) {
       const roundedProposed = Math.round(proposedAllowanceAmt);
-      if (s47Eval.validAmountsThb.includes(roundedProposed)) {
+      const matchesExpectedTotalOrComponent = params.isSingleSummaryIssue
+        ? s47Eval.expectedTotalThb !== null && roundedProposed === s47Eval.expectedTotalThb
+        : s47Eval.validAmountsThb.includes(roundedProposed);
+      if (matchesExpectedTotalOrComponent) {
         return {
           accepted: true,
           verifiedCalc: null,
@@ -610,7 +622,8 @@ function verifyProposedCalculation(params: {
             computed_tax_thb: calc.computed_tax_thb,
           },
           rejection_code: "ARITHMETIC_MISMATCH",
-          rejection_reason_th: `ยอดรวมค่าลดหย่อนตามมาตรา 47 ที่เสนอ (${roundedProposed.toLocaleString("en-US")} บาท) ไม่ตรงกับผลรวมตามข้อเท็จจริงและบทบัญญัติที่อ้างอิง${s47Eval.expectedTotalThb !== null ? ` (คาดหวัง ${s47Eval.expectedTotalThb.toLocaleString("en-US")} บาท)` : ""}`,
+          rejection_reason_th:
+            "ระงับยอดรวมค่าลดหย่อนตามมาตรา 47 ที่เสนอ เนื่องจากไม่ตรงกับผลรวมตามข้อเท็จจริงและบทบัญญัติที่อ้างอิง [รหัสขั้นตอน: S47_AUTHORIZED_SET_TOTAL_MISMATCH]",
         },
       };
     }
@@ -1016,6 +1029,122 @@ function redactRejectedCalculationNumbers(
   return out;
 }
 
+function redactPublicClaimRejectionReasonTh(rawReason: string): string {
+  return (rawReason || "")
+    .replace(/\(\s*[0-9๐-๙][0-9๐-๙,.\s]*(?:บาท|ล้านบาท|%|เปอร์เซ็นต์|วัน|เดือน|ปี)?\s*\)/g, "(ตัวเลขถูกระงับ)")
+    .replace(/[0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})+\s*(?:บาท|ล้านบาท)?/g, "[ตัวเลขถูกระงับ]")
+    .replace(/(?<![0-9๐-๙])[0-9๐-๙]+\s*(?:บาท|ล้านบาท)/g, "[จำนวนเงินถูกระงับ]");
+}
+
+function applyPreviewOnlyS47SyntheticFixture(
+  issues: LlmDraftedIssue[],
+  fixture: QaSyntheticFixtureId | null | undefined,
+  passagePack: GroundedPassagePackItem[]
+): LlmDraftedIssue[] {
+  if (!fixture || fixture === "RC1_REJECTED_CALC" || process.env.VERCEL_ENV === "production") {
+    return issues;
+  }
+  const s47Pids = passagePack.filter((p) => p.work_id === "prov.th.rc.47").map((p) => p.passage_id);
+  const fallbackPid = s47Pids[0] || passagePack[0]?.passage_id || "psg.e4ec78f644930e";
+  const baseIssue: LlmDraftedIssue = issues[0]
+    ? { ...issues[0], governing_passage_ids: s47Pids.length > 0 ? s47Pids : issues[0].governing_passage_ids }
+    : {
+        issue_id: "s47.synthetic_neg",
+        issue_title_th: "สิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47",
+        party_or_scope_th: "ผู้มีเงินได้บุคคลธรรมดา",
+        conclusion_th: "",
+        material_facts_relied_on: [],
+        governing_passage_ids: [fallbackPid],
+        application_explanation_th: "",
+        authority_distinction_note_th: "",
+        proposed_calculation: null,
+        missing_facts_or_uncertainties_th: [],
+      };
+
+  const buildCalc = (amt: number): LlmProposedCalculation => ({
+    is_computable_from_stated_facts: true,
+    formula_description_th: "ผลรวมค่าลดหย่อนตามมาตรา 47 (Synthetic Negative Control)",
+    tax_base_thb: null,
+    exempt_amount_thb: amt,
+    taxable_amount_thb: null,
+    rate_pct: null,
+    computed_tax_thb: null,
+    missing_inputs_th: [],
+    steps_th: [],
+  });
+
+  switch (fixture) {
+    case "S47_NEG_1_TOTAL_240K":
+      return [
+        {
+          ...baseIssue,
+          conclusion_th:
+            "ผู้มีเงินได้มีสิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47 (1) (ก) (ข) และ (ค) รวมทั้งสิ้น 240,000 บาท",
+          application_explanation_th:
+            "ตามประมวลรัษฎากร มาตรา 47 (1) (ก) หักลดหย่อนส่วนตัว 60,000 บาท มาตรา 47 (1) (ข) คู่สมรสไม่มีเงินได้ 60,000 บาท และมาตรา 47 (1) (ค) (1) บุตรชอบด้วยกฎหมาย 2 คน คนละ 60,000 บาท รวมเป็นเงินทั้งสิ้น 240,000 บาท",
+          proposed_calculation: buildCalc(240_000),
+        },
+      ];
+    case "S47_NEG_2_TOTAL_210K_PRE2561":
+      return [
+        {
+          ...baseIssue,
+          conclusion_th:
+            "ผู้มีเงินได้มีสิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47 (1) (ก) (ข) และ (ค) รวมทั้งสิ้น 210,000 บาท",
+          application_explanation_th:
+            "ตามประมวลรัษฎากร มาตรา 47 (1) (ก) หักลดหย่อนส่วนตัว 60,000 บาท มาตรา 47 (1) (ข) คู่สมรส 60,000 บาท และมาตรา 47 (1) (ค) (1) บุตรคนแรก 30,000 บาท บุตรคนที่สอง 60,000 บาท รวมทั้งสิ้น 210,000 บาท",
+          proposed_calculation: buildCalc(210_000),
+        },
+      ];
+    case "S47_NEG_3_SINGLE_120K":
+      return [
+        {
+          ...baseIssue,
+          conclusion_th:
+            "ผู้มีเงินได้โสดมีสิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47 (1) (ก) และ (ข) รวมทั้งสิ้น 120,000 บาท",
+          application_explanation_th:
+            "ตามประมวลรัษฎากร มาตรา 47 (1) (ก) หักลดหย่อนส่วนตัว 60,000 บาท และมาตรา 47 (1) (ข) อีก 60,000 บาท รวมทั้งสิ้น 120,000 บาท",
+          proposed_calculation: buildCalc(120_000),
+        },
+      ];
+    case "S47_NEG_4_ADOPTED_BAR_240K":
+      return [
+        {
+          ...baseIssue,
+          conclusion_th:
+            "ผู้มีเงินได้มีสิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47 (1) (ก) (ข) และ (ค) รวมทั้งสิ้น 240,000 บาท",
+          application_explanation_th:
+            "ตามประมวลรัษฎากร มาตรา 47 (1) (ก) ส่วนตัว 60,000 บาท มาตรา 47 (1) (ข) คู่สมรส 60,000 บาท มาตรา 47 (1) (ค) (1) บุตรชอบด้วยกฎหมาย 3 คน 90,000 บาท และมาตรา 47 (1) (ค) (2) บุตรบุญธรรมอีก 1 คน 30,000 บาท รวมทั้งสิ้น 240,000 บาท",
+          proposed_calculation: buildCalc(240_000),
+        },
+      ];
+    case "S47_NEG_5_WRONG_SUBPARA_47_1_NGOR":
+      return [
+        {
+          ...baseIssue,
+          conclusion_th:
+            "ผู้มีเงินได้มีสิทธิหักลดหย่อนส่วนตัวตามมาตรา 47 (1) (ก) คู่สมรสตามมาตรา 47 (1) (ข) และค่าลดหย่อนบุตรตามมาตรา 47 (1) (ง) รวมทั้งสิ้น 180,000 บาท",
+          application_explanation_th:
+            "ตามประมวลรัษฎากร มาตรา 47 (1) (ก) จำนวน 60,000 บาท มาตรา 47 (1) (ข) จำนวน 60,000 บาท และอ้างมาตรา 47 (1) (ง) สำหรับบุตร 2 คน คนละ 30,000 บาท เป็นเงิน 60,000 บาท รวมทั้งสิ้น 180,000 บาท",
+          proposed_calculation: buildCalc(180_000),
+        },
+      ];
+    case "S47_NEG_6_SUBSET_TOTAL_150K":
+      return [
+        {
+          ...baseIssue,
+          conclusion_th:
+            "ผู้มีเงินได้มีสิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47 (1) (ก) (ข) และ (ค) รวมทั้งสิ้น 150,000 บาท",
+          application_explanation_th:
+            "ตามประมวลรัษฎากร มาตรา 47 (1) (ก) ส่วนตัว 60,000 บาท มาตรา 47 (1) (ข) คู่สมรส 60,000 บาท และมาตรา 47 (1) (ค) (1) บุตร 30,000 บาท รวมทั้งสิ้น 150,000 บาท",
+          proposed_calculation: buildCalc(150_000),
+        },
+      ];
+    default:
+      return issues;
+  }
+}
+
 export function verifyAndRenderGroundedLlmDraft(params: {
   traceId: string;
   factLedger: StructuredCaseFactLedger;
@@ -1025,7 +1154,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   llmOk: boolean;
   draft: GroundedLlmDraftResponse | null;
   invocationAudit: ProviderInvocationAudit;
-  qaSyntheticFixture?: "RC1_REJECTED_CALC" | null;
+  qaSyntheticFixture?: QaSyntheticFixtureId | null;
   specialConstraints?: GroundedLlmSpecialConstraints;
   stagingFlagActive: boolean;
 }): GroundedLlmVerificationOutcome {
@@ -1208,13 +1337,83 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     };
   }
 
-  const claimsBefore = params.draft.issues.map((iss) => ({
+  const workingIssues = applyPreviewOnlyS47SyntheticFixture(
+    params.draft.issues,
+    params.qaSyntheticFixture,
+    params.passagePack
+  );
+
+  const claimsBefore = workingIssues.map((iss) => ({
     issue_id: iss.issue_id,
     issue_title_th: iss.issue_title_th,
     conclusion_th: iss.conclusion_th,
     governing_passage_ids: [...(iss.governing_passage_ids || [])],
     has_proposed_calculation: Boolean(iss.proposed_calculation?.is_computable_from_stated_facts),
   }));
+
+  // Change 2: If `prov.th.rc.47` is supplied for a §47 allowance question and the user named a child type
+  // without a parseable count (e.g. "มีบุตรชอบด้วยกฎหมายหลายคน"), route cleanly to NEEDS_CLARIFICATION
+  // instead of guessing 0 children or failing with REVIEW_REQUIRED!
+  const s47PackPassages = params.passagePack.filter((p) => p.work_id === "prov.th.rc.47");
+  const s47ActiveUserContext = params.factLedger.user_turns
+    .map((t) => t.cleaned_active_text || t.raw_text)
+    .join(" ");
+  if (
+    s47PackPassages.length > 0 &&
+    (/มาตรา\s*47\b|section\s*47\b/i.test(s47ActiveUserContext) || /ลดหย่อน/.test(s47ActiveUserContext))
+  ) {
+    const s47PreEval = verifySection47AllowanceComponentsFromFacts({
+      userContextText: s47ActiveUserContext,
+      citedVerbatimText: s47PackPassages.map((p) => p.verbatim_text).join("\n"),
+    });
+    if (s47PreEval.applicable && s47PreEval.needsChildCountClarification) {
+      recordSection47RestrictedDiagnostic({
+        trace_id: params.traceId,
+        issue_id: workingIssues[0]?.issue_id || "s47.child_count_clarification",
+        outcome: "CLARIFICATION_REQUIRED",
+        stage_code: "S47_FACT_EXTRACTION_CLARIFICATION",
+        cleaned_active_text: s47ActiveUserContext,
+        extracted_facts: s47PreEval.extractedFacts,
+        authorized_valid_amounts_thb: s47PreEval.validAmountsThb,
+        expected_total_thb: s47PreEval.expectedTotalThb,
+        draft_numeric_tokens: [],
+        rejected_token: null,
+        qa_synthetic_fixture: params.qaSyntheticFixture ?? null,
+      });
+      const clarifyQs = [
+        "กรุณาระบุจำนวนบุตรชอบด้วยกฎหมายที่มีชีวิตอยู่และจำนวนบุตรบุญธรรม (พร้อมระบุปี พ.ศ. ที่เกิดของบุตรแต่ละคนว่าเกิดก่อนหรือตั้งแต่ปี พ.ศ. 2561) เพื่อคำนวณสิทธิหักลดหย่อนตามมาตรา 47 (1) (ค) ได้อย่างถูกต้อง",
+      ];
+      const clarifyMsg =
+        "ต้องการข้อมูลจำนวนบุตรที่แน่นอนเพิ่มเติม (จำนวนบุตรชอบด้วยกฎหมายที่มีชีวิตอยู่ จำนวนบุตรบุญธรรม และลำดับปี พ.ศ. ที่เกิดเทียบกับปี พ.ศ. 2561) เพื่อคำนวณยอดรวมค่าลดหย่อนตามมาตรา 47 — ระบบไม่สมมติให้จำนวนบุตรเป็นศูนย์และยังไม่สรุปตัวเลขรวมจนกว่าจะได้รับข้อมูลครบถ้วน";
+      return {
+        status: "NEEDS_CLARIFICATION",
+        rendered_answer_th: clarifyMsg,
+        verified_issues: [],
+        claims: [],
+        evidence_cards: [],
+        assumptions_th: params.draft.assumptions_th || [],
+        clarification_questions_th: clarifyQs,
+        coverage_warnings_th: [],
+        rejected_calculations_diagnostic: [],
+        audit_trace: {
+          schema_version: "reg24.llm_audit_trace.v1",
+          generation_mode: "llm_grounded",
+          staging_flag_active: params.stagingFlagActive,
+          template_fallback_used: false,
+          input_fact_ledger: params.factLedger,
+          supplied_passages: suppliedPassagesAudit,
+          consumed_passage_ids: [],
+          consumed_passage_versions: [],
+          provider_invocation: params.invocationAudit,
+          claims_before_verification: claimsBefore,
+          claims_after_verification: [],
+          rejected_claims: [],
+          rejected_calculations: [],
+          final_answer_revision_id: null,
+        },
+      };
+    }
+  }
 
   const rejectedClaims: RejectedClaimAuditEntry[] = [];
   const rejectedCalculations: RejectedCalculationAuditEntry[] = [];
@@ -1243,8 +1442,12 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     });
   }
 
-  for (let idx = 0; idx < params.draft.issues.length; idx++) {
-    const iss = params.draft.issues[idx];
+  const totalS47IssueCount = workingIssues.filter((wIss) =>
+    (wIss.governing_passage_ids || []).some((pid) => packById.get(pid)?.work_id === "prov.th.rc.47")
+  ).length;
+
+  for (let idx = 0; idx < workingIssues.length; idx++) {
+    const iss = workingIssues[idx];
     const validPassageIds = Array.from(
       new Set((iss.governing_passage_ids || []).filter((pid) => packById.has(pid)))
     );
@@ -1300,6 +1503,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     }
 
     // Gate 4: Independent Calculation Verification (strip any unconditioned tax figure if needs_vat_date_clarification is active!)
+    const citesSection47InIssue = citedPackItems.some((p) => p.work_id === "prov.th.rc.47");
     const effectiveIssueForCalc: LlmDraftedIssue =
       params.specialConstraints?.needs_vat_date_clarification &&
       iss.proposed_calculation?.computed_tax_thb !== null
@@ -1309,6 +1513,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       issue: effectiveIssueForCalc,
       citedItems: citedPackItems,
       factLedger: params.factLedger,
+      isSingleSummaryIssue: citesSection47InIssue ? totalS47IssueCount <= 1 : undefined,
     });
     if (!calcCheck.accepted && calcCheck.rejection) {
       rejectedCalculations.push(calcCheck.rejection);
@@ -1317,8 +1522,15 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // Gate 5: Substantive Claim-to-Passage Entailment (`verifyClaimAgainstPassages`)
     // Verify the complete issue claim (conclusion + legal application explanation) together against
     // its cited governing passages so both the conclusion AND every cited section in the explanation are verified!
+    // On §47 issues, never let non-year user-prompt figures (such as a disputed wrong allowance figure) enter trustedTokens!
+    const baseFactTokensForIssue = citesSection47InIssue
+      ? Array.from(factNumericTokens).filter((tok) => {
+          const numVal = Number(tok.replace(/,/g, ""));
+          return Number.isFinite(numVal) && numVal > 0 && numVal < 10_000;
+        })
+      : Array.from(factNumericTokens);
     const trustedTokens = new Set<string>([
-      ...factNumericTokens,
+      ...baseFactTokensForIssue,
       ...calcCheck.verifiedNumericTokens,
     ]);
     // Ground Thai statutory word-number thresholds ("ยี่สิบล้านบาท" -> 20,000,000; "สิบล้านบาท" -> 10,000,000; "ร้อยละห้า" -> 5)
@@ -1388,19 +1600,78 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         trustedTokens.add("10");
       }
     }
-    // DEF-C3-2: When `prov.th.rc.47` (`มาตรา 47` personal/spouse/child/parent allowances) is cited and
-    // no calculation was rejected, deterministically ground ONLY the exact statutory allowance component
-    // and subset-sum figures warranted by the stated family facts (e.g. 60,000 + 60,000 + 30,000×2 = 180,000).
-    if (calcCheck.accepted && citedPackItems.some((p) => p.work_id === "prov.th.rc.47")) {
-      const s47TokensEval = verifySection47AllowanceComponentsFromFacts({
-        userContextText: params.factLedger.user_turns
-          .map((t) => t.cleaned_active_text || t.raw_text)
-          .join(" "),
+
+    const fullIssueClaimStatement = iss.application_explanation_th
+      ? `[${iss.issue_title_th} — ${iss.party_or_scope_th}] ${iss.conclusion_th} (${iss.application_explanation_th})`
+      : `[${iss.issue_title_th} — ${iss.party_or_scope_th}] ${iss.conclusion_th}`;
+
+    // DEF-C3-2 & DEF-C4-1/2 (Candidate 5 Changes 1–6 + Restricted Server-Side Diagnostics):
+    let s47IssueEval: Section47AllowanceEvalResult | null = null;
+    let s47DraftNumericTokens: string[] = [];
+    if (citesSection47InIssue) {
+      s47IssueEval = verifySection47AllowanceComponentsFromFacts({
+        userContextText: s47ActiveUserContext,
         citedVerbatimText: citedVerbatimNorm,
       });
-      if (s47TokensEval.applicable) {
-        for (const tok of s47TokensEval.verifiedNumericTokens) {
+      if (s47IssueEval.applicable) {
+        const s47ClaimCheck = evaluateSection47ClaimAmountsAndSubclauses({
+          conclusionTh: iss.conclusion_th,
+          applicationExplanationTh: iss.application_explanation_th || "",
+          fullClaimStatement: fullIssueClaimStatement,
+          userContextText: s47ActiveUserContext,
+          s47Eval: s47IssueEval,
+          isSingleSummaryIssue: totalS47IssueCount <= 1,
+        });
+        s47DraftNumericTokens = s47ClaimCheck.draftNumericTokens;
+
+        if (!s47ClaimCheck.ok || !calcCheck.accepted) {
+          const stageCode = !s47ClaimCheck.ok
+            ? s47ClaimCheck.stageCode!
+            : "S47_AUTHORIZED_SET_TOTAL_MISMATCH";
+          const calcProposedAmt =
+            iss.proposed_calculation?.exempt_amount_thb ??
+            iss.proposed_calculation?.computed_tax_thb ??
+            iss.proposed_calculation?.tax_base_thb ??
+            iss.proposed_calculation?.taxable_amount_thb ??
+            null;
+          const rejectedTok = !s47ClaimCheck.ok
+            ? s47ClaimCheck.rejectedToken || null
+            : calcProposedAmt !== null
+              ? `${Math.round(calcProposedAmt)} บาท`
+              : "PROPOSED_CALC_MISMATCH";
+
+          recordSection47RestrictedDiagnostic({
+            trace_id: params.traceId,
+            issue_id: iss.issue_id,
+            outcome: "SUPPRESSED",
+            stage_code: stageCode,
+            cleaned_active_text: s47ActiveUserContext,
+            extracted_facts: s47IssueEval.extractedFacts,
+            authorized_valid_amounts_thb: s47IssueEval.validAmountsThb,
+            expected_total_thb: s47IssueEval.expectedTotalThb,
+            draft_numeric_tokens: s47DraftNumericTokens,
+            rejected_token: rejectedTok,
+            qa_synthetic_fixture: params.qaSyntheticFixture ?? null,
+          });
+
+          rejectedClaims.push({
+            issue_id: iss.issue_id,
+            issue_title_th: iss.issue_title_th,
+            statement_before_verification: fullIssueClaimStatement,
+            cited_passage_ids: validPassageIds,
+            rejection_code: stageCode,
+            rejection_reason_th:
+              s47ClaimCheck.publicRedactedReasonTh ||
+              "ระงับการรับรองข้อกล่าวอ้าง เนื่องจากยอดรวมค่าลดหย่อนตามมาตรา 47 ที่เสนอไม่ตรงกับผลรวมตามข้อเท็จจริงและบทบัญญัติที่อ้างอิง [รหัสขั้นตอน: S47_AUTHORIZED_SET_TOTAL_MISMATCH]",
+          });
+          continue;
+        }
+
+        for (const tok of s47IssueEval.verifiedNumericTokens) {
           trustedTokens.add(tok);
+        }
+        if (s47ClaimCheck.allowZeroTokenInClaim) {
+          trustedTokens.add("0");
         }
       }
     }
@@ -1497,9 +1768,6 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       }
     }
     const trustedTokensArr = Array.from(trustedTokens);
-    const fullIssueClaimStatement = iss.application_explanation_th
-      ? `[${iss.issue_title_th} — ${iss.party_or_scope_th}] ${iss.conclusion_th} (${iss.application_explanation_th})`
-      : `[${iss.issue_title_th} — ${iss.party_or_scope_th}] ${iss.conclusion_th}`;
     let finalPassageIds = [...validPassageIds];
     const normStmtPreBind = thaiDigitsToArabic(fullIssueClaimStatement);
     // Minor 1 (G1): Auto-bind กค 0702/3889 (psg.1285e0045e3266 / rd.go.th/66517.html) when referenced or when
@@ -1642,17 +1910,66 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     }
 
     if (!entailmentCheck.allow_confident_answer) {
+      if (s47IssueEval?.applicable) {
+        const rawTokMatch = /\(([^()]{1,40})\)/.exec(entailmentCheck.reason || "");
+        const s47Stage = /UNGROUNDED_NUMERIC_ASSERTION/.test(entailmentCheck.reason || "")
+          ? "S47_TOKEN_NOT_IN_AUTHORIZED_SET"
+          : "S47_SUBCLAUSE_AMOUNT_MISMATCH";
+        recordSection47RestrictedDiagnostic({
+          trace_id: params.traceId,
+          issue_id: iss.issue_id,
+          outcome: "SUPPRESSED",
+          stage_code: s47Stage,
+          cleaned_active_text: s47ActiveUserContext,
+          extracted_facts: s47IssueEval.extractedFacts,
+          authorized_valid_amounts_thb: s47IssueEval.validAmountsThb,
+          expected_total_thb: s47IssueEval.expectedTotalThb,
+          draft_numeric_tokens: s47DraftNumericTokens,
+          rejected_token: rawTokMatch?.[1] || null,
+          qa_synthetic_fixture: params.qaSyntheticFixture ?? null,
+        });
+        rejectedClaims.push({
+          issue_id: iss.issue_id,
+          issue_title_th: iss.issue_title_th,
+          statement_before_verification: fullIssueClaimStatement,
+          cited_passage_ids: finalPassageIds,
+          rejection_code: s47Stage,
+          rejection_reason_th: redactPublicClaimRejectionReasonTh(
+            entailmentCheck.reason ||
+              "ข้อความข้อสรุปและการปรับใช้มาตรา 47 ไม่ผ่านเกณฑ์การตรวจสอบความสอดคล้องกับตัวบทที่อ้างอิง"
+          ),
+        });
+        continue;
+      }
+
       rejectedClaims.push({
         issue_id: iss.issue_id,
         issue_title_th: iss.issue_title_th,
         statement_before_verification: fullIssueClaimStatement,
         cited_passage_ids: finalPassageIds,
         rejection_code: "UNGROUNDED_OR_CONTRADICTED_CLAIM",
-        rejection_reason_th:
+        rejection_reason_th: redactPublicClaimRejectionReasonTh(
           entailmentCheck.reason ||
-          "ข้อความข้อสรุปและการปรับใช้กฎหมายไม่ผ่านเกณฑ์การตรวจสอบความสอดคล้องกับตัวบทที่อ้างอิง",
+            "ข้อความข้อสรุปและการปรับใช้กฎหมายไม่ผ่านเกณฑ์การตรวจสอบความสอดคล้องกับตัวบทที่อ้างอิง"
+        ),
       });
       continue;
+    }
+
+    if (s47IssueEval?.applicable) {
+      recordSection47RestrictedDiagnostic({
+        trace_id: params.traceId,
+        issue_id: iss.issue_id,
+        outcome: "PASSED",
+        stage_code: "S47_VERIFIED_PASS",
+        cleaned_active_text: s47ActiveUserContext,
+        extracted_facts: s47IssueEval.extractedFacts,
+        authorized_valid_amounts_thb: s47IssueEval.validAmountsThb,
+        expected_total_thb: s47IssueEval.expectedTotalThb,
+        draft_numeric_tokens: s47DraftNumericTokens,
+        rejected_token: null,
+        qa_synthetic_fixture: params.qaSyntheticFixture ?? null,
+      });
     }
 
     const firstRaw = params.rawPassagesById.get(finalPassageIds[0]);
@@ -1777,7 +2094,10 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       };
     }
     const reasonsSummary = rejectedClaims
-      .map((r) => `- ${r.issue_title_th}: ${r.rejection_reason_th} (${r.rejection_code})`)
+      .map(
+        (r) =>
+          `- ${r.issue_title_th}: ${redactPublicClaimRejectionReasonTh(r.rejection_reason_th)} (${r.rejection_code})`
+      )
       .join("\n");
     const blockedMsg =
       `ระบบระงับการเผยแพร่คำตอบ (Trace ID: ${params.traceId}) เนื่องจากประเด็นที่แบบจำลองภาษาร่างขึ้นไม่ผ่านการตรวจสอบหลักฐาน วันบังคับใช้ หรือการคงข้อเท็จจริง และ **ไม่สลับไปใช้คำตอบสำเร็จรูปแทน**:\n` +
@@ -1791,7 +2111,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       assumptions_th: params.draft.assumptions_th || [],
       clarification_questions_th: params.draft.clarification_questions_th || [],
       coverage_warnings_th: rejectedClaims.map(
-        (r) => `ระงับประเด็น ${r.issue_id}: ${r.rejection_reason_th} (${r.rejection_code})`
+        (r) =>
+          `ระงับประเด็น ${r.issue_id}: ${redactPublicClaimRejectionReasonTh(r.rejection_reason_th)} (${r.rejection_code})`
       ),
       rejected_calculations_diagnostic: buildRejectedDiagnostics(),
       audit_trace: {
@@ -1876,7 +2197,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   const coverageWarnings: string[] = [
     ...evidenceGaps,
     ...rejectedClaims.map(
-      (r) => `ระงับประเด็นร่าง (${r.issue_id}): ${r.rejection_reason_th} [${r.rejection_code}]`
+      (r) =>
+        `ระงับประเด็นร่าง (${r.issue_id}): ${redactPublicClaimRejectionReasonTh(r.rejection_reason_th)} [${r.rejection_code}]`
     ),
     ...rejectedCalculations.map(
       (rc) =>

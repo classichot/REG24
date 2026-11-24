@@ -11,7 +11,10 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { getVerifiedStatutoryCorpus } from "../data/verified-statutory-loader";
 import { evaluateSubstantiveClaimSupport } from "./answer-verification";
-import { verifySection47AllowanceComponentsFromFacts } from "./tax-calculation-verifier";
+import {
+  evaluateSection47ClaimAmountsAndSubclauses,
+  verifySection47AllowanceComponentsFromFacts,
+} from "./tax-calculation-verifier";
 import { isPassageCurrentlyAuthorizedAndActive } from "./evidence";
 import { arabicDigitsToThai, sha256Bytes, thaiDigitsToArabic } from "./identity";
 import { formatOfficialLinkStatusNoticeTh } from "./link-health";
@@ -3203,10 +3206,43 @@ export async function saveOrReviseAnswerServerVerified(
         userContextText: params.question_text || "",
         citedVerbatimText: citedS47Verbatim,
       });
-      if (s47Reverify.applicable && s47Reverify.verifiedNumericTokens.length > 0) {
-        verifiedTokensForThisClaimOnly = Array.from(
-          new Set([...(verifiedTokensForThisClaimOnly || []), ...s47Reverify.verifiedNumericTokens])
-        );
+      if (s47Reverify.applicable) {
+        const rawText = rawClm.text || "";
+        const bEnd = rawText.startsWith("[") ? rawText.indexOf("]") : -1;
+        const bodyAfterHeader = bEnd > 0 ? rawText.slice(bEnd + 1).trim() : rawText;
+        const firstParen = bodyAfterHeader.indexOf(" (ตาม");
+        const conclusionPart =
+          firstParen > 0 ? bodyAfterHeader.slice(0, firstParen).trim() : bodyAfterHeader;
+        const explanationPart =
+          firstParen > 0 ? bodyAfterHeader.slice(firstParen + 2).replace(/\)$/, "").trim() : "";
+
+        const s47SaveCheck = evaluateSection47ClaimAmountsAndSubclauses({
+          conclusionTh: conclusionPart,
+          applicationExplanationTh: explanationPart,
+          fullClaimStatement: rawText,
+          userContextText: params.question_text || "",
+          s47Eval: s47Reverify,
+          isSingleSummaryIssue: (sub.claims?.length || 0) <= 1,
+        });
+        if (!s47SaveCheck.ok) {
+          if (callerClaimedSupported) {
+            throw new Error(
+              `UNSUPPORTED_ANSWER_REJECTED_422: ${
+                s47SaveCheck.publicRedactedReasonTh ||
+                "Section 47 claim failed numeric or subclause verification."
+              }`
+            );
+          }
+          verifiedTokensForThisClaimOnly = [];
+        } else {
+          const nextTokens = [...s47Reverify.verifiedNumericTokens];
+          if (s47SaveCheck.allowZeroTokenInClaim) {
+            nextTokens.push("0");
+          }
+          verifiedTokensForThisClaimOnly = Array.from(
+            new Set([...(verifiedTokensForThisClaimOnly || []), ...nextTokens])
+          );
+        }
       }
     }
 
@@ -3778,9 +3814,27 @@ export function attachTraceableEnvelopeToGroundedAnswer(
     const trustedTokensByClaimId: Record<string, string[]> = {};
     const trustedCalcsByClaimId: Record<string, ClaimBoundCalculationRecord> = {};
     for (const clm of builtEnvelope.claims) {
+      const owningClaim = (grounded.claims || []).find(
+        (gc) =>
+          gc.claim_id === clm.claim_id ||
+          (Boolean(gc.claim_id) && clm.claim_id.startsWith(`${gc.claim_id}.p`)) ||
+          gc.statement === clm.text
+      );
       if (clm.bound_calculation) {
         trustedCalcsByClaimId[clm.claim_id] = clm.bound_calculation;
-        trustedTokensByClaimId[clm.claim_id] = clm.bound_calculation.verified_numeric_tokens;
+        trustedTokensByClaimId[clm.claim_id] = Array.from(
+          new Set([
+            ...(clm.bound_calculation.verified_numeric_tokens || []),
+            ...(owningClaim?.verified_calculation_numeric_tokens || []),
+          ])
+        );
+      } else if (
+        owningClaim?.verified_calculation_numeric_tokens &&
+        owningClaim.verified_calculation_numeric_tokens.length > 0
+      ) {
+        trustedTokensByClaimId[clm.claim_id] = [
+          ...owningClaim.verified_calculation_numeric_tokens,
+        ];
       }
     }
     return commitTraceableAnswerAtomically(store, builtEnvelope, linksToCommit, {
