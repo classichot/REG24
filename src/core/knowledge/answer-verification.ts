@@ -12,6 +12,10 @@
  */
 
 import { normalizeOfficialRulingIdentifier, thaiDigitsToArabic } from "./identity";
+import {
+  resolveInPlaceAmendedBaseDecreeBindings,
+  stripCompilerSeeAlsoNotes,
+} from "./authority-surface-auditor";
 import type { ClaimLedgerItem, Passage } from "./contracts";
 
 export interface ClaimVerificationOutcome {
@@ -220,7 +224,9 @@ function extractCanonicalRulingIds(rawText: string): string[] {
 
 export function extractCanonicalInstrumentNumbers(normText: string): string[] {
   const out = new Set<string>();
-  for (const m of normText.matchAll(/(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^0-9\n]{0,115}ฉบับที่\s*([0-9]+)/g)) {
+  for (const m of normText.matchAll(
+    /(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)(?:(?!พระราชกฤษฎีกา|พ\.ร\.ฎ\.|พระราชบัญญัติ|พ\.ร\.บ\.|กฎกระทรวง|ประกาศอธิบดี|คำสั่งกรมสรรพากร)[^0-9\n]){0,115}ฉบับที่\s*([0-9]+)/g
+  )) {
     out.add(`พรฎ.${m[1]}`);
   }
   for (const m of normText.matchAll(/พ\.ร\.ฎ\.\s*\(?\s*([0-9]{2,4})\s*\)?(?![0-9/])/g)) {
@@ -786,7 +792,67 @@ export function evaluateSubstantiveClaimSupport(params: {
     }
   }
 
-  const sourceInstruments = new Set(extractCanonicalInstrumentNumbers(combinedNormWithMeta));
+  // Build grounded subordinate/judicial instrument set per passage:
+  // For an amending Royal Decree (`subreg.th.rc.royal_decree.<amendNum>`), ground its own `พรฎ.<amendNum>`,
+  // and ground an amended base decree `พรฎ.<baseNum>` ONLY when `<baseNum>` is the in-place amended base
+  // provision (`มาตรา <sec> แห่ง พ.ร.ฎ. ... ฉบับที่ <baseNum>`) AND the claim also cites `พรฎ.<amendNum>`
+  // in an amendment/base-article relationship (never grounding a repealed `ซึ่งแก้ไขเพิ่มเติมโดย` decree
+  // or an unamended standalone base decree).
+  const sourceInstruments = new Set<string>();
+  const claimInstrumentSet = new Set(claimInstruments);
+  const amendedBaseBindingsInPassages = resolveInPlaceAmendedBaseDecreeBindings(
+    params.passages.map((p) => ({
+      work_id: p.doc_id || null,
+      pinpoint: (p.section_path || []).join(" > "),
+      verbatim_text: p.verbatim_text,
+    }))
+  );
+  for (const p of params.passages) {
+    const amendDecreeMatch = /^subreg\.th\.rc\.royal_decree\.([0-9]+)$/.exec(p.doc_id || "");
+    if (amendDecreeMatch) {
+      const ownAmendNum = amendDecreeMatch[1];
+      sourceInstruments.add(`พรฎ.${ownAmendNum}`);
+      const perPsgNorm = normalizeForEntailment(
+        `${p.source_native_id || ""} ${p.doc_title_th || ""} ${(p.section_path || []).join(" ")} ${p.verbatim_text}`
+      );
+      for (const extractedInst of extractCanonicalInstrumentNumbers(perPsgNorm)) {
+        if (!extractedInst.startsWith("พรฎ.")) {
+          sourceInstruments.add(extractedInst);
+          continue;
+        }
+        const candDecreeNum = extractedInst.slice("พรฎ.".length);
+        if (candDecreeNum === ownAmendNum) {
+          sourceInstruments.add(extractedInst);
+          continue;
+        }
+        const validBaseLink = amendedBaseBindingsInPassages.find(
+          (b) =>
+            b.amendingDecreeNum === ownAmendNum && b.amendedBaseDecreeNum === candDecreeNum
+        );
+        const hasAmendFramingInClaim =
+          /(?:แก้ไข|แทนที่|ยกเลิกความใน)/.test(normClaimWithHeader) ||
+          (validBaseLink !== undefined &&
+            new RegExp(
+              `มาตรา\\s*${validBaseLink.amendedSectionNum}\\s*แห่ง\\s*(?:พระราชกฤษฎีกา|พ\\.ร\\.ฎ\\.)`
+            ).test(normClaimWithHeader));
+        if (
+          validBaseLink &&
+          claimInstrumentSet.has(`พรฎ.${ownAmendNum}`) &&
+          hasAmendFramingInClaim
+        ) {
+          sourceInstruments.add(extractedInst);
+        }
+      }
+      continue;
+    }
+
+    const fullPsgNorm = normalizeForEntailment(
+      `${p.source_native_id || ""} ${p.doc_title_th || ""} ${(p.section_path || []).join(" ")} ${p.verbatim_text}`
+    );
+    for (const extractedInst of extractCanonicalInstrumentNumbers(fullPsgNorm)) {
+      sourceInstruments.add(extractedInst);
+    }
+  }
   const excludedContextInstrumentSet = new Set(params.excluded_context_instruments || []);
   for (const inst of claimInstruments) {
     if (!sourceInstruments.has(inst) && !excludedContextInstrumentSet.has(inst)) {

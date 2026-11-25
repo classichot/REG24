@@ -93,7 +93,10 @@ export function extractNamedAuthoritiesFromText(rawText: string): ExtractedNamed
   }
 
   // 3. Royal Decrees (`พระราชกฤษฎีกา ... ฉบับที่ N` or `พ.ร.ฎ. N`)
-  for (const m of lowerNorm.matchAll(/(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^0-9\n]{0,115}ฉบับที่\s*([0-9]+)/g)) {
+  //    Do not span across an intervening distinct instrument keyword (`พระราชกฤษฎีกา`, `พระราชบัญญัติ`, `กฎกระทรวง`, `ประกาศอธิบดี`, `คำสั่งกรมสรรพากร`).
+  for (const m of lowerNorm.matchAll(
+    /(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)(?:(?!พระราชกฤษฎีกา|พ\.ร\.ฎ\.|พระราชบัญญัติ|พ\.ร\.บ\.|กฎกระทรวง|ประกาศอธิบดี|คำสั่งกรมสรรพากร)[^0-9\n]){0,115}ฉบับที่\s*([0-9]+)/g
+  )) {
     pushAuth("royal_decree", `พรฎ.${m[1]}`, m[0]);
   }
   for (const m of lowerNorm.matchAll(/พ\.ร\.ฎ\.\s*\(?\s*([0-9]{2,4})\s*\)?(?![0-9/])/g)) {
@@ -143,6 +146,93 @@ export function extractNamedAuthoritiesFromText(rawText: string): ExtractedNamed
   }
 
   return out;
+}
+
+/**
+ * Strips website compiler cross-reference notes such as `( ดูพระราชกฤษฎีกาฯ (ฉบับที่ 479) พ.ศ.2551 )`
+ * or `( ดูคำสั่งกรมสรรพากร ที่ ป.119/2545 )` so editorial margin links inside Revenue Code HTML pages
+ * can never masquerade as operative statutory/subordinate authority bindings.
+ */
+export function stripCompilerSeeAlsoNotes(rawText: string): string {
+  return (rawText || "").replace(
+    /\(\s*ดู\s*(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.|คำสั่งกรมสรรพากร|ประกาศอธิบดี|กฎกระทรวง|คำวินิจฉัย)[^)]*\)/g,
+    " "
+  );
+}
+
+export interface InPlaceAmendedBaseDecreeBinding {
+  amendingDecreeNum: string;
+  amendedBaseDecreeNum: string;
+  amendedSectionNum: string;
+}
+
+/**
+ * Resolves general statutory amendment lineage when a verified, non-OUT_OF_WINDOW amending Royal Decree
+ * passage (`work_id = "subreg.th.rc.royal_decree.<amendNum>"`) replaces or amends an article of a base
+ * Royal Decree in place (`มาตรา <sec> แห่งพระราชกฤษฎีกา... (ฉบับที่ <baseNum>)`).
+ *
+ * - Strictly distinguishes the amended base decree (`มาตรา <sec> แห่ง... ฉบับที่ <baseNum>`) from any
+ *   repealed intermediate amending decree (`ซึ่งแก้ไขเพิ่มเติมโดย... ฉบับที่ <prev>`), compiler footnotes,
+ *   or historical guidance examples.
+ * - Zero hardcoded decree numbers / zero allowlists.
+ */
+export function resolveInPlaceAmendedBaseDecreeBindings(
+  nonOutOfWindowPassages: Array<{
+    work_id?: string | null;
+    pinpoint?: string | null;
+    verbatim_text: string;
+  }>
+): InPlaceAmendedBaseDecreeBinding[] {
+  const results: InPlaceAmendedBaseDecreeBinding[] = [];
+  const seen = new Set<string>();
+
+  for (const p of nonOutOfWindowPassages) {
+    const amendMatch = /^subreg\.th\.rc\.royal_decree\.([0-9]+)$/.exec(p.work_id || "");
+    if (!amendMatch) continue;
+    const amendingDecreeNum = amendMatch[1];
+    const sourceText = thaiDigitsToArabic(
+      stripCompilerSeeAlsoNotes(`${p.pinpoint || ""}\n${p.verbatim_text || ""}`)
+    ).replace(/\s+/g, " ");
+
+    // Pattern 1: `มาตรา <sec> แห่งพระราชกฤษฎีกา... (ฉบับที่ <baseNum>)`
+    // (`[^0-9\n]` cannot cross `<baseNum>` or its year into `ซึ่งแก้ไขเพิ่มเติมโดย... (ฉบับที่ <prev>)`!)
+    for (const m of sourceText.matchAll(
+      /มาตรา\s*([0-9]+)\s*แห่ง\s*(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^0-9\n]{0,95}ฉบับที่\s*([0-9]+)/g
+    )) {
+      const secNum = m[1];
+      const baseNum = m[2];
+      if (baseNum === amendingDecreeNum) continue;
+      const key = `${amendingDecreeNum}->${baseNum}:${secNum}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({
+          amendingDecreeNum,
+          amendedBaseDecreeNum: baseNum,
+          amendedSectionNum: secNum,
+        });
+      }
+    }
+
+    // Pattern 2: `บทบัญญัติแก้ไขเพิ่มเติม พ.ร.ฎ. (ฉบับที่ <baseNum>) มาตรา <sec>`
+    for (const m of sourceText.matchAll(
+      /แก้ไขเพิ่มเติม\s*(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^0-9\n]{0,65}ฉบับที่\s*([0-9]+)[^0-9\n]{0,25}มาตรา\s*([0-9]+)/g
+    )) {
+      const baseNum = m[1];
+      const secNum = m[2];
+      if (baseNum === amendingDecreeNum) continue;
+      const key = `${amendingDecreeNum}->${baseNum}:${secNum}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        results.push({
+          amendingDecreeNum,
+          amendedBaseDecreeNum: baseNum,
+          amendedSectionNum: secNum,
+        });
+      }
+    }
+  }
+
+  return results;
 }
 
 export function isNamedAuthoritySupportedByPassages(
@@ -205,6 +295,32 @@ export function isNamedAuthoritySupportedByPassages(
         return true;
       }
 
+      // General in-place amended base decree lineage:
+      // Supported ONLY when a bound, verified, in-window amending Royal Decree passage explicitly amends
+      // `มาตรา <sec> แห่ง พ.ร.ฎ. (ฉบับที่ <num>)` in place AND `contextText` explicitly pairs `<num>` with
+      // that governing amending decree (`พรฎ.<amendNum>`) in an amendment/base-article relationship.
+      const amendedBaseLinks = resolveInPlaceAmendedBaseDecreeBindings(nonOutOfWindow).filter(
+        (lnk) => lnk.amendedBaseDecreeNum === num
+      );
+      if (amendedBaseLinks.length > 0) {
+        const extractedInCtx = extractNamedAuthoritiesFromText(contextText);
+        const pairedWithCitedAmendingDecree = amendedBaseLinks.some((lnk) => {
+          const citesGoverningAmendingDecree = extractedInCtx.some(
+            (a) => a.kind === "royal_decree" && a.canonicalId === `พรฎ.${lnk.amendingDecreeNum}`
+          );
+          if (!citesGoverningAmendingDecree) return false;
+          return (
+            /(?:แก้ไข|แทนที่|ยกเลิกความใน)/.test(normCtx) ||
+            new RegExp(
+              `มาตรา\\s*${lnk.amendedSectionNum}\\s*แห่ง\\s*(?:พระราชกฤษฎีกา|พ\\.ร\\.ฎ\\.)`
+            ).test(normCtx)
+          );
+        });
+        if (pairedWithCitedAmendingDecree) {
+          return true;
+        }
+      }
+
       // Statutory cross-reference inside verified Revenue Code §50(5)(ข) / §48(4)(ข) (`พระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529`)
       // permitted ONLY when that exact statutory passage is bound AND no RD 165 section number is fabricated!
       if (num === "165") {
@@ -222,7 +338,9 @@ export function isNamedAuthoritySupportedByPassages(
 
       if (opts?.isEvidenceGapNotice) {
         return nonOutOfWindow.some((p) =>
-          new RegExp(`ฉบับที่\\s*${num}(?![0-9])`).test(thaiDigitsToArabic(p.verbatim_text))
+          new RegExp(`ฉบับที่\\s*${num}(?![0-9])`).test(
+            thaiDigitsToArabic(stripCompilerSeeAlsoNotes(p.verbatim_text))
+          )
         );
       }
       return false;
