@@ -19,6 +19,8 @@ import { parseFlexibleThaiOrEnglishDateToIso } from "./temporal-versioning";
 
 export type TemporalEventKind =
   | "REGISTRATION"
+  | "OWNERSHIP_TRANSFER"
+  | "DELIVERY"
   | "TRANSFER"
   | "INVOICE"
   | "PAYMENT"
@@ -26,6 +28,8 @@ export type TemporalEventKind =
   | "ACCOUNTING_PERIOD_START"
   | "QUESTION_DATE"
   | "STATED_TRANSACTION_DATE";
+
+export type EventPortionCoverageScope = "FULL" | "PARTIAL" | "UNSTATED";
 
 export interface PreservedMaterialFact {
   fact_key: string;
@@ -45,10 +49,14 @@ export interface PreservedTemporalEvent {
   raw_text: string;
   iso_date: string;
   source_turn: number;
+  /** Verbatim local clause provenance from the user's turn that anchored this event. */
+  provenance_clause_th?: string;
   amount_thb?: number | null;
+  /** Explicit portion coverage attached to this event (`FULL`, `PARTIAL`, or `UNSTATED`). */
+  portion_coverage?: EventPortionCoverageScope;
   is_settlement_of_prior_invoice?: boolean;
   has_remaining_balance_marker?: boolean;
-  /** Candidate 8: the event clause states physical delivery of goods (`ส่งมอบสินค้า` / `ส่งของ`), Revenue Code §78(1). */
+  /** Candidate 8/9: physical delivery of goods (`ส่งมอบสินค้า` / `ส่งของ`), Revenue Code §78(1). */
   is_goods_delivery?: boolean;
 }
 
@@ -157,14 +165,85 @@ function lastRegexMatchIndex(text: string, re: RegExp): number {
   return last;
 }
 
+function extractEventKindSpanAndCoverage(params: {
+  kind: TemporalEventKind;
+  effectiveClause: string;
+  postQualifier: string;
+}): {
+  amountThb: number | null;
+  coverage: EventPortionCoverageScope;
+} {
+  const { kind, effectiveClause, postQualifier } = params;
+  const verbRe =
+    kind === "OWNERSHIP_TRANSFER"
+      ? /(?:โอนกรรมสิทธิ์|กรรมสิทธิ์|(?:full\s+|partial\s+)?(?:ownership|title)|transfer(?:s|red)?\s+(?:full\s+|partial\s+)?(?:ownership|title))/i
+      : kind === "INVOICE"
+        ? /(?:ออกใบกำกับภาษี|ออกใบกำกับ|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i
+        : kind === "PAYMENT"
+          ? /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)|paid\b|payment(?:s)?\s+of|(?:and\s+)?(?:THB|฿)\s*[0-9,]+)/i
+          : kind === "DELIVERY"
+            ? /(?:ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ส่งสินค้า(?!ออก)|ส่งมอบ(?!บริการ)|\bdeliver(?:y|ed|s)?)/i
+            : null;
+
+  let subClause = effectiveClause;
+  if (verbRe) {
+    const firstMatch = effectiveClause.match(verbRe);
+    const lastIdx = lastRegexMatchIndex(effectiveClause, verbRe);
+    const anchorIdx =
+      kind === "OWNERSHIP_TRANSFER"
+        ? (firstMatch?.index ?? lastIdx)
+        : lastIdx;
+    if (anchorIdx >= 0) {
+      subClause = effectiveClause.slice(anchorIdx);
+    }
+  }
+  const combinedSpan = `${subClause} ${postQualifier}`.trim();
+  const hasExplicitUnstated =
+    /(?:ไม่(?:ได้)?ระบุ(?:ว่า)?(?:โอนกรรมสิทธิ์|ชำระ|ออกใบกำกับภาษี|ครอบคลุม)?(?:ทั้งหมด|เต็มจำนวน|บางส่วน|สัดส่วน|มูลค่า|จำนวน)|ไม่ทราบ(?:ว่า|มูลค่า|สัดส่วน|จำนวน)|ยังไม่ชัดเจนว่า(?:ทั้งหมด|เต็มจำนวน|บางส่วน)|without\s+stating\s+(?:whether|if|how\s+much|the\s+portion)|coverage\s+(?:is\s+)?(?:not\s+stated|unstated|unknown|unclear))/i.test(
+      combinedSpan
+    );
+  if (hasExplicitUnstated) {
+    return { amountThb: null, coverage: "UNSTATED" };
+  }
+
+  const preDateAmount = extractNearestClauseAmountThb(subClause);
+  const amountThb =
+    preDateAmount !== null
+      ? preDateAmount
+      : kind === "PAYMENT"
+        ? extractNearestClauseAmountThb(combinedSpan) ??
+          (/^\s*(?:and\s+)?(?:THB|฿)\s*[0-9,]+/i.test(effectiveClause)
+            ? extractNearestClauseAmountThb(effectiveClause)
+            : null)
+        : extractNearestClauseAmountThb(combinedSpan);
+
+  const hasExplicitPartial =
+    /(?:บางส่วน|เฉพาะส่วน|เฉพาะบางรายการ|บางรายการ|ส่วนหนึ่ง|ส่วนแรก|ล็อตแรก|งวดแรก|มัดจำ|บางงวด|partial(?:ly)?|part\s+of\s+(?:the\s+)?goods|first\s+(?:lot|batch|portion|installment))/i.test(
+      combinedSpan
+    );
+  if (hasExplicitPartial) {
+    return { amountThb, coverage: "PARTIAL" };
+  }
+
+  const hasExplicitFull =
+    /(?:ทั้งหมด|ทั้งจำนวน|ครบทั้งจำนวน|เต็มจำนวน|เต็มราคา|เต็มมูลค่า|ราคาทั้งหมด|ทั้งรายการ|ทั้งล็อต|ทั้งสัญญา|ทั้งก้อน|ครบถ้วน|100\s*%|ร้อยละ\s*100|(?:สินค้า|เครื่องจักร|รถยนต์|อุปกรณ์)(?:คัน|เครื่อง|ชิ้น|รายการ)(?:นั้น|ดังกล่าว)|full\s+(?:ownership|title|payment|price|amount|tax\s+invoice|invoice)|entire\s+(?:goods|shipment|order|lot|amount|price)|all\s+(?:of\s+)?(?:the\s+)?goods)/i.test(
+      combinedSpan
+    );
+  if (hasExplicitFull) {
+    return { amountThb, coverage: "FULL" };
+  }
+
+  return { amountThb, coverage: "UNSTATED" };
+}
+
 function extractDatesWithEventKinds(
   cleanedText: string,
-  turnNumber: number
+  turnNumber: number,
+  options?: { isImmovableTurn?: boolean }
 ): PreservedTemporalEvent[] {
   const norm = thaiDigitsToArabic(cleanedText);
   const events: PreservedTemporalEvent[] = [];
   const seen = new Set<string>();
-  let prevDateEnd = 0;
 
   // Candidate 8: agreed Thai short-year policy — a 2-digit year directly after a Thai month name/abbreviation
   // (optionally `พ.ศ.`) is B.E. 25xx only within 40..79 and never when the digits continue as an amount, rate,
@@ -174,58 +253,166 @@ function extractDatesWithEventKinds(
     "gi"
   );
 
+  const dateMatches: Array<{ rawDate: string; iso: string; idx: number; endIdx: number }> = [];
   for (const m of norm.matchAll(datePattern)) {
     const rawDate = m[1].trim();
     const iso = parseFlexibleThaiOrEnglishDateToIso(rawDate);
     if (!iso) continue;
     const idx = m.index ?? 0;
+    dateMatches.push({ rawDate, iso, idx, endIdx: idx + m[1].length });
+  }
+
+  const coBoundaryRe =
+    /(?:[.;]|ต่อมา|จากนั้น|ภายหลัง(?:จากนั้น)?|หลังจากนั้น|(?<![ก-๙])ส่วน(?=\s*(?:การ|ในส่วน))|แต่(?=\s*(?:ต่อมา|การ|ส่งมอบ|โอนกรรมสิทธิ์|รับชำระ|ชำระ|ออกใบกำกับ|ผู้|ลูกค้า|บริษัท|ยัง|ในวันที่|เมื่อวันที่|เลื่อน))|โดย(?=\s*(?:ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|โอนกรรมสิทธิ์|มีการโอนกรรมสิทธิ์|การส่งมอบ|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|จดทะเบียน))|เดิม(?=\s*(?:มีแผน|วางแผน|กำหนด|ตกลง))|(?:บริษัท|ลูกค้า|ผู้ให้บริการ|ผู้ประกอบการ|ผู้ขาย|ผู้ซื้อ|ผู้รับบริการ)(?=\s*(?:ออกใบกำกับ|ชำระ|รับชำระ|จ่าย|ได้รับชำระ|โอนกรรมสิทธิ์|ส่งมอบ)))/gi;
+
+  for (let k = 0; k < dateMatches.length; k++) {
+    const { rawDate, iso, idx, endIdx } = dateMatches[k];
+    const prevEndIdx = k > 0 ? dateMatches[k - 1].endIdx : 0;
+    const nextStartIdx = k + 1 < dateMatches.length ? dateMatches[k + 1].idx : norm.length;
+
     const leftCtx = norm.slice(Math.max(0, idx - 65), idx);
     const localClause = extractLocalClauseBeforeDate(norm, idx);
-    const rightCtx = norm.slice(idx + rawDate.length, idx + rawDate.length + 35);
+    const rightCtx = norm.slice(endIdx, Math.min(norm.length, endIdx + 45));
     const ctx = `${leftCtx} ${rightCtx}`;
 
+    const rawPreSegment = norm.slice(Math.max(prevEndIdx, idx - 170), idx);
+    const rawPostSegment = norm.slice(endIdx, Math.min(nextStartIdx, endIdx + 120));
+
+    let lastCoCut = 0;
+    for (const bm of rawPreSegment.matchAll(coBoundaryRe)) {
+      const pos = bm.index ?? 0;
+      if (rawPreSegment.length - pos >= 10) {
+        lastCoCut = pos;
+      }
+    }
+    const rawCoClause = rawPreSegment.slice(lastCoCut);
+
+    // Candidate 9 (§78(1)(a)): distinguish actual ownership transfer from a planned future transfer
+    // or a transfer that did NOT occur on this date.
+    const hasPlannedTitleMarker =
+      /(?:มีแผน(?:ที่จะ|จะ)?|วางแผน(?:ที่จะ|จะ)?|คาดว่าจะ|ตั้งใจ(?:ที่จะ|จะ)?|เดิมกำหนด(?:ให้|ไว้|ว่าจะ)?|กำหนด(?:การ)?(?:ไว้)?(?:ว่า)?จะ|ตกลง(?:กัน)?ไว้(?:ก่อน)?ว่าจะ|เลื่อน(?:การ|วัน)?โอนกรรมสิทธิ์จาก(?:เดิม)?|(?:plan(?:ned|s)?|schedul(?:ed|es)|intend(?:ed|s)?|postponed)\s+to\s+transfer\s+(?:ownership|title)|(?:planned|scheduled|intended)\s+(?:ownership|title)\s+transfer)/i.test(
+        rawCoClause
+      ) ||
+      (/(?:จะโอนกรรมสิทธิ์|will\s+transfer\s+(?:ownership|title))/i.test(rawCoClause) &&
+        /^\s*(?:\([^)]*\)\s*)?(?:แต่|ทว่า|ซึ่ง|ปรากฏว่า|however|but)\s*(?:ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|เลื่อน|ยกเลิก|ไม่มีการ|did\s+not|was\s+postponed)/i.test(
+          rawPostSegment
+        ));
+    const hasNegatedTitleMarker =
+      /(?:ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่มีการ|ยังไม่|สงวนกรรมสิทธิ์(?:ไว้)?(?:โดยยังไม่)?)\s*(?:มีการ)?โอนกรรมสิทธิ์|(?:did\s+not|has\s+not|had\s+not|without|no)\s+(?:transfer(?:red|ring)?\s+(?:ownership|title)|(?:ownership|title)\s+transfer)/i.test(
+        `${rawCoClause} ${rawPostSegment.slice(0, 55)}`
+      );
+    const suppressOwnershipTransfer = hasPlannedTitleMarker || hasNegatedTitleMarker;
+
+    const coClauseCleaned = rawCoClause.replace(
+      /(?:โดย)?(?:ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่มีการ|ไม่เคย|ยังไม่|มีแผน(?:ที่จะ|จะ)?|วางแผน(?:ที่จะ|จะ)?|กำหนด(?:การ)?(?:ไว้)?(?:ว่า)?จะ|เลื่อน(?:การ|วัน)?)\s*(?:มีการ)?(?:ใช้บริการ|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับภาษี|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)[^,.;)]*?(?=\s+(?:บริษัท|ลูกค้า|ผู้|ต่อมา|แต่|ส่วน|ออกใบกำกับ|รับชำระ|ชำระ|โอนกรรมสิทธิ์|ส่งมอบ)|$)/gi,
+      " "
+    );
+    if (
+      suppressOwnershipTransfer &&
+      !/(?:จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv)/i.test(
+        coClauseCleaned
+      )
+    ) {
+      // Purely planned / postponed / non-occurring event on this date: never fall through to TRANSFER or STATED_TRANSACTION_DATE!
+      continue;
+    }
+
+    const postQualifier = rawPostSegment
+      .split(
+        /(?:ส่วน(?:การ|ที่เหลือ|สินค้าที่เหลือ)|ต่อมา|จากนั้น|และ(?:ต่อมา|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|โอนกรรมสิทธิ์|งวด|ส่วน|อีก)(?!.*ในวันเดียวกัน)|\band\s+(?:receiv|pay|paid|deliver|issu|transfer)|,\s*(?:and\s+|then\s+)?(?:receiv|pay|paid|deliver)|แต่|โดยไม่มี|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/i
+      )[0]
+      .trim();
+    const postSameDayClause = rawPostSegment
+      .split(/(?:โดยไม่มี|แต่|ต่อมา|ส่วน|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/)[0]
+      .trim();
+    const hasPreDateVerb =
+      /(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle)/i.test(
+        coClauseCleaned
+      );
+    const includePostSameDay =
+      (!hasPreDateVerb && postSameDayClause.length > 0) ||
+      /(?:ในวันเดียวกัน|วันเดียวกันนั้น|พร้อมกันในวันนั้น|on\s+the\s+same\s+day)/i.test(postSameDayClause) ||
+      /^(?:พร้อม(?:กับ|ทั้ง)?|และพร้อมกันนั้น)\s*(?:โอนกรรมสิทธิ์|ส่งมอบ|ส่งของ|รับชำระ|ชำระ|ออกใบกำกับ)/.test(
+        postSameDayClause
+      );
+    const effectiveClause = includePostSameDay
+      ? `${coClauseCleaned} ${postSameDayClause}`.trim()
+      : coClauseCleaned.trim();
+
+    // Strip relative comparators (`ก่อนส่งมอบสินค้า`, `ก่อนรับชำระเงิน`, `prior to delivery`) before verb detection
+    // so an early event described as occurring "before delivery/payment" never emits the comparator event on this date!
+    const verbCheckClause = effectiveClause
+      .replace(
+        /(?:ก่อน|หลัง(?:จาก)?|แทนการ)\s*(?:การ)?(?:ส่งมอบ(?:สินค้า|ของ|บริการ)?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|รับชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ออกใบกำกับ(?:ภาษี)?|ใช้บริการ)/gi,
+        " "
+      )
+      .replace(
+        /\b(?:before|prior\s+to|after|ahead\s+of)\s+(?:deliver(?:y|ing)|transfer(?:ring)?\s+(?:ownership|title)|payment|paying|issuing\s+(?:a\s+|the\s+)?(?:tax\s+)?invoice|invoicing)/gi,
+        " "
+      );
+
     const invoiceIssuanceRe =
-      /(?:ออกใบกำกับภาษี|ออกใบกำกับ|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
+      /(?:ออกใบกำกับภาษี(?!ไว้แล้ว)|ออกใบกำกับ(?!ภาษีไว้แล้ว)|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
     const paymentVerbRe =
-      /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|paid\b|payment(?:s)?\s+of)/i;
-    const lastInvIdx = lastRegexMatchIndex(localClause, invoiceIssuanceRe);
-    const lastPayIdx = lastRegexMatchIndex(localClause, paymentVerbRe);
-    const isInvoiceIssuance = lastInvIdx >= 0;
-    const isPaymentVerb = lastPayIdx >= 0;
+      /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+|full\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|(?:full\s+)?payment(?:\s+of)?\b|paid\b)/i;
+    const deliveryVerbRe =
+      /(?:ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ส่งสินค้า(?!ออก)|ส่งมอบ(?!บริการ)|\bdeliver(?:y|ed|s)?(?:\s+of)?(?:\s+(?:the\s+|all\s+)?goods)?\b)/i;
+    const actualOwnershipTransferRe =
+      /(?:โอนกรรมสิทธิ์|กรรมสิทธิ์(?:ในสินค้า|ของสินค้า|ในทรัพย์สินที่ขาย|สินค้า)?(?:ได้)?(?:โอน|ตกเป็นของ|เปลี่ยนมือ)|ผู้ซื้อได้(?:รับ)?กรรมสิทธิ์|(?:full\s+|partial\s+)?(?:ownership|title)(?:\s+(?:in|to|of)\s+(?:the\s+)?goods)?\s+(?:transfers?|transferred|passes?|passed)|transfer(?:s|red)?\s+(?:full\s+|partial\s+)?(?:ownership|title))/i;
+
+    const isInvoiceIssuance = invoiceIssuanceRe.test(verbCheckClause);
+    const isPaymentVerb = paymentVerbRe.test(verbCheckClause);
     const isEnglishContinuedPayment =
       !isInvoiceIssuance &&
       !isPaymentVerb &&
-      /^\s*(?:and\s+)?(?:THB|฿)\s*[0-9,]+/i.test(localClause) &&
-      /(?:receiv(?:e|ed|es)\s+.*payment|two\s+equal\s+payment|paid\b)/i.test(
-        norm.slice(Math.max(0, idx - 140), idx)
-      );
+      ((/^\s*(?:and\s+)?(?:THB|฿)\s*[0-9,]+/i.test(rawPreSegment) &&
+        /(?:receiv(?:e|ed|es)\s+.*payment|two\s+equal\s+payment|paid\b)/i.test(
+          norm.slice(Math.max(0, idx - 140), idx)
+        )) ||
+        (/^\s*(?:กับอีก|และอีก)\s*[0-9,]+\s*บาท/.test(rawPreSegment) &&
+          /(?:ได้รับชำระ|รับชำระ|ชำระเงิน|ชำระค่า|จ่ายเงิน)/.test(
+            norm.slice(Math.max(0, idx - 140), idx)
+          )));
     const isInstallmentPaymentHint =
       !isInvoiceIssuance &&
       /(?:มัดจำ|งวดแรก|งวดที่\s*[0-9]|งวดที่(?:หนึ่ง|สอง|สาม)|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน|remaining\s+(?:THB|฿|balance|amount))/i.test(
         localClause
       );
     const hasRemainingBalanceMarker = /(?:ส่วนที่เหลือ|ยอดคงเหลือ|remaining\s+(?:THB|฿|balance|amount|portion))/i.test(
-      localClause
+      effectiveClause
     );
     const isSettlementOfPriorInvoice =
       (isPaymentVerb || isEnglishContinuedPayment) &&
       /(?:ตามใบกำกับภาษี(?:ดังกล่าว|นั้น)?|ที่ออกใบกำกับภาษีไว้แล้ว|สำหรับใบกำกับภาษี(?:ดังกล่าว|นั้น)|บาทนั้น|จำนวนนั้น|of\s+that\s+(?:THB|฿)?\s*[0-9,]+|for\s+that\s+(?:tax\s+)?invoice)/i.test(
-        localClause
+        effectiveClause
       );
+
     const matchedKinds: TemporalEventKind[] = [];
-    // Never mistake taxpayer/entity/marital registration status (e.g. "ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม")
-    // for a property-transfer REGISTRATION date!
-    const registrationCheckClause = localClause.replace(
-      /(?:ผู้ประกอบการจดทะเบียน(?:ภาษีมูลค่าเพิ่ม|\s*VAT)?|จดทะเบียน(?:ภาษีมูลค่าเพิ่ม|\s*VAT|สมรส|จัดตั้งบริษัท|นิติบุคคล))/gi,
+    // Never mistake undated taxpayer/marital status adjectives (e.g. "ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม")
+    // for a dated REGISTRATION event, while keeping dated corporate/commercial/contract/machinery registrations
+    // classified as REGISTRATION (distinct from actual goods OWNERSHIP_TRANSFER!).
+    const registrationCheckClause = verbCheckClause.replace(
+      /(?:ผู้ประกอบการจดทะเบียน(?:ภาษีมูลค่าเพิ่ม|\s*VAT)?|สามีภริยาที่จดทะเบียนสมรส|จดทะเบียนสมรส)/gi,
       ""
     );
-    if (/จดทะเบียน|โอนกรรมสิทธิ์/.test(registrationCheckClause)) matchedKinds.push("REGISTRATION");
-    // When both an invoice verb and payment verb appear in the window, prefer the verb closest to the date
-    // (unless explicitly a settlement of a prior invoice, which is always PAYMENT, never a new INVOICE!)
+    const hasActualOwnershipTransfer =
+      !suppressOwnershipTransfer && actualOwnershipTransferRe.test(verbCheckClause);
+    if (hasActualOwnershipTransfer) {
+      matchedKinds.push(options?.isImmovableTurn ? "REGISTRATION" : "OWNERSHIP_TRANSFER");
+    } else if (/จดทะเบียน/.test(registrationCheckClause)) {
+      matchedKinds.push("REGISTRATION");
+    }
+
+    const isGoodsDelivery =
+      !options?.isImmovableTurn &&
+      deliveryVerbRe.test(verbCheckClause) &&
+      !/ส่งออก/.test(verbCheckClause);
+    if (isGoodsDelivery) {
+      matchedKinds.push("DELIVERY");
+    }
+
     if (isSettlementOfPriorInvoice) {
       matchedKinds.push("PAYMENT");
-    } else if (isInvoiceIssuance && isPaymentVerb) {
-      matchedKinds.push(lastInvIdx > lastPayIdx ? "INVOICE" : "PAYMENT");
     } else {
       if (isPaymentVerb || isEnglishContinuedPayment || isInstallmentPaymentHint) {
         matchedKinds.push("PAYMENT");
@@ -234,68 +421,53 @@ function extractDatesWithEventKinds(
         matchedKinds.push("INVOICE");
       }
     }
-    // Extract the amount strictly tied to THIS event's verb (never let a preceding contract total like
-    // "มูลค่า 100,000 บาท ออกใบกำกับภาษีวันที่ ..." be mistaken for the invoice's own amount!)
-    const primaryKind = matchedKinds[0];
-    const clauseAmountThb =
-      primaryKind === "INVOICE" && lastInvIdx >= 0
-        ? extractNearestClauseAmountThb(localClause.slice(lastInvIdx))
-        : primaryKind === "PAYMENT" && lastPayIdx >= 0
-          ? extractNearestClauseAmountThb(localClause.slice(lastPayIdx)) ??
-            extractNearestClauseAmountThb(localClause)
-          : extractNearestClauseAmountThb(localClause);
-    if (/(?:ใช้บริการ|เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|used\s+the\s+service)/i.test(localClause)) {
+
+    if (/(?:ใช้บริการ|เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|used\s+the\s+service)/i.test(verbCheckClause)) {
       matchedKinds.push("SERVICE_USE");
     }
     if (/รอบระยะเวลาบัญชี|รอบบัญชี/.test(ctx)) {
       matchedKinds.push("ACCOUNTING_PERIOD_START");
     }
-    if (/(?:ถามเมื่อ|วันที่ถาม|สอบถามเมื่อ|ณ\s*วันที่ถาม)/.test(localClause)) {
+    if (/(?:ถามเมื่อ|วันที่ถาม|สอบถามเมื่อ|ณ\s*วันที่ถาม)/.test(verbCheckClause)) {
       matchedKinds.push("QUESTION_DATE");
     }
-    // Candidate 8: goods delivery (§78(1)) — delivery verb must be the verb closest to this date in the
-    // preceding clause, or (date-first Thai phrasing `เมื่อวันที่ <date> เราส่งของ...`) the first verb in the
-    // forward clause up to the next clause boundary when no event verb preceded the date.
-    const deliveryVerbRe = /(?:ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ส่งสินค้า(?!ออก)|ส่งมอบ(?!บริการ))/;
-    // Delivery may precede a clause cut such as `ส่งมอบสินค้าและออกใบกำกับภาษีวันที่ ...`, so look back to the
-    // previous date (never across it) and require the delivery verb to be closer than any payment verb.
-    const deliveryWindow = norm.slice(Math.max(0, idx - 90, prevDateEnd), idx);
-    const lastDeliveryIdx = lastRegexMatchIndex(deliveryWindow, deliveryVerbRe);
-    const lastPayInWindowIdx = lastRegexMatchIndex(deliveryWindow, paymentVerbRe);
-    let isGoodsDelivery =
-      lastDeliveryIdx >= 0 && lastDeliveryIdx > lastPayInWindowIdx && !/ส่งออก/.test(deliveryWindow);
-    if (!isGoodsDelivery && matchedKinds.length === 0) {
-      const forwardClause = norm
-        .slice(idx + rawDate.length, idx + rawDate.length + 80)
-        .split(/(?:แต่|ต่อมา|[,;.]|เมื่อวันที่|ในวันที่|วันที่)/)[0];
-      isGoodsDelivery = deliveryVerbRe.test(forwardClause) && !/ส่งออก/.test(forwardClause);
-    }
     if (matchedKinds.length === 0) {
-      if (/(?:โอน|ยก|ให้|ขาย|ซื้อ)/.test(localClause)) {
+      if (/(?:โอน|ยก|ให้|ขาย|ซื้อ)/.test(verbCheckClause) && !suppressOwnershipTransfer) {
         matchedKinds.push("TRANSFER");
       } else {
         matchedKinds.push("STATED_TRANSACTION_DATE");
       }
     }
 
-    prevDateEnd = idx + rawDate.length;
+    const provenanceText = `${rawCoClause.trim()} ${rawDate}`.replace(/\s+/g, " ").trim().slice(0, 180);
     for (const kind of matchedKinds) {
       const dedupKey = `${turnNumber}:${kind}:${iso}`;
       if (seen.has(dedupKey)) continue;
       seen.add(dedupKey);
+      const { amountThb, coverage } = extractEventKindSpanAndCoverage({
+        kind,
+        effectiveClause: includePostSameDay ? effectiveClause : verbCheckClause,
+        postQualifier,
+      });
       events.push({
         event_type: kind,
         raw_text: rawDate,
         iso_date: iso,
         source_turn: turnNumber,
-        ...(clauseAmountThb !== null ? { amount_thb: clauseAmountThb } : {}),
+        provenance_clause_th: provenanceText,
+        ...(amountThb !== null ? { amount_thb: amountThb } : {}),
+        ...(kind === "OWNERSHIP_TRANSFER" || kind === "PAYMENT" || kind === "INVOICE" || kind === "DELIVERY"
+          ? { portion_coverage: coverage }
+          : {}),
         ...(kind === "PAYMENT" && isSettlementOfPriorInvoice
           ? { is_settlement_of_prior_invoice: true }
           : {}),
         ...(kind === "PAYMENT" && hasRemainingBalanceMarker
           ? { has_remaining_balance_marker: true }
           : {}),
-        ...(isGoodsDelivery && kind !== "PAYMENT" ? { is_goods_delivery: true } : {}),
+        ...(kind === "DELIVERY" || (isGoodsDelivery && kind !== "PAYMENT" && kind !== "INVOICE" && kind !== "OWNERSHIP_TRANSFER")
+          ? { is_goods_delivery: true }
+          : {}),
       });
     }
   }
@@ -919,7 +1091,10 @@ export function buildStructuredCaseFactLedger(input: {
     extractAmountsForTurn(cleaned, turnNumber, factsMap, overrides);
 
     // 7. Temporal events
-    const turnDates = extractDatesWithEventKinds(cleaned, turnNumber);
+    const isImmovableTurn =
+      Boolean(factsMap.get("asset")?.normalized_category.startsWith("IMMOVABLE_PROPERTY")) &&
+      !/(?:ขายสินค้า|ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ภาษีมูลค่าเพิ่ม|\bVAT\b)/i.test(norm);
+    const turnDates = extractDatesWithEventKinds(cleaned, turnNumber, { isImmovableTurn });
     allTemporalEvents.push(...turnDates);
 
     // 8. Explicitly stated unknown facts
@@ -1018,12 +1193,93 @@ export function buildStructuredCaseFactLedger(input: {
     latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates
   ).filter(
     (e) =>
+      e.event_type === "OWNERSHIP_TRANSFER" ||
+      e.event_type === "DELIVERY" ||
       e.event_type === "PAYMENT" ||
       e.event_type === "INVOICE" ||
       e.event_type === "SERVICE_USE" ||
       e.event_type === "TRANSFER" ||
       e.event_type === "STATED_TRANSACTION_DATE"
   );
+  const isImmovableAsset = Boolean(
+    factsMap.get("asset")?.normalized_category.startsWith("IMMOVABLE_PROPERTY")
+  );
+  const isServiceVat =
+    factsMap.get("vat_transaction_type")?.normalized_category === "VAT_PROVISION_OF_SERVICE";
+  const isExportVat =
+    factsMap.get("vat_transaction_type")?.normalized_category === "VAT_EXPORT_OF_GOODS";
+  const isHirePurchaseGoods = /เช่าซื้อ|hire[\s-]?purchase/i.test(normMergedAll);
+  const hasGoodsSaleSignal =
+    /(?:ขายสินค้า|ซื้อขายสินค้า|ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ส่งสินค้า(?!ออก)|โอนกรรมสิทธิ์(?:ใน)?สินค้า|ราคาสินค้า|ค่าสินค้า|sale\s+of\s+goods|sell(?:s|ing)?\s+goods|deliver(?:y|ed|s)?\s+(?:of\s+)?(?:the\s+)?goods)/i.test(
+      normMergedAll
+    ) ||
+    activeTurnVatDates.some(
+      (e) =>
+        e.is_goods_delivery ||
+        e.event_type === "DELIVERY" ||
+        e.event_type === "OWNERSHIP_TRANSFER"
+    );
+  const isDomesticGoodsSale = Boolean(
+    isVatCase &&
+      !isServiceVat &&
+      !isExportVat &&
+      !isImmovableAsset &&
+      !isHirePurchaseGoods &&
+      hasGoodsSaleSignal
+  );
+
+  // Establish independently stated total goods price (never mistaking a single partial advance figure for the total!)
+  let statedGoodsTotalThb: number | null = null;
+  for (const gm of normMergedAll.matchAll(
+    /(?:ขายสินค้า[^\n,.;]{0,65}?(?:ใน)?ราคา(?:รวม)?|ราคารวม(?:ทั้งสิ้น)?|ราคาสินค้า(?:ทั้งหมด|รวม)?(?:\s*ก่อน[^\n,.;]{0,25})?\s*(?:คือ|จำนวน|เท่ากับ)?|ค่าสินค้า(?:\s*ก่อน[^\n,.;]{0,25})?\s*(?:คือ|จำนวน|เท่ากับ)?|มูลค่าสินค้า(?:รวม|ทั้งหมด)?)\s*(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท)?/gi
+  )) {
+    const n = Number((gm[1] || "").replace(/,/g, ""));
+    if (Number.isFinite(n) && n > 0) {
+      statedGoodsTotalThb = gm[2] === "ล้านบาท" ? n * 1_000_000 : n;
+    }
+  }
+  const goodsReferenceTotalThb =
+    statedGoodsTotalThb ??
+    (allMentionedAmountsThb.filter((a) => Math.abs(a - maxMentionedAmountThb) < 1).length >= 2
+      ? maxMentionedAmountThb
+      : 0);
+
+  if (isDomesticGoodsSale && goodsReferenceTotalThb > 0) {
+    for (const ev of activeTurnVatDates) {
+      if (
+        ev.event_type !== "OWNERSHIP_TRANSFER" &&
+        ev.event_type !== "PAYMENT" &&
+        ev.event_type !== "INVOICE" &&
+        ev.event_type !== "DELIVERY"
+      ) {
+        continue;
+      }
+      if (ev.portion_coverage === "FULL") {
+        if (ev.amount_thb == null || ev.amount_thb <= 0) {
+          ev.amount_thb = goodsReferenceTotalThb;
+        }
+      } else if (typeof ev.amount_thb === "number" && ev.amount_thb > 0) {
+        if (ev.amount_thb < goodsReferenceTotalThb - 1) {
+          ev.portion_coverage = "PARTIAL";
+        } else if (ev.portion_coverage !== "PARTIAL") {
+          ev.portion_coverage = "FULL";
+        }
+      } else if (ev.portion_coverage === "PARTIAL" && ev.amount_thb == null && ev.provenance_clause_th) {
+        if (/ครึ่งหนึ่ง|half\s+of/i.test(ev.provenance_clause_th)) {
+          ev.amount_thb = Math.round(goodsReferenceTotalThb * 0.5 * 100) / 100;
+        } else {
+          const pctM = ev.provenance_clause_th.match(
+            /(?:สัดส่วน|คิดเป็น|จำนวน)\s*ร้อยละ\s*([1-9][0-9]?(?:\.[0-9]+)?)|([1-9][0-9]?(?:\.[0-9]+)?)\s*%\s*ของ(?:สินค้า|มูลค่า|ราคา)/i
+          );
+          const pct = pctM ? Number(pctM[1] || pctM[2]) : NaN;
+          if (Number.isFinite(pct) && pct > 0 && pct < 100) {
+            ev.amount_thb = Math.round(goodsReferenceTotalThb * (pct / 100) * 100) / 100;
+          }
+        }
+      }
+    }
+  }
+
   const activeInvoicesSorted = activeTurnVatDates
     .filter((e) => e.event_type === "INVOICE")
     .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
@@ -1064,6 +1320,7 @@ export function buildStructuredCaseFactLedger(input: {
 
   const singlePriorInvoiceCandidate = Boolean(
     isVatCase &&
+      !isDomesticGoodsSale &&
       !hasSeparateInvoicePerInstallmentWording &&
       !hasEarlierServiceUseBeforeInvoice &&
       activeInvoicesSorted.length === 1 &&
@@ -1131,78 +1388,219 @@ export function buildStructuredCaseFactLedger(input: {
     distinctActiveVatDatesByIso.size >= 2 &&
     (hasSplitPaymentWording || distinctPaymentDateCount >= 2);
 
-  // Candidate 8 — Sale of goods (§78(1)): the tax point is delivery, unless ownership transfer, payment or a tax
-  // invoice occurs BEFORE delivery (then the earlier act fixes the tax point for the portion it covers).
-  // Never apply the §78/1 service invoice-coverage logic to a goods delivery, never pick the LATER payment date,
-  // and never guess a decree when an earlier partial/unstated-amount act straddles a decree cutoff.
-  const isServiceVat =
-    factsMap.get("vat_transaction_type")?.normalized_category === "VAT_PROVISION_OF_SERVICE";
-  const isExportVat = factsMap.get("vat_transaction_type")?.normalized_category === "VAT_EXPORT_OF_GOODS";
+  // Candidate 8 & Candidate 9 — Sale of goods (Revenue Code §78(1)):
+  // The tax point is delivery (`ส่งมอบสินค้า`), unless before delivery there is:
+  //   (ก) actual transfer of ownership in the goods (`OWNERSHIP_TRANSFER`),
+  //   (ข) receipt of payment (`PAYMENT`), or
+  //   (ค) issuance of a tax invoice (`INVOICE`),
+  // in which case liability arises upon that earlier act strictly for the portion it covers ("ตามส่วนของการกระทำนั้นๆ"),
+  // without double-taxing that same portion on later delivery/payment/invoicing, without requiring a duplicate
+  // payment amount on an explicit full-goods title transfer, and without guessing or defaulting to delivery when an
+  // earlier event's coverage is unknown across decree windows.
   const goodsDeliveries = activeTurnVatDates
-    .filter((e) => e.is_goods_delivery)
+    .filter((e) => e.is_goods_delivery || e.event_type === "DELIVERY")
     .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
   const goodsDelivery = goodsDeliveries[0];
   const goodsEarlyActs = goodsDelivery
     ? activeTurnVatDates
         .filter(
           (e) =>
-            (e.event_type === "PAYMENT" || e.event_type === "INVOICE") &&
+            (e.event_type === "OWNERSHIP_TRANSFER" ||
+              e.event_type === "PAYMENT" ||
+              e.event_type === "INVOICE") &&
             !e.is_goods_delivery &&
             e.iso_date < goodsDelivery.iso_date
         )
-        .sort((a, b) => a.iso_date.localeCompare(b.iso_date))
+        .sort((a, b) => {
+          const cmp = a.iso_date.localeCompare(b.iso_date);
+          if (cmp !== 0) return cmp;
+          const rank = (k: TemporalEventKind) =>
+            k === "OWNERSHIP_TRANSFER" ? 0 : k === "PAYMENT" ? 1 : 2;
+          return rank(a.event_type) - rank(b.event_type);
+        })
     : [];
-  const goodsEarlyActsCoverWhole =
-    goodsEarlyActs.length > 0 &&
-    maxMentionedAmountThb > 0 &&
-    // The full price must be independently stated (or the payment explicitly described as full) — never infer
-    // full coverage merely because the advance payment is the only amount mentioned.
-    (allMentionedAmountsThb.filter((a) => Math.abs(a - maxMentionedAmountThb) < 1).length >= 2 ||
-      /(?:เต็มจำนวน|ทั้งจำนวน|ครบทั้งจำนวน|ราคาทั้งหมด)/.test(normMergedAll)) &&
-    goodsEarlyActs.some(
-      (e) => typeof e.amount_thb === "number" && e.amount_thb >= maxMentionedAmountThb - 1
-    );
+
+  const earliestEarlyIso = goodsEarlyActs[0]?.iso_date ?? null;
+  const earliestFullAct = earliestEarlyIso
+    ? goodsEarlyActs.find(
+        (e) => e.iso_date === earliestEarlyIso && e.portion_coverage === "FULL"
+      )
+    : undefined;
+  const goodsEarlyActsCoverWhole = Boolean(earliestFullAct);
   const goodsEarlyActsSameWindow =
     goodsDelivery !== undefined &&
-    goodsEarlyActs.every((e) => vatWindowBucket(e.iso_date) === vatWindowBucket(goodsDelivery.iso_date));
+    goodsDelivery.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO &&
+    goodsEarlyActs.every(
+      (e) =>
+        e.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO &&
+        vatWindowBucket(e.iso_date) === vatWindowBucket(goodsDelivery.iso_date)
+    );
+
+  // Group known-amount partial early acts by date (deduplicating co-occurring title/payment/invoice covering the same lot on the same date)
+  const earlyPartialPortionsByDate: PreservedTemporalEvent[] = [];
+  if (goodsDelivery && goodsEarlyActs.length > 0 && !goodsEarlyActsCoverWhole) {
+    const seenEarlyDates = new Set<string>();
+    for (const ea of goodsEarlyActs) {
+      if (seenEarlyDates.has(ea.iso_date)) continue;
+      seenEarlyDates.add(ea.iso_date);
+      earlyPartialPortionsByDate.push(ea);
+    }
+  }
+  const allEarlyPartialAmountsKnown =
+    goodsReferenceTotalThb > 0 &&
+    earlyPartialPortionsByDate.length > 0 &&
+    earlyPartialPortionsByDate.every(
+      (ea) =>
+        ea.portion_coverage === "PARTIAL" &&
+        typeof ea.amount_thb === "number" &&
+        ea.amount_thb > 0
+    );
+  const earlyPartialKnownSumThb = allEarlyPartialAmountsKnown
+    ? earlyPartialPortionsByDate.reduce((s, ea) => s + (ea.amount_thb ?? 0), 0)
+    : 0;
+  const isKnownPartialGoodsSplit =
+    allEarlyPartialAmountsKnown && earlyPartialKnownSumThb <= goodsReferenceTotalThb + 1;
+
   const isGoodsDeliveryTaxPoint = Boolean(
-    isVatCase &&
-      !isServiceVat &&
-      !isExportVat &&
+    isDomesticGoodsSale &&
       goodsDelivery &&
-      // Explicit multi-installment / deposit wording keeps the existing per-portion split analysis.
-      !(goodsEarlyActs.length > 0 && hasSplitPaymentWording && !goodsEarlyActsCoverWhole)
+      // Keep multi-installment pure deposit splits without delivery-anchored portion facts on the split path ONLY when
+      // neither full coverage nor known-partial goods split nor unknown early act applies.
+      !(
+        goodsEarlyActs.length > 0 &&
+        hasSplitPaymentWording &&
+        !goodsEarlyActsCoverWhole &&
+        !isKnownPartialGoodsSplit &&
+        earlyPartialPortionsByDate.some((e) => e.event_type === "PAYMENT") &&
+        distinctPaymentDateCount >= 2 &&
+        !goodsEarlyActs.some((e) => e.event_type === "OWNERSHIP_TRANSFER")
+      )
   );
 
+  const goodsEventActionTh = (k: TemporalEventKind): string =>
+    k === "OWNERSHIP_TRANSFER"
+      ? "โอนกรรมสิทธิ์ในสินค้า"
+      : k === "PAYMENT"
+        ? "รับชำระราคาสินค้า"
+        : "ออกใบกำกับภาษี";
+  const goodsEventSubclauseTh = (k: TemporalEventKind): string =>
+    k === "OWNERSHIP_TRANSFER"
+      ? "มาตรา 78 (1) (ก)"
+      : k === "PAYMENT"
+        ? "มาตรา 78 (1) (ข)"
+        : "มาตรา 78 (1) (ค)";
+
   if (isGoodsDeliveryTaxPoint && goodsDelivery) {
-    if (goodsEarlyActs.length === 0 || goodsEarlyActsCoverWhole || goodsEarlyActsSameWindow) {
-      const chosen = goodsEarlyActs.length > 0 ? goodsEarlyActs[0] : goodsDelivery;
-      controllingIso = chosen.iso_date;
-      controllingEvent =
-        goodsEarlyActs.length > 0
-          ? `GOODS_${chosen.event_type}_BEFORE_DELIVERY (${chosen.raw_text}, Turn ${chosen.source_turn})`
-          : `GOODS_DELIVERY (${goodsDelivery.raw_text}, Turn ${goodsDelivery.source_turn})`;
-      statutoryRuleHint =
-        goodsEarlyActs.length > 0
-          ? `ประมวลรัษฎากร มาตรา 78 (1): การขายสินค้า ความรับผิดเกิดขึ้นเมื่อส่งมอบสินค้า เว้นแต่ได้รับชำระราคาหรือออกใบกำกับภาษีก่อนส่งมอบ ให้ความรับผิดเกิดขึ้นเมื่อมีการกระทำนั้น (วันที่ ${chosen.iso_date})`
+    if (goodsEarlyActs.length === 0) {
+      controllingIso = goodsDelivery.iso_date;
+      controllingEvent = `GOODS_DELIVERY (${goodsDelivery.raw_text}, Turn ${goodsDelivery.source_turn})`;
+      const hasSameDayTitle = activeTurnVatDates.some(
+        (e) => e.event_type === "OWNERSHIP_TRANSFER" && e.iso_date === goodsDelivery.iso_date
+      );
+      const hasLaterTitle = activeTurnVatDates.some(
+        (e) => e.event_type === "OWNERSHIP_TRANSFER" && e.iso_date > goodsDelivery.iso_date
+      );
+      statutoryRuleHint = hasLaterTitle
+        ? `ประมวลรัษฎากร มาตรา 78 (1): การขายสินค้า ความรับผิดในการเสียภาษีมูลค่าเพิ่มเกิดขึ้นเมื่อส่งมอบสินค้า (วันที่ ${goodsDelivery.iso_date}) การโอนกรรมสิทธิ์หรือการรับชำระราคาภายหลังการส่งมอบไม่เปลี่ยนวันเกิดความรับผิดและไม่ทำให้เสียภาษีซ้ำ`
+        : hasSameDayTitle
+          ? `ประมวลรัษฎากร มาตรา 78 (1): การโอนกรรมสิทธิ์ การส่งมอบสินค้า การรับชำระราคา และการออกใบกำกับภาษีสำหรับสินค้าเดียวกันเกิดขึ้นพร้อมกันในวันที่ ${goodsDelivery.iso_date} ความรับผิดในการเสียภาษีมูลค่าเพิ่มจึงเกิดขึ้นครั้งเดียวในวันที่ ${goodsDelivery.iso_date} โดยห้ามนับฐานภาษีซ้ำ`
           : `ประมวลรัษฎากร มาตรา 78 (1): การขายสินค้า ความรับผิดในการเสียภาษีมูลค่าเพิ่มเกิดขึ้นเมื่อส่งมอบสินค้า (วันที่ ${goodsDelivery.iso_date}) การรับชำระเงินภายหลังไม่เปลี่ยนวันเกิดความรับผิด`;
       if (
         legalAsOfDate &&
-        legalAsOfDate !== chosen.iso_date &&
-        vatWindowBucket(legalAsOfDate) !== vatWindowBucket(chosen.iso_date)
+        legalAsOfDate !== controllingIso &&
+        vatWindowBucket(legalAsOfDate) !== vatWindowBucket(controllingIso)
       ) {
         isAmbiguous = true;
-        ambiguityReasonTh = `วันที่ในคำถาม (${chosen.iso_date}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
+        ambiguityReasonTh = `วันที่ในคำถาม (${controllingIso}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
       }
+    } else if (goodsEarlyActsCoverWhole && earliestFullAct) {
+      controllingIso = earliestFullAct.iso_date;
+      controllingEvent = `GOODS_${earliestFullAct.event_type}_BEFORE_DELIVERY (${earliestFullAct.raw_text}, Turn ${earliestFullAct.source_turn})`;
+      statutoryRuleHint = `ประมวลรัษฎากร ${goodsEventSubclauseTh(earliestFullAct.event_type)}: การขายสินค้าที่มีการ${goodsEventActionTh(earliestFullAct.event_type)}ทั้งหมดก่อนส่งมอบสินค้า ความรับผิดในการเสียภาษีมูลค่าเพิ่มสำหรับสินค้าทั้งหมดเกิดขึ้นเมื่อ${goodsEventActionTh(earliestFullAct.event_type)} (วันที่ ${earliestFullAct.iso_date}) การส่งมอบสินค้า การรับชำระราคา หรือการออกใบกำกับภาษีในภายหลัง (วันที่ ${goodsDelivery.iso_date}) สำหรับสินค้าเดียวกันไม่ก่อให้เกิดความรับผิดซ้ำและห้ามคำนวณภาษีซ้ำ`;
+      if (
+        legalAsOfDate &&
+        legalAsOfDate !== controllingIso &&
+        vatWindowBucket(legalAsOfDate) !== vatWindowBucket(controllingIso)
+      ) {
+        isAmbiguous = true;
+        ambiguityReasonTh = `วันที่ในคำถาม (${controllingIso}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
+      }
+    } else if (isKnownPartialGoodsSplit) {
+      const remainderThb = Math.max(
+        0,
+        Math.round((goodsReferenceTotalThb - earlyPartialKnownSumThb) * 100) / 100
+      );
+      const portions: SplitPaymentTaxPointItem[] = earlyPartialPortionsByDate.map((ea, idx) => ({
+        portion_index: idx + 1,
+        iso_date: ea.iso_date,
+        raw_text: ea.raw_text,
+        event_type: ea.event_type,
+        decree_window: vatWindowBucket(ea.iso_date),
+        within_verified_coverage: ea.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+        governing_decree_work_id: governingDecreeWorkIdForIso(ea.iso_date),
+        expired_or_non_governing_work_ids:
+          ea.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+        amount_thb: ea.amount_thb ?? null,
+        settled_payment_date_iso: goodsDelivery.iso_date,
+      }));
+      if (remainderThb > 1) {
+        portions.push({
+          portion_index: portions.length + 1,
+          iso_date: goodsDelivery.iso_date,
+          raw_text: goodsDelivery.raw_text,
+          event_type: "DELIVERY",
+          decree_window: vatWindowBucket(goodsDelivery.iso_date),
+          within_verified_coverage: goodsDelivery.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+          governing_decree_work_id: governingDecreeWorkIdForIso(goodsDelivery.iso_date),
+          expired_or_non_governing_work_ids:
+            goodsDelivery.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+          amount_thb: remainderThb,
+        });
+      }
+      isSplitPaymentMultiTaxPoint = portions.length >= 2;
+      splitPaymentTaxPoints = portions;
+      controllingIso = portions.length === 1 ? portions[0].iso_date : null;
+      controllingEvent = `GOODS_PARTIAL_EARLY_ACT_MULTI_TAX_POINT (${portions
+        .map((p) => `${p.iso_date}:${p.event_type}:${p.decree_window}:${p.amount_thb ?? "?"}`)
+        .join(" + ")})`;
+      statutoryRuleHint =
+        `ประมวลรัษฎากร มาตรา 78 (1) ("ตามส่วนของการกระทำนั้นๆ"): แยกวันเกิดความรับผิดและพระราชกฤษฎีกาตามสัดส่วนสินค้าที่มีหลักฐานรองรับโดยห้ามเก็บภาษีซ้ำเมื่อส่งมอบ/รับชำระ/ออกใบกำกับภาษีสำหรับส่วนที่เกิดความรับผิดไปแล้ว: ` +
+        portions
+          .map(
+            (p) =>
+              `ส่วนที่ ${p.portion_index} (${p.event_type === "DELIVERY" ? "ส่งมอบสินค้าส่วนที่เหลือ" : goodsEventActionTh(p.event_type)} มูลค่า ${(p.amount_thb ?? 0).toLocaleString("en-US")} บาท) วันที่ ${p.iso_date} ใช้ ${p.decree_window}`
+          )
+          .join("; ");
+    } else if (goodsEarlyActsSameWindow) {
+      const early = goodsEarlyActs[0];
+      controllingIso = early.iso_date;
+      controllingEvent = `GOODS_${early.event_type}_SAME_WINDOW_BEFORE_DELIVERY (${early.raw_text} & ${goodsDelivery.raw_text}, Turn ${early.source_turn})`;
+      statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78 (1): ทั้งวัน${goodsEventActionTh(early.event_type)}ก่อนส่งมอบ (${early.iso_date}) และวันส่งมอบสินค้า (${goodsDelivery.iso_date}) อยู่ในช่วงเวลาใช้บังคับของพระราชกฤษฎีกาฉบับเดียวกัน (${vatWindowBucket(goodsDelivery.iso_date)}) โดยส่วนที่มีการ${goodsEventActionTh(early.event_type)}ก่อนส่งมอบเกิดความรับผิดวันที่ ${early.iso_date} และส่วนที่เหลือเกิดความรับผิดเมื่อส่งมอบวันที่ ${goodsDelivery.iso_date} โดยไม่เก็บภาษีซ้ำ`;
     } else {
       const early = goodsEarlyActs[0];
+      const condEvents: PreservedTemporalEvent[] = [early, goodsDelivery];
+      isSplitPaymentMultiTaxPoint = true;
+      splitPaymentTaxPoints = condEvents.map((ev, idx) => ({
+        portion_index: idx + 1,
+        iso_date: ev.iso_date,
+        raw_text: ev.raw_text,
+        event_type: ev === goodsDelivery ? "DELIVERY" : ev.event_type,
+        decree_window: vatWindowBucket(ev.iso_date),
+        within_verified_coverage: ev.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+        governing_decree_work_id: governingDecreeWorkIdForIso(ev.iso_date),
+        expired_or_non_governing_work_ids:
+          ev.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+      }));
       controllingIso = null;
-      controllingEvent = `GOODS_EARLY_ACT_UNSTATED_AMOUNT_ACROSS_DECREE_CUTOFF (${early.iso_date}:${early.event_type}:${vatWindowBucket(early.iso_date)} + ${goodsDelivery.iso_date}:DELIVERY:${vatWindowBucket(goodsDelivery.iso_date)})`;
       isAmbiguous = true;
-      ambiguityReasonTh = `มีการ${early.event_type === "PAYMENT" ? "รับชำระเงิน" : "ออกใบกำกับภาษี"}ก่อนส่งมอบสินค้า (วันที่ ${early.iso_date}) แต่ไม่ได้ระบุว่าครอบคลุมราคาสินค้าเต็มจำนวนหรือเป็นจำนวนเท่าใด และวันดังกล่าวกับวันส่งมอบ (${goodsDelivery.iso_date}) อยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณาระบุจำนวนเงินที่${early.event_type === "PAYMENT" ? "รับชำระ" : "ออกใบกำกับภาษี"}ก่อนส่งมอบ`;
+      const actLabel = goodsEventActionTh(early.event_type);
+      controllingEvent = `GOODS_EARLY_ACT_UNKNOWN_COVERAGE_CONDITIONAL (${early.iso_date}:${early.event_type}:${vatWindowBucket(early.iso_date)} + ${goodsDelivery.iso_date}:DELIVERY:${vatWindowBucket(goodsDelivery.iso_date)})`;
+      ambiguityReasonTh = `มีการ${actLabel}ก่อนส่งมอบสินค้าเมื่อวันที่ ${early.raw_text} (${early.iso_date}) แต่ไม่ได้ระบุว่าครอบคลุมสินค้าทั้งหมดหรือเป็นมูลค่า/สัดส่วนเท่าใด และวันดังกล่าว (${vatWindowBucket(early.iso_date)}) กับวันส่งมอบสินค้า ${goodsDelivery.raw_text} (${goodsDelivery.iso_date}, ${vatWindowBucket(goodsDelivery.iso_date)}) อยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณาระบุมูลค่าหรือสัดส่วนของสินค้าที่${actLabel}เมื่อวันที่ ${early.raw_text}`;
       unknownFacts.add(
-        `จำนวนเงินที่${early.event_type === "PAYMENT" ? "รับชำระ" : "ออกใบกำกับภาษี"}ก่อนส่งมอบสินค้าเมื่อวันที่ ${early.iso_date}`
+        `มูลค่าหรือสัดส่วนของสินค้าที่${actLabel}ก่อนส่งมอบเมื่อวันที่ ${early.raw_text} (${early.iso_date})`
       );
+      statutoryRuleHint =
+        `ประมวลรัษฎากร มาตรา 78 (1) ("ตามส่วนของการกระทำนั้นๆ") กรณีไม่ทราบขอบเขตของการ${actLabel}ก่อนส่งมอบ: ห้ามเดาว่าการ${actLabel}เมื่อวันที่ ${early.iso_date} ครอบคลุมสินค้าทั้งหมด และห้ามปัดไปใช้วันส่งมอบวันที่ ${goodsDelivery.iso_date} ทั้งจำนวน — ให้ระบุข้อเท็จจริงที่ขาดหาย (${ambiguityReasonTh}) ตั้ง answer_status = "CONDITIONAL" (โดยไม่คำนวณยอดภาษีเป็นตัวเงินสมมติ) และชี้แจงว่าส่วนที่${actLabel}เมื่อวันที่ ${early.iso_date} ตกอยู่ภายใต้ ${vatWindowBucket(early.iso_date)} (ไม่เสียซ้ำวันส่งมอบ) ส่วนสินค้าที่เหลือที่ส่งมอบวันที่ ${goodsDelivery.iso_date} ตกอยู่ภายใต้ ${vatWindowBucket(goodsDelivery.iso_date)}`;
     }
   } else if (priorInvoiceFixesWholeTaxPoint) {
     const inv = activeInvoicesSorted[0];
@@ -1427,23 +1825,40 @@ export function buildStructuredCaseFactLedger(input: {
         "ไม่ปรากฏวันที่เกิดความรับผิดทางภาษี (วันรับชำระราคา วันออกใบกำกับภาษี หรือวันใช้บริการ) ตามมาตรา 78/1 (1) ในข้อเท็จจริง";
     }
   } else if (nonQuestionDates.length > 0) {
-    // Prefer latest turn's registration/transfer/stated date; if request applicable_date conflicts across VAT decree windows, resolve ambiguity explicitly!
-    const pool = latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates;
-    const regOrTransfer = pool.filter((e) => e.event_type === "REGISTRATION" || e.event_type === "TRANSFER");
-    const chosen = regOrTransfer[regOrTransfer.length - 1] || pool[pool.length - 1];
-    controllingIso = chosen.iso_date;
-    controllingEvent = `${chosen.event_type} (${chosen.raw_text}, Turn ${chosen.source_turn})`;
-    if (factsMap.get("asset")?.normalized_category.startsWith("IMMOVABLE_PROPERTY")) {
-      statutoryRuleHint = "การโอนกรรมสิทธิ์อสังหาริมทรัพย์พิจารณาตามวันจดทะเบียนสิทธิและนิติกรรม";
-    }
-    if (
-      isVatCase &&
-      legalAsOfDate &&
-      legalAsOfDate !== chosen.iso_date &&
-      vatWindowBucket(legalAsOfDate) !== vatWindowBucket(chosen.iso_date)
-    ) {
-      isAmbiguous = true;
-      ambiguityReasonTh = `วันที่ในคำถาม (${chosen.iso_date}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
+    // Prefer latest turn's registration/transfer/stated date; on non-immovable VAT queries, generic REGISTRATION
+    // (company/commercial/contract/machinery registration without ownership transfer) is NEVER a VAT tax point!
+    const rawPool = latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates;
+    const pool =
+      isVatCase && !isImmovableAsset
+        ? rawPool.filter((e) => e.event_type !== "REGISTRATION")
+        : rawPool;
+    if (pool.length === 0) {
+      if (legalAsOfDate && !explicitUnknownDateInPrompt) {
+        controllingIso = legalAsOfDate;
+        controllingEvent = `REQUEST_APPLICABLE_DATE (${legalAsOfDate})`;
+      } else if (isVatCase) {
+        isAmbiguous = true;
+        ambiguityReasonTh = "ไม่ปรากฏวันที่เกิดความรับผิดทางภาษีในคำถามหรือคำขอ (วันที่จดทะเบียนทั่วไปที่ไม่ใช่การโอนกรรมสิทธิ์สินค้าไม่ใช่วันเกิดความรับผิด VAT)";
+      }
+    } else {
+      const chosen = isVatCase && !isImmovableAsset
+        ? [...pool].sort((a, b) => a.iso_date.localeCompare(b.iso_date))[0]
+        : (pool.filter((e) => e.event_type === "REGISTRATION" || e.event_type === "TRANSFER").slice(-1)[0] ||
+            pool[pool.length - 1]);
+      controllingIso = chosen.iso_date;
+      controllingEvent = `${chosen.event_type} (${chosen.raw_text}, Turn ${chosen.source_turn})`;
+      if (isImmovableAsset) {
+        statutoryRuleHint = "การโอนกรรมสิทธิ์อสังหาริมทรัพย์พิจารณาตามวันจดทะเบียนสิทธิและนิติกรรม";
+      }
+      if (
+        isVatCase &&
+        legalAsOfDate &&
+        legalAsOfDate !== chosen.iso_date &&
+        vatWindowBucket(legalAsOfDate) !== vatWindowBucket(chosen.iso_date)
+      ) {
+        isAmbiguous = true;
+        ambiguityReasonTh = `วันที่ในคำถาม (${chosen.iso_date}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
+      }
     }
   } else if (legalAsOfDate && !explicitUnknownDateInPrompt) {
     // Request-supplied applicable_date is usable just like a date extracted from the question

@@ -384,7 +384,7 @@ function resolveIssueTargetSplitPortionIso(
   //    do NOT collapse the whole branch to a single date mentioned in the title!
   const concText = thaiDigitsToArabic(issue.conclusion_th).replace(/\s+/g, " ");
   const concMatches = matchIn(concText);
-  const isConditionalBranchHeader = /(?:กรณีที่\s*[0-9]|ทางเลือก|หากออกใบกำกับ|หากยอดชำระ|conditional|branch|scenario)/i.test(
+  const isConditionalBranchHeader = /(?:กรณีที่\s*[0-9]|ทางเลือก|หากออกใบกำกับ|หากยอดชำระ|หากโอนกรรมสิทธิ์|หากการโอนกรรมสิทธิ์|การพิจารณาวันเกิดความรับผิดแยกตามสัดส่วน|conditional|branch|scenario)/i.test(
     headerText
   );
   if (isConditionalBranchHeader && concMatches.length >= 2) {
@@ -395,15 +395,15 @@ function resolveIssueTargetSplitPortionIso(
   const headerMatches = matchIn(headerText);
   if (headerMatches.length === 1) return headerMatches[0].iso_date;
 
-  // 2. Ordinal portion match in header (e.g. "งวดแรก" / "งวดที่ 1" vs "งวดที่สอง" / "งวดที่ 2")
+  // 2. Ordinal portion match in header (e.g. "งวดแรก" / "ส่วนที่ 1" / "ล็อตแรก" vs "งวดที่สอง" / "ส่วนที่ 2" / "ส่วนที่เหลือ")
   const ordMatches = splitPoints.filter((sp, idx) => {
     const num = sp.portion_index ?? idx + 1;
     const ordRe =
       num === 1
-        ? /(?:งวดแรก|งวดที่\s*1(?!\d))/
+        ? /(?:งวดแรก|งวดที่\s*1(?!\d)|ส่วนแรก|ส่วนที่\s*1(?!\d)|ล็อตแรก)/
         : num === 2
-          ? /(?:งวดที่สอง|งวดที่\s*2(?!\d))/
-          : new RegExp(`งวดที่\\s*${num}(?!\\d)`);
+          ? /(?:งวดที่สอง|งวดที่\s*2(?!\d)|ส่วนที่สอง|ส่วนที่\s*2(?!\d)|ส่วนที่เหลือ)/
+          : new RegExp(`(?:งวดที่|ส่วนที่)\\s*${num}(?!\\d)`);
     return ordRe.test(headerText);
   });
   if (ordMatches.length === 1) return ordMatches[0].iso_date;
@@ -627,6 +627,60 @@ function detectSupersededMonetaryBase(factLedger: StructuredCaseFactLedger): {
     .filter((p) => Math.abs(p - activeBase) > 1);
   if (priorAmounts.length === 0) return null;
   return { activeBaseThb: activeBase, supersededBasesThb: Array.from(new Set(priorAmounts)) };
+}
+
+function resolveSingleTransactionVatBaseCeilingThb(
+  factLedger: StructuredCaseFactLedger,
+  supersededBaseInfo: { activeBaseThb: number; supersededBasesThb: number[] } | null
+): number | null {
+  if (supersededBaseInfo && supersededBaseInfo.activeBaseThb > 0) {
+    return supersededBaseInfo.activeBaseThb;
+  }
+  const ctrlEvent = factLedger.temporal_facts.controlling_tax_point.controlling_event || "";
+  const splitPts = factLedger.temporal_facts.split_payment_tax_points || [];
+  if (
+    factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+    !ctrlEvent.includes("CONDITIONAL") &&
+    splitPts.length >= 2 &&
+    splitPts.every((sp) => typeof sp.amount_thb === "number" && sp.amount_thb > 0)
+  ) {
+    return splitPts.reduce((s, sp) => s + (sp.amount_thb ?? 0), 0);
+  }
+  const activeText = thaiDigitsToArabic(
+    factLedger.user_turns.map((t) => t.cleaned_active_text || t.raw_text).join(" ")
+  );
+  // Explicit total sale/service price marker
+  const explicitTotalMatches = Array.from(
+    activeText.matchAll(
+      /(?:ขายสินค้า[^\n,.;]{0,65}?(?:ใน)?ราคา(?:รวม)?|ราคารวม(?:ทั้งสิ้น)?|มูลค่ารวม(?:ทั้งสิ้น)?|ราคาสินค้า(?:ทั้งหมด|รวม)?(?:\s*ก่อน[^\n,.;]{0,25})?\s*(?:คือ|จำนวน|เท่ากับ)?|ค่าสินค้า(?:\s*ก่อน[^\n,.;]{0,25})?\s*(?:คือ|จำนวน|เท่ากับ)?)\s*(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท)?/gi
+    )
+  );
+  if (explicitTotalMatches.length > 0) {
+    const last = explicitTotalMatches[explicitTotalMatches.length - 1];
+    const n = Number((last[1] || "").replace(/,/g, ""));
+    if (Number.isFinite(n) && n > 0) {
+      return last[2] === "ล้านบาท" ? n * 1_000_000 : n;
+    }
+  }
+  // If every principal (non-disputed-tax) monetary amount mentioned in the transaction equals the same single base M,
+  // repeating M across title/delivery/payment/invoice of the same goods/service never increases the ceiling above M.
+  const principalFacts = factLedger.material_facts.filter(
+    (f) =>
+      f.fact_key === "service_or_sale_consideration_thb" ||
+      f.fact_key === "stated_asset_value_thb" ||
+      f.fact_key === "stated_deed_or_agreed_value_thb"
+  );
+  const distinctBases = Array.from(
+    new Set(
+      principalFacts
+        .flatMap((f) => extractMonetaryAmountsThb(f.original_text_th))
+        .filter((v) => v > 0)
+    )
+  );
+  if (distinctBases.length === 1) {
+    return distinctBases[0];
+  }
+  return null;
 }
 
 function verifyProposedCalculation(params: {
@@ -865,6 +919,66 @@ function verifyProposedCalculation(params: {
         rejection_reason_th: `ฐานภาษีที่เสนอใช้มูลค่าเดิมที่ถูกแก้ไขทับแล้ว (${calc.tax_base_thb.toLocaleString("en-US")} บาท แทนมูลค่าล่าสุด ${supersededBaseInfo.activeBaseThb.toLocaleString("en-US")} บาท)`,
       },
     };
+  }
+
+  // 3) Candidate 9 (§78(1)):
+  //    (a) Reject guessed baht calculations when an early goods event has unknown coverage across decree windows.
+  //    (b) Reject double-counted / excess VAT bases when title, delivery, payment, and invoice cover the same goods!
+  const ctrlEventName = params.factLedger.temporal_facts.controlling_tax_point.controlling_event || "";
+  if (
+    ctrlEventName.startsWith("GOODS_EARLY_ACT_UNKNOWN_COVERAGE_CONDITIONAL") &&
+    calc.computed_tax_thb !== null
+  ) {
+    return {
+      accepted: false,
+      verifiedCalc: null,
+      verifiedNumericTokens: [],
+      rejection: {
+        issue_id: params.issue.issue_id,
+        issue_title_th: params.issue.issue_title_th,
+        proposed_values: {
+          tax_base_thb: calc.tax_base_thb,
+          exempt_amount_thb: calc.exempt_amount_thb,
+          taxable_amount_thb: calc.taxable_amount_thb,
+          rate_pct: calc.rate_pct,
+          computed_tax_thb: calc.computed_tax_thb,
+        },
+        rejection_code: "MISSING_REQUIRED_FACT_INPUT",
+        rejection_reason_th:
+          "ยังไม่ทราบมูลค่าหรือสัดส่วนของสินค้าที่มีการกระทำก่อนส่งมอบซึ่งอยู่คนละช่วงพระราชกฤษฎีกา จึงไม่อาจคำนวณยอดภาษีแยกแต่ละส่วนเป็นตัวเงินได้",
+      },
+    };
+  }
+
+  const isVatCalcIssue = params.citedItems.some(
+    (p) =>
+      p.work_id === "prov.th.rc.78" ||
+      p.work_id === "prov.th.rc.78/1" ||
+      p.work_id === "prov.th.rc.80" ||
+      p.work_id.startsWith("subreg.th.rc.royal_decree.")
+  );
+  if (isVatCalcIssue && calc.tax_base_thb !== null) {
+    const vatCeiling = resolveSingleTransactionVatBaseCeilingThb(params.factLedger, supersededBaseInfo);
+    if (vatCeiling !== null && calc.tax_base_thb > vatCeiling + 1) {
+      return {
+        accepted: false,
+        verifiedCalc: null,
+        verifiedNumericTokens: [],
+        rejection: {
+          issue_id: params.issue.issue_id,
+          issue_title_th: params.issue.issue_title_th,
+          proposed_values: {
+            tax_base_thb: calc.tax_base_thb,
+            exempt_amount_thb: calc.exempt_amount_thb,
+            taxable_amount_thb: calc.taxable_amount_thb,
+            rate_pct: calc.rate_pct,
+            computed_tax_thb: calc.computed_tax_thb,
+          },
+          rejection_code: "ARITHMETIC_MISMATCH",
+          rejection_reason_th: `ฐานภาษีที่เสนอ (${calc.tax_base_thb.toLocaleString("en-US")} บาท) เกินกว่ามูลค่าสินค้าหรือบริการของธุรกรรม (${vatCeiling.toLocaleString("en-US")} บาท) — ห้ามนับฐานภาษีซ้ำเมื่อการโอนกรรมสิทธิ์ การส่งมอบ การรับชำระราคา และการออกใบกำกับภาษีครอบคลุมสินค้าเดียวกัน`,
+        },
+      };
+    }
   }
 
   // Arithmetic verification
@@ -2507,6 +2621,103 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     });
   }
 
+  // Candidate 9 Cross-Issue Same-Goods Double-Count Guard:
+  // On non-conditional VAT answers with a known transaction base ceiling, prevent two separate event issues
+  // (e.g. early title on 30 Sep AND later delivery/payment/invoice on 1 Oct) from taxing the same portion twice!
+  const crossCheckCtrlEvent =
+    params.factLedger.temporal_facts.controlling_tax_point.controlling_event || "";
+  const crossCheckVatCeiling = !crossCheckCtrlEvent.includes("CONDITIONAL")
+    ? resolveSingleTransactionVatBaseCeilingThb(
+        params.factLedger,
+        detectSupersededMonetaryBase(params.factLedger)
+      )
+    : null;
+  if (crossCheckVatCeiling !== null && crossCheckVatCeiling > 0) {
+    const nonSummaryVatCalcIndices: number[] = [];
+    for (let i = 0; i < verifiedIssues.length; i++) {
+      const vi = verifiedIssues[i];
+      if (!vi.verified_calculation || (vi.verified_calculation.computed_tax_thb ?? 0) <= 0) {
+        continue;
+      }
+      if (/(?:สรุปรวม|ยอดรวมทั้งสิ้น|รวมทั้งธุรกรรม)/i.test(vi.issue_title_th)) {
+        continue;
+      }
+      const citesVat = vi.governing_passage_ids.some((pid) => {
+        const wid = packById.get(pid)?.work_id || "";
+        return (
+          wid === "prov.th.rc.78" ||
+          wid === "prov.th.rc.78/1" ||
+          wid === "prov.th.rc.80" ||
+          wid.startsWith("subreg.th.rc.royal_decree.")
+        );
+      });
+      if (citesVat) {
+        nonSummaryVatCalcIndices.push(i);
+      }
+    }
+    if (nonSummaryVatCalcIndices.length >= 2) {
+      const totalTaxedBase = nonSummaryVatCalcIndices.reduce(
+        (s, idx) => s + (verifiedIssues[idx].verified_calculation?.tax_base_thb ?? 0),
+        0
+      );
+      if (totalTaxedBase > crossCheckVatCeiling + 1) {
+        const ctrlIso = params.factLedger.temporal_facts.controlling_tax_point.iso_date;
+        const ctrlRawText = ctrlIso
+          ? params.factLedger.temporal_facts.transaction_or_event_dates.find(
+              (d) => d.iso_date === ctrlIso
+            )?.raw_text || null
+          : null;
+        let keptPrimaryIdx = nonSummaryVatCalcIndices[0];
+        if (ctrlIso || ctrlRawText) {
+          const matchingCtrl = nonSummaryVatCalcIndices.find((idx) => {
+            const blob = thaiDigitsToArabic(
+              `${verifiedIssues[idx].issue_title_th} ${verifiedIssues[idx].party_or_scope_th} ${verifiedIssues[idx].conclusion_th}`
+            );
+            return (
+              (ctrlIso ? blob.includes(ctrlIso) : false) ||
+              (ctrlRawText ? blob.includes(thaiDigitsToArabic(ctrlRawText)) : false)
+            );
+          });
+          if (matchingCtrl !== undefined) {
+            keptPrimaryIdx = matchingCtrl;
+          }
+        }
+        const indicesToDrop = new Set(
+          nonSummaryVatCalcIndices.filter((idx) => idx !== keptPrimaryIdx)
+        );
+        for (const dropIdx of Array.from(indicesToDrop).sort((a, b) => b - a)) {
+          const dup = verifiedIssues[dropIdx];
+          if (dup.verified_calculation) {
+            rejectedCalculations.push({
+              issue_id: dup.issue_id,
+              issue_title_th: dup.issue_title_th,
+              proposed_values: {
+                tax_base_thb: dup.verified_calculation.tax_base_thb,
+                exempt_amount_thb: dup.verified_calculation.exempt_amount_thb,
+                taxable_amount_thb: dup.verified_calculation.taxable_amount_thb,
+                rate_pct: dup.verified_calculation.rate_pct,
+                computed_tax_thb: dup.verified_calculation.computed_tax_thb,
+              },
+              rejection_code: "ARITHMETIC_MISMATCH",
+              rejection_reason_th:
+                "ระงับการคำนวณภาษีมูลค่าเพิ่มซ้ำสำหรับสินค้าเดียวกันที่เกิดความรับผิดทางภาษีไปแล้วในเหตุการณ์ก่อนหน้า",
+            });
+          }
+          rejectedClaims.push({
+            issue_id: dup.issue_id,
+            issue_title_th: dup.issue_title_th,
+            statement_before_verification: dup.claim_ledger_item.statement,
+            cited_passage_ids: dup.governing_passage_ids,
+            rejection_code: "UNGROUNDED_OR_CONTRADICTED_CLAIM",
+            rejection_reason_th:
+              "ระงับข้อกล่าวอ้างที่คิดภาษีมูลค่าเพิ่มซ้ำในเหตุการณ์ส่งมอบ ชำระเงิน หรือออกใบกำกับภาษีภายหลังสำหรับสินค้าเดียวกัน",
+          });
+          verifiedIssues.splice(dropIdx, 1);
+        }
+      }
+    }
+  }
+
   const buildRejectedDiagnostics = (): RejectedCalculationDiagnosticDto[] =>
     rejectedCalculations.map((rc) => ({
       rejected_claim_or_issue_id: rc.issue_id,
@@ -2688,6 +2899,15 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     clarifications.push(
       "กรุณาระบุวันที่รับชำระค่าบริการและวันที่ออกใบกำกับภาษี (ตามมาตรา 78/1 (1)) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับและคำนวณภาษีขาย"
     );
+  }
+  const unknownEarlyCoverageReasonTh =
+    params.factLedger.temporal_facts.controlling_tax_point.controlling_event?.startsWith(
+      "GOODS_EARLY_ACT_UNKNOWN_COVERAGE_CONDITIONAL"
+    )
+      ? params.factLedger.temporal_facts.controlling_tax_point.ambiguity_reason_th
+      : null;
+  if (unknownEarlyCoverageReasonTh && clarifications.length === 0) {
+    clarifications.push(unknownEarlyCoverageReasonTh);
   }
   const rawEvidenceGaps = [...(params.draft.evidence_gaps_th || [])];
   const usesRd646Governing =
