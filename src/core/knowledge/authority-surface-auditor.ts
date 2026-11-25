@@ -329,8 +329,15 @@ export function isNamedAuthoritySupportedByPassages(
             (p.work_id === "prov.th.rc.50" || p.work_id === "prov.th.rc.48") &&
             /ฉบับที่\s*165(?![0-9])/.test(thaiDigitsToArabic(p.verbatim_text))
         );
+        // A section number is attributed to RD 165 ONLY when written as `มาตรา N แห่ง พ.ร.ฎ. ... 165` or when
+        // `มาตรา N` immediately follows the RD 165 citation (optionally its `พ.ศ.` year) with no connector.
+        // A Revenue Code section introduced by a connector (`ตามมาตรา 50 (5) (ข)`, `ประกอบมาตรา 48 (4)`,
+        // `และมาตรา ...`) or appearing later in the sentence is NOT an RD 165 section (Candidate 8, trc.c33cad106d7d9d).
         const fabricatesRd165Section =
-          /(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^\n]{0,45}165[^\n]{0,25}มาตรา\s*[0-9]/.test(normCtx);
+          /มาตรา\s*[0-9]+[^\n]{0,12}แห่ง\s*(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^\n]{0,60}165(?![0-9])/.test(normCtx) ||
+          /(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^\n]{0,45}165\s*\)?\s*(?:พ\.ศ\.\s*[0-9]{4}\s*)?,?\s*มาตรา\s*[0-9]/.test(
+            normCtx
+          );
         if (hasStatutory165CrossRef && !fabricatesRd165Section) {
           return true;
         }
@@ -519,7 +526,7 @@ export function sanitizeIncidentalSurfaceText(
     for (const line of lines) {
       const segments = line
         .split(
-          /(?=\s*(?:ทั้งนี้|อนึ่ง|ส่วนกรณีตาม|อย่างไรก็ตาม|อย่างไรก็ดี|หมายเหตุ:?|เปรียบเทียบกับ|ต่างจากแนว)\s+)|(?<=;\s*)/u
+          /(?=\s*(?:ทั้งนี้|อนึ่ง|นอกจากนี้|อีกทั้ง|ส่วนกรณีตาม|สำหรับ(?:รายละเอียด|หลักเกณฑ์เพิ่มเติม)ตาม|อย่างไรก็ตาม|อย่างไรก็ดี|หมายเหตุ:?|เปรียบเทียบกับ|ต่างจากแนว)\s+)|(?<=;\s*)/u
         )
         .map((s) => s.trim())
         .filter(Boolean);

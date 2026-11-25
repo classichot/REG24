@@ -1842,6 +1842,28 @@ async function executeCoreKnowledgeQuery(
             : undefined;
         appendWorkPassages(vWid, undefined, unitCapOverride);
       }
+      // Candidate 8: for each governing amending VAT decree selected for a KNOWN tax point, also supply its own
+      // Gazette commencement passage (`มาตรา ๑ – ๒`, same work + version as the bound amended-article text) so the
+      // verifier can keep the decree's commencement separate from the period restated in the amended base article.
+      if (!isDomesticVatMissingTaxPoint) {
+        for (const govWid of Array.from(activeGoverningDecreeWorkIds)) {
+          const boundUnits = candidatePassages.filter((p) => p.work_id === govWid);
+          for (const unit of boundUnits) {
+            const commencement = allReleasePassages.find(
+              (p) =>
+                p.work_id === govWid &&
+                p.version_id === unit.version_id &&
+                p.statement_role === "statutory_text" &&
+                /พระราชกฤษฎีกานี้ให้ใช้บังคับตั้งแต่วันที่/.test(thaiDigitsToArabic(p.exact_text)) &&
+                isPassageCurrentlyAuthorizedAndActive(freshState, p, actor)
+            );
+            if (commencement && !rawPassagesById.has(commencement.passage_id)) {
+              rawPassagesById.set(commencement.passage_id, commencement);
+              candidatePassages.push(commencement);
+            }
+          }
+        }
+      }
       (candidatePassages as Passage[] & { __historicalWorkIds?: Set<string> }).__historicalWorkIds =
         historicalContextWorkIds;
       (candidatePassages as Passage[] & { __excludeDomesticVatDecrees?: boolean }).__excludeDomesticVatDecrees =

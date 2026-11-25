@@ -20,7 +20,9 @@ import {
 import {
   auditEssentialIssueSurfaceText,
   extractNamedAuthoritiesFromText,
+  findUnsupportedAuthoritiesInText,
   redactAuthorityIdentifiersFromPublicDiagnosticTh,
+  resolveInPlaceAmendedBaseDecreeBindings,
   sanitizeIncidentalSurfaceText,
   type VerifiedAuthorityPassageBinding,
 } from "./authority-surface-auditor";
@@ -47,6 +49,115 @@ import type {
 } from "./grounded-llm-drafter";
 import { thaiDigitsToArabic } from "./identity";
 import type { CanonicalPersistedState } from "./store";
+
+/**
+ * Candidate 8 — Amending-decree commencement vs. restated period (VAT RD 780/790/799/807-style instruments).
+ *
+ * When an issue cites the quoted, amended text of a base decree article (e.g. "มาตรา ๔ ให้ลดอัตรา... ตั้งแต่วันที่
+ * ๑ ตุลาคม พ.ศ. ๒๕๖๐ ถึงวันที่ ...") supplied as a governing passage of an amending decree, the cumulative period
+ * belongs to the amended base-decree article — NOT to the amending decree's own commencement. This normalizer:
+ *  - resolves the amended base decree/article generically from the bound passage (no decree allowlist),
+ *  - reads the amending decree's own commencement from its bound Gazette `มาตรา 2` passage in the packet,
+ *  - attributes any restated-period wording to the amended article, states the commencement separately,
+ *  - binds the commencement passage so the published evidence itself proves the date.
+ * If the commencement passage is not in the packet, the text is left unchanged (nothing is invented).
+ */
+export function applyAmendingDecreeCommencementAttribution(
+  iss: LlmDraftedIssue,
+  packById: Map<string, GroundedPassagePackItem>,
+  pack: GroundedPassagePackItem[]
+): LlmDraftedIssue {
+  const cited = (iss.governing_passage_ids || [])
+    .map((pid) => packById.get(pid))
+    .filter((p): p is GroundedPassagePackItem => Boolean(p));
+  let conclusion = iss.conclusion_th || "";
+  let explanation = iss.application_explanation_th || "";
+  const addIds: string[] = [];
+  const handled = new Set<string>();
+
+  for (const q of cited) {
+    const m = /^subreg\.th\.rc\.royal_decree\.([0-9]+)$/.exec(q.work_id);
+    if (!m || handled.has(q.work_id) || q.evidence_role !== "governing") continue;
+    const amendNum = m[1];
+    const link = resolveInPlaceAmendedBaseDecreeBindings([
+      { work_id: q.work_id, pinpoint: q.pinpoint, verbatim_text: q.verbatim_text },
+    ]).find((l) => l.amendingDecreeNum === amendNum);
+    if (!link) continue;
+    const commencementItem = pack.find(
+      (p) =>
+        p.work_id === q.work_id &&
+        p.version_id === q.version_id &&
+        /พระราชกฤษฎีกานี้ให้ใช้บังคับตั้งแต่วันที่/.test(thaiDigitsToArabic(p.verbatim_text))
+    );
+    if (!commencementItem) continue;
+    const cm =
+      /มาตรา\s*2\s*พระราชกฤษฎีกานี้ให้ใช้บังคับตั้งแต่วันที่\s*([0-9]{1,2}\s*[ก-๙]+\s*(?:พ\.ศ\.\s*)?[0-9]{4})/.exec(
+        thaiDigitsToArabic(commencementItem.verbatim_text)
+      );
+    if (!cm) continue;
+    handled.add(q.work_id);
+    const commencementTh = cm[1].replace(/\s+/g, " ").trim();
+    const cmParts = /^([0-9]{1,2})\s*([ก-๙]+)\s*(?:พ\.ศ\.\s*)?([0-9]{4})$/.exec(commencementTh);
+    const commencementRe = cmParts
+      ? new RegExp(`${cmParts[1]}\\s*${cmParts[2]}\\s*(?:พ\\.ศ\\.\\s*)?${cmParts[3]}`)
+      : null;
+
+    // Period restated inside the amended article (start date = the amended article's own start, read from text)
+    const quotedArabic = thaiDigitsToArabic(q.verbatim_text);
+    const periodStart = /ตั้งแต่วันที่\s*([0-9]{1,2})\s*([ก-๙]+)\s*(?:พ\.ศ\.\s*)?([0-9]{4})/.exec(quotedArabic);
+    const startRe = periodStart
+      ? new RegExp(
+          `(?:(?:มีผล)?(?:ใช้)?บังคับ(?:ใช้)?\\s*)?(?:ตั้งแต่)?วันที่\\s*${periodStart[1]}\\s*${periodStart[2]}\\s*(?:พ\\.ศ\\.\\s*)?${periodStart[3]}(?:\\s*(?:ถึง|-|–)\\s*(?:วันที่)?\\s*[0-9]{1,2}\\s*[ก-๙]+\\s*(?:พ\\.ศ\\.\\s*)?[0-9]{4})?`
+        )
+      : null;
+    const articleAttributionRe = new RegExp(
+      `มาตรา\\s*${link.amendedSectionNum}\\s*แห่ง[^\\n]{0,90}${link.amendedBaseDecreeNum}`
+    );
+    const rewritePeriod = (text: string): string => {
+      if (!startRe || !text) return text;
+      const t = thaiDigitsToArabic(text);
+      const mm = startRe.exec(t);
+      if (!mm) return text;
+      const before = t.slice(Math.max(0, mm.index - 160), mm.index);
+      const rawMatched = mm[0].replace(/^(?:มีผล)?(?:ใช้)?บังคับ(?:ใช้)?\s*/, "");
+      const falselyClaimsCommencementIn2560 = /^(?:มีผล)?(?:ใช้)?บังคับ/.test(mm[0]);
+      if (articleAttributionRe.test(before) && !falselyClaimsCommencementIn2560) return t;
+      const span = rawMatched.startsWith("ตั้งแต่") ? rawMatched : `ตั้งแต่${rawMatched}`;
+      const attributed = `ตามข้อความมาตรา ${link.amendedSectionNum} แห่งพระราชกฤษฎีกา (ฉบับที่ ${link.amendedBaseDecreeNum}) ที่แก้ไขเพิ่มเติมโดยพระราชกฤษฎีกา (ฉบับที่ ${amendNum}) ซึ่งกำหนดช่วงความรับผิด${span}`;
+      return `${t.slice(0, mm.index)}${attributed}${t.slice(mm.index + mm[0].length)}`;
+    };
+    conclusion = rewritePeriod(conclusion);
+    explanation = rewritePeriod(explanation);
+
+    const combined = thaiDigitsToArabic(`${conclusion} ${explanation}`);
+    // Require explicit decree-commencement wording (`ใช้บังคับตั้งแต่วันที่ ...` or `มาตรา 2 ...`) so a boundary
+    // transaction date (such as `1 ตุลาคม 2569` on RD 807) never suppresses stating the decree's own commencement!
+    const explicitCommencementRe = commencementRe
+      ? new RegExp(
+          `(?:ใช้บังคับ|มีผล(?:ใช้)?บังคับ(?:ใช้)?)\\s*ตั้งแต่วันที่\\s*${commencementRe.source}|มาตรา\\s*2[^\\n]{0,65}${commencementRe.source}`
+        )
+      : null;
+    if (!explicitCommencementRe || !explicitCommencementRe.test(combined)) {
+      const mentionsRestatedStart = Boolean(startRe && startRe.test(combined));
+      const note = `(พระราชกฤษฎีกา (ฉบับที่ ${amendNum}) ใช้บังคับตั้งแต่วันที่ ${commencementTh} ตามมาตรา 2 ของพระราชกฤษฎีกาฉบับดังกล่าว${
+        mentionsRestatedStart && periodStart
+          ? ` ส่วนวันที่ ${periodStart[1]} ${periodStart[2]} ${periodStart[3]} เป็นวันเริ่มต้นของช่วงเวลาที่ระบุในข้อความมาตรา ${link.amendedSectionNum} แห่งพระราชกฤษฎีกา (ฉบับที่ ${link.amendedBaseDecreeNum}) ที่แก้ไขแล้ว`
+          : ""
+      })`;
+      if (explanation) explanation = `${explanation} ${note}`;
+      else conclusion = `${conclusion} ${note}`;
+    }
+    addIds.push(commencementItem.passage_id);
+  }
+
+  if (addIds.length === 0) return iss;
+  return {
+    ...iss,
+    conclusion_th: conclusion,
+    application_explanation_th: explanation,
+    governing_passage_ids: Array.from(new Set([...(iss.governing_passage_ids || []), ...addIds])),
+  };
+}
 
 export interface RejectedClaimAuditEntry {
   issue_id: string;
@@ -1522,9 +1633,11 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       .trim();
   };
 
+  let strippedIncidentalMissingAuthorityCount = 0;
+
   for (let idx = 0; idx < workingIssues.length; idx++) {
     const rawIss = workingIssues[idx];
-    const iss: LlmDraftedIssue = isClarificationTurn
+    const issPreCommencement: LlmDraftedIssue = isClarificationTurn
       ? {
           ...rawIss,
           conclusion_th: stripTentativeClarificationArithmeticTh(rawIss.conclusion_th),
@@ -1538,6 +1651,11 @@ export function verifyAndRenderGroundedLlmDraft(params: {
             .filter(Boolean),
         }
       : rawIss;
+    // Candidate 8: amending-decree commencement kept separate from the restated period (clarification turns
+    // never assert a governing decree, so they are left untouched).
+    const iss: LlmDraftedIssue = isClarificationTurn
+      ? issPreCommencement
+      : applyAmendingDecreeCommencementAttribution(issPreCommencement, packById, params.passagePack);
     const validPassageIds = Array.from(
       new Set((iss.governing_passage_ids || []).filter((pid) => packById.has(pid)))
     );
@@ -1669,12 +1787,18 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         );
         const citesFivePct = /ร้อยละ\s*(?:5|ห้า)/.test(citedVerbatimNorm);
         if (citesFivePct) trustedTokens.add("5");
+        // Candidate 8: the 5%-of-excess figure exists in law ONLY for a legitimate (non-adopted) child recipient
+        // (§48(4/1) / §50(6) proviso). After a follow-up changes the recipient (adopted child, nephew, etc.), the
+        // Turn-1 derived amount (e.g. ฿100,000) must never be trusted as a grounded figure.
+        const recipientKinship = params.factLedger.fact_preservation_guards.recipient_kinship_category;
+        const allowsLegitChildFivePctDerivation =
+          !recipientKinship || recipientKinship === "LEGITIMATE_CHILD_NON_ADOPTED";
         for (const baseVal of activeBasesForThreshold) {
           if (baseVal > 20_000_000) {
             const excess = baseVal - 20_000_000;
             trustedTokens.add(String(excess));
             trustedTokens.add(excess.toLocaleString("en-US"));
-            if (citesFivePct) {
+            if (citesFivePct && allowsLegitChildFivePctDerivation) {
               const fivePctTax = Math.round(excess * 0.05 * 100) / 100;
               trustedTokens.add(String(fivePctTax));
               trustedTokens.add(fivePctTax.toLocaleString("en-US"));
@@ -1959,8 +2083,27 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         })
       : { ok: true, cleanedText: "", unsupportedAuthorities: [] };
 
-    let workingClaimStatement = preAuditExpl.cleanedText
-      ? `[${preCleanTitle} — ${preCleanParty}] ${preAuditConcl.cleanedText} (${preAuditExpl.cleanedText})`
+    // Candidate 8: if the conclusion is fully supported but the explanation carries an unsupported authority ONLY
+    // inside an incidental parenthetical / discourse clause, remove that statement and keep the independently
+    // supported analysis (the remaining explanation must still cite a verified statutory section). An operative
+    // explanation that depends entirely on an unsupported authority is NOT rescued (whole text would be stripped).
+    let explanationForAudit = iss.application_explanation_th || "";
+    if (preAuditConcl.ok && explanationForAudit && !preAuditExpl.ok) {
+      const san = sanitizeIncidentalSurfaceText(explanationForAudit, preCheckBindings, {
+        excludedContextInstruments,
+      });
+      if (san.cleanedText.length >= 40 && /มาตรา\s*[0-9]/.test(thaiDigitsToArabic(san.cleanedText))) {
+        explanationForAudit = san.cleanedText;
+        strippedIncidentalMissingAuthorityCount++;
+      }
+    }
+    const workingExplanation =
+      explanationForAudit !== (iss.application_explanation_th || "")
+        ? explanationForAudit
+        : preAuditExpl.cleanedText;
+
+    let workingClaimStatement = workingExplanation
+      ? `[${preCleanTitle} — ${preCleanParty}] ${preAuditConcl.cleanedText} (${workingExplanation})`
       : `[${preCleanTitle} — ${preCleanParty}] ${preAuditConcl.cleanedText}`;
 
     let entailmentCheck = verifyClaimAgainstPassages(
@@ -2062,17 +2205,132 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // verified passage + version in `finalPassageIds`! If essential and unsupported, withhold ONLY this issue;
     // for incidental surfaces (`issue_title_th`, `authority_distinction_note_th`, `missing_facts_or_uncertainties_th`,
     // `material_facts_relied_on`), strip any unsupported reference and its dependent clause!
-    const strictIssueBindings = toVerifiedAuthorityBindings(finalPassageIds);
-    const strictConclAudit = auditEssentialIssueSurfaceText(
+    let strictIssueBindings = toVerifiedAuthorityBindings(finalPassageIds);
+    let strictConclAudit = auditEssentialIssueSurfaceText(
       iss.conclusion_th,
       strictIssueBindings,
       { excludedContextInstruments }
     );
-    const strictExplAudit = iss.application_explanation_th
-      ? auditEssentialIssueSurfaceText(iss.application_explanation_th, strictIssueBindings, {
+    let strictExplAudit = explanationForAudit
+      ? auditEssentialIssueSurfaceText(explanationForAudit, strictIssueBindings, {
           excludedContextInstruments,
         })
-      : { ok: true, cleanedText: "", unsupportedAuthorities: [] };
+      : { ok: true, cleanedText: "", unsupportedAuthorities: [] as string[] };
+
+    // Candidate 8 (trc.c33cad106d7d9d): before withholding, bind the EXACT governing passage for a cited
+    // Revenue Code section/subclause (e.g. `มาตรา 48 (4/1)`) or Revenue Code amending Act that is already in the
+    // supplied packet but was not attached to this issue. Only `governing` passages whose own text contains the
+    // cited subclause marker are eligible; the claim is re-verified against the enlarged set and the binding is
+    // kept only if BOTH entailment and the strict audit then pass. Authorities absent from the packet stay unsupported.
+    if (entailmentCheck.allow_confident_answer && (!strictConclAudit.ok || !strictExplAudit.ok)) {
+      const unsupportedNow = [
+        ...findUnsupportedAuthoritiesInText(iss.conclusion_th, strictIssueBindings, { excludedContextInstruments }),
+        ...findUnsupportedAuthoritiesInText(explanationForAudit, strictIssueBindings, {
+          excludedContextInstruments,
+        }),
+      ];
+      const bindAdds = new Set<string>();
+      for (const a of unsupportedNow) {
+        if (a.kind === "section") {
+          const sm = /^มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s+([ก-๙]+))?(?:\s*\(([0-9]{1,2}(?:\/[0-9]+)?)\))?$/.exec(
+            a.canonicalId
+          );
+          if (!sm) continue;
+          const wid = `prov.th.rc.${sm[1]}${sm[2] ? `_${sm[2]}` : ""}`;
+          for (const p of params.passagePack) {
+            if (p.evidence_role !== "governing" || finalPassageIds.includes(p.passage_id)) continue;
+            if (p.work_id !== wid && p.work_id !== wid.replace(/_/g, "/")) continue;
+            const txt = thaiDigitsToArabic(p.verbatim_text);
+            const matches = sm[3]
+              ? new RegExp(`(?:^|\\n|-->|\\s)\\(${sm[3].replace("/", "\\/")}\\)\\s`).test(txt)
+              : new RegExp(`^\\s*มาตรา\\s*${sm[1].replace("/", "\\/")}(?![0-9/])`).test(txt);
+            if (matches) bindAdds.add(p.passage_id);
+          }
+        } else if (a.kind === "amending_act") {
+          const num = a.canonicalId.slice("พรบแก้ไข.".length);
+          for (const p of params.passagePack) {
+            if (
+              p.evidence_role === "governing" &&
+              !finalPassageIds.includes(p.passage_id) &&
+              p.work_id.startsWith(`statute.th.rc_amendment_${num}_`)
+            ) {
+              bindAdds.add(p.passage_id);
+              break;
+            }
+          }
+        }
+      }
+      if (bindAdds.size > 0) {
+        const candidateIds = [...finalPassageIds, ...Array.from(bindAdds)];
+        const candidateBindings = toVerifiedAuthorityBindings(candidateIds);
+        const candConcl = auditEssentialIssueSurfaceText(iss.conclusion_th, candidateBindings, {
+          excludedContextInstruments,
+        });
+        const candExpl = explanationForAudit
+          ? auditEssentialIssueSurfaceText(explanationForAudit, candidateBindings, { excludedContextInstruments })
+          : { ok: true, cleanedText: "", unsupportedAuthorities: [] as string[] };
+        const candEntail = verifyClaimAgainstPassages(
+          {
+            statement: workingClaimStatement,
+            supporting_passage_ids: candidateIds,
+            verified_calculation_numeric_tokens: trustedTokensArr,
+            excluded_context_instruments: excludedContextInstruments,
+          },
+          allRawPassages
+        );
+        if (candConcl.ok && candExpl.ok && candEntail.allow_confident_answer) {
+          finalPassageIds = candidateIds;
+          strictIssueBindings = candidateBindings;
+          strictConclAudit = candConcl;
+          strictExplAudit = candExpl;
+          entailmentCheck = candEntail;
+        }
+      }
+    }
+
+    // Candidate 8: exact-subclause evidence precision. A cited Revenue Code subclause (`มาตรา 48 (4/1)`) must point
+    // to the verified passage whose own text contains that subclause; when only sibling units of the same section are
+    // attached and the exact governing unit is in the packet, attach it (re-verified; kept only if still supported).
+    if (entailmentCheck.allow_confident_answer && strictConclAudit.ok && strictExplAudit.ok) {
+      const precisionAdds: string[] = [];
+      for (const a of extractNamedAuthoritiesFromText(`${iss.conclusion_th} ${explanationForAudit}`)) {
+        if (a.kind !== "section") continue;
+        const sm = /^มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s+([ก-๙]+))?\s*\(([0-9]{1,2}(?:\/[0-9]+)?)\)$/.exec(a.canonicalId);
+        if (!sm) continue;
+        const wid = `prov.th.rc.${sm[1]}${sm[2] ? `_${sm[2]}` : ""}`;
+        const markerRe = new RegExp(`(?:^|\\n|-->|\\s)\\(${sm[3].replace("/", "\\/")}\\)\\s`);
+        const sameWorkBound = [...finalPassageIds, ...precisionAdds]
+          .map((pid) => packById.get(pid))
+          .filter((p): p is GroundedPassagePackItem => Boolean(p) && (p!.work_id === wid || p!.work_id === wid.replace(/_/g, "/")));
+        if (sameWorkBound.length === 0) continue;
+        if (sameWorkBound.some((p) => markerRe.test(thaiDigitsToArabic(p.verbatim_text)))) continue;
+        const exact = params.passagePack.find(
+          (p) =>
+            p.evidence_role === "governing" &&
+            (p.work_id === wid || p.work_id === wid.replace(/_/g, "/")) &&
+            !finalPassageIds.includes(p.passage_id) &&
+            markerRe.test(thaiDigitsToArabic(p.verbatim_text))
+        );
+        if (exact) precisionAdds.push(exact.passage_id);
+      }
+      if (precisionAdds.length > 0) {
+        const candidateIds = [...finalPassageIds, ...precisionAdds];
+        const candEntail = verifyClaimAgainstPassages(
+          {
+            statement: workingClaimStatement,
+            supporting_passage_ids: candidateIds,
+            verified_calculation_numeric_tokens: trustedTokensArr,
+            excluded_context_instruments: excludedContextInstruments,
+          },
+          allRawPassages
+        );
+        if (candEntail.allow_confident_answer) {
+          finalPassageIds = candidateIds;
+          strictIssueBindings = toVerifiedAuthorityBindings(candidateIds);
+          entailmentCheck = candEntail;
+        }
+      }
+    }
 
     if (entailmentCheck.allow_confident_answer && (!strictConclAudit.ok || !strictExplAudit.ok)) {
       entailmentCheck = {
@@ -2441,6 +2699,14 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   ) {
     rawEvidenceGaps.push(
       "หมายเหตุข้อจำกัดต้นฉบับ พ.ร.ฎ. (ฉบับที่ 646) พ.ศ. 2560: ตัวบทมาตรา 4 ฉบับแรกเริ่มตามราชกิจจานุเบกษาไม่ได้แยกอยู่ในคลังหลักฐาน (คลังมีเฉพาะเอกสารฉบับประมวลของกรมสรรพากรซึ่งแสดงข้อความมาตรา 4 ที่แก้ไขเพิ่มเติมในภายหลัง)"
+    );
+  }
+  if (
+    strippedIncidentalMissingAuthorityCount > 0 &&
+    !rawEvidenceGaps.some((g) => /ไม่ได้รวมอยู่ในชุดหลักฐาน/.test(g))
+  ) {
+    rawEvidenceGaps.push(
+      "เอกสารลำดับรอง คำสั่ง หรือแนววินิจฉัยบางรายการที่กล่าวพาดพิงไม่ได้รวมอยู่ในชุดหลักฐานที่ตรวจสอบแล้ว ระบบจึงตัดเฉพาะข้อความส่วนที่ไม่มีหลักฐานรองรับออกและคงเฉพาะผลวิเคราะห์ตามบทบัญญัติที่ตรวจสอบต้นฉบับแล้ว"
     );
   }
   const evidenceGaps = rawEvidenceGaps
