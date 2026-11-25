@@ -3243,10 +3243,25 @@ export async function saveOrReviseAnswerServerVerified(
   });
   const serverAllocatedVatBasesThb = new Set<number>();
   const saveVatAlloc = serverSaveFactLedger.temporal_facts.vat_portion_allocation_record;
+  const saveSameDecreeWindowLotMap = new Map<number, string[]>();
   if (saveVatAlloc && saveVatAlloc.allocation_status === "RESOLVED") {
+    const byWindow = new Map<string, { base: number; lotIds: string[] }>();
     for (const b of saveVatAlloc.tax_date_buckets) {
       if (typeof b.amount_thb === "number" && b.amount_thb > 0) {
         serverAllocatedVatBasesThb.add(b.amount_thb);
+      }
+      const wk = `${b.decree_window}::${b.governing_decree_work_id || ""}`;
+      const cur = byWindow.get(wk) || { base: 0, lotIds: [] };
+      cur.base = Math.round((cur.base + (b.amount_thb ?? 0)) * 100) / 100;
+      for (const lid of b.lot_ids || []) {
+        if (!cur.lotIds.includes(lid)) cur.lotIds.push(lid);
+      }
+      byWindow.set(wk, cur);
+    }
+    for (const grp of byWindow.values()) {
+      if (grp.base > 0 && grp.lotIds.length >= 2) {
+        serverAllocatedVatBasesThb.add(grp.base);
+        saveSameDecreeWindowLotMap.set(Math.round(grp.base), grp.lotIds);
       }
     }
     for (const l of saveVatAlloc.lot_allocations) {
@@ -3446,10 +3461,37 @@ export async function saveOrReviseAnswerServerVerified(
         Math.abs((taxAmt * ratePct) / 100 - compTax) <= 1.5;
       if (baseInQuestion && exemptGrounded && rateGrounded && mathExact) {
         const reverifiedTokens = new Set<string>();
-        for (const nv of [tBase, exAmt, taxAmt, ratePct, compTax]) {
-          if (nv !== null && Number.isFinite(nv)) {
+        const addReverified = (nv: number | null | undefined) => {
+          if (typeof nv === "number" && Number.isFinite(nv)) {
             reverifiedTokens.add(String(nv));
             reverifiedTokens.add(nv.toLocaleString("en-US"));
+          }
+        };
+        for (const nv of [tBase, exAmt, taxAmt, ratePct, compTax]) {
+          addReverified(nv);
+        }
+        if (ratePct === 7 && tBase !== null && compTax !== null) {
+          addReverified(Math.round((tBase + compTax) * 100) / 100);
+          addReverified(Math.round(tBase * 0.063 * 100) / 100);
+          addReverified(Math.round(tBase * 0.007 * 100) / 100);
+          if (saveVatAlloc && saveVatAlloc.allocation_status === "RESOLVED") {
+            const matchedBucket = saveVatAlloc.tax_date_buckets.find(
+              (b) => typeof b.amount_thb === "number" && Math.abs(b.amount_thb - tBase) <= 1
+            );
+            const matchedLotIdsForBase =
+              matchedBucket && matchedBucket.lot_ids && matchedBucket.lot_ids.length >= 2
+                ? matchedBucket.lot_ids
+                : saveSameDecreeWindowLotMap.get(Math.round(tBase)) || [];
+            if (matchedLotIdsForBase.length >= 2) {
+              for (const lot of saveVatAlloc.lot_allocations) {
+                if (!matchedLotIdsForBase.includes(lot.lot_id)) continue;
+                addReverified(lot.taxable_base_thb);
+                addReverified(lot.verified_vat_thb);
+                addReverified(lot.verified_gross_thb);
+                addReverified(Math.round(lot.taxable_base_thb * 0.063 * 100) / 100);
+                addReverified(Math.round(lot.taxable_base_thb * 0.007 * 100) / 100);
+              }
+            }
           }
         }
         boundCalcForThisClaim = {

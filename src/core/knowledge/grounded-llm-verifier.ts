@@ -395,6 +395,10 @@ function resolveIssueTargetAllocation(
       headerText
     );
     if (!isSummaryHeader) {
+      const positiveHeaderText = headerText.replace(
+        /(?:ไม่รวม(?:ถึง)?|ไม่ใช่|มิใช่|ยกเว้น|\bnot\b|\bexcluding\b)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*[A-Z0-9ก-ฮ]+/gi,
+        " "
+      );
       const matchedLots = alloc.lot_allocations.filter((la) => {
         const escLabel = thaiDigitsToArabic(la.label_th).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const lotToken = la.lot_id.replace(/^LOT_/, "");
@@ -403,26 +407,41 @@ function resolveIssueTargetAllocation(
           `(?:${escLabel}|(?:ล็อต|ล๊อต|ชุดที่|รายการที่|lot)\\s*${escTok})(?![A-Za-z0-9])`,
           "i"
         );
-        return re.test(headerText);
+        return re.test(positiveHeaderText);
       });
       if (matchedLots.length > 0 && matchedLots.length < alloc.lot_allocations.length) {
         const distinctDates = Array.from(new Set(matchedLots.map((l) => l.controlling_tax_point_iso)));
-        const targetIso = distinctDates.length === 1 ? distinctDates[0] : null;
+        const distinctWindows = Array.from(new Set(matchedLots.map((l) => l.decree_window)));
+        const distinctDecrees = Array.from(
+          new Set(matchedLots.map((l) => l.governing_decree_work_id || ""))
+        );
+        const hasMixedDecreeWindows = distinctWindows.length > 1 || distinctDecrees.length > 1;
+        const targetIso = !hasMixedDecreeWindows ? distinctDates[0] : null;
         const expectedBaseThb =
           Math.round(matchedLots.reduce((s, l) => s + l.taxable_base_thb, 0) * 100) / 100;
-        const bucket = targetIso
-          ? alloc.tax_date_buckets.find((b) => b.iso_date === targetIso)
-          : undefined;
+        const bucket =
+          distinctDates.length === 1
+            ? alloc.tax_date_buckets.find((b) => b.iso_date === distinctDates[0])
+            : undefined;
         return {
           targetIso,
           expectedBaseThb,
-          governingDecreeWorkId:
-            distinctDates.length === 1 ? matchedLots[0].governing_decree_work_id : null,
+          governingDecreeWorkId: !hasMixedDecreeWindows
+            ? matchedLots[0].governing_decree_work_id
+            : null,
           lotIds: matchedLots.map((l) => l.lot_id),
-          sameDateBucketBaseThb: bucket?.amount_thb ?? null,
-          sameDateBucketVatThb: bucket?.verified_vat_thb ?? null,
-          sameDateBucketGrossThb: bucket?.verified_gross_thb ?? null,
-          hasMixedDatesError: distinctDates.length > 1,
+          sameDateBucketBaseThb: bucket?.amount_thb ?? (!hasMixedDecreeWindows ? expectedBaseThb : null),
+          sameDateBucketVatThb:
+            bucket?.verified_vat_thb ??
+            (!hasMixedDecreeWindows
+              ? Math.round(matchedLots.reduce((s, l) => s + (l.verified_vat_thb ?? 0), 0) * 100) / 100
+              : null),
+          sameDateBucketGrossThb:
+            bucket?.verified_gross_thb ??
+            (!hasMixedDecreeWindows
+              ? Math.round(matchedLots.reduce((s, l) => s + (l.verified_gross_thb ?? 0), 0) * 100) / 100
+              : null),
+          hasMixedDatesError: hasMixedDecreeWindows,
         };
       }
     }
@@ -680,6 +699,27 @@ function detectSupersededMonetaryBase(factLedger: StructuredCaseFactLedger): {
   supersededBasesThb: number[];
 } | null {
   if (factLedger.user_turns.length < 2) return null;
+  const declaredLots = factLedger.temporal_facts.declared_goods_lots || [];
+  const latestTurnForLotCheck = factLedger.user_turns[factLedger.user_turns.length - 1];
+  const latestTextForLotCheck = thaiDigitsToArabic(latestTurnForLotCheck.raw_text);
+  // A follow-up that reassigns an existing lot event (e.g. "30 Sep 20,000 THB covers Lot B instead of Lot A,
+  // all other facts remain unchanged") does NOT supersede the overall transaction base (`50,000 THB`)!
+  if (
+    declaredLots.length >= 2 &&
+    !/(?:ราคารวม|มูลค่ารวม|ราคาสินค้าทั้งหมด|แก้ราคาขายรวม|เปลี่ยนราคารวม)/i.test(
+      latestTextForLotCheck
+    )
+  ) {
+    const latestAmts = extractMonetaryAmountsThb(latestTextForLotCheck);
+    const mentionsExistingLot = /(?:ล็อต|ล๊อต|ชุดที่|รายการที่|\blot\b)/i.test(latestTextForLotCheck);
+    if (
+      mentionsExistingLot &&
+      (latestAmts.length === 0 ||
+        latestAmts.every((a) => declaredLots.some((dl) => Math.abs(dl.amount_thb - a) <= 1)))
+    ) {
+      return null;
+    }
+  }
   const activeValFact = factLedger.material_facts.find(
     (f) =>
       /_thb$/i.test(f.fact_key) &&
@@ -721,6 +761,14 @@ function resolveSingleTransactionVatBaseCeilingThb(
 ): number | null {
   if (supersededBaseInfo && supersededBaseInfo.activeBaseThb > 0) {
     return supersededBaseInfo.activeBaseThb;
+  }
+  const vatAlloc = factLedger.temporal_facts.vat_portion_allocation_record;
+  if (
+    vatAlloc &&
+    vatAlloc.allocation_status === "RESOLVED" &&
+    vatAlloc.transaction_base_thb > 0
+  ) {
+    return vatAlloc.transaction_base_thb;
   }
   const ctrlEvent = factLedger.temporal_facts.controlling_tax_point.controlling_event || "";
   const splitPts = factLedger.temporal_facts.split_payment_tax_points || [];
@@ -2229,6 +2277,26 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           ) {
             scopedBasesThb.add(calcCheck.verifiedCalc.taxable_amount_thb);
           }
+          // Constituent lots of THIS exact verified multi-lot bucket ONLY (e.g. Case 1 30 Sep bucket =
+          // Lot A 20k -> VAT 1,400 + Lot B 20k -> VAT 1,400 = 40k / VAT 2,800; Case 2A 1 Oct bucket =
+          // Lot B 20k -> VAT 1,400 + Lot C 10k -> VAT 700 = 30k / VAT 2,100). Never adds lots from other buckets!
+          const vatAllocRecForConstituents =
+            params.factLedger.temporal_facts.vat_portion_allocation_record;
+          if (
+            vatAllocRecForConstituents &&
+            vatAllocRecForConstituents.allocation_status === "RESOLVED" &&
+            resolvedIssueAlloc &&
+            resolvedIssueAlloc.lotIds.length >= 2
+          ) {
+            for (const lot of vatAllocRecForConstituents.lot_allocations) {
+              if (!resolvedIssueAlloc.lotIds.includes(lot.lot_id)) continue;
+              addExactVerifiedToken(lot.taxable_base_thb);
+              addExactVerifiedToken(lot.verified_vat_thb);
+              addExactVerifiedToken(lot.verified_gross_thb);
+              addExactVerifiedToken(Math.round(lot.taxable_base_thb * 0.063 * 100) / 100);
+              addExactVerifiedToken(Math.round(lot.taxable_base_thb * 0.007 * 100) / 100);
+            }
+          }
           // Candidate 10 Strict Per-Portion Reconciliation:
           // Do NOT blindly pool arbitrary sibling portion bases! Permit exact reconciled subtotals
           // (same-date multi-lot bucket subtotal, verified grand total, and already-verified sibling
@@ -2245,7 +2313,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
             const ownTaxFmt = calcCheck.verifiedCalc.computed_tax_thb.toLocaleString("en-US");
             const normClaimCheck = thaiDigitsToArabic(fullIssueClaimStatement);
             const hasExplicitAggregationCue =
-              /(?:รวมกับ|รวมยอด|ยอดรวม|รวมภาษีมูลค่าเพิ่ม|รวมทั้ง\s*[0-9]+\s*(?:ล็อต|ส่วน)|รวมทั้งสิ้น|รวมทั้งหมด|รวมล็อต|รวมเป็นภาษี)/i.test(
+              /(?:รวมกับ|รวมยอด|ยอดรวม|รวมฐานภาษี|รวมภาษีมูลค่าเพิ่ม|รวมเป็นเงิน|รวม\s*[0-9]+\s*(?:ล็อต|ชุด|รายการ|ส่วน)|รวมทั้ง\s*[0-9]+\s*(?:ล็อต|ชุด|รายการ|ส่วน)|รวมทั้งสิ้น|รวมทั้งหมด|รวมล็อต|รวมเป็นภาษี|ทั้งธุรกรรม|ตลอดรายการ)/i.test(
                 normClaimCheck
               );
             if (

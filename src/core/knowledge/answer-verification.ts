@@ -270,7 +270,7 @@ function extractMaterialQuantitativeTokens(normText: string): Array<{
   // 2. Deadlines, durations, promoter/person counts, multipliers, and monetary caps
   //    Note: In Thai script, words follow units without spaces (`15 วันนับแต่`, `3 คนขึ้นไป`, `5 ปีนับแต่`), so guard `วัน` against compound date nouns (`วันที่`, `วันสิ้น`, `วันเกิดความรับผิด`, `วันออกใบกำกับภาษี`, `วันรับชำระ`, etc.) and referential date counts (`ทั้งสองวัน` / `ทั้ง 2 วัน`), and guard English units with `(?![a-z])`!
   for (const m of normText.matchAll(
-    /(?<![0-9/.\-])([0-9]+(?:\.[0-9]+)?)\s*(วัน(?!ที่|สิ้น|เกิด|ออก|รับ|ชำระ|ใช้|ทำ|ส่ง|เดือน)|เดือน|ปี|คน|เท่า|ล้านบาท|บาท|(?:thb|baht|days?|months?|years?|promoters?)(?![a-z]))/g
+    /(?<![0-9/.\-])([0-9]+(?:\.[0-9]+)?)\s*(วัน(?!ที่|สิ้น|เกิด|ออก|รับ|ชำระ|ใช้|ทำ|ส่ง|เดือน)|เดือน|ปี|คน|เท่า(?!กับ|ใด|ไหร่|ที่|กัน|นั้น)|ล้านบาท|บาท|(?:thb|baht|days?|months?|years?|promoters?)(?![a-z]))/g
   )) {
     const valNum = Number(m[1]);
     const u = m[2];
@@ -904,10 +904,12 @@ export function evaluateSubstantiveClaimSupport(params: {
 
   for (const qTok of claimQuantities) {
     const groundedInPassage = isQuantityGroundedInPassage(qTok);
+    const rawQVal = qTok.val.replace(/,/g, "");
+    const numericCanonicalQVal = Number.isFinite(Number(rawQVal)) ? String(Number(rawQVal)) : rawQVal;
     const groundedViaVerifiedCalc =
       verifiedCalcSet.size > 0 &&
       passageDirectlyGroundsAtLeastOneStatuteOrNumber &&
-      verifiedCalcSet.has(qTok.val.replace(/,/g, ""));
+      (verifiedCalcSet.has(rawQVal) || verifiedCalcSet.has(numericCanonicalQVal));
 
     if (!groundedInPassage && !groundedViaVerifiedCalc) {
       return {

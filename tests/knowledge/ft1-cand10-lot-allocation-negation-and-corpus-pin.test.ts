@@ -1025,4 +1025,205 @@ describe("Formal Test 1 Candidate 10 — Lot-Aware VAT Allocation, Negated Bound
       })
     ).rejects.toThrow(/REVISION_CONFLICT|409|CONFLICT|stale|superseded/i);
   });
+
+  it("T9 (Live Preview Regression Guards from 569024e): constituent-lot VAT breakdowns survive Generate+Save on 2-lot buckets, and Turn-2 boilerplate 'ส่วนข้อเท็จจริงอื่นทั้งหมดเหมือนเดิม' never expands Lot B into Lot C or lowers ceiling to 20,000", async () => {
+    // 1) Constituent-lot VAT breakdown inside a 2-lot combined bucket (Case 1: 40k -> 1,400 + 1,400 = 2,800; Case 2A: 30k -> 1,400 + 700 = 2,100)
+    const c2aRes = await queryKnowledge(
+      {
+        question: DEF_C9_2_SAME_LOT_DIFFERENT_DAYS,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        answer_generation_mode: "llm_grounded",
+      },
+      TEST_ACTOR_A,
+      {
+        store,
+        llmMockInvokerForTesting: async () => ({
+          answer_status: "ANSWERED",
+          overall_summary_th:
+            "ล็อต A วันที่ 29 ก.ย. 2569 ฐาน 20,000 บาท VAT 1,400 บาท (พ.ร.ฎ. 799) และล็อต B + ล็อต C วันที่ 1 ต.ค. 2569 ฐาน 30,000 บาท VAT 2,100 บาท (พ.ร.ฎ. 807)",
+          case_facts_used: [],
+          issues: [
+            {
+              issue_id: "T9_LOT_A",
+              issue_title_th: "ส่วนที่ 1: ล็อต A (29 กันยายน 2569)",
+              party_or_scope_th: "ล็อต A มูลค่า 20,000 บาท",
+              conclusion_th:
+                "ล็อต A เกิดความรับผิดวันที่ 29 กันยายน 2569 ตามมาตรา 78 (1) (ก) ใช้ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 อัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 1,400.00 บาท (ยอดรวม 21,400 บาท)",
+              material_facts_relied_on: ["ล็อต A 20,000 บาท วันที่ 29 กันยายน 2569"],
+              governing_passage_ids: [
+                "psg.aa853373203223",
+                "psg.1b1abb8e7e22df",
+                "psg.rc8.rd799.sec_1_2",
+                "psg.rc8.rd799.sec_3_quoted_rd646_sec_4",
+                "psg.3d0eb5636faa0e",
+              ],
+              application_explanation_th: "ฐานภาษี 20,000 บาท อัตราร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 1,400 บาท",
+              authority_distinction_note_th: "",
+              proposed_calculation: {
+                formula_description_th: "20,000 × 7%",
+                tax_base_thb: 20000,
+                exempt_amount_thb: 0,
+                taxable_amount_thb: 20000,
+                rate_pct: 7,
+                computed_tax_thb: 1400,
+                is_computable_from_stated_facts: true,
+                missing_inputs_th: [],
+                steps_th: ["20,000 × 7% = 1,400 บาท"],
+              },
+              missing_facts_or_uncertainties_th: [],
+            },
+            {
+              issue_id: "T9_LOT_B_C_WITH_BREAKDOWN",
+              issue_title_th: "ส่วนที่ 2: ล็อต B และล็อต C (ไม่รวมล็อต A) — วันที่ 1 ตุลาคม 2569",
+              party_or_scope_th: "ล็อต B (20,000 บาท) และล็อต C (10,000 บาท)",
+              conclusion_th:
+                "ล็อต B (ฐาน 20,000 บาท ภาษีมูลค่าเพิ่ม 1,400 บาท ยอดรวม 21,400 บาท) และล็อต C (ฐาน 10,000 บาท ภาษีมูลค่าเพิ่ม 700 บาท ยอดรวม 10,700 บาท) เกิดความรับผิดเมื่อส่งมอบวันที่ 1 ตุลาคม 2569 ตามมาตรา 78 (1) รวมฐานภาษี 30,000 บาท ใช้ พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569 อัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 2,100.00 บาท (ยอดรวมทั้งสิ้น 32,100 บาท)",
+              material_facts_relied_on: ["ล็อต B 20,000 + ล็อต C 10,000 = 30,000 บาท วันที่ 1 ตุลาคม 2569"],
+              governing_passage_ids: [
+                "psg.aa853373203223",
+                "psg.1b1abb8e7e22df",
+                "psg.rc8.rd807.sec_1_2",
+                "psg.rc8.rd807.sec_3_quoted_rd646_sec_4",
+                "psg.3d0eb5636faa0e",
+              ],
+              application_explanation_th:
+                "ฐานภาษีรวม 30,000 บาท (แบ่งเป็นล็อต B 1,400 บาท และล็อต C 700 บาท) อัตราร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 2,100 บาท",
+              authority_distinction_note_th: "",
+              proposed_calculation: {
+                formula_description_th: "30,000 × 7%",
+                tax_base_thb: 30000,
+                exempt_amount_thb: 0,
+                taxable_amount_thb: 30000,
+                rate_pct: 7,
+                computed_tax_thb: 2100,
+                is_computable_from_stated_facts: true,
+                missing_inputs_th: [],
+                steps_th: ["30,000 × 7% = 2,100 บาท"],
+              },
+              missing_facts_or_uncertainties_th: [],
+            },
+          ],
+          assumptions_th: [],
+          clarification_questions_th: [],
+          evidence_gaps_th: [],
+        }),
+      }
+    );
+    expect(c2aRes.status).toBe("ANSWERED");
+    expect(c2aRes.traceable_answer?.claims.filter((c) => c.published).length).toBe(2);
+
+    // Server-verified Save without query_persistence_context must ALSO preserve both multi-lot claims!
+    const c2aSaved = await cte.saveOrReviseAnswerServerVerified(store, {
+      actor: TEST_ACTOR_A,
+      question_text: DEF_C9_2_SAME_LOT_DIFFERENT_DAYS,
+      save_operation_key: "op.cand10.t9.c2a.save",
+      submitted_envelope: c2aRes.traceable_answer!,
+    });
+    expect(c2aSaved.status).toBe("complete");
+    expect(c2aSaved.claims.filter((c) => c.published).length).toBe(2);
+
+    // 2) Turn 2 boilerplate `"มูลค่า 20,000 บาท เป็นของล็อต B โดยเฉพาะ (ไม่ใช่ล็อต A) ส่วนข้อเท็จจริงอื่นทั้งหมดเหมือนเดิม"`
+    //    MUST keep Lot C on 2026-10-01 (RD 807), preserve 50,000 ceiling, and accept same-decree RD 799 (40k) + RD 807 (10k)
+    const t2Boilerplate =
+      "หากเปลี่ยนข้อเท็จจริงว่า การรับชำระราคาและออกใบกำกับภาษีเมื่อวันที่ 30 กันยายน 2569 มูลค่า 20,000 บาท เป็นของล็อต B โดยเฉพาะ (ไม่ใช่ล็อต A) ส่วนข้อเท็จจริงอื่นทั้งหมดเหมือนเดิม ภาระภาษีมูลค่าเพิ่มแต่ละส่วนเปลี่ยนไปอย่างไร";
+    const t2Ledger = buildStructuredCaseFactLedger({
+      question: t2Boilerplate,
+      conversationHistory: [{ role: "user", content: DEF_C9_2_SAME_LOT_DIFFERENT_DAYS }],
+      applicableDate: null,
+    });
+    const t2Buckets = t2Ledger.temporal_facts.vat_portion_allocation_record?.tax_date_buckets || [];
+    expect(t2Buckets.map((b) => [b.iso_date, b.lot_ids, b.amount_thb, b.decree_window])).toEqual([
+      ["2026-09-29", ["LOT_A"], 20000, "RD_799"],
+      ["2026-09-30", ["LOT_B"], 20000, "RD_799"],
+      ["2026-10-01", ["LOT_C"], 10000, "RD_807"],
+    ]);
+
+    const t2GroupedSameDecree = await queryKnowledge(
+      {
+        question: t2Boilerplate,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        answer_generation_mode: "llm_grounded",
+        conversation_history: [
+          { role: "user", content: DEF_C9_2_SAME_LOT_DIFFERENT_DAYS },
+          { role: "assistant", content: c2aRes.answer },
+        ],
+      },
+      TEST_ACTOR_A,
+      {
+        store,
+        llmMockInvokerForTesting: async () => ({
+          answer_status: "ANSWERED",
+          overall_summary_th: "ล็อต A (29 ก.ย.) และล็อต B (30 ก.ย.) อยู่ภายใต้ พ.ร.ฎ. 799 รวมฐาน 40,000 บาท VAT 2,800 บาท และล็อต C (1 ต.ค.) อยู่ภายใต้ พ.ร.ฎ. 807 ฐาน 10,000 บาท VAT 700 บาท",
+          case_facts_used: [],
+          issues: [
+            {
+              issue_id: "T9_R2_RD799_A_B",
+              issue_title_th: "ส่วนที่อยู่ภายใต้ พ.ร.ฎ. 799: ล็อต A (29 ก.ย. 2569) และล็อต B (30 ก.ย. 2569)",
+              party_or_scope_th: "ล็อต A (20,000 บาท) และล็อต B (20,000 บาท)",
+              conclusion_th:
+                "ล็อต A เกิดความรับผิดวันที่ 29 กันยายน 2569 (ฐาน 20,000 บาท VAT 1,400 บาท) และล็อต B เกิดความรับผิดวันที่ 30 กันยายน 2569 (ฐาน 20,000 บาท VAT 1,400 บาท) ทั้งสองส่วนอยู่ภายใต้ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 รวมฐานภาษี 40,000 บาท อัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 2,800 บาท",
+              material_facts_relied_on: ["ล็อต A 29 ก.ย. + ล็อต B 30 ก.ย. = 40,000 บาท"],
+              governing_passage_ids: [
+                "psg.aa853373203223",
+                "psg.1b1abb8e7e22df",
+                "psg.rc8.rd799.sec_1_2",
+                "psg.rc8.rd799.sec_3_quoted_rd646_sec_4",
+                "psg.3d0eb5636faa0e",
+              ],
+              application_explanation_th: "ฐานภาษีรวมภายใต้ พ.ร.ฎ. 799 เท่ากับ 40,000 บาท คิดเป็นภาษีมูลค่าเพิ่ม 2,800 บาท",
+              authority_distinction_note_th: "",
+              proposed_calculation: {
+                formula_description_th: "40,000 × 7%",
+                tax_base_thb: 40000,
+                exempt_amount_thb: 0,
+                taxable_amount_thb: 40000,
+                rate_pct: 7,
+                computed_tax_thb: 2800,
+                is_computable_from_stated_facts: true,
+                missing_inputs_th: [],
+                steps_th: ["40,000 × 7% = 2,800 บาท"],
+              },
+              missing_facts_or_uncertainties_th: [],
+            },
+            {
+              issue_id: "T9_R2_RD807_C",
+              issue_title_th: "ส่วนที่อยู่ภายใต้ พ.ร.ฎ. 807: ล็อต C (1 ตุลาคม 2569)",
+              party_or_scope_th: "ล็อต C (10,000 บาท)",
+              conclusion_th:
+                "ล็อต C มูลค่า 10,000 บาท เกิดความรับผิดวันที่ 1 ตุลาคม 2569 ภายใต้ พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569 อัตรารวมร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 700 บาท",
+              material_facts_relied_on: ["ล็อต C 10,000 บาท 1 ต.ค. 2569"],
+              governing_passage_ids: [
+                "psg.aa853373203223",
+                "psg.1b1abb8e7e22df",
+                "psg.rc8.rd807.sec_1_2",
+                "psg.rc8.rd807.sec_3_quoted_rd646_sec_4",
+                "psg.3d0eb5636faa0e",
+              ],
+              application_explanation_th: "ฐานภาษี 10,000 บาท คิดเป็นภาษีมูลค่าเพิ่ม 700 บาท",
+              authority_distinction_note_th: "",
+              proposed_calculation: {
+                formula_description_th: "10,000 × 7%",
+                tax_base_thb: 10000,
+                exempt_amount_thb: 0,
+                taxable_amount_thb: 10000,
+                rate_pct: 7,
+                computed_tax_thb: 700,
+                is_computable_from_stated_facts: true,
+                missing_inputs_th: [],
+                steps_th: ["10,000 × 7% = 700 บาท"],
+              },
+              missing_facts_or_uncertainties_th: [],
+            },
+          ],
+          assumptions_th: [],
+          clarification_questions_th: [],
+          evidence_gaps_th: [],
+        }),
+      }
+    );
+    expect(t2GroupedSameDecree.status).toBe("ANSWERED");
+    expect(t2GroupedSameDecree.traceable_answer?.claims.filter((c) => c.published).length).toBe(2);
+  });
 });

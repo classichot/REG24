@@ -297,9 +297,13 @@ function extractEventKindSpanAndCoverage(params: {
     return { amountThb, coverage: "PARTIAL" };
   }
 
+  const nonGoodsTotalBoilerplateRe =
+    /(?:ส่วน)?(?:ข้อเท็จจริง|เงื่อนไข|รายละเอียด|ข้อมูล|ประเด็น)อื่น(?:ๆ)?\s*ทั้งหมด(?:\s*(?:เหมือนเดิม|คงเดิม|ไม่เปลี่ยน(?:แปลง)?))?/gi;
+  const combinedSpanForCoverage = combinedSpan.replace(nonGoodsTotalBoilerplateRe, " ");
+
   const hasExplicitFull =
     /(?:ทั้งหมด|ทั้งจำนวน|ครบทั้งจำนวน|เต็มจำนวน|เต็มราคา|เต็มมูลค่า|ราคาทั้งหมด|ทั้งรายการ|ทั้งล็อต|ทั้งสัญญา|ทั้งก้อน|ครบถ้วน|100\s*%|ร้อยละ\s*100|(?:สินค้า|เครื่องจักร|รถยนต์|อุปกรณ์)(?:คัน|เครื่อง|ชิ้น|รายการ)(?:นั้น|ดังกล่าว)|full\s+(?:ownership|title|payment|price|amount|tax\s+invoice|invoice)|entire\s+(?:goods|shipment|order|lot|amount|price)|all\s+(?:of\s+)?(?:the\s+)?goods)/i.test(
-      combinedSpan
+      combinedSpanForCoverage
     );
   if (hasExplicitFull) {
     return { amountThb, coverage: "FULL" };
@@ -399,10 +403,28 @@ function extractLotReferencesFromClause(
     };
   }
 
-  const coversAllLots =
-    /(?:ทั้ง\s*[0-9]+\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทั้ง(?:สอง|สาม|สี่|ห้า)\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทุกล็อต|ทุกชุด|ทุกรายการ|สินค้าทั้งหมด|ทั้งหมด|ทั้งจำนวน|all\s+(?:[0-9]+\s+)?(?:lots?|batches?|items?|goods))/i.test(
-      positiveSpan
+  const positiveSpanNoBoilerplate = positiveSpan.replace(
+    /(?:ส่วน)?(?:ข้อเท็จจริง|เงื่อนไข|รายละเอียด|ข้อมูล|ประเด็น)อื่น(?:ๆ)?\s*ทั้งหมด(?:\s*(?:เหมือนเดิม|คงเดิม|ไม่เปลี่ยน(?:แปลง)?))?/gi,
+    " "
+  );
+
+  const lotMentionRe =
+    /(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s|$|[.,()]))/gi;
+  const covered: string[] = [];
+  for (const lm of positiveSpanNoBoilerplate.matchAll(lotMentionRe)) {
+    const lid = canonicalizeLotId(lm[1]);
+    if (declaredIds.has(lid) && !excludedSet.has(lid) && !covered.includes(lid)) {
+      covered.push(lid);
+    }
+  }
+
+  const explicitCollectiveAllLots =
+    /(?:ทั้ง\s*[0-9]+\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทั้ง(?:สอง|สาม|สี่|ห้า)\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทุกล็อต|ทุกชุด|ทุกรายการ|สินค้าทั้งหมด|all\s+(?:[0-9]+\s+)?(?:lots?|batches?|items?|goods))/i.test(
+      positiveSpanNoBoilerplate
     );
+  const coversAllLots =
+    explicitCollectiveAllLots ||
+    (covered.length === 0 && /(?:ทั้งหมด|ทั้งจำนวน)/i.test(positiveSpanNoBoilerplate));
   if (coversAllLots) {
     return {
       coveredLotIds: declaredLots
@@ -413,16 +435,6 @@ function extractLotReferencesFromClause(
       isExplicitSameGoodsRepeat,
       isExplicitDistinctGoods,
     };
-  }
-
-  const lotMentionRe =
-    /(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s|$|[.,()]))/gi;
-  const covered: string[] = [];
-  for (const lm of positiveSpan.matchAll(lotMentionRe)) {
-    const lid = canonicalizeLotId(lm[1]);
-    if (declaredIds.has(lid) && !excludedSet.has(lid) && !covered.includes(lid)) {
-      covered.push(lid);
-    }
   }
 
   return {
