@@ -782,26 +782,30 @@ describe("Formal Test 1 Candidate 10 — Lot-Aware VAT Allocation, Negated Bound
     }
   });
 
-  it("T7 (Fresh wording variant — ชุดที่ 1/2/3 distinct sets): allocates Set 1 (title 30 Sep, ฿20k) + Set 2 (payment/invoice 30 Sep, ฿20k) = ฿40k RD 799 (VAT ฿2,800) and Set 3 (delivery 1 Oct, ฿10k) = ฿10k RD 807 (VAT ฿700)", () => {
-    const freshWordingQ =
-      "บริษัท ทดสอบนกกระจิบ จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ขายสินค้าในประเทศราคารวม 50,000 บาท (ก่อนภาษีมูลค่าเพิ่ม) แบ่งสินค้าเป็น ชุดที่ 1 ราคา 20,000 บาท ชุดที่ 2 ราคา 20,000 บาท และชุดที่ 3 ราคา 10,000 บาท เมื่อวันที่ 30 กันยายน 2569 บริษัทโอนกรรมสิทธิ์สินค้าชุดที่ 1 ให้ลูกค้า และในวันเดียวกัน (30 กันยายน 2569) ได้รับชำระราคาพร้อมออกใบกำกับภาษีสำหรับชุดที่ 2 โดยเฉพาะ ส่วนชุดที่ 3 ไม่มีการโอนกรรมสิทธิ์ ชำระเงิน หรือออกใบกำกับภาษีก่อน โดยส่งมอบสินค้าทั้ง 3 ชุดวันที่ 1 ตุลาคม 2569 วันเกิดความรับผิดแต่ละส่วนคือวันใด ใช้ พ.ร.ฎ. ฉบับใด และคิดภาษีมูลค่าเพิ่มเท่าใด";
-    const ledger = buildStructuredCaseFactLedger({ question: freshWordingQ, applicableDate: null });
-    expect(ledger.temporal_facts.controlling_tax_point.is_ambiguous).toBe(false);
-    const alloc = ledger.temporal_facts.vat_portion_allocation_record;
-    expect(alloc?.allocation_status).toBe("RESOLVED");
-    expect(alloc?.tax_date_buckets.length).toBe(2);
-    expect(alloc?.tax_date_buckets[0]).toMatchObject({
-      iso_date: "2026-09-30",
-      amount_thb: 40000,
-      verified_vat_thb: 2800,
-      decree_window: "RD_799",
-    });
-    expect(alloc?.tax_date_buckets[1]).toMatchObject({
-      iso_date: "2026-10-01",
-      amount_thb: 10000,
-      verified_vat_thb: 700,
-      decree_window: "RD_807",
-    });
+  it("T7 (Fresh wording variants — ชุดที่ 1/2/3 with both ส่วน and โดย trailing negation): allocates Set 1 (title 30 Sep, ฿20k) + Set 2 (payment/invoice 30 Sep, ฿20k) = ฿40k RD 799 (VAT ฿2,800) and Set 3 (delivery 1 Oct, ฿10k) = ฿10k RD 807 (VAT ฿700)", () => {
+    const freshWordingVariants = [
+      "บริษัท ทดสอบนกกระจิบ จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ขายสินค้าในประเทศราคารวม 50,000 บาท (ก่อนภาษีมูลค่าเพิ่ม) แบ่งสินค้าเป็น ชุดที่ 1 ราคา 20,000 บาท ชุดที่ 2 ราคา 20,000 บาท และชุดที่ 3 ราคา 10,000 บาท เมื่อวันที่ 30 กันยายน 2569 บริษัทโอนกรรมสิทธิ์สินค้าชุดที่ 1 ให้ลูกค้า และในวันเดียวกัน (30 กันยายน 2569) ได้รับชำระราคาพร้อมออกใบกำกับภาษีสำหรับชุดที่ 2 โดยเฉพาะ ส่วนชุดที่ 3 ไม่มีการโอนกรรมสิทธิ์ ชำระเงิน หรือออกใบกำกับภาษีก่อน โดยส่งมอบสินค้าทั้ง 3 ชุดวันที่ 1 ตุลาคม 2569 วันเกิดความรับผิดแต่ละส่วนคือวันใด ใช้ พ.ร.ฎ. ฉบับใด และคิดภาษีมูลค่าเพิ่มเท่าใด",
+      "บริษัท ทดสอบหงส์ขาว จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ขายสินค้าทั่วไปในประเทศราคารวม 50,000 บาท (ยังไม่รวมภาษีมูลค่าเพิ่ม) แยกสินค้าเป็น 3 ชุด คือ ชุดที่ 1 ราคา 20,000 บาท ชุดที่ 2 ราคา 20,000 บาท และชุดที่ 3 ราคา 10,000 บาท เมื่อวันที่ 30 กันยายน 2569 บริษัทโอนกรรมสิทธิ์สำหรับชุดที่ 1 และในวันเดียวกันได้รับชำระราคาพร้อมออกใบกำกับภาษีสำหรับชุดที่ 2 โดยชุดที่ 3 ยังไม่มีการโอนกรรมสิทธิ์ รับชำระเงิน หรือออกใบกำกับภาษีก่อน จากนั้นบริษัทส่งมอบสินค้าทั้ง 3 ชุดพร้อมกันเมื่อวันที่ 1 ตุลาคม 2569 วันเกิดความรับผิดของแต่ละส่วนคือวันใด ใช้พระราชกฤษฎีกาฉบับใด และภาษีมูลค่าเพิ่มแต่ละส่วนเป็นเงินเท่าใด",
+    ];
+    for (const freshWordingQ of freshWordingVariants) {
+      const ledger = buildStructuredCaseFactLedger({ question: freshWordingQ, applicableDate: null });
+      expect(ledger.temporal_facts.controlling_tax_point.is_ambiguous).toBe(false);
+      const alloc = ledger.temporal_facts.vat_portion_allocation_record;
+      expect(alloc?.allocation_status).toBe("RESOLVED");
+      expect(alloc?.tax_date_buckets.length).toBe(2);
+      expect(alloc?.tax_date_buckets[0]).toMatchObject({
+        iso_date: "2026-09-30",
+        amount_thb: 40000,
+        verified_vat_thb: 2800,
+        decree_window: "RD_799",
+      });
+      expect(alloc?.tax_date_buckets[1]).toMatchObject({
+        iso_date: "2026-10-01",
+        amount_thb: 10000,
+        verified_vat_thb: 700,
+        decree_window: "RD_807",
+      });
+    }
   });
 
   it("T8 (Reopen -> Changed-Lot Follow-Up + Unchanged Save No-Op + Parent Mismatch Rejection): reassigning 30 Sep payment/invoice from Lot A to Lot B recomputes r2 to ฿40k RD 799 + ฿10k RD 807 while keeping r1 intact", async () => {
