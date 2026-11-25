@@ -2065,6 +2065,32 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           ) {
             scopedBasesThb.add(calcCheck.verifiedCalc.taxable_amount_thb);
           }
+          // When THIS portion's own calculation is already verified (e.g. Portion 2: 30,000 × 7% = 2,100) AND the claim
+          // explicitly states its own verified tax output, also permit reconciling against verified sibling portions
+          // (e.g. Portion 1: 20,000 -> 1,400) and the combined split total (50,000 -> 3,500 / 53,500) in prose!
+          // Never relaxes Control B (`proposed_calculation: null` or wrong `computed_tax_thb` on an installment).
+          if (
+            calcCheck.verifiedCalc.computed_tax_thb !== null &&
+            calcCheck.verifiedCalc.computed_tax_thb > 0 &&
+            splitPts.length >= 2 &&
+            splitPts.every((sp) => typeof sp.amount_thb === "number" && sp.amount_thb > 0)
+          ) {
+            const ownTaxPlain = String(calcCheck.verifiedCalc.computed_tax_thb);
+            const ownTaxFmt = calcCheck.verifiedCalc.computed_tax_thb.toLocaleString("en-US");
+            const normClaimCheck = thaiDigitsToArabic(fullIssueClaimStatement);
+            if (normClaimCheck.includes(ownTaxFmt) || normClaimCheck.includes(ownTaxPlain)) {
+              let sumSplit = 0;
+              for (const sp of splitPts) {
+                if (typeof sp.amount_thb === "number" && sp.amount_thb > 0) {
+                  scopedBasesThb.add(sp.amount_thb);
+                  sumSplit += sp.amount_thb;
+                }
+              }
+              if (sumSplit > 0) {
+                scopedBasesThb.add(Math.round(sumSplit * 100) / 100);
+              }
+            }
+          }
         } else if (
           singleSplitPortion &&
           typeof singleSplitPortion.amount_thb === "number" &&
