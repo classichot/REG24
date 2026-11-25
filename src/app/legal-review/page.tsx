@@ -655,6 +655,12 @@ export default function LegalTeamReviewStudioPage() {
     }
   };
 
+  const pendingQueryAttemptRef = useRef<{
+    signature: string;
+    convId: string;
+    saveOpKey: string;
+  } | null>(null);
+
   const runQuery = async (
     overrideQuestion?: string,
     overrideDate?: string | null,
@@ -692,19 +698,6 @@ export default function LegalTeamReviewStudioPage() {
     // Clicking "▶ รันคำถามใหม่ (New Query)" (appendFollowUp === false) MUST ALWAYS start a fresh case with zero prior history!
     const isFollowUpCall = Boolean(appendFollowUp);
     const historyForCall = isFollowUpCall ? conversationHistory : [];
-    const activeConvId = isFollowUpCall ? conversationId : createFreshConversationId();
-    if (!isFollowUpCall) {
-      setConversationId(activeConvId);
-      setReopenedFromRevision(null);
-      if (promptChangedFromPreset) {
-        setActiveScenario(null);
-        setActiveSpotcheckId("UNSEEN-CUSTOM");
-        if (asOfDateSetByPreset) {
-          setAsOfDate("");
-          setAsOfDateSetByPreset(false);
-        }
-      }
-    }
     const priorSavedTurn = isFollowUpCall
       ? [...historyForCall]
           .reverse()
@@ -716,6 +709,51 @@ export default function LegalTeamReviewStudioPage() {
         traceableEnvelope?.answer_revision ||
         null
       : null;
+
+    // Reuse deterministic `convId` + `save_operation_key` when retrying the exact same unfinished submission
+    // so a retry after an interrupted stream NEVER creates a duplicate revision!
+    const attemptSignature = JSON.stringify({
+      isFollowUpCall,
+      priorRev: effectivePriorRevision || "",
+      q: qToRun,
+      d: dateToRun || "",
+      docs: attachedDocIds,
+      fixture: syntheticFixture || "",
+    });
+    const reusedAttempt =
+      pendingQueryAttemptRef.current &&
+      pendingQueryAttemptRef.current.signature === attemptSignature
+        ? pendingQueryAttemptRef.current
+        : null;
+
+    const activeConvId = isFollowUpCall
+      ? conversationId
+      : reusedAttempt?.convId || createFreshConversationId();
+    const attemptSaveOpKey =
+      reusedAttempt?.saveOpKey ||
+      `op.qry.${activeConvId}.${Date.now().toString(36)}.${Math.random().toString(36).slice(2, 7)}`;
+    pendingQueryAttemptRef.current = {
+      signature: attemptSignature,
+      convId: activeConvId,
+      saveOpKey: attemptSaveOpKey,
+    };
+
+    if (!isFollowUpCall) {
+      setConversationId(activeConvId);
+      setReopenedFromRevision(null);
+      // Clear previous matter's displayed answer immediately on a New Query so an interrupted stream
+      // never leaves stale answer content on screen alongside an error notice.
+      setAnswerResult(null);
+      setTraceableEnvelope(null);
+      if (promptChangedFromPreset) {
+        setActiveScenario(null);
+        setActiveSpotcheckId("UNSEEN-CUSTOM");
+        if (asOfDateSetByPreset) {
+          setAsOfDate("");
+          setAsOfDateSetByPreset(false);
+        }
+      }
+    }
 
     try {
       const res = await fetch("/api/v1/knowledge/query", {
@@ -730,6 +768,7 @@ export default function LegalTeamReviewStudioPage() {
           mode: queryMode,
           channel: "chat",
           persist_answer: true,
+          save_operation_key: attemptSaveOpKey,
           stream: true,
           conversation_id: activeConvId,
           prior_saved_answer_revision: effectivePriorRevision,
@@ -826,7 +865,7 @@ export default function LegalTeamReviewStudioPage() {
         if (!json || !json.ok || !json.answer) {
           setStatusBanner({
             kind: "err",
-            text: "การเชื่อมต่อสตรีมสิ้นสุดก่อนได้รับคำตอบที่ผ่านการตรวจสอบ",
+            text: "การเชื่อมต่อสตรีมสิ้นสุดก่อนได้รับคำตอบที่ผ่านการตรวจสอบ — ไม่มีการเผยแพร่คำตอบที่ยังไม่ตรวจสอบ (สามารถกดส่งคำถามซ้ำได้อย่างปลอดภัยโดยไม่สร้างรุ่นบันทึกซ้ำ)",
           });
           return;
         }
@@ -842,6 +881,7 @@ export default function LegalTeamReviewStudioPage() {
         }
       }
 
+      pendingQueryAttemptRef.current = null;
       const ans: GroundedAnswer = json.answer;
       const env: TraceableAnswerEnvelope | null =
         json.traceable_answer || ans.traceable_answer || null;

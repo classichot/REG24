@@ -18,6 +18,13 @@ import {
   verifyClaimAgainstPassages,
 } from "./answer-verification";
 import {
+  auditEssentialIssueSurfaceText,
+  extractNamedAuthoritiesFromText,
+  redactAuthorityIdentifiersFromPublicDiagnosticTh,
+  sanitizeIncidentalSurfaceText,
+  type VerifiedAuthorityPassageBinding,
+} from "./authority-surface-auditor";
+import {
   evaluateSection47ClaimAmountsAndSubclauses,
   verifySection47AllowanceComponentsFromFacts,
   type Section47AllowanceEvalResult,
@@ -1039,10 +1046,11 @@ function redactRejectedCalculationNumbers(
 }
 
 function redactPublicClaimRejectionReasonTh(rawReason: string): string {
-  return (rawReason || "")
+  const numRedacted = (rawReason || "")
     .replace(/\(\s*[0-9๐-๙][0-9๐-๙,.\s]*(?:บาท|ล้านบาท|%|เปอร์เซ็นต์|วัน|เดือน|ปี)?\s*\)/g, "(ตัวเลขถูกระงับ)")
     .replace(/[0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})+\s*(?:บาท|ล้านบาท)?/g, "[ตัวเลขถูกระงับ]")
     .replace(/(?<![0-9๐-๙])[0-9๐-๙]+\s*(?:บาท|ล้านบาท)/g, "[จำนวนเงินถูกระงับ]");
+  return redactAuthorityIdentifiersFromPublicDiagnosticTh(numRedacted);
 }
 
 function applyPreviewOnlyS47SyntheticFixture(
@@ -1244,8 +1252,24 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     const missingIds = params.specialConstraints!.unresolved_explicit_ruling_ids!;
     const missingLabel = missingIds.join(", ");
     const releaseLabel = params.passagePack[0]?.version_id ? "rel.B01.rc8" : "rel.B01.rc8";
+    const normalizedMissingSet = new Set(
+      missingIds.flatMap((id) =>
+        extractNamedAuthoritiesFromText(id)
+          .filter((a) => a.kind === "ruling")
+          .map((a) => a.canonicalId)
+      )
+    );
+    const summaryExtractedAuths = extractNamedAuthoritiesFromText(
+      params.draft.overall_summary_th || ""
+    );
+    const summaryHasForeignAuthority = summaryExtractedAuths.some(
+      (a) =>
+        a.kind === "rd_url" ||
+        (a.kind === "ruling" && !normalizedMissingSet.has(a.canonicalId))
+    );
     const draftSummaryClean =
       params.draft.overall_summary_th &&
+      !summaryHasForeignAuthority &&
       missingIds.every((id) => params.draft!.overall_summary_th.includes(id.replace(/^กค\s+/, ""))) &&
       !/ได้รับยกเว้น|ไม่ต้องหักภาษี/.test(params.draft.overall_summary_th)
         ? params.draft.overall_summary_th
@@ -1454,9 +1478,66 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   const totalS47IssueCount = workingIssues.filter((wIss) =>
     (wIss.governing_passage_ids || []).some((pid) => packById.get(pid)?.work_id === "prov.th.rc.47")
   ).length;
+  const isClarificationTurn =
+    params.draft.answer_status === "NEEDS_CLARIFICATION" ||
+    Boolean(params.specialConstraints?.needs_vat_date_clarification);
+
+  const toVerifiedAuthorityBindings = (pids: string[]): VerifiedAuthorityPassageBinding[] => {
+    const out: VerifiedAuthorityPassageBinding[] = [];
+    for (const pid of pids) {
+      const item = packById.get(pid);
+      if (!item) continue;
+      const ver = params.state.versions[item.version_id];
+      if (!ver) continue;
+      const work = params.state.works[item.work_id];
+      out.push({
+        passage_id: item.passage_id,
+        work_id: item.work_id,
+        version_id: item.version_id,
+        work_type: work?.type || null,
+        authority_tier: item.authority_tier,
+        official_identifier: item.official_identifier,
+        title_th: item.title_th,
+        pinpoint: item.pinpoint,
+        verbatim_text: item.verbatim_text,
+        official_url: item.official_url,
+        temporal_applicability_hint: item.effective_dates.temporal_applicability_hint,
+      });
+    }
+    return out;
+  };
+
+  const factNumericTokenSet = new Set<string>(factNumericTokens);
+  const stripTentativeClarificationArithmeticTh = (text: string): string => {
+    if (!isClarificationTurn || !text) return text;
+    return text
+      .replace(
+        /\s*\([^()]{0,220}?(?:หากใช้|สมมติ|คิดเป็น|เท่ากับ|เป็นเงิน)[^()]{0,160}?([0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})+|[0-9๐-๙]+(?:\.[0-9๐-๙]+)?)\s*บาท[^()]{0,120}?\)/gu,
+        (full, rawNum: string) => {
+          const normNum = thaiDigitsToArabic(rawNum).replace(/,/g, "");
+          return factNumericTokenSet.has(normNum) ? full : "";
+        }
+      )
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  };
 
   for (let idx = 0; idx < workingIssues.length; idx++) {
-    const iss = workingIssues[idx];
+    const rawIss = workingIssues[idx];
+    const iss: LlmDraftedIssue = isClarificationTurn
+      ? {
+          ...rawIss,
+          conclusion_th: stripTentativeClarificationArithmeticTh(rawIss.conclusion_th),
+          application_explanation_th: stripTentativeClarificationArithmeticTh(
+            rawIss.application_explanation_th
+          ),
+          missing_facts_or_uncertainties_th: (
+            rawIss.missing_facts_or_uncertainties_th || []
+          )
+            .map(stripTentativeClarificationArithmeticTh)
+            .filter(Boolean),
+        }
+      : rawIss;
     const validPassageIds = Array.from(
       new Set((iss.governing_passage_ids || []).filter((pid) => packById.has(pid)))
     );
@@ -1511,13 +1592,11 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       continue;
     }
 
-    // Gate 4: Independent Calculation Verification (strip any unconditioned tax figure if needs_vat_date_clarification is active!)
+    // Gate 4: Independent Calculation Verification (VC-EQ: never expose unapproved arithmetic or bound_calculation on NEEDS_CLARIFICATION!)
     const citesSection47InIssue = citedPackItems.some((p) => p.work_id === "prov.th.rc.47");
-    const effectiveIssueForCalc: LlmDraftedIssue =
-      params.specialConstraints?.needs_vat_date_clarification &&
-      iss.proposed_calculation?.computed_tax_thb !== null
-        ? { ...iss, proposed_calculation: null }
-        : iss;
+    const effectiveIssueForCalc: LlmDraftedIssue = isClarificationTurn
+      ? { ...iss, proposed_calculation: null }
+      : iss;
     const calcCheck = verifyProposedCalculation({
       issue: effectiveIssueForCalc,
       citedItems: citedPackItems,
@@ -1705,7 +1784,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       // deterministically ground exact VAT-exclusive (7% / 6.3% / 0.7%), VAT-inclusive total (107% = base + VAT),
       // and VAT-inclusive back-out (7/107, 100/107) figures derived STRICTLY from THIS claim's own valid taxable base
       // (never pooling across sibling installments or superseded multi-turn bases!).
-      if (calcCheck.accepted) {
+      // Only ground derived VAT baht outputs when NOT on a clarification turn (`!isClarificationTurn` — VC-EQ guard)!
+      if (calcCheck.accepted && !isClarificationTurn) {
         const extractAmounts = (txt: string): number[] => {
           const vals: number[] = [];
           for (const am of thaiDigitsToArabic(txt).matchAll(
@@ -1794,16 +1874,45 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         finalPassageIds.push(p3889.passage_id);
       }
     }
-    // Minor 3 (M1t3): Auto-bind §50(5)(ข) passage containing "( ดูพระราชกฤษฎีกา (ฉบับที่ 165) พ.ศ. 2529 )" when RD 165 is cited!
-    if (/(?:ฉบับที่\s*165|พ\.ร\.ฎ\.[^\n]{0,20}165)/.test(normStmtPreBind)) {
-      const p50_165 = params.passagePack.find(
+    // Minor 3 (M1t3): Auto-bind exact §50(5) unit (`psg.e5b0d991385db2`) & §48(4) unit (`psg.35d2ae2eddfff5`)
+    // when §50(5) / RD 165 / §48(4) expense-deduction rules are cited!
+    if (/(?:มาตรา\s*50\s*\(5\)|ฉบับที่\s*165|พ\.ร\.ฎ\.[^\n]{0,20}165)/.test(normStmtPreBind)) {
+      const p50_5 = params.passagePack.find(
         (p) =>
           p.work_id === "prov.th.rc.50" &&
-          thaiDigitsToArabic(p.verbatim_text).includes("165") &&
+          (/\(5\)\s*ในกรณี/.test(thaiDigitsToArabic(p.verbatim_text)) ||
+            thaiDigitsToArabic(p.verbatim_text).includes("165")) &&
           !finalPassageIds.includes(p.passage_id)
       );
-      if (p50_165) {
-        finalPassageIds.push(p50_165.passage_id);
+      if (p50_5) {
+        finalPassageIds.push(p50_5.passage_id);
+      }
+    }
+    if (/มาตรา\s*48\s*\(4\)(?!\s*\/)/.test(normStmtPreBind)) {
+      // If the LLM accidentally attached bond-redemption Unit 3 (`psg.bf16a87e2d1f29`) without citing `48 (3)`,
+      // drop that unrelated unit before binding exact `(4)` (`psg.35d2ae2eddfff5`) + section header!
+      if (!/มาตรา\s*48\s*\(3\)/.test(normStmtPreBind)) {
+        finalPassageIds = finalPassageIds.filter((pid) => pid !== "psg.bf16a87e2d1f29");
+      }
+      const p48Header = params.passagePack.find(
+        (p) =>
+          p.work_id === "prov.th.rc.48" &&
+          /^มาตรา\s*48\b/.test(thaiDigitsToArabic(p.verbatim_text).trim()) &&
+          !finalPassageIds.includes(p.passage_id)
+      );
+      if (p48Header) {
+        finalPassageIds.push(p48Header.passage_id);
+      }
+      const p48_4 = params.passagePack.find(
+        (p) =>
+          p.work_id === "prov.th.rc.48" &&
+          /\(4\)\s*ผู้มีเงินได้จะเลือกเสียภาษี|ทางอื่นนอกจาก\s*\(ก\)/.test(
+            thaiDigitsToArabic(p.verbatim_text)
+          ) &&
+          !finalPassageIds.includes(p.passage_id)
+      );
+      if (p48_4) {
+        finalPassageIds.push(p48_4.passage_id);
       }
     }
     // DEF-C3-2 (s.47): Auto-bind sibling `prov.th.rc.47` unit `psg.cfc975a6134b54` when `psg.e4ec78f644930e` is cited
@@ -1824,9 +1933,39 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       passagePack: params.passagePack,
       factLedger: params.factLedger,
     });
+
+    // Candidate 6 P0: Strip incidental unverified authority references in heading/party/comparison clauses
+    // BEFORE claim entailment while keeping essential authority checks strict!
+    const preCheckBindings = toVerifiedAuthorityBindings([
+      ...finalPassageIds,
+      ...params.passagePack
+        .filter((p) => p.evidence_role === "governing" && p.work_id.startsWith("prov.th.rc."))
+        .map((p) => p.passage_id),
+    ]);
+    const preCleanTitle =
+      sanitizeIncidentalSurfaceText(iss.issue_title_th, preCheckBindings, {
+        excludedContextInstruments,
+      }).cleanedText || redactAuthorityIdentifiersFromPublicDiagnosticTh(iss.issue_title_th);
+    const preCleanParty =
+      sanitizeIncidentalSurfaceText(iss.party_or_scope_th, preCheckBindings, {
+        excludedContextInstruments,
+      }).cleanedText || redactAuthorityIdentifiersFromPublicDiagnosticTh(iss.party_or_scope_th);
+    const preAuditConcl = auditEssentialIssueSurfaceText(iss.conclusion_th, preCheckBindings, {
+      excludedContextInstruments,
+    });
+    const preAuditExpl = iss.application_explanation_th
+      ? auditEssentialIssueSurfaceText(iss.application_explanation_th, preCheckBindings, {
+          excludedContextInstruments,
+        })
+      : { ok: true, cleanedText: "", unsupportedAuthorities: [] };
+
+    let workingClaimStatement = preAuditExpl.cleanedText
+      ? `[${preCleanTitle} — ${preCleanParty}] ${preAuditConcl.cleanedText} (${preAuditExpl.cleanedText})`
+      : `[${preCleanTitle} — ${preCleanParty}] ${preAuditConcl.cleanedText}`;
+
     let entailmentCheck = verifyClaimAgainstPassages(
       {
-        statement: fullIssueClaimStatement,
+        statement: workingClaimStatement,
         supporting_passage_ids: finalPassageIds,
         verified_calculation_numeric_tokens: trustedTokensArr,
         excluded_context_instruments: excludedContextInstruments,
@@ -1841,7 +1980,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       !entailmentCheck.allow_confident_answer &&
       /UNGROUNDED_LEGAL_IDENTIFIER/.test(entailmentCheck.reason || "")
     ) {
-      const normStmtForSec = thaiDigitsToArabic(fullIssueClaimStatement);
+      const normStmtForSec = thaiDigitsToArabic(workingClaimStatement);
       const mentionedRcNums = new Set<string>();
       for (const sm of normStmtForSec.matchAll(
         /มาตรา\s*(\d+(?:\/\d+)?(?:\s*(?:ทวิ|ตรี|จัตวา|เบญจ|ฉ(?!บับ|พาะ|ุกเฉิน)|สัตต|อัฏฐ|เตรส))?)/g
@@ -1878,7 +2017,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         finalPassageIds = [...finalPassageIds, ...candidateGoverningAdds];
         entailmentCheck = verifyClaimAgainstPassages(
           {
-            statement: fullIssueClaimStatement,
+            statement: workingClaimStatement,
             supporting_passage_ids: finalPassageIds,
             verified_calculation_numeric_tokens: trustedTokensArr,
             excluded_context_instruments: excludedContextInstruments,
@@ -1904,7 +2043,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       pruneGuard++;
       const nextCheck = verifyClaimAgainstPassages(
         {
-          statement: fullIssueClaimStatement,
+          statement: workingClaimStatement,
           supporting_passage_ids: nextCandidateIds,
           verified_calculation_numeric_tokens: trustedTokensArr,
           excluded_context_instruments: excludedContextInstruments,
@@ -1916,6 +2055,68 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       }
       finalPassageIds = nextCandidateIds;
       entailmentCheck = nextCheck;
+    }
+
+    // Candidate 6 P0 Strict Final Issue-Level Authority Audit:
+    // Every named authority in `conclusion_th` and `application_explanation_th` MUST point to an exact
+    // verified passage + version in `finalPassageIds`! If essential and unsupported, withhold ONLY this issue;
+    // for incidental surfaces (`issue_title_th`, `authority_distinction_note_th`, `missing_facts_or_uncertainties_th`,
+    // `material_facts_relied_on`), strip any unsupported reference and its dependent clause!
+    const strictIssueBindings = toVerifiedAuthorityBindings(finalPassageIds);
+    const strictConclAudit = auditEssentialIssueSurfaceText(
+      iss.conclusion_th,
+      strictIssueBindings,
+      { excludedContextInstruments }
+    );
+    const strictExplAudit = iss.application_explanation_th
+      ? auditEssentialIssueSurfaceText(iss.application_explanation_th, strictIssueBindings, {
+          excludedContextInstruments,
+        })
+      : { ok: true, cleanedText: "", unsupportedAuthorities: [] };
+
+    if (entailmentCheck.allow_confident_answer && (!strictConclAudit.ok || !strictExplAudit.ok)) {
+      entailmentCheck = {
+        verification_result: "UNSUPPORTED",
+        allow_confident_answer: false,
+        reason:
+          "UNGROUNDED_LEGAL_IDENTIFIER: ระงับการรับรองข้อกล่าวอ้าง เนื่องจากข้อสรุปหรือคำอธิบายอ้างอิงแหล่งกฎหมายที่ไม่มีข้อความหลักฐานและรุ่นกฎหมายที่ตรวจสอบแล้วรองรับในประเด็นนี้",
+      };
+    }
+
+    const sanitizedIssueTitleTh =
+      sanitizeIncidentalSurfaceText(iss.issue_title_th, strictIssueBindings, {
+        excludedContextInstruments,
+      }).cleanedText || redactAuthorityIdentifiersFromPublicDiagnosticTh(iss.issue_title_th);
+    const sanitizedPartyOrScopeTh =
+      sanitizeIncidentalSurfaceText(iss.party_or_scope_th, strictIssueBindings, {
+        excludedContextInstruments,
+      }).cleanedText || redactAuthorityIdentifiersFromPublicDiagnosticTh(iss.party_or_scope_th);
+    const sanitizedAuthorityNoteTh = sanitizeIncidentalSurfaceText(
+      iss.authority_distinction_note_th || "",
+      strictIssueBindings,
+      { excludedContextInstruments }
+    ).cleanedText;
+    const sanitizedMaterialFacts = (iss.material_facts_relied_on || [])
+      .map(
+        (mf) =>
+          sanitizeIncidentalSurfaceText(mf, strictIssueBindings, {
+            excludedContextInstruments,
+          }).cleanedText
+      )
+      .filter(Boolean);
+    const sanitizedMissingFacts = (iss.missing_facts_or_uncertainties_th || [])
+      .map(
+        (mf) =>
+          sanitizeIncidentalSurfaceText(mf, strictIssueBindings, {
+            excludedContextInstruments,
+          }).cleanedText
+      )
+      .filter(Boolean);
+
+    if (entailmentCheck.allow_confident_answer) {
+      workingClaimStatement = strictExplAudit.cleanedText
+        ? `[${sanitizedIssueTitleTh} — ${sanitizedPartyOrScopeTh}] ${strictConclAudit.cleanedText} (${strictExplAudit.cleanedText})`
+        : `[${sanitizedIssueTitleTh} — ${sanitizedPartyOrScopeTh}] ${strictConclAudit.cleanedText}`;
     }
 
     if (!entailmentCheck.allow_confident_answer) {
@@ -2020,13 +2221,13 @@ export function verifyAndRenderGroundedLlmDraft(params: {
 
     const claimLedgerItem: ClaimLedgerItem = {
       claim_id: claimId,
-      statement: fullIssueClaimStatement,
+      statement: workingClaimStatement,
       claim_type: "qualified_legal_synthesis",
       statement_role: firstRaw?.statement_role || "statutory_text",
       supporting_passage_ids: finalPassageIds,
       applicable_version_id: firstRaw?.version_id || citedPackItems[0].version_id,
-      factual_conditions: iss.material_facts_relied_on.slice(0, 5),
-      exceptions: iss.missing_facts_or_uncertainties_th.slice(0, 5),
+      factual_conditions: sanitizedMaterialFacts.slice(0, 5),
+      exceptions: sanitizedMissingFacts.slice(0, 5),
       counterevidence_passage_ids: [],
       verification_result: entailmentCheck.verification_result,
       verified_calculation_numeric_tokens: trustedTokensArr,
@@ -2035,15 +2236,15 @@ export function verifyAndRenderGroundedLlmDraft(params: {
 
     verifiedIssues.push({
       issue_id: iss.issue_id,
-      issue_title_th: iss.issue_title_th,
-      party_or_scope_th: iss.party_or_scope_th,
-      conclusion_th: iss.conclusion_th,
-      material_facts_relied_on: iss.material_facts_relied_on || [],
+      issue_title_th: sanitizedIssueTitleTh,
+      party_or_scope_th: sanitizedPartyOrScopeTh,
+      conclusion_th: strictConclAudit.cleanedText,
+      material_facts_relied_on: sanitizedMaterialFacts,
       governing_passage_ids: finalPassageIds,
-      application_explanation_th: iss.application_explanation_th,
-      authority_distinction_note_th: iss.authority_distinction_note_th || "",
+      application_explanation_th: strictExplAudit.cleanedText,
+      authority_distinction_note_th: sanitizedAuthorityNoteTh,
       verified_calculation: calcCheck.accepted ? calcCheck.verifiedCalc : null,
-      missing_facts_or_uncertainties_th: iss.missing_facts_or_uncertainties_th || [],
+      missing_facts_or_uncertainties_th: sanitizedMissingFacts,
       claim_ledger_item: claimLedgerItem,
     });
   }
@@ -2064,11 +2265,26 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   // - When `needs_vat_date_clarification` is active (e.g. VC), return clean `NEEDS_CLARIFICATION` asking for the tax-point date!
   // - Otherwise return explicit `REVIEW_REQUIRED` inability notice, NEVER falling back to prewritten legal conclusions!
   if (verifiedIssues.length === 0) {
-    if (params.specialConstraints?.needs_vat_date_clarification) {
+    const fallbackGoverningBindings = toVerifiedAuthorityBindings(
+      params.passagePack
+        .filter((p) => p.evidence_role === "governing" && p.work_id.startsWith("prov.th.rc."))
+        .map((p) => p.passage_id)
+    );
+    const cleanZeroIssueAssumptions = (params.draft.assumptions_th || [])
+      .map((a) => sanitizeIncidentalSurfaceText(a, fallbackGoverningBindings).cleanedText)
+      .filter(Boolean);
+    const cleanZeroIssueClarifications = (params.draft.clarification_questions_th || [])
+      .map((q) =>
+        stripTentativeClarificationArithmeticTh(
+          sanitizeIncidentalSurfaceText(q, fallbackGoverningBindings).cleanedText
+        )
+      )
+      .filter(Boolean);
+
+    if (isClarificationTurn) {
       const clarifyQs =
-        params.draft.clarification_questions_th &&
-        params.draft.clarification_questions_th.length > 0
-          ? params.draft.clarification_questions_th
+        cleanZeroIssueClarifications.length > 0
+          ? cleanZeroIssueClarifications
           : [
               "กรุณาระบุวันที่รับชำระค่าบริการและวันที่ออกใบกำกับภาษี (ตามมาตรา 78/1 (1)) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับและคำนวณภาษีขาย",
             ];
@@ -2080,7 +2296,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         verified_issues: [],
         claims: [],
         evidence_cards: [],
-        assumptions_th: params.draft.assumptions_th || [],
+        assumptions_th: cleanZeroIssueAssumptions,
         clarification_questions_th: clarifyQs,
         coverage_warnings_th: [],
         rejected_calculations_diagnostic: buildRejectedDiagnostics(),
@@ -2105,7 +2321,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     const reasonsSummary = rejectedClaims
       .map(
         (r) =>
-          `- ${r.issue_title_th}: ${redactPublicClaimRejectionReasonTh(r.rejection_reason_th)} (${r.rejection_code})`
+          `- ${redactAuthorityIdentifiersFromPublicDiagnosticTh(r.issue_title_th)}: ${redactPublicClaimRejectionReasonTh(r.rejection_reason_th)} (${r.rejection_code})`
       )
       .join("\n");
     const blockedMsg =
@@ -2117,8 +2333,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       verified_issues: [],
       claims: [],
       evidence_cards: [],
-      assumptions_th: params.draft.assumptions_th || [],
-      clarification_questions_th: params.draft.clarification_questions_th || [],
+      assumptions_th: cleanZeroIssueAssumptions,
+      clarification_questions_th: cleanZeroIssueClarifications,
       coverage_warnings_th: rejectedClaims.map(
         (r) =>
           `ระงับประเด็น ${r.issue_id}: ${redactPublicClaimRejectionReasonTh(r.rejection_reason_th)} (${r.rejection_code})`
@@ -2183,25 +2399,78 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     };
   });
 
-  const assumptions = params.draft.assumptions_th || [];
-  const clarifications = [...(params.draft.clarification_questions_th || [])];
+  // Candidate 6 P0: Sanitize ALL answer-level surfaces (`assumptions`, `clarifications`, `evidenceGaps`,
+  // `overall_summary_th`, `case_facts_used`) strictly against `usedPackItems`!
+  const answerLevelBindings = toVerifiedAuthorityBindings(usedPackItems.map((p) => p.passage_id));
+  const assumptions = (params.draft.assumptions_th || [])
+    .map(
+      (a) =>
+        stripTentativeClarificationArithmeticTh(
+          sanitizeIncidentalSurfaceText(a, answerLevelBindings).cleanedText
+        )
+    )
+    .filter(Boolean);
+  const clarificationBindings = [
+    ...answerLevelBindings,
+    ...toVerifiedAuthorityBindings(
+      params.passagePack
+        .filter((p) => p.evidence_role === "governing" && p.work_id.startsWith("prov.th.rc."))
+        .map((p) => p.passage_id)
+    ),
+  ];
+  const clarifications = (params.draft.clarification_questions_th || [])
+    .map(
+      (c) =>
+        stripTentativeClarificationArithmeticTh(
+          sanitizeIncidentalSurfaceText(c, clarificationBindings).cleanedText
+        )
+    )
+    .filter(Boolean);
   if (params.specialConstraints?.needs_vat_date_clarification && clarifications.length === 0) {
     clarifications.push(
       "กรุณาระบุวันที่รับชำระค่าบริการและวันที่ออกใบกำกับภาษี (ตามมาตรา 78/1 (1)) เพื่อยืนยันพระราชกฤษฎีกาที่ใช้บังคับและคำนวณภาษีขาย"
     );
   }
-  const evidenceGaps = [...(params.draft.evidence_gaps_th || [])];
+  const rawEvidenceGaps = [...(params.draft.evidence_gaps_th || [])];
   const usesRd646Governing =
     Boolean(params.specialConstraints?.rd646_original_sec4_limitation) ||
     usedPackItems.some((p) => p.work_id === "subreg.th.rc.royal_decree.646");
   if (
     usesRd646Governing &&
-    !evidenceGaps.some((g) => thaiDigitsToArabic(g).includes("646") && thaiDigitsToArabic(g).includes("มาตรา 4"))
+    !rawEvidenceGaps.some((g) => thaiDigitsToArabic(g).includes("646") && thaiDigitsToArabic(g).includes("มาตรา 4"))
   ) {
-    evidenceGaps.push(
+    rawEvidenceGaps.push(
       "หมายเหตุข้อจำกัดต้นฉบับ พ.ร.ฎ. (ฉบับที่ 646) พ.ศ. 2560: ตัวบทมาตรา 4 ฉบับแรกเริ่มตามราชกิจจานุเบกษาไม่ได้แยกอยู่ในคลังหลักฐาน (คลังมีเฉพาะเอกสารฉบับประมวลของกรมสรรพากรซึ่งแสดงข้อความมาตรา 4 ที่แก้ไขเพิ่มเติมในภายหลัง)"
     );
   }
+  const evidenceGaps = rawEvidenceGaps
+    .map(
+      (g) =>
+        stripTentativeClarificationArithmeticTh(
+          sanitizeIncidentalSurfaceText(g, answerLevelBindings, {
+            isEvidenceGapNotice: true,
+          }).cleanedText
+        )
+    )
+    .filter(Boolean);
+
+  const sanitizedDraftForRender: GroundedLlmDraftResponse = {
+    ...params.draft,
+    overall_summary_th: stripTentativeClarificationArithmeticTh(
+      sanitizeIncidentalSurfaceText(params.draft.overall_summary_th || "", answerLevelBindings)
+        .cleanedText
+    ),
+    case_facts_used: (params.draft.case_facts_used || []).map((cf) => ({
+      ...cf,
+      legal_significance_th: stripTentativeClarificationArithmeticTh(
+        sanitizeIncidentalSurfaceText(cf.legal_significance_th || "", answerLevelBindings)
+          .cleanedText
+      ),
+    })),
+    assumptions_th: assumptions,
+    clarification_questions_th: clarifications,
+    evidence_gaps_th: evidenceGaps,
+  };
 
   const coverageWarnings: string[] = [
     ...evidenceGaps,
@@ -2233,7 +2502,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   }
 
   const renderedAnswer = renderNeutralGroundedLlmAnswerTh({
-    draft: params.draft,
+    draft: sanitizedDraftForRender,
     factLedger: params.factLedger,
     verifiedIssues,
     usedPassages: usedPackItems,

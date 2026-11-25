@@ -740,6 +740,47 @@ export async function lookupSavedAnswerByOperationKeyInPostgres(params: {
   };
 }
 
+export async function lookupSavedAnswerByActorAndOperationKeyInPostgres(params: {
+  owner_actor_id: string;
+  owner_tenant_id: string;
+  save_operation_key: string;
+}): Promise<{
+  found: boolean;
+  answer_revision_id: string | null;
+  answer_id: string | null;
+  question_text: string | null;
+}> {
+  const db = resolveActiveCitationDbTransport();
+  if (!db) {
+    return { found: false, answer_revision_id: null, answer_id: null, question_text: null };
+  }
+  const envScope = getEnvScope();
+  const res = await db<{
+    answer_revision_id: string;
+    answer_id: string;
+    question_text: string | null;
+  }>(
+    `SELECT answer_revision_id, answer_id, question_text
+       FROM citation_published_answer
+      WHERE owner_actor_id = $1
+        AND owner_tenant_id = $2
+        AND save_operation_key = $3
+        AND environment_scope = $4
+      ORDER BY revision_number DESC
+      LIMIT 1`,
+    [params.owner_actor_id, params.owner_tenant_id, params.save_operation_key, envScope]
+  );
+  if (res.rows.length === 0) {
+    return { found: false, answer_revision_id: null, answer_id: null, question_text: null };
+  }
+  return {
+    found: true,
+    answer_revision_id: res.rows[0].answer_revision_id,
+    answer_id: res.rows[0].answer_id,
+    question_text: res.rows[0].question_text ?? null,
+  };
+}
+
 export async function persistAnswerRevisionToPostgres(params: {
   envelope: TraceableAnswerEnvelope;
   question_text: string;

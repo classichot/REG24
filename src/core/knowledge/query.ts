@@ -129,13 +129,25 @@ function selectRelevantPassagesForClaimWork(
     if (/\(4\/1\)|4\/1/.test(claimStatementTh)) patterns.push(/\(4\/1\)/);
     if (/\(6\)/.test(claimStatementTh)) patterns.push(/(?:^|\n)\s*\(6\)/);
     if (/\(7\)/.test(claimStatementTh)) patterns.push(/(?:^|\n)\s*\(7\)/);
-    if (/\(4\)|165|ซื้อ|วิธีหักค่าใช้จ่าย/.test(claimStatementTh)) {
-      patterns.push(/ฉบับที่\s*165|\(4\)\s*เงินได้พึงประเมิน/);
+    if (
+      /\(4\)|165|ซื้อ|มรดก|ถือครอง|วิธีหักค่าใช้จ่าย|หักค่าใช้จ่าย|อสังหาริมทรัพย์|ที่ดิน|ห้องชุด|อาคาร|41\s*ทวิ|50\s*\(5\)|50\s*\(6\)/.test(
+        claimStatementTh
+      )
+    ) {
+      patterns.push(/\(4\)\s*ผู้มีเงินได้จะเลือกเสียภาษี|ทางอื่นนอกจาก\s*\(ก\)|ฉบับที่\s*165/);
     }
   } else if (workId === "prov.th.rc.50") {
-    if (/\(6\)/.test(claimStatementTh)) patterns.push(/(?:-->\s*|^|\n\s*)\(6\)\s*ในกรณี/);
-    if (/\(5\)/.test(claimStatementTh)) patterns.push(/(?:-->\s*|^|\n\s*)\(5\)\s*ในกรณี/);
-    if (/\(1\)|โอนเงินสด|ผ่านธนาคาร/.test(claimStatementTh)) {
+    const immovableWhtContext =
+      /อสังหาริมทรัพย์|ที่ดิน|ห้องชุด|คอนโด|อาคาร|บ้าน|มรดก|ซื้อ|ถือครอง|หักค่าใช้จ่าย|165|41\s*ทวิ|42\s*\(26\)|บุตร/.test(
+        claimStatementTh
+      );
+    if (/\(6\)/.test(claimStatementTh) || immovableWhtContext) {
+      patterns.push(/(?:-->\s*|^|\n\s*)\(6\)\s*ในกรณี/);
+    }
+    if (/\(5\)/.test(claimStatementTh) || immovableWhtContext) {
+      patterns.push(/(?:-->\s*|^|\n\s*)\(5\)\s*ในกรณี/);
+    }
+    if (/มาตรา\s*(?:40|50)\s*\(1\)|เงินเดือน|ค่าจ้าง|โอนเงินสด|ผ่านธนาคาร/.test(claimStatementTh)) {
       patterns.push(/(?:-->\s*|^|\n\s*)\([12]\)/);
     }
   } else if (workId === "prov.th.rc.40") {
@@ -1539,9 +1551,15 @@ async function executeCoreKnowledgeQuery(
     const isGiftContext =
       factLedger.material_facts.some((f) => f.normalized_category === "GRATUITOUS_TRANSFER_NO_CONSIDERATION") ||
       /(?:โดยเสน่หา|โดยไม่มีค่าตอบแทน|ภาษีการรับให้|อุปการะ|(?:ยก|โอน|มอบ)[^\n]{0,55}ให้)/.test(mergedUserBlob);
+    const isImmovableOrWhtDeductionContext =
+      /(?:อสังหาริมทรัพย์|ที่ดิน|ห้องชุด|คอนโด|อาคาร|บ้าน|หักค่าใช้จ่าย|ถือครอง|สำนักงานที่ดิน)/.test(
+        mergedUserBlob
+      );
     const subsectionSelectionHint = [
       mergedUserBlob,
-      isGiftContext ? "(26) (27) (28) (5) (6) (4/1) (7) (8)" : "",
+      isGiftContext || isImmovableOrWhtDeductionContext
+        ? "(26) (27) (28) (4) (5) (6) (4/1) (7) (8) ทางอื่นนอกจาก (ก)"
+        : "",
       /ภาษีธุรกิจเฉพาะ|ขายที่ดิน|มรดก|ซื้อ/.test(mergedUserBlob) ? "มาตรา 4 (6) (ข) (ค) (ง) 165 ใบรับ 28" : "",
     ]
       .filter(Boolean)
@@ -1621,6 +1639,19 @@ async function executeCoreKnowledgeQuery(
     // 1. Prioritize controlling statutory & subordinate works mapped to the transaction
     for (const ctrlWorkId of issueAnalysis.controllingWorkIds) {
       appendWorkPassages(ctrlWorkId);
+    }
+    if (issueAnalysis.controllingWorkIds.includes("prov.th.rc.41_ทวิ")) {
+      appendWorkPassages("prov.th.rc.42");
+      appendWorkPassages("prov.th.rc.48");
+    }
+    if (
+      issueAnalysis.controllingWorkIds.includes("prov.th.rc.91/2") ||
+      /(?:ภาษีธุรกิจเฉพาะ|91\/2|ฉบับที่\s*342)/.test(mergedUserBlob)
+    ) {
+      appendWorkPassages("prov.th.rc.91/2");
+      appendWorkPassages("prov.th.rc.91/5");
+      appendWorkPassages("prov.th.rc.91/6");
+      appendWorkPassages("subreg.th.rc.royal_decree.342");
     }
 
     // 2. For VAT queries, route governing provisions strictly by VAT regime & controlling tax-point date
@@ -3161,7 +3192,7 @@ async function executeCoreKnowledgeQuery(
 
       let coAuthIdx = 0;
       for (const ctrlWorkId of issueAnalysis.controllingWorkIds) {
-        if (citedWorkSet.has(ctrlWorkId) || coAuthIdx >= 8) continue;
+        if (citedWorkSet.has(ctrlWorkId) || coAuthIdx >= 10) continue;
         const ctrlSeed =
           availablePassages.find(
             (p) =>

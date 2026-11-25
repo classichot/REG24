@@ -16,8 +16,10 @@ import type {
   QaSyntheticFixtureId,
 } from "../../../../../core/knowledge/contracts";
 import { flushPendingSection47RestrictedDiagnostics } from "../../../../../core/knowledge/s47-restricted-diagnostics";
+import { redactAuthorityIdentifiersFromPublicDiagnosticTh } from "../../../../../core/knowledge/authority-surface-auditor";
 import {
   assertFollowUpConversationIntegrity,
+  findIdempotentQueryRevisionByOperationKey,
   saveOrReviseAnswerServerVerified,
 } from "../../../../../core/knowledge/claim-traceability-engine";
 import {
@@ -159,15 +161,17 @@ export async function POST(req: Request) {
       rawTrace: Record<string, unknown> | undefined
     ): Record<string, unknown> | undefined => {
       if (!rawTrace || typeof rawTrace !== "object") return undefined;
-      const redactNums = (s: unknown): string =>
+      const redactPublicDiag = (s: unknown): string =>
         typeof s === "string"
-          ? s
-              .replace(
-                /\(\s*[0-9๐-๙][0-9๐-๙,.\s]*(?:บาท|ล้านบาท|%|เปอร์เซ็นต์|วัน|เดือน|ปี)?\s*\)/g,
-                "(ตัวเลขถูกระงับ)"
-              )
-              .replace(/[0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})+\s*(?:บาท|ล้านบาท)?/g, "[ตัวเลขถูกระงับ]")
-              .replace(/(?<![0-9๐-๙])[0-9๐-๙]+\s*(?:บาท|ล้านบาท)/g, "[จำนวนเงินถูกระงับ]")
+          ? redactAuthorityIdentifiersFromPublicDiagnosticTh(
+              s
+                .replace(
+                  /\(\s*[0-9๐-๙][0-9๐-๙,.\s]*(?:บาท|ล้านบาท|%|เปอร์เซ็นต์|วัน|เดือน|ปี)?\s*\)/g,
+                  "(ตัวเลขถูกระงับ)"
+                )
+                .replace(/[0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})+\s*(?:บาท|ล้านบาท)?/g, "[ตัวเลขถูกระงับ]")
+                .replace(/(?<![0-9๐-๙])[0-9๐-๙]+\s*(?:บาท|ล้านบาท)/g, "[จำนวนเงินถูกระงับ]")
+            )
           : "";
       const rawRejClaims = Array.isArray(rawTrace.rejected_claims)
         ? (rawTrace.rejected_claims as Array<Record<string, unknown>>)
@@ -175,34 +179,110 @@ export async function POST(req: Request) {
       const rawRejCalcs = Array.isArray(rawTrace.rejected_calculations)
         ? (rawTrace.rejected_calculations as Array<Record<string, unknown>>)
         : [];
+      const rawClaimsAfter = Array.isArray(rawTrace.claims_after_verification)
+        ? (rawTrace.claims_after_verification as Array<Record<string, unknown>>)
+        : [];
+      const verifiedUsedPassageIds = new Set<string>(
+        rawClaimsAfter.flatMap((ca) =>
+          Array.isArray(ca.supporting_passage_ids)
+            ? (ca.supporting_passage_ids as unknown[]).filter(
+                (id): id is string => typeof id === "string"
+              )
+            : []
+        )
+      );
+      const rawSupplied = Array.isArray(rawTrace.supplied_passages)
+        ? (rawTrace.supplied_passages as Array<Record<string, unknown>>)
+        : [];
       return {
         ...rawTrace,
-        // Never leak unverified pre-check draft conclusions or rejected numbers over the HTTP API (Exit Criterion #5 & K3/RC1)
+        supplied_passage_count: rawSupplied.length,
+        supplied_passages: rawSupplied.filter(
+          (sp) => typeof sp.passage_id === "string" && verifiedUsedPassageIds.has(sp.passage_id)
+        ),
+        // Never leak unverified pre-check draft conclusions, unlinked authorities, or rejected numbers over HTTP
         claims_before_verification: Array.isArray(rawTrace.claims_before_verification)
           ? (rawTrace.claims_before_verification as Array<Record<string, unknown>>).map((c) => ({
               issue_id: c.issue_id,
-              issue_title_th: c.issue_title_th,
+              issue_title_th: redactPublicDiag(c.issue_title_th),
               governing_passage_ids: c.governing_passage_ids,
               has_proposed_calculation: c.has_proposed_calculation,
             }))
           : [],
         rejected_claims: rawRejClaims.map((rc) => ({
           issue_id: rc.issue_id,
-          issue_title_th: rc.issue_title_th,
+          issue_title_th: redactPublicDiag(rc.issue_title_th),
           cited_passage_ids: rc.cited_passage_ids,
           rejection_code: rc.rejection_code,
-          rejection_reason_th: redactNums(rc.rejection_reason_th),
+          rejection_reason_th: redactPublicDiag(rc.rejection_reason_th),
         })),
         rejected_calculations: rawRejCalcs.map((rc) => ({
           issue_id: rc.issue_id,
-          issue_title_th: rc.issue_title_th,
+          issue_title_th: redactPublicDiag(rc.issue_title_th),
           rejection_code: rc.rejection_code,
-          rejection_reason_th: redactNums(rc.rejection_reason_th),
+          rejection_reason_th: redactPublicDiag(rc.rejection_reason_th),
         })),
       };
     };
 
+    const querySaveOpKey =
+      (typeof body.save_operation_key === "string" && body.save_operation_key.trim()) ||
+      req.headers.get("idempotency-key")?.trim() ||
+      req.headers.get("x-idempotency-key")?.trim() ||
+      null;
+
     const executeQueryPipeline = async () => {
+      if (body.persist_answer && querySaveOpKey) {
+        const existingEnv = await findIdempotentQueryRevisionByOperationKey(store, actor, {
+          save_operation_key: querySaveOpKey,
+          question_text: qClean,
+        });
+        if (existingEnv) {
+          const snap = existingEnv.grounded_answer_snapshot;
+          const replayedAnswer = snap
+            ? ({
+                ...snap,
+                traceable_answer: existingEnv,
+              } as Awaited<ReturnType<typeof queryKnowledge>>)
+            : ({
+                release_id: existingEnv.verifier_metadata.release_id,
+                knowledge_snapshot_at: existingEnv.generated_at,
+                status:
+                  existingEnv.grounded_answer_status ||
+                  (existingEnv.status === "complete"
+                    ? "ANSWERED"
+                    : existingEnv.status === "partial"
+                      ? "CONDITIONAL"
+                      : "INSUFFICIENT_EVIDENCE"),
+                answer: existingEnv.rendered_answer_th,
+                claims: [],
+                evidence: [],
+                assumptions: existingEnv.assumptions || [],
+                clarification_questions: existingEnv.clarification_questions_th || [],
+                coverage_warnings: existingEnv.coverage_warnings_th || [],
+                applicable_date: existingEnv.as_of_date,
+                model_policy_version: "idempotent_replay",
+                trace_id: existingEnv.answer_id.replace(/^ans\./, ""),
+                latency_ms: 1,
+                execution_provenance: (existingEnv.execution_provenance ||
+                  undefined) as Awaited<ReturnType<typeof queryKnowledge>>["execution_provenance"],
+                traceable_answer: existingEnv,
+              } as Awaited<ReturnType<typeof queryKnowledge>>);
+          const totalReplayMs = Math.round((performance.now() - reqStartedAt) * 100) / 100;
+          return {
+            answer: replayedAnswer,
+            auditStatus: { backend: "idempotent_replay" as const },
+            stageTimingMs: { query: 0, persist: 0, audit: 0, total: totalReplayMs },
+            headers: {
+              "x-reg24-ratelimit-backend": gate.rateLimitBackend,
+              "x-reg24-ratelimit-remaining": String(gate.remainingInWindow),
+              "x-reg24-idempotent-replay": "true",
+              "x-reg24-stage-timing-ms": `query=0;persist=0;audit=0;total=${totalReplayMs}`,
+            } as Record<string, string>,
+          };
+        }
+      }
+
       // IMPORTANT: Keep `persistAnswerAtomically: false` during `queryKnowledge` so unpersisted in-memory
       // envelope generation NEVER pre-populates `r1` ahead of `saveOrReviseAnswerServerVerified`, and
       // keep `enable_tax_foundation_pilot: false` so the VAT book pilot remains strictly OFF on staging!
@@ -294,12 +374,6 @@ export async function POST(req: Request) {
         const isFollowUpSave =
           Array.isArray(body.conversation_history) &&
           body.conversation_history.some((t) => t.role === "user" && Boolean(t.content?.trim()));
-
-        const querySaveOpKey =
-          (typeof body.save_operation_key === "string" && body.save_operation_key.trim()) ||
-          req.headers.get("idempotency-key")?.trim() ||
-          req.headers.get("x-idempotency-key")?.trim() ||
-          null;
 
         const pgSaved = await saveOrReviseAnswerServerVerified(store, {
           submitted_envelope: {

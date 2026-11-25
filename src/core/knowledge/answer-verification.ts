@@ -223,8 +223,14 @@ export function extractCanonicalInstrumentNumbers(normText: string): string[] {
   for (const m of normText.matchAll(/(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)[^0-9\n]{0,115}ฉบับที่\s*([0-9]+)/g)) {
     out.add(`พรฎ.${m[1]}`);
   }
+  for (const m of normText.matchAll(/พ\.ร\.ฎ\.\s*\(?\s*([0-9]{2,4})\s*\)?(?![0-9/])/g)) {
+    out.add(`พรฎ.${m[1]}`);
+  }
   for (const m of normText.matchAll(/ท\.ป\.\s*([0-9]+\/[0-9]+)/g)) {
     out.add(`ทป.${m[1]}`);
+  }
+  for (const m of normText.matchAll(/(?:คำสั่งกรมสรรพากร\s*)?ที่\s*ป\.\s*([0-9]+\/[0-9]+)/g)) {
+    out.add(`ป.${m[1]}`);
   }
   for (const m of normText.matchAll(/ฎีกาที่\s*([0-9]+\/[0-9]+)/g)) {
     out.add(`ฎีกา.${m[1]}`);
@@ -440,10 +446,17 @@ export function evaluateSubstantiveClaimSupport(params: {
   const combinedRawFull = `${distinctMetaParts}\n${combinedRawBodyOnly}`;
 
   // Fast path Check 0: Even for verbatim segments, check per-passage relevance first so an extra irrelevant passage cannot piggyback!
+  const rawBracketHeaderForAuth = /^\s*\[([^\]]{2,320})\]/u.exec(params.claim_text || "")?.[1] || "";
+  const fullClaimWithHeaderRaw = rawBracketHeaderForAuth
+    ? `${rawBracketHeaderForAuth} ${strippedClaim}`
+    : strippedClaim;
+  const normClaimWithHeader = rawBracketHeaderForAuth
+    ? normalizeForEntailment(fullClaimWithHeaderRaw)
+    : normClaim;
   const claimShingles = extractSubstantiveContentShingles(normClaim);
-  const claimSections = extractCanonicalSectionIds(normClaim);
-  const claimRulings = extractCanonicalRulingIds(strippedClaim);
-  const claimInstruments = extractCanonicalInstrumentNumbers(normClaim);
+  const claimSections = extractCanonicalSectionIds(normClaimWithHeader);
+  const claimRulings = extractCanonicalRulingIds(fullClaimWithHeaderRaw);
+  const claimInstruments = extractCanonicalInstrumentNumbers(normClaimWithHeader);
   const claimQuantities = extractMaterialQuantitativeTokens(normClaim);
 
   // 1. Explicit statutory section / sub-clause / ruling / Royal Decree / Order grounding check
@@ -503,25 +516,67 @@ export function evaluateSubstantiveClaimSupport(params: {
     )
   );
   if (subparaLetterMatches.length > 0) {
-    const bodyCompact = combinedNormBodyOnly.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
-    // Extract sibling subparagraph slices `(ก)`..`(ช)` from the cited body text
-    const siblingSlices = new Map<string, string>();
-    const markerRegex = /\(([ก-ช])\)/g;
-    const markers: Array<{ letter: string; index: number }> = [];
-    let mk: RegExpExecArray | null;
-    while ((mk = markerRegex.exec(bodyCompact)) !== null) {
-      markers.push({ letter: mk[1], index: mk.index });
-    }
-    for (let i = 0; i < markers.length; i++) {
-      const start = markers[i].index;
-      const end = i + 1 < markers.length ? markers[i + 1].index : Math.min(bodyCompact.length, start + 500);
-      const slice = bodyCompact.slice(start, Math.min(end, start + 500));
-      const prev = siblingSlices.get(markers[i].letter) || "";
-      siblingSlices.set(markers[i].letter, prev ? `${prev}\n${slice}` : slice);
-    }
+    const extractLetterSlicesFromBody = (textToScan: string): Map<string, string> => {
+      const slices = new Map<string, string>();
+      const markerRegex = /\(([ก-ช])\)/g;
+      const markers: Array<{ letter: string; index: number }> = [];
+      let mk: RegExpExecArray | null;
+      while ((mk = markerRegex.exec(textToScan)) !== null) {
+        markers.push({ letter: mk[1], index: mk.index });
+      }
+      for (let i = 0; i < markers.length; i++) {
+        const start = markers[i].index;
+        const end =
+          i + 1 < markers.length ? markers[i + 1].index : Math.min(textToScan.length, start + 500);
+        const slice = textToScan.slice(start, Math.min(end, start + 500));
+        const prev = slices.get(markers[i].letter) || "";
+        slices.set(markers[i].letter, prev ? `${prev}\n${slice}` : slice);
+      }
+      return slices;
+    };
+
+    const bodyCompactAll = combinedNormBodyOnly.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+    const fallbackAllSlices = extractLetterSlicesFromBody(bodyCompactAll);
 
     for (const sm of subparaLetterMatches) {
+      const secNumRaw = sm[1].trim();
+      const parentClauseNum = sm[2].trim();
       const citedLetter = sm[3];
+      const mIdx = sm.index ?? 0;
+      const leftCtx = normClaimForSubpara.slice(Math.max(0, mIdx - 65), mIdx);
+      const isDecreeSectionRef = /(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.|กฎกระทรวง)[^\n]{0,55}$/.test(leftCtx);
+      const rcWorkKey = `prov.th.rc.${secNumRaw.replace(/\s+/g, "_")}`;
+
+      // Scope sibling subparagraph slices to the specific cited statute/section & parent clause `(${parentClauseNum})`
+      // whenever present in the attached passages so `(ก)`/`(ข)` from unrelated sections never cross-contaminate!
+      const sectionScopedPassages = !isDecreeSectionRef
+        ? params.passages.filter(
+            (p) => p.doc_id === rcWorkKey || p.doc_id === rcWorkKey.replace(/_/g, "/")
+          )
+        : params.passages.filter((p) => (p.doc_id || "").startsWith("subreg.th.rc."));
+      let siblingSlices = fallbackAllSlices;
+      if (sectionScopedPassages.length > 0) {
+        const secBodyWithLines = thaiDigitsToArabic(
+          sectionScopedPassages.map((p) => p.verbatim_text).join("\n")
+        )
+          .toLowerCase()
+          .replace(/\(\s+/g, "(")
+          .replace(/\s+\)/g, ")");
+        const parentClauseRe = new RegExp(
+          `(?:-->\\s*|^|\\n\\s*)\\(${parentClauseNum}\\)\\s[\\s\\S]*?(?=(?:-->\\s*|\\n\\s*)\\([0-9]{1,2}(?:\\/[0-9]+)?\\)\\s|$)`
+        );
+        const parentMatch = parentClauseRe.exec(secBodyWithLines);
+        const scopedNorm = normalizeForEntailment(
+          parentMatch ? parentMatch[0] : secBodyWithLines
+        )
+          .replace(/\(\s+/g, "(")
+          .replace(/\s+\)/g, ")");
+        const scopedSlices = extractLetterSlicesFromBody(scopedNorm);
+        if (scopedSlices.size > 0) {
+          siblingSlices = scopedSlices;
+        }
+      }
+
       const citedSlice = siblingSlices.get(citedLetter);
       if (!citedSlice) {
         return {
@@ -531,7 +586,6 @@ export function evaluateSubstantiveClaimSupport(params: {
           overlap_ratio: 0,
         };
       }
-      const mIdx = sm.index ?? 0;
       const localClaimWindow = normClaimForSubpara.slice(
         Math.max(0, mIdx - 120),
         Math.min(normClaimForSubpara.length, mIdx + 120)
@@ -539,27 +593,25 @@ export function evaluateSubstantiveClaimSupport(params: {
       for (const fam of SUBPARA_CONCEPT_FAMILIES) {
         if (!fam.pattern.test(localClaimWindow)) continue;
         if (fam.pattern.test(citedSlice)) continue;
-        // If the claim window explicitly negates or excludes this concept (e.g. "ทางอื่นนอกจากมรดก", "มิใช่มรดก",
-        // "ไม่รวมถึงบุตรบุญธรรม"), it is contrasting the sibling subparagraph, NOT misattributing its exception!
+        // If the claim window explicitly negates, excludes, or contrasts this concept (e.g. "ทางอื่นนอกจากมรดก",
+        // "มิใช่มรดก", "ไม่รวมถึงบุตรบุญธรรม", "ต่างจากกรณีมรดกหรือบุตรชอบด้วยกฎหมาย"), it is contrasting the sibling
+        // subparagraph, NOT misattributing its exception!
         const negatedConceptInWindow = new RegExp(
-          `(?:มิใช่|ไม่ใช่|ไม่ได้|มิได้|ทางอื่นนอกจาก|นอกจาก|ไม่รวมถึง)[^\\n]{0,40}(?:${fam.pattern.source})`
+          `(?:มิใช่|ไม่ใช่|ไม่ได้|มิได้|ทางอื่นนอกจาก|นอกจาก|ไม่รวมถึง|ต่างจาก|แยกจาก|ไม่เข้า(?:ข้อยกเว้น|เกณฑ์))[^\\n]{0,95}(?:${fam.pattern.source})`
         ).test(localClaimWindow);
         if (negatedConceptInWindow) continue;
 
-        // Claim asserts this exception concept near `(${citedLetter})`, yet `(${citedLetter})` does NOT contain it
-        // while a DIFFERENT sibling subparagraph `(ก)`–`(ช)` in the same cited text DOES!
-        // Skip if the cited subparagraph itself excludes that sibling (e.g. §50(5)(ข) "ได้มาโดยทางอื่นนอกจาก (ก)")
-        // or if the claim body ALSO explicitly cites that matching sibling subparagraph `(${sibLetter})`
-        // (e.g. multi-allowance enumeration citing `มาตรา 47 (1) (ก), (ข) และ (ค)` in the same claim).
         let matchingSibling: string | null = null;
         for (const [sibLetter, sibText] of siblingSlices.entries()) {
           if (sibLetter !== citedLetter && fam.pattern.test(sibText)) {
             const siblingAlsoCitedInClaim = new RegExp(`\\(${sibLetter}\\)`).test(
               normClaimForSubpara
             );
-            const citedSliceExcludesSibling = new RegExp(`นอกจาก\\s*\\(${sibLetter}\\)`).test(citedSlice);
+            const citedSliceExcludesSibling = new RegExp(
+              `(?:ทางอื่น)?นอกจาก(?:\\s*(?:ที่ระบุ(?:ไว้)?ใน|กรณี(?:ตาม|ที่ระบุใน)))?\\s*\\(${sibLetter}\\)`
+            ).test(citedSlice);
             const isSec47PersonalSubclause =
-              sm[1].trim() === "47" &&
+              secNumRaw === "47" &&
               citedLetter === "ก" &&
               /ผู้มีเงินได้[^\n]{0,35}60,?000/.test(normClaimForSubpara);
             if (!siblingAlsoCitedInClaim && !citedSliceExcludesSibling && !isSec47PersonalSubclause) {
@@ -653,12 +705,13 @@ export function evaluateSubstantiveClaimSupport(params: {
         normClaim
       );
     const appliesToNonLegitChild =
-      /(?:หลานสาว|หลานชาย|บุตรของพี่|บุตรของน้อง|บุตรของบุตร|บุตรสาวของหลาน|บุตรชายของหลาน|บุตรบุญธรรม)[^\n]{0,60}(?:ได้รับยกเว้น|เข้าเกณฑ์)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
+      /(?:หลานสาว|หลานชาย|บุตรของพี่|บุตรของน้อง|บุตรของบุตร|บุตรสาวของหลาน|บุตรชายของหลาน|บุตรบุญธรรม)[^\n]{0,60}(?<!ไม่|มิได้)(?:ได้รับยกเว้น|เข้าเกณฑ์)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
         normClaim
       );
     const attributesS42_26ToNonChildRecipient =
       !isSupportedLegitimateChildRecipientNotTaxed &&
-      /(?:ผู้รับโอน|หลานสาวผู้รับโอน|หลานชายผู้รับโอน|บุตรบุญธรรมผู้รับโอน)[^\n]{0,40}(?:ได้รับยกเว้น(?:ภาษี)?)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
+      !negatesS42_26 &&
+      /(?:ผู้รับโอน|หลานสาวผู้รับโอน|หลานชายผู้รับโอน|บุตรบุญธรรมผู้รับโอน)[^\n]{0,40}(?<!ไม่|มิได้)(?:ได้รับยกเว้น(?:ภาษี)?)[^\n]{0,40}มาตรา\s*42\s*\(26\)/.test(
         normClaim
       ) &&
       !/ผู้โอน[^\n]{0,30}เป็นผู้มีเงินได้/.test(normClaim);

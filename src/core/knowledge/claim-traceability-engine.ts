@@ -12,6 +12,10 @@ import * as path from "node:path";
 import { getVerifiedStatutoryCorpus } from "../data/verified-statutory-loader";
 import { evaluateSubstantiveClaimSupport } from "./answer-verification";
 import {
+  sanitizeIncidentalSurfaceText,
+  type VerifiedAuthorityPassageBinding,
+} from "./authority-surface-auditor";
+import {
   evaluateSection47ClaimAmountsAndSubclauses,
   verifySection47AllowanceComponentsFromFacts,
 } from "./tax-calculation-verifier";
@@ -37,6 +41,7 @@ import {
   loadAllOnboardedSourcesFromPostgres,
   loadPinnedPassageFromPostgres,
   loadSavedAnswerFromPostgres,
+  lookupSavedAnswerByActorAndOperationKeyInPostgres,
   lookupSavedAnswerByOperationKeyInPostgres,
   lookupSavedRevisionRecordInPostgres,
   persistAnswerRevisionToPostgres,
@@ -1305,22 +1310,37 @@ export function validateAndBuildTraceableAnswer(
           (cp) => cp.doc_id === psg.doc_id && cp.version_id === psg.version_id
         );
         const allProposedAnswerText = input.proposed_claims.map((pc) => pc.text).join("\n");
-        const companionStatutoryTextsOnClaim = prop.support_groups
+        const companionEvidenceIdsOnClaim = prop.support_groups
           .flatMap((sg) => sg.evidence_ids)
-          .filter((id) => id !== evId)
+          .filter((id) => id !== evId);
+        const companionStatutoryTextsOnClaim = companionEvidenceIdsOnClaim
           .map((id) => {
             const cp = view.passages[id];
             const cd = cp ? view.documents[cp.doc_id] : undefined;
             return cp && cd?.source_family === "gazette_enactment" ? cp.verbatim_text : "";
           })
           .filter(Boolean);
+        const companionStatutoryDocIdsOnClaim = companionEvidenceIdsOnClaim
+          .map((id) => {
+            const cp = view.passages[id];
+            const cd = cp ? view.documents[cp.doc_id] : undefined;
+            return cd?.source_family === "gazette_enactment"
+              ? cd.canonical_work_id || cd.doc_id
+              : "";
+          })
+          .filter(Boolean);
+        const hasVerifiedZeroBoundCalculation = Boolean(
+          prop.bound_calculation && prop.bound_calculation.outputs.computed_tax_thb === 0
+        );
         const contradictionCheck = evaluateSubstantiveSupportAndExceptions(
           prop.text,
           allProposedAnswerText,
           psg,
           siblingPassagesInDoc,
           Boolean(prop.human_approved_by),
-          companionStatutoryTextsOnClaim
+          companionStatutoryTextsOnClaim,
+          companionStatutoryDocIdsOnClaim,
+          hasVerifiedZeroBoundCalculation
         );
         if (contradictionCheck.decision !== "supported") {
           claimDecision = contradictionCheck.decision;
@@ -1622,7 +1642,9 @@ function evaluateSubstantiveSupportAndExceptions(
   citedPassage: EvidencePassageRecord,
   siblingPassagesInSameVersion: EvidencePassageRecord[],
   humanApprovedOverride: boolean,
-  companionStatutoryTextsOnClaim: string[] = []
+  companionStatutoryTextsOnClaim: string[] = [],
+  companionStatutoryDocIdsOnClaim: string[] = [],
+  hasVerifiedZeroBoundCalculation = false
 ): {
   decision: VerifierDecisionOutcome;
   explanation_th: string | null;
@@ -1692,16 +1714,36 @@ function evaluateSubstantiveSupportAndExceptions(
   }
 
   // 3. Tax exemption vs taxable polarity check
+  // Statutory cross-references ("ที่ไม่ได้รับยกเว้นตามมาตรา 42...") or threshold exemptions
+  // ("เฉพาะในส่วนที่เกินยี่สิบล้านบาท" / "เฉพาะเงินได้ในส่วนที่ไม่เกินยี่สิบล้านบาท") in Revenue Code §42 / §50(6) /
+  // Amending Act No. 40 support a verified 0-baht threshold-exemption claim (e.g. G3t2) and must NEVER be
+  // misclassified as a conflicting taxable-only ruling!
   const claimExempt =
     /(?<!ไม่|มิได้)ได้รับ(?:การ)?ยกเว้นภาษี|ไม่ต้องเสียภาษี/.test(normClaim) &&
     !/ไม่ได้รับยกเว้น|ต้องเสียภาษี/.test(normClaim);
+  const passageWithoutSec42CrossRef = normPassage.replace(
+    /ที่ไม่ได้รับยกเว้นตามมาตรา\s*42/g,
+    " "
+  );
+  const passageGrantsThresholdOrStatutoryExemption =
+    /(?<!ไม่|มิได้)ได้รับ(?:การ)?ยกเว้นภาษี|เฉพาะ(?:เงินได้)?ในส่วนที่(?:ไม่เกิน|เกิน)(?:ยี่สิบ|สิบ)ล้านบาท|เว้นแต่กรณีการโอนให้แก่\s*บุตรชอบด้วยกฎหมาย/.test(
+      normPassage
+    );
   const sourceTaxableOnly =
     /(?:ไม่ได้รับยกเว้น|ไม่เข้าลักษณะ[^。\n]{0,60}ได้รับยกเว้น|อยู่ในบังคับต้องเสียภาษี)/.test(
-      normPassage
-    ) && !/(?<!ไม่|มิได้)ได้รับ(?:การ)?ยกเว้นภาษี/.test(normPassage);
+      passageWithoutSec42CrossRef
+    ) && !passageGrantsThresholdOrStatutoryExemption;
   const companionStatuteNorm = thaiDigitsToArabic(companionStatutoryTextsOnClaim.join("\n"));
   const hasCompanionStatutoryExemptionOnClaim =
-    /(?:ไม่ต้องรวมคำนวณเพื่อเสียภาษีเงินได้|(?<!ไม่|มิได้)ได้รับ(?:การ)?ยกเว้น(?:ภาษี)?|ไม่ต้องหักภาษี)/.test(
+    hasVerifiedZeroBoundCalculation ||
+    companionStatutoryDocIdsOnClaim.some(
+      (dId) =>
+        dId === "prov.th.rc.42" ||
+        dId === "prov.th.rc.81" ||
+        dId === "subreg.th.rc.royal_decree.342" ||
+        dId.startsWith("statute.th.rc_amendment_40_")
+    ) ||
+    /(?:ไม่ต้องรวมคำนวณเพื่อเสียภาษีเงินได้|(?<!ไม่|มิได้)ได้รับ(?:การ)?ยกเว้น(?:ภาษี)?|ไม่ต้องหักภาษี|ของมาตรา\s*42|เฉพาะ(?:เงินได้)?ในส่วนที่(?:ไม่เกิน|เกิน)(?:ยี่สิบ|สิบ)ล้านบาท)/.test(
       companionStatuteNorm
     );
 
@@ -2234,13 +2276,99 @@ function sanitizeGroundedAnswerSnapshot(
   raw?:
     | GroundedAnswer
     | TraceableAnswerEnvelope["grounded_answer_snapshot"]
-    | null
+    | null,
+  verifiedClaims?: PublishedAtomicClaimDto[]
 ): TraceableAnswerEnvelope["grounded_answer_snapshot"] {
   if (!raw || typeof raw !== "object") return null;
   const clone = { ...(raw as unknown as Record<string, unknown>) };
   delete clone.traceable_answer;
   delete clone.llm_audit_trace;
+
+  if (Array.isArray(verifiedClaims) && verifiedClaims.length > 0) {
+    const bindings: VerifiedAuthorityPassageBinding[] = [];
+    const seen = new Set<string>();
+    for (const c of verifiedClaims) {
+      if (c.verification_decision !== "supported") continue;
+      for (const ref of c.evidence_references || []) {
+        if (!ref.evidence_id || !ref.version_id || seen.has(ref.evidence_id)) continue;
+        seen.add(ref.evidence_id);
+        bindings.push({
+          passage_id: ref.evidence_id,
+          work_id: ref.doc_id,
+          version_id: ref.version_id,
+          work_type:
+            ref.source_family === "revenue_department_ruling" ? "TaxRuling" : "Statute",
+          official_identifier: ref.citation_label_th,
+          title_th: ref.original_title_th,
+          pinpoint: ref.locator?.human_pinpoint_th || null,
+          verbatim_text: ref.verbatim_excerpt_th || "",
+          official_url: ref.official_url,
+          temporal_applicability_hint: "APPLICABLE_ON_DATE",
+        });
+      }
+    }
+    if (bindings.length > 0 && Array.isArray(clone.assumptions)) {
+      clone.assumptions = (clone.assumptions as unknown[])
+        .filter((a): a is string => typeof a === "string")
+        .map((a) => sanitizeIncidentalSurfaceText(a, bindings).cleanedText)
+        .filter(Boolean);
+    }
+  }
+
   return clone as unknown as TraceableAnswerEnvelope["grounded_answer_snapshot"];
+}
+
+export async function findIdempotentQueryRevisionByOperationKey(
+  store: DurableKnowledgeStore,
+  actor: Actor,
+  params: {
+    save_operation_key: string;
+    question_text: string;
+  }
+): Promise<TraceableAnswerEnvelope | null> {
+  const opKey = params.save_operation_key.trim();
+  if (!opKey) return null;
+
+  if (hasActiveCitationPostgresStore()) {
+    const found = await lookupSavedAnswerByActorAndOperationKeyInPostgres({
+      owner_actor_id: actor.actor_id,
+      owner_tenant_id: actor.tenant_id,
+      save_operation_key: opKey,
+    });
+    if (!found.found || !found.answer_revision_id) return null;
+    if (
+      found.question_text &&
+      found.question_text.trim() !== params.question_text.trim()
+    ) {
+      throw new Error(
+        `IDEMPOTENCY_KEY_PAYLOAD_CONFLICT_409: save_operation_key '${opKey}' was already committed for a different question; supply a new save_operation_key.`
+      );
+    }
+    const loaded = await loadSavedAnswerFromPostgres(found.answer_revision_id, actor);
+    if (loaded.found && loaded.answer) {
+      return loaded.answer;
+    }
+    return null;
+  }
+
+  const unified = getUnifiedCitationLedgerView(store);
+  const scopePrefix = `${actor.actor_id}|${actor.tenant_id}|`;
+  for (const [k, rec] of localSaveOperationKeyIndex.entries()) {
+    if (k.startsWith(scopePrefix) && k.endsWith(`|${opKey}`)) {
+      const localEnv = unified.published_answers[rec.answer_revision];
+      if (!localEnv) continue;
+      if (
+        localEnv.question_text &&
+        localEnv.question_text.trim() !== params.question_text.trim()
+      ) {
+        throw new Error(
+          `IDEMPOTENCY_KEY_PAYLOAD_CONFLICT_409: save_operation_key '${opKey}' was already committed for a different question; supply a new save_operation_key.`
+        );
+      }
+      return { ...localEnv };
+    }
+  }
+  return null;
 }
 
 /**
@@ -3161,7 +3289,10 @@ export async function saveOrReviseAnswerServerVerified(
       validPassageDocIds.has("subreg.th.rd.vat_local_tax_guide") &&
       Array.from(validPassageDocIds).some((docId) => VAT_REDUCTION_WORK_IDS.has(docId));
     let verifiedTokensForThisClaimOnly = baseVerifiedTokens ? [...baseVerifiedTokens] : undefined;
-    if (citesCanonicalVatDecreeAndLocalTaxGuide) {
+    if (
+      citesCanonicalVatDecreeAndLocalTaxGuide &&
+      sub.grounded_answer_status !== "NEEDS_CLARIFICATION"
+    ) {
       const tokenSet = new Set<string>(verifiedTokensForThisClaimOnly || []);
       for (const t of ["6.3", "0.7", "7", "7.0"]) tokenSet.add(t);
       // Scope derived VAT arithmetic STRICTLY to monetary bases mentioned in THIS claim that also appear in
@@ -3198,6 +3329,14 @@ export async function saveOrReviseAnswerServerVerified(
       const docRec = unified.documents[r.doc_id];
       return docRec?.canonical_work_id === "prov.th.rc.47" || r.doc_id === "prov.th.rc.47";
     });
+    if (!citesSection47InClaim && questionMonetaryBasesThb.length > 0) {
+      const tokenSetWithUserBases = new Set<string>(verifiedTokensForThisClaimOnly || []);
+      for (const qb of questionMonetaryBasesThb) {
+        tokenSetWithUserBases.add(String(qb));
+        tokenSetWithUserBases.add(qb.toLocaleString("en-US"));
+      }
+      verifiedTokensForThisClaimOnly = Array.from(tokenSetWithUserBases);
+    }
     if (!params.query_persistence_context && citesSection47InClaim) {
       const citedS47Verbatim = validRefs
         .map((r) => unified.passages[r.evidence_id]?.verbatim_text || "")
@@ -3342,7 +3481,8 @@ export async function saveOrReviseAnswerServerVerified(
     null;
   serverValidated.conversation_id = effectiveConversationId;
   const sanitizedSnapshot = sanitizeGroundedAnswerSnapshot(
-    params.grounded_answer_snapshot ?? sub.grounded_answer_snapshot ?? null
+    params.grounded_answer_snapshot ?? sub.grounded_answer_snapshot ?? null,
+    serverValidated.claims
   );
   if (sanitizedSnapshot) {
     serverValidated.grounded_answer_snapshot = {
@@ -3792,7 +3932,10 @@ export function attachTraceableEnvelopeToGroundedAnswer(
   if (grounded.execution_provenance) {
     builtEnvelope.execution_provenance = grounded.execution_provenance;
   }
-  builtEnvelope.grounded_answer_snapshot = sanitizeGroundedAnswerSnapshot(grounded);
+  builtEnvelope.grounded_answer_snapshot = sanitizeGroundedAnswerSnapshot(
+    grounded,
+    builtEnvelope.claims
+  );
 
   if (
     params.persist &&
