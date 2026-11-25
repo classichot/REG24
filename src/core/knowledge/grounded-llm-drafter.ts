@@ -838,6 +838,32 @@ export function buildGroundedLlmUserPrompt(params: {
       "สำหรับคำถามสิทธิหักลดหย่อนตามประมวลรัษฎากร มาตรา 47: ให้อ้างอิง passage_id ของมาตรา 47 ที่ระบุรายการลดหย่อนนั้นโดยตรง (เช่น psg.e4ec78f644930e สำหรับมาตรา 47 (1) (ก) ผู้มีเงินได้ 60,000 บาท, (ข) สามีหรือภริยา 60,000 บาท, (ค) (1) บุตรชอบด้วยกฎหมายคนละ 30,000 บาท และบวกเพิ่มอีกคนละ 30,000 บาทเฉพาะบุตรชอบด้วยกฎหมายตั้งแต่คนที่สองเป็นต้นไปที่เกิดในหรือหลังปี พ.ศ. 2561 เท่านั้น — หากบุตรเกิดก่อนปี พ.ศ. 2561 ห้ามบวกเพิ่ม 30,000 บาท) แสดงรายละเอียดแต่ละรายการและผลรวมค่าลดหย่อนใน conclusion_th และ application_explanation_th ให้ครบถ้วน และหากโจทย์ถามเฉพาะยอดรวมค่าลดหย่อนโดยไม่ได้ถามภาษีที่ต้องชำระตามอัตราก้าวหน้า ให้ตั้ง proposed_calculation = null"
     );
   }
+  const vatAlloc = params.factLedger.temporal_facts.vat_portion_allocation_record;
+  if (vatAlloc) {
+    if (vatAlloc.allocation_status === "RESOLVED" && vatAlloc.tax_date_buckets.length >= 2) {
+      const bucketSummary = vatAlloc.tax_date_buckets
+        .map(
+          (b) =>
+            `ส่วนที่ ${b.portion_index} วันที่ ${b.iso_date} (${b.decree_window}${
+              b.lot_labels_th && b.lot_labels_th.length > 0
+                ? `, ครอบคลุม ${b.lot_labels_th.join(" + ")}`
+                : ""
+            }) ฐานภาษี ${(b.amount_thb ?? 0).toLocaleString("en-US")} บาท${
+              typeof b.verified_vat_thb === "number"
+                ? ` ภาษีมูลค่าเพิ่ม ${b.verified_vat_thb.toLocaleString("en-US")} บาท`
+                : ""
+            }`
+        )
+        .join("; ");
+      packGroundingReminders.push(
+        `สำหรับธุรกรรมขายสินค้าหลายล็อต/หลายส่วน (vat_portion_allocation_record.allocation_status = 'RESOLVED'): ให้ยึดการจัดสรรตาม vat_portion_allocation_record ที่ตรวจสอบแล้ว (${bucketSummary}) โดยแยกประเด็นตามวันเกิดความรับผิดและพระราชกฤษฎีกาที่ใช้บังคับ (หรือแยกรายล็อตพร้อมระบุยอดรวมของแต่ละวันเกิดความรับผิดให้ชัดเจน) ห้ามคิดจัดสรรใหม่ที่ขัดแย้งกับ vat_portion_allocation_record ห้ามยุบรวมล็อตที่แยกกันและห้ามนับล็อตเดิมซ้ำข้ามวัน และผูก official_passage_ids ของพระราชกฤษฎีกาที่ใช้บังคับเฉพาะส่วนนั้นใน governing_passage_ids`
+      );
+    } else if (vatAlloc.allocation_status !== "RESOLVED" && vatAlloc.ambiguity_question_th) {
+      packGroundingReminders.push(
+        `สำหรับธุรกรรมขายสินค้าที่มีความไม่ชัดเจนเรื่องขอบเขตหรือความซ้ำซ้อนของการกระทำก่อนส่งมอบ (vat_portion_allocation_record.allocation_status = '${vatAlloc.allocation_status}'): ห้ามเดาว่าเหตุการณ์ครอบคลุมสินค้าส่วนใดหรือคำนวณตัวเลขภาษีสมมติ ให้ตั้ง answer_status = 'CONDITIONAL', ตั้ง proposed_calculation = null และระบุคำถามขอข้อมูลเพิ่มเติมใน clarification_questions_th อย่างชัดเจน: ${vatAlloc.ambiguity_question_th}`
+      );
+    }
+  }
   const payload = {
     active_user_question: params.question,
     ...(params.specialConstraints ? { special_constraints: params.specialConstraints } : {}),

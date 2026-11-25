@@ -364,6 +364,90 @@ function checkCaseFactPreservation(
 const EXPLICIT_EXCLUSION_RE =
   /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่ภายใต้|ไม่อยู่ภายใต้|สิ้นสุดการบังคับใช้|สิ้นสุดระยะเวลา|สิ้นสุดในวันที่|สิ้นสุดเมื่อวันที่|สิ้นสุดลง|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|OUT_OF_WINDOW)/;
 
+interface ResolvedIssueAllocationTarget {
+  targetIso: string | null;
+  expectedBaseThb: number | null;
+  governingDecreeWorkId: string | null;
+  lotIds: string[];
+  sameDateBucketBaseThb: number | null;
+  sameDateBucketVatThb: number | null;
+  sameDateBucketGrossThb: number | null;
+  hasMixedDatesError: boolean;
+}
+
+function resolveIssueTargetAllocation(
+  issue: LlmDraftedIssue,
+  factLedger: StructuredCaseFactLedger
+): ResolvedIssueAllocationTarget | null {
+  const alloc = factLedger.temporal_facts.vat_portion_allocation_record;
+  const splitPoints = factLedger.temporal_facts.split_payment_tax_points || [];
+  if (splitPoints.length < 2 && (!alloc || alloc.lot_allocations.length < 2)) {
+    return null;
+  }
+
+  const headerText = thaiDigitsToArabic(`${issue.issue_title_th} ${issue.party_or_scope_th}`).replace(
+    /\s+/g,
+    " "
+  );
+  // 1. If declared lot allocations exist, match explicit lot labels in header first (e.g. "ล็อต A", "ล็อต B และล็อต C", "ล็อต A และล็อต B")
+  if (alloc && alloc.allocation_status === "RESOLVED" && alloc.lot_allocations.length >= 2) {
+    const isSummaryHeader = /(?:สรุปรวม|ยอดรวมทั้งสิ้น|รวมทั้ง\s*[0-9]+\s*ล็อต|รวมทั้งธุรกรรม|ภาพรวมทั้งหมด)/i.test(
+      headerText
+    );
+    if (!isSummaryHeader) {
+      const matchedLots = alloc.lot_allocations.filter((la) => {
+        const escLabel = thaiDigitsToArabic(la.label_th).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const lotToken = la.lot_id.replace(/^LOT_/, "");
+        const escTok = lotToken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const re = new RegExp(
+          `(?:${escLabel}|(?:ล็อต|ล๊อต|ชุดที่|รายการที่|lot)\\s*${escTok})(?![A-Za-z0-9])`,
+          "i"
+        );
+        return re.test(headerText);
+      });
+      if (matchedLots.length > 0 && matchedLots.length < alloc.lot_allocations.length) {
+        const distinctDates = Array.from(new Set(matchedLots.map((l) => l.controlling_tax_point_iso)));
+        const targetIso = distinctDates.length === 1 ? distinctDates[0] : null;
+        const expectedBaseThb =
+          Math.round(matchedLots.reduce((s, l) => s + l.taxable_base_thb, 0) * 100) / 100;
+        const bucket = targetIso
+          ? alloc.tax_date_buckets.find((b) => b.iso_date === targetIso)
+          : undefined;
+        return {
+          targetIso,
+          expectedBaseThb,
+          governingDecreeWorkId:
+            distinctDates.length === 1 ? matchedLots[0].governing_decree_work_id : null,
+          lotIds: matchedLots.map((l) => l.lot_id),
+          sameDateBucketBaseThb: bucket?.amount_thb ?? null,
+          sameDateBucketVatThb: bucket?.verified_vat_thb ?? null,
+          sameDateBucketGrossThb: bucket?.verified_gross_thb ?? null,
+          hasMixedDatesError: distinctDates.length > 1,
+        };
+      }
+    }
+  }
+
+  // 2. Fallback to date / ordinal portion targeting on split_payment_tax_points
+  const targetIso = resolveIssueTargetSplitPortionIso(issue, splitPoints);
+  if (!targetIso) return null;
+  const matchedPortion = splitPoints.find((sp) => sp.iso_date === targetIso);
+  if (!matchedPortion) return null;
+  return {
+    targetIso,
+    expectedBaseThb:
+      typeof matchedPortion.amount_thb === "number" && matchedPortion.amount_thb > 0
+        ? matchedPortion.amount_thb
+        : null,
+    governingDecreeWorkId: matchedPortion.governing_decree_work_id ?? null,
+    lotIds: matchedPortion.lot_ids || [],
+    sameDateBucketBaseThb: matchedPortion.amount_thb ?? null,
+    sameDateBucketVatThb: matchedPortion.verified_vat_thb ?? null,
+    sameDateBucketGrossThb: matchedPortion.verified_gross_thb ?? null,
+    hasMixedDatesError: false,
+  };
+}
+
 function resolveIssueTargetSplitPortionIso(
   issue: LlmDraftedIssue,
   splitPoints: NonNullable<StructuredCaseFactLedger["temporal_facts"]["split_payment_tax_points"]>
@@ -496,9 +580,11 @@ function checkTemporalApplicabilityOfCitedPassages(
   const combinedText = thaiDigitsToArabic(`${issue.conclusion_th} ${issue.application_explanation_th}`);
   const explicitlyExcludes = EXPLICIT_EXCLUSION_RE.test(combinedText);
 
-  // Per-tax-point temporal verification for multi-tax-point (split-payment) transactions:
+  // Per-tax-point temporal verification for multi-tax-point (split-payment / multi-lot) transactions:
   if (isSplitMultiTaxPoint) {
-    const targetIso = resolveIssueTargetSplitPortionIso(issue, splitPoints);
+    const resolvedTarget = resolveIssueTargetAllocation(issue, factLedger);
+    const targetIso =
+      resolvedTarget?.targetIso ?? resolveIssueTargetSplitPortionIso(issue, splitPoints);
     // If this issue targets strictly ONE portion date (e.g. Portion 2 on 2027-10-01), verify that
     // any cited time-limited decree excluded for THAT portion date is ONLY cited with explicit exclusion
     // AND alongside an in-window/timeless statute (e.g. §80) — NEVER as governing authority for that portion!
@@ -853,11 +939,63 @@ function verifyProposedCalculation(params: {
     };
   }
 
-  // Installment & superseded-base consistency guard (Controls B & C):
-  // 1) On a single-portion split-payment issue with a known portion amount, tax_base_thb MUST match THAT portion's amount
-  //    (never a different installment or the whole contract total!).
+  // Installment & lot/portion allocation consistency guard (Controls B & C + Candidate 10):
+  // 1) On a single-portion or lot-scoped issue with a known allocated base, `tax_base_thb` MUST match
+  //    THAT exact lot/portion's allocated base — never a swapped installment, wrong split totaling ฿3,500,
+  //    or double-counted lot!
   const splitPointsForCalc = params.factLedger.temporal_facts.split_payment_tax_points || [];
-  if (
+  const targetAllocation = resolveIssueTargetAllocation(params.issue, params.factLedger);
+  if (targetAllocation && calc.tax_base_thb !== null) {
+    if (targetAllocation.hasMixedDatesError) {
+      return {
+        accepted: false,
+        verifiedCalc: null,
+        verifiedNumericTokens: [],
+        rejection: {
+          issue_id: params.issue.issue_id,
+          issue_title_th: params.issue.issue_title_th,
+          proposed_values: {
+            tax_base_thb: calc.tax_base_thb,
+            exempt_amount_thb: calc.exempt_amount_thb,
+            taxable_amount_thb: calc.taxable_amount_thb,
+            rate_pct: calc.rate_pct,
+            computed_tax_thb: calc.computed_tax_thb,
+          },
+          rejection_code: "ARITHMETIC_MISMATCH",
+          rejection_reason_th:
+            "ห้ามรวมคำนวณสินค้าหลายล็อตที่มีวันเกิดความรับผิดคนละช่วงวันใช้บังคับของพระราชกฤษฎีกาไว้ในฐานภาษีเดียวกัน [field:tax_point_date]",
+        },
+      };
+    }
+    if (
+      targetAllocation.expectedBaseThb !== null &&
+      targetAllocation.expectedBaseThb > 0 &&
+      Math.abs(calc.tax_base_thb - targetAllocation.expectedBaseThb) > 1
+    ) {
+      return {
+        accepted: false,
+        verifiedCalc: null,
+        verifiedNumericTokens: [],
+        rejection: {
+          issue_id: params.issue.issue_id,
+          issue_title_th: params.issue.issue_title_th,
+          proposed_values: {
+            tax_base_thb: calc.tax_base_thb,
+            exempt_amount_thb: calc.exempt_amount_thb,
+            taxable_amount_thb: calc.taxable_amount_thb,
+            rate_pct: calc.rate_pct,
+            computed_tax_thb: calc.computed_tax_thb,
+          },
+          rejection_code: "ARITHMETIC_MISMATCH",
+          rejection_reason_th: `ฐานภาษีที่เสนอ (${calc.tax_base_thb.toLocaleString("en-US")} บาท) ไม่ตรงกับมูลค่าที่จัดสรรให้${
+            targetAllocation.lotIds.length > 0
+              ? `ส่วน/ล็อต (${targetAllocation.lotIds.join(", ")})`
+              : `งวดวันที่ ${targetAllocation.targetIso || "-"}`
+          } (${targetAllocation.expectedBaseThb.toLocaleString("en-US")} บาท) [field:tax_base_thb]`,
+        },
+      };
+    }
+  } else if (
     params.factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
     splitPointsForCalc.length >= 2 &&
     calc.tax_base_thb !== null
@@ -887,7 +1025,7 @@ function verifyProposedCalculation(params: {
             computed_tax_thb: calc.computed_tax_thb,
           },
           rejection_code: "ARITHMETIC_MISMATCH",
-          rejection_reason_th: `ฐานภาษีที่เสนอ (${calc.tax_base_thb.toLocaleString("en-US")} บาท) ไม่ตรงกับมูลค่าของงวดวันที่ ${targetIso} (${matchedPortion.amount_thb.toLocaleString("en-US")} บาท)`,
+          rejection_reason_th: `ฐานภาษีที่เสนอ (${calc.tax_base_thb.toLocaleString("en-US")} บาท) ไม่ตรงกับมูลค่าของงวดวันที่ ${targetIso} (${matchedPortion.amount_thb.toLocaleString("en-US")} บาท) [field:tax_base_thb]`,
         },
       };
     }
@@ -921,12 +1059,13 @@ function verifyProposedCalculation(params: {
     };
   }
 
-  // 3) Candidate 9 (§78(1)):
-  //    (a) Reject guessed baht calculations when an early goods event has unknown coverage across decree windows.
+  // 3) Candidate 9 & 10 (§78(1)):
+  //    (a) Reject guessed baht calculations when an early goods event has unknown coverage or ambiguous overlap.
   //    (b) Reject double-counted / excess VAT bases when title, delivery, payment, and invoice cover the same goods!
   const ctrlEventName = params.factLedger.temporal_facts.controlling_tax_point.controlling_event || "";
   if (
-    ctrlEventName.startsWith("GOODS_EARLY_ACT_UNKNOWN_COVERAGE_CONDITIONAL") &&
+    (ctrlEventName.startsWith("GOODS_EARLY_ACT_UNKNOWN_COVERAGE_CONDITIONAL") ||
+      ctrlEventName.startsWith("GOODS_EARLY_ACT_AMBIGUOUS_OVERLAP_CONDITIONAL")) &&
     calc.computed_tax_thb !== null
   ) {
     return {
@@ -945,7 +1084,8 @@ function verifyProposedCalculation(params: {
         },
         rejection_code: "MISSING_REQUIRED_FACT_INPUT",
         rejection_reason_th:
-          "ยังไม่ทราบมูลค่าหรือสัดส่วนของสินค้าที่มีการกระทำก่อนส่งมอบซึ่งอยู่คนละช่วงพระราชกฤษฎีกา จึงไม่อาจคำนวณยอดภาษีแยกแต่ละส่วนเป็นตัวเงินได้",
+          params.factLedger.temporal_facts.controlling_tax_point.ambiguity_reason_th ||
+          "ยังไม่ทราบมูลค่า สัดส่วน หรือขอบเขตสินค้าที่มีการกระทำก่อนส่งมอบซึ่งอยู่คนละช่วงพระราชกฤษฎีกา จึงไม่อาจคำนวณยอดภาษีแยกแต่ละส่วนเป็นตัวเงินได้ [field:portion_coverage]",
       },
     };
   }
@@ -1135,6 +1275,22 @@ function renderNeutralGroundedLlmAnswerTh(params: {
   if (tf.controlling_tax_point.iso_date) {
     factLines.push(
       `- **วันเกิดความรับผิดทางภาษีที่ใช้พิจารณา (Controlling Tax Point)**: ${tf.controlling_tax_point.iso_date} (${tf.controlling_tax_point.controlling_event || "-"})`
+    );
+  } else if (tf.vat_portion_allocation_record?.allocation_status === "RESOLVED") {
+    const bucketSummary = tf.vat_portion_allocation_record.tax_date_buckets
+      .map(
+        (b) =>
+          `${b.iso_date} (${b.decree_window}${
+            b.lot_labels_th && b.lot_labels_th.length > 0 ? `, ${b.lot_labels_th.join(" + ")}` : ""
+          }: ฐานภาษี ${(b.amount_thb ?? 0).toLocaleString("en-US")} บาท${
+            typeof b.verified_vat_thb === "number"
+              ? `, VAT ${b.verified_vat_thb.toLocaleString("en-US")} บาท`
+              : ""
+          })`
+      )
+      .join(" · ");
+    factLines.push(
+      `- **การจัดสรรวันเกิดความรับผิดแยกตามส่วน/ล็อตสินค้า (Verified VAT Allocation Record)**: ${bucketSummary}`
     );
   } else if (tf.controlling_tax_point.ambiguity_reason_th) {
     factLines.push(
@@ -2048,14 +2204,22 @@ export function verifyAndRenderGroundedLlmDraft(params: {
 
         const scopedBasesThb = new Set<number>();
         const splitPts = params.factLedger.temporal_facts.split_payment_tax_points || [];
+        const resolvedIssueAlloc = resolveIssueTargetAllocation(iss, params.factLedger);
         const singleSplitTargetIso =
-          params.factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+          resolvedIssueAlloc?.targetIso ??
+          (params.factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
           splitPts.length >= 2
             ? resolveIssueTargetSplitPortionIso(iss, splitPts)
-            : null;
+            : null);
         const singleSplitPortion = singleSplitTargetIso
           ? splitPts.find((sp) => sp.iso_date === singleSplitTargetIso)
           : undefined;
+        const addExactVerifiedToken = (val: number | null | undefined) => {
+          if (typeof val === "number" && Number.isFinite(val) && val > 0) {
+            trustedTokens.add(String(val));
+            trustedTokens.add(val.toLocaleString("en-US"));
+          }
+        };
 
         if (calcCheck.verifiedCalc && calcCheck.verifiedCalc.tax_base_thb !== null) {
           scopedBasesThb.add(calcCheck.verifiedCalc.tax_base_thb);
@@ -2065,38 +2229,71 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           ) {
             scopedBasesThb.add(calcCheck.verifiedCalc.taxable_amount_thb);
           }
-          // When THIS portion's own calculation is already verified (e.g. Portion 2: 30,000 × 7% = 2,100) AND the claim
-          // explicitly states its own verified tax output, also permit reconciling against verified sibling portions
-          // (e.g. Portion 1: 20,000 -> 1,400) and the combined split total (50,000 -> 3,500 / 53,500) in prose!
-          // Never relaxes Control B (`proposed_calculation: null` or wrong `computed_tax_thb` on an installment).
+          // Candidate 10 Strict Per-Portion Reconciliation:
+          // Do NOT blindly pool arbitrary sibling portion bases! Permit exact reconciled subtotals
+          // (same-date multi-lot bucket subtotal, verified grand total, and already-verified sibling
+          // portion tax outputs) ONLY when:
+          //   (1) THIS issue's own `verifiedCalc` passed AND its own `computed_tax_thb` appears in the text, AND
+          //   (2) the text contains an explicit aggregation/reconciliation phrase (`รวม...` / `ยอดรวม`), AND
+          //   (3) the allocation record is `RESOLVED` with verified portion VAT totals!
           if (
             calcCheck.verifiedCalc.computed_tax_thb !== null &&
             calcCheck.verifiedCalc.computed_tax_thb > 0 &&
-            splitPts.length >= 2 &&
-            splitPts.every((sp) => typeof sp.amount_thb === "number" && sp.amount_thb > 0)
+            splitPts.length >= 2
           ) {
             const ownTaxPlain = String(calcCheck.verifiedCalc.computed_tax_thb);
             const ownTaxFmt = calcCheck.verifiedCalc.computed_tax_thb.toLocaleString("en-US");
             const normClaimCheck = thaiDigitsToArabic(fullIssueClaimStatement);
-            if (normClaimCheck.includes(ownTaxFmt) || normClaimCheck.includes(ownTaxPlain)) {
-              let sumSplit = 0;
-              for (const sp of splitPts) {
-                if (typeof sp.amount_thb === "number" && sp.amount_thb > 0) {
-                  scopedBasesThb.add(sp.amount_thb);
-                  sumSplit += sp.amount_thb;
-                }
+            const hasExplicitAggregationCue =
+              /(?:รวมกับ|รวมยอด|ยอดรวม|รวมภาษีมูลค่าเพิ่ม|รวมทั้ง\s*[0-9]+\s*(?:ล็อต|ส่วน)|รวมทั้งสิ้น|รวมทั้งหมด|รวมล็อต|รวมเป็นภาษี)/i.test(
+                normClaimCheck
+              );
+            if (
+              hasExplicitAggregationCue &&
+              (normClaimCheck.includes(ownTaxFmt) || normClaimCheck.includes(ownTaxPlain))
+            ) {
+              // 1) Same-date bucket subtotal (e.g. Lot A + Lot B on 30 Sep -> 40,000 / 2,800 / 42,800)
+              if (resolvedIssueAlloc && resolvedIssueAlloc.sameDateBucketBaseThb !== null) {
+                addExactVerifiedToken(resolvedIssueAlloc.sameDateBucketBaseThb);
+                addExactVerifiedToken(resolvedIssueAlloc.sameDateBucketVatThb);
+                addExactVerifiedToken(resolvedIssueAlloc.sameDateBucketGrossThb);
               }
-              if (sumSplit > 0) {
-                scopedBasesThb.add(Math.round(sumSplit * 100) / 100);
+              // 2) Verified grand total derived STRICTLY from verified portions in vat_portion_allocation_record
+              const vatAllocRec = params.factLedger.temporal_facts.vat_portion_allocation_record;
+              if (
+                vatAllocRec &&
+                vatAllocRec.allocation_status === "RESOLVED" &&
+                vatAllocRec.reconciled_total_vat_thb !== null
+              ) {
+                addExactVerifiedToken(vatAllocRec.reconciled_total_base_thb);
+                addExactVerifiedToken(vatAllocRec.reconciled_total_vat_thb);
+                addExactVerifiedToken(vatAllocRec.reconciled_total_gross_thb);
+              }
+              // 3) Already-verified sibling portions' exact `computed_tax_thb` & `tax_base_thb` (ONLY siblings that ALREADY passed!)
+              for (const priorVerified of verifiedIssues) {
+                if (
+                  priorVerified.verified_calculation &&
+                  priorVerified.verified_calculation.computed_tax_thb !== null &&
+                  priorVerified.verified_calculation.computed_tax_thb > 0
+                ) {
+                  addExactVerifiedToken(priorVerified.verified_calculation.tax_base_thb);
+                  addExactVerifiedToken(priorVerified.verified_calculation.computed_tax_thb);
+                }
               }
             }
           }
+        } else if (
+          resolvedIssueAlloc?.expectedBaseThb !== null &&
+          resolvedIssueAlloc?.expectedBaseThb !== undefined &&
+          resolvedIssueAlloc.expectedBaseThb > 0
+        ) {
+          // Single-lot / single-portion claim without verifiedCalc: strictly scope to THAT lot/portion's own allocated base!
+          scopedBasesThb.add(resolvedIssueAlloc.expectedBaseThb);
         } else if (
           singleSplitPortion &&
           typeof singleSplitPortion.amount_thb === "number" &&
           singleSplitPortion.amount_thb > 0
         ) {
-          // Single-portion split claim: strictly scope to THAT portion's own amount (never another installment!).
           scopedBasesThb.add(singleSplitPortion.amount_thb);
         } else {
           // Multi-portion conditional / non-split claim without verifiedCalc: intersect claim-mentioned bases with active user bases.
@@ -2929,6 +3126,9 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   const unknownEarlyCoverageReasonTh =
     params.factLedger.temporal_facts.controlling_tax_point.controlling_event?.startsWith(
       "GOODS_EARLY_ACT_UNKNOWN_COVERAGE_CONDITIONAL"
+    ) ||
+    params.factLedger.temporal_facts.controlling_tax_point.controlling_event?.startsWith(
+      "GOODS_EARLY_ACT_AMBIGUOUS_OVERLAP_CONDITIONAL"
     )
       ? params.factLedger.temporal_facts.controlling_tax_point.ambiguity_reason_th
       : null;

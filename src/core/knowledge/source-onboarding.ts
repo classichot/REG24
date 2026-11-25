@@ -1685,6 +1685,10 @@ export function onboardVerifiedOfficialAttachment(
   const printedLbl =
     input.printed_page_label || arabicDigitsToThai(String(pageNum));
 
+  const scopedAttachmentAccessScope = input.actor.tenant_id
+    ? `scope.tenant.${input.actor.tenant_id}`
+    : `scope.actor.${input.actor.actor_id}`;
+
   const res = onboardOfficialSourceDocument(store, {
     batch_id: input.batch_id || "B01",
     release_id: input.release_id || "rel.B01.rc5",
@@ -1693,6 +1697,8 @@ export function onboardVerifiedOfficialAttachment(
     source_native_id: input.source_native_id,
     original_title_th: input.original_title_th,
     record_type: "verified_official_attachment",
+    access_permission: "restricted_tenant",
+    access_scope: scopedAttachmentAccessScope,
     observed_url: effectiveOriginUrl,
     mime_type: input.mime_type || "application/pdf",
     captured_bytes: input.attachment_bytes_or_text,

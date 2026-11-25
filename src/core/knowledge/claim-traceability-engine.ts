@@ -15,6 +15,7 @@ import {
   sanitizeIncidentalSurfaceText,
   type VerifiedAuthorityPassageBinding,
 } from "./authority-surface-auditor";
+import { buildStructuredCaseFactLedger } from "./case-fact-ledger";
 import {
   evaluateSection47ClaimAmountsAndSubclauses,
   verifySection47AllowanceComponentsFromFacts,
@@ -735,9 +736,198 @@ export function getUnifiedCitationLedgerView(
   };
 }
 
+export function isActorAuthorizedForScope(actor: Actor, accessScope: string): boolean {
+  if (accessScope === "scope.platform.public") return true;
+  if (actor.authorized_scopes.includes(accessScope)) return true;
+  if (actor.tenant_id && accessScope === `scope.tenant.${actor.tenant_id}`) return true;
+  if (actor.actor_id && accessScope === `scope.actor.${actor.actor_id}`) return true;
+  return false;
+}
+
+export interface PinnedReleaseCorpusFingerprintSpec {
+  release_id: string;
+  expected_manifest_hash: string;
+  expected_eligible_documents: number;
+  expected_eligible_passages: number;
+  expected_projection_passages: number;
+  expected_documents_fingerprint_sha256: string;
+  expected_passages_fingerprint_sha256: string;
+  expected_eligible_corpus_fingerprint_sha256: string;
+}
+
+export const PINNED_RELEASE_CORPUS_FINGERPRINTS: Record<string, PinnedReleaseCorpusFingerprintSpec> = {
+  "rel.B01.rc8": {
+    release_id: "rel.B01.rc8",
+    expected_manifest_hash: "1366d1dcd562b431a6a00e2a9d8ea30670bfc66e0e4331b25c6424687acf42e3",
+    expected_eligible_documents: 5070,
+    expected_eligible_passages: 11783,
+    expected_projection_passages: 11791,
+    expected_documents_fingerprint_sha256:
+      "87a223750d7731a764ab5d91c9c98acaa7e263fbc185902c7709e8e65f32d576",
+    expected_passages_fingerprint_sha256:
+      "7fb8f859395baab6b6b5b6fc3ba423a9db91fe48d84b44122fd595b0e64b73ef",
+    expected_eligible_corpus_fingerprint_sha256:
+      "834d832ff684324f50ec58ca959ecf290341f2e408ecc195b12132e9d2ac22e2",
+  },
+};
+
+export interface EligibleReleaseCorpusFingerprintResult {
+  ok: boolean;
+  release_id: string;
+  manifest_id: string | null;
+  manifest_hash: string | null;
+  eligible_official_documents: number;
+  eligible_evidence_passages: number;
+  projection_passage_count: number;
+  documents_fingerprint_sha256: string;
+  passages_fingerprint_sha256: string;
+  eligible_corpus_fingerprint_sha256: string;
+  isolated_matter_attachment_documents: number;
+  isolated_matter_attachment_passages: number;
+  pinned_spec_checked: boolean;
+  mismatch_reasons: string[];
+}
+
+/**
+ * Computes a live, cryptographically verifiable fingerprint over the ACTUAL eligible release-corpus
+ * documents (IDs, canonical work IDs, version IDs, artifact SHA-256 hashes, record types, scopes)
+ * and eligible release-corpus passages (IDs, doc IDs, version IDs, text SHA-256 hashes), strictly
+ * isolated from matter-scoped `verified_official_attachment` records.
+ */
+export function computeEligibleReleaseCorpusFingerprint(
+  store: DurableKnowledgeStore,
+  releaseId?: string
+): EligibleReleaseCorpusFingerprintResult {
+  const state = store.getState();
+  const relId =
+    releaseId ||
+    state.active_release_id ||
+    Object.keys(state.releases)[0] ||
+    "rel.B01.rc8";
+  const relRec = state.releases[relId];
+  const view = getUnifiedCitationLedgerView(store, relId);
+
+  const allDocs = Object.values(view.documents);
+  const attachmentDocIds = new Set(
+    allDocs.filter((d) => d.record_type === "verified_official_attachment").map((d) => d.doc_id)
+  );
+  const eligReleaseDocs = allDocs
+    .filter((d) => d.eligible_for_citation && d.record_type !== "verified_official_attachment")
+    .sort((a, b) => a.doc_id.localeCompare(b.doc_id));
+
+  const versionsByDoc = new Map<string, string[]>();
+  for (const v of Object.values(view.versions)) {
+    if (attachmentDocIds.has(v.doc_id)) continue;
+    const arr = versionsByDoc.get(v.doc_id) || [];
+    arr.push(`${v.version_id}:${v.artifact_sha256}`);
+    versionsByDoc.set(v.doc_id, arr);
+  }
+
+  const allPsgs = Object.values(view.passages);
+  const attachmentPsgsCount = allPsgs.filter((p) => attachmentDocIds.has(p.doc_id)).length;
+  const eligReleasePsgs = allPsgs
+    .filter((p) => p.eligible_for_publication && !attachmentDocIds.has(p.doc_id))
+    .sort((a, b) => a.passage_id.localeCompare(b.passage_id));
+
+  const documentsFp = sha256Bytes(
+    eligReleaseDocs
+      .map((d) => {
+        const vers = (versionsByDoc.get(d.doc_id) || []).sort().join(",");
+        return `${d.doc_id}|${d.canonical_work_id || ""}|${d.record_type}|${d.access_scope}|${vers}`;
+      })
+      .join("\n")
+  );
+  const passagesFp = sha256Bytes(
+    eligReleasePsgs
+      .map((p) => `${p.passage_id}|${p.doc_id}|${p.version_id}|${p.text_sha256}`)
+      .join("\n")
+  );
+  const manifestHash = relRec?.manifest_hash ?? null;
+  const combinedFp = sha256Bytes(
+    `${relId}|${manifestHash || ""}|${eligReleaseDocs.length}|${documentsFp}|${eligReleasePsgs.length}|${passagesFp}`
+  );
+  const projectionPassageCount = store.getPassagesForRelease(relId).length;
+
+  const pinned = PINNED_RELEASE_CORPUS_FINGERPRINTS[relId];
+  const mismatchReasons: string[] = [];
+  if (pinned) {
+    if (manifestHash !== pinned.expected_manifest_hash) {
+      mismatchReasons.push(
+        `manifest_hash=${manifestHash} != expected=${pinned.expected_manifest_hash}`
+      );
+    }
+    if (eligReleaseDocs.length !== pinned.expected_eligible_documents) {
+      mismatchReasons.push(
+        `eligible_documents=${eligReleaseDocs.length} != expected=${pinned.expected_eligible_documents}`
+      );
+    }
+    if (eligReleasePsgs.length !== pinned.expected_eligible_passages) {
+      mismatchReasons.push(
+        `eligible_passages=${eligReleasePsgs.length} != expected=${pinned.expected_eligible_passages}`
+      );
+    }
+    if (projectionPassageCount !== pinned.expected_projection_passages) {
+      mismatchReasons.push(
+        `projection_passages=${projectionPassageCount} != expected=${pinned.expected_projection_passages}`
+      );
+    }
+    if (documentsFp !== pinned.expected_documents_fingerprint_sha256) {
+      mismatchReasons.push(
+        `documents_fingerprint_sha256=${documentsFp} != expected=${pinned.expected_documents_fingerprint_sha256}`
+      );
+    }
+    if (passagesFp !== pinned.expected_passages_fingerprint_sha256) {
+      mismatchReasons.push(
+        `passages_fingerprint_sha256=${passagesFp} != expected=${pinned.expected_passages_fingerprint_sha256}`
+      );
+    }
+    if (combinedFp !== pinned.expected_eligible_corpus_fingerprint_sha256) {
+      mismatchReasons.push(
+        `eligible_corpus_fingerprint_sha256=${combinedFp} != expected=${pinned.expected_eligible_corpus_fingerprint_sha256}`
+      );
+    }
+  }
+
+  return {
+    ok: mismatchReasons.length === 0,
+    release_id: relId,
+    manifest_id: relRec?.manifest_id ?? null,
+    manifest_hash: manifestHash,
+    eligible_official_documents: eligReleaseDocs.length,
+    eligible_evidence_passages: eligReleasePsgs.length,
+    projection_passage_count: projectionPassageCount,
+    documents_fingerprint_sha256: documentsFp,
+    passages_fingerprint_sha256: passagesFp,
+    eligible_corpus_fingerprint_sha256: combinedFp,
+    isolated_matter_attachment_documents: attachmentDocIds.size,
+    isolated_matter_attachment_passages: attachmentPsgsCount,
+    pinned_spec_checked: Boolean(pinned),
+    mismatch_reasons: mismatchReasons,
+  };
+}
+
+/**
+ * Verifies live eligible release corpus membership and hashes against the pinned release baseline.
+ * When `enforceFailClosed` is true, throws `CORPUS_PIN_MISMATCH_500` on any divergence.
+ */
+export function verifyPinnedReleaseCorpusIntegrity(
+  store: DurableKnowledgeStore,
+  releaseId?: string,
+  options?: { enforceFailClosed?: boolean }
+): EligibleReleaseCorpusFingerprintResult {
+  const result = computeEligibleReleaseCorpusFingerprint(store, releaseId);
+  if (options?.enforceFailClosed && !result.ok) {
+    throw new Error(
+      `CORPUS_PIN_MISMATCH_500: Live eligible release corpus for '${result.release_id}' failed pinned fingerprint verification (${result.mismatch_reasons.join("; ")}).`
+    );
+  }
+  return result;
+}
+
 /**
  * Section 4.5 & 10.2: Computes Batch 1 (or any batch) inventory reconciliation counts
- * for discovered, captured, verified, eligible, and quarantined documents & passages with reasons.
+ * for discovered, captured, verified, eligible, and quarantined RELEASE-CORPUS documents & passages
+ * (strictly excluding matter-scoped `verified_official_attachment` records).
  */
 export function computeBatchTraceabilityInventoryCounts(
   store: DurableKnowledgeStore,
@@ -759,9 +949,16 @@ export function computeBatchTraceabilityInventoryCounts(
     revenue_department_ruling: { discovered: 0, eligible: 0, quarantined: 0 },
   };
 
+  const attachmentDocIds = new Set(
+    Object.values(view.documents)
+      .filter((d) => d.record_type === "verified_official_attachment")
+      .map((d) => d.doc_id)
+  );
   const docQuarantineReasons: Record<string, number> = {};
   const docs = Object.values(view.documents).filter(
-    (d) => d.owner_batch_id === batchId || batchId === "B01"
+    (d) =>
+      d.record_type !== "verified_official_attachment" &&
+      (d.owner_batch_id === batchId || batchId === "B01")
   );
 
   let docVerified = 0;
@@ -788,7 +985,7 @@ export function computeBatchTraceabilityInventoryCounts(
   }
 
   const psgQuarantineReasons: Record<string, number> = {};
-  const psgs = Object.values(view.passages);
+  const psgs = Object.values(view.passages).filter((p) => !attachmentDocIds.has(p.doc_id));
   let psgVerified = 0;
   let psgEligible = 0;
   let psgQuarantined = 0;
@@ -1197,9 +1394,7 @@ export function validateAndBuildTraceableAnswer(
         }
 
         // Caller access & live withdrawal check (T10)
-        const canAccess =
-          psg.access_scope === "scope.platform.public" ||
-          input.actor.authorized_scopes.includes(psg.access_scope);
+        const canAccess = isActorAuthorizedForScope(input.actor, psg.access_scope);
         const isWithdrawn =
           Boolean(state.withdrawals[psg.doc_id]?.active) ||
           Boolean(state.withdrawals[psg.version_id]?.active);
@@ -3037,6 +3232,40 @@ export async function saveOrReviseAnswerServerVerified(
     const val = parseAmountVal(pm[1] || pm[2] || "", pm[3]);
     if (val !== null) prevMonetaryBasesThb.push(val);
   }
+  // Independently recompute server-side VAT lot/portion allocation from user turn text (+ predecessor turn)
+  // so Save re-verification consumes the exact same verified allocation record without trusting client numbers!
+  const serverSaveFactLedger = buildStructuredCaseFactLedger({
+    question: params.question_text || "",
+    applicableDate: sub.as_of_date ?? null,
+    conversationHistory: authoritativePredecessorQuestionText
+      ? [{ role: "user", content: authoritativePredecessorQuestionText }]
+      : [],
+  });
+  const serverAllocatedVatBasesThb = new Set<number>();
+  const saveVatAlloc = serverSaveFactLedger.temporal_facts.vat_portion_allocation_record;
+  if (saveVatAlloc && saveVatAlloc.allocation_status === "RESOLVED") {
+    for (const b of saveVatAlloc.tax_date_buckets) {
+      if (typeof b.amount_thb === "number" && b.amount_thb > 0) {
+        serverAllocatedVatBasesThb.add(b.amount_thb);
+      }
+    }
+    for (const l of saveVatAlloc.lot_allocations) {
+      if (l.taxable_base_thb > 0) serverAllocatedVatBasesThb.add(l.taxable_base_thb);
+    }
+    if (saveVatAlloc.reconciled_total_base_thb > 0) {
+      serverAllocatedVatBasesThb.add(saveVatAlloc.reconciled_total_base_thb);
+    }
+  }
+  const effectiveAuthorizedBasesForSave = Array.from(
+    new Set([
+      ...(questionMonetaryBasesThb.length > 0
+        ? questionMonetaryBasesThb
+        : supersededQuestionBasesThb.size === 0
+          ? prevMonetaryBasesThb
+          : []),
+      ...Array.from(serverAllocatedVatBasesThb),
+    ])
+  );
   const hasExplicitFactChangeCue =
     supersededQuestionBasesThb.size > 0 ||
     /(?:ขอแก้ไข|ขอแก้ข้อเท็จจริง|เปลี่ยน(?:มูลค่า|ฐาน|ราคา|ผู้รับ|ข้อเท็จจริง|เป็นวันที่)|เลื่อนเป็นวันที่|\bchange\b|\brevise\b)/i.test(
@@ -3178,13 +3407,11 @@ export async function saveOrReviseAnswerServerVerified(
       const canonicalCitedBlob = thaiDigitsToArabic(
         validRefs.map((r) => unified.passages[r.evidence_id]?.verbatim_text || "").join(" ")
       );
-      const effectiveQuestionBasesForUiSave =
-        questionMonetaryBasesThb.length > 0 ? questionMonetaryBasesThb : prevMonetaryBasesThb;
       const baseInQuestion =
         tBase !== null &&
         tBase > 0 &&
         !supersededQuestionBasesThb.has(tBase) &&
-        effectiveQuestionBasesForUiSave.some((qb) => Math.abs(qb - tBase) <= 1);
+        effectiveAuthorizedBasesForSave.some((qb) => Math.abs(qb - tBase) <= 1);
       const exemptGrounded =
         exAmt === 0 ||
         (exAmt === tBase &&
@@ -3309,9 +3536,9 @@ export async function saveOrReviseAnswerServerVerified(
       }
       const scopedQuestionBases =
         claimMentionedBases.size > 0
-          ? questionMonetaryBasesThb.filter((b) => claimMentionedBases.has(b))
-          : questionMonetaryBasesThb.length === 1
-            ? questionMonetaryBasesThb
+          ? effectiveAuthorizedBasesForSave.filter((b) => claimMentionedBases.has(b))
+          : effectiveAuthorizedBasesForSave.length === 1
+            ? effectiveAuthorizedBasesForSave
             : [];
       for (const base of scopedQuestionBases) {
         tokenSet.add(String(base));
@@ -4074,9 +4301,7 @@ export function resolveTraceableEvidenceById(
   const isWithdrawn =
     Boolean(state.withdrawals[psg.doc_id]?.active) ||
     Boolean(state.withdrawals[psg.version_id]?.active);
-  const isAuthorized =
-    psg.access_scope === "scope.platform.public" ||
-    actor.authorized_scopes.includes(psg.access_scope);
+  const isAuthorized = isActorAuthorizedForScope(actor, psg.access_scope);
 
   if (isWithdrawn || !isAuthorized) {
     // Consistent unavailable 404 response so restricted existence/content is never leaked!
@@ -5464,7 +5689,13 @@ export function tryAnswerFromOnboardedCitationSources(
   // Only intercept when an explicitly onboarded document, verified amendment, or explicitly attached official law
   // matches the question — NEVER hijack standard canonical corpus documents that were merely materialized into
   // `citation_ledger` / PostgreSQL when persisting an earlier answer!
+  // Matter-attachment isolation (Platform Track): `verified_official_attachment` records are strictly matter-scoped
+  // and may ONLY be considered when explicitly requested in `params.attachment_doc_ids` — NEVER matched implicitly
+  // by title or native-ID token overlap across unrelated matters or reviewers!
   const directDocs = Object.values(rawLedger.documents).filter((doc) => {
+    if (doc.record_type === "verified_official_attachment") {
+      return explicitAttachmentSet.has(doc.doc_id);
+    }
     if (explicitAttachmentSet.has(doc.doc_id)) {
       return true;
     }
@@ -5489,11 +5720,9 @@ export function tryAnswerFromOnboardedCitationSources(
     return null;
   }
 
-  // Filter authorized documents for this caller (RET-01, T10)
-  const authorizedDocs = directDocs.filter(
-    (d) =>
-      d.access_scope === "scope.platform.public" ||
-      params.actor.authorized_scopes.includes(d.access_scope)
+  // Filter authorized documents for this caller (RET-01, T10, and tenant/actor attachment isolation)
+  const authorizedDocs = directDocs.filter((d) =>
+    isActorAuthorizedForScope(params.actor, d.access_scope)
   );
 
   const generatedAt = new Date().toISOString();

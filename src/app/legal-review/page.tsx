@@ -135,6 +135,8 @@ export default function LegalTeamReviewStudioPage() {
     release_id: string;
     manifest_id: string | null;
     manifest_hash: string | null;
+    eligible_corpus_fingerprint_sha256: string | null;
+    corpus_fingerprint_verified: boolean;
     eligible_official_documents: number;
     eligible_evidence_passages: number;
     model_id: string;
@@ -194,6 +196,9 @@ export default function LegalTeamReviewStudioPage() {
       release_id: String(d.release_id || ""),
       manifest_id: (d.manifest_id as string | null) ?? null,
       manifest_hash: (d.manifest_hash as string | null) ?? null,
+      eligible_corpus_fingerprint_sha256:
+        (d.eligible_corpus_fingerprint_sha256 as string | null) ?? null,
+      corpus_fingerprint_verified: Boolean(d.corpus_fingerprint_verified),
       eligible_official_documents: Number(d.eligible_official_documents || 0),
       eligible_evidence_passages: Number(d.eligible_evidence_passages || 0),
       model_id: String(m.model_id || "unknown"),
@@ -1072,9 +1077,13 @@ export default function LegalTeamReviewStudioPage() {
                 <div>
                   Env: <strong>{envInfo.environment_scope}</strong> · Release:{" "}
                   <strong>{envInfo.release_id}</strong> ({envInfo.manifest_id || "man.B01.rc5"} ·{" "}
-                  {envInfo.manifest_hash ? `${envInfo.manifest_hash.slice(0, 12)}…` : "-"}) · Eligible
-                  Sources: <strong>{envInfo.eligible_official_documents.toLocaleString()}</strong> docs
-                  / <strong>{envInfo.eligible_evidence_passages.toLocaleString()}</strong> passages ·
+                  {envInfo.manifest_hash ? `${envInfo.manifest_hash.slice(0, 12)}…` : "-"}
+                  {envInfo.eligible_corpus_fingerprint_sha256
+                    ? ` · LiveFP: ${envInfo.eligible_corpus_fingerprint_sha256.slice(0, 12)}…${envInfo.corpus_fingerprint_verified ? " ✓" : " !"}`
+                    : ""}
+                  ) · Eligible Release Corpus:{" "}
+                  <strong>{envInfo.eligible_official_documents.toLocaleString()}</strong> docs /{" "}
+                  <strong>{envInfo.eligible_evidence_passages.toLocaleString()}</strong> passages ·
                   Commit: <strong>{envInfo.git_commit_sha.slice(0, 10)}</strong>
                   {envInfo.deployment_id ? (
                     <>

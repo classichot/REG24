@@ -22,7 +22,9 @@ import {
   isNavigationOrBoilerplatePassageText,
   resolveVerifiedOfficialUrlForDoc,
   tryAnswerFromOnboardedCitationSources,
+  verifyPinnedReleaseCorpusIntegrity,
 } from "./claim-traceability-engine";
+import { isStrictSingleReleasePreviewMode } from "./projections";
 import {
   buildGroundedPassagePack,
   draftGroundedLegalAnswerWithLlm,
@@ -671,6 +673,10 @@ export async function queryKnowledge(
   }
   const releaseId =
     effectiveReq.release_id || pinnedEnvRel || state.active_release_id || fallbackCandidateRel || "rel.B01.rc1";
+
+  if (isStrictSingleReleasePreviewMode()) {
+    verifyPinnedReleaseCorpusIntegrity(store, releaseId, { enforceFailClosed: true });
+  }
 
   // Check if directly onboarded citation_ledger sources or verified official attachments match
   const directOnboarded = tryAnswerFromOnboardedCitationSources(store, {
@@ -1925,6 +1931,29 @@ async function executeCoreKnowledgeQuery(
       historicalContextWorkIds,
       splitPaymentTaxPointDates: splitPaymentDatesForPack,
     });
+
+    // Candidate 10: Enrich the single verified VAT allocation record (`split_payment_tax_points` /
+    // `vat_portion_allocation_record.tax_date_buckets`) with the exact resolved official passage IDs
+    // and version ID from the release store so retrieval, drafter, verifier, and persisted revision
+    // all consume the exact same authority + version + amount record.
+    const allocBucketsToEnrich = [
+      ...(factLedger.temporal_facts.split_payment_tax_points || []),
+      ...(factLedger.temporal_facts.vat_portion_allocation_record?.tax_date_buckets || []),
+    ];
+    for (const bucket of allocBucketsToEnrich) {
+      if (!bucket.governing_decree_work_id) continue;
+      const matchingDecreePassages = passagePack.filter(
+        (p) =>
+          p.work_id === bucket.governing_decree_work_id &&
+          p.evidence_role === "governing"
+      );
+      if (matchingDecreePassages.length > 0) {
+        bucket.governing_version_id = matchingDecreePassages[0].version_id;
+        bucket.official_passage_ids = Array.from(
+          new Set(matchingDecreePassages.map((p) => p.passage_id))
+        );
+      }
+    }
 
     const needsDateClarification =
       !isSplitPaymentMultiTaxPoint &&

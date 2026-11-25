@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { computeBatchTraceabilityInventoryCounts } from "../../../../../core/knowledge/claim-traceability-engine";
+import {
+  computeBatchTraceabilityInventoryCounts,
+  hydratePostgresSourcesIntoStore,
+  verifyPinnedReleaseCorpusIntegrity,
+} from "../../../../../core/knowledge/claim-traceability-engine";
 import { resolveActiveCitationDbTransport } from "../../../../../core/knowledge/citation-postgres-store";
 import {
   resolveConfiguredProviderAndModel,
@@ -20,8 +24,11 @@ import { inspectAuthenticatedReviewerReadOnly } from "../../../../../core/knowle
 
 export async function GET(req: Request) {
   try {
-    resolveServerActor(req);
+    const actor = resolveServerActor(req);
     const store = getDefaultKnowledgeStore();
+    // Hydrate PG overlay BEFORE computing release corpus counts & verifiable fingerprint so cold and warm
+    // serverless containers execute identically and matter-scoped attachments stay strictly isolated!
+    await hydratePostgresSourcesIntoStore(store, actor);
     const state = store.getState();
     const topology = store.getStorageTopology();
 
@@ -42,6 +49,9 @@ export async function GET(req: Request) {
 
     const activeReleaseId = pinnedEnvRelease || state.active_release_id || fallbackCandidateRel || "rel.B01.rc6";
     const relRec = state.releases[activeReleaseId];
+    const corpusIntegrity = verifyPinnedReleaseCorpusIntegrity(store, activeReleaseId, {
+      enforceFailClosed: isStrictSingleReleasePreviewMode(),
+    });
     const counts = computeBatchTraceabilityInventoryCounts(store, "B01", activeReleaseId);
     const reqUrl = new URL(req.url);
     const includeTokenizerProbe = reqUrl.searchParams.get("probe_tokenizer") === "1";
@@ -103,11 +113,21 @@ export async function GET(req: Request) {
           release_state: relRec?.state || "READY_FOR_UAT",
           manifest_id: relRec?.manifest_id || null,
           manifest_hash: relRec?.manifest_hash || null,
+          eligible_corpus_fingerprint_sha256: corpusIntegrity.eligible_corpus_fingerprint_sha256,
+          documents_fingerprint_sha256: corpusIntegrity.documents_fingerprint_sha256,
+          passages_fingerprint_sha256: corpusIntegrity.passages_fingerprint_sha256,
+          corpus_fingerprint_verified: corpusIntegrity.ok,
           supersedes_release_id: relRec?.supersession_lineage?.supersedes_release_id || null,
           rollback_target_release_id: relRec?.rollback_target_release_id || null,
           store_topology_mode: topology.topology_mode,
           eligible_official_documents: counts.documents.eligible,
           eligible_evidence_passages: counts.passages.eligible,
+          isolated_matter_attachments: {
+            documents_in_runtime_overlay: corpusIntegrity.isolated_matter_attachment_documents,
+            passages_in_runtime_overlay: corpusIntegrity.isolated_matter_attachment_passages,
+            isolated_from_release_corpus: true,
+            cross_matter_implicit_retrieval_blocked: true,
+          },
           updated_at: relRec?.updated_at || null,
         },
         projections: projectionDiagnostics,

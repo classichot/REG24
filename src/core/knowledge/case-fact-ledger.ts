@@ -31,6 +31,23 @@ export type TemporalEventKind =
 
 export type EventPortionCoverageScope = "FULL" | "PARTIAL" | "UNSTATED";
 
+export type TemporalEventStatus = "ACTUAL" | "PLANNED" | "NEGATED" | "UNCERTAIN";
+
+export interface DeclaredGoodsLot {
+  lot_id: string;
+  label_th: string;
+  amount_thb: number;
+  source_turn: number;
+}
+
+export interface NonOccurringTemporalClause {
+  raw_date: string;
+  iso_date: string;
+  status: Exclude<TemporalEventStatus, "ACTUAL">;
+  provenance_clause_th: string;
+  source_turn: number;
+}
+
 export interface PreservedMaterialFact {
   fact_key: string;
   label_th: string;
@@ -49,11 +66,20 @@ export interface PreservedTemporalEvent {
   raw_text: string;
   iso_date: string;
   source_turn: number;
+  /** Distinguishes actual occurring events from planned, negated, or uncertain references. */
+  event_status?: TemporalEventStatus;
   /** Verbatim local clause provenance from the user's turn that anchored this event. */
   provenance_clause_th?: string;
   amount_thb?: number | null;
   /** Explicit portion coverage attached to this event (`FULL`, `PARTIAL`, or `UNSTATED`). */
   portion_coverage?: EventPortionCoverageScope;
+  /** Identified goods lot(s) covered by this event (e.g. `["LOT_A"]`, `["LOT_A", "LOT_B", "LOT_C"]`). */
+  covered_lot_ids?: string[];
+  /** Lots explicitly negated/excluded in this clause (e.g. `"(ไม่ใช่ล็อต B)"` -> `["LOT_B"]`). */
+  explicitly_excluded_lot_ids?: string[];
+  covered_goods_label_th?: string;
+  is_explicit_same_goods_repeat?: boolean;
+  is_explicit_distinct_goods?: boolean;
   is_settlement_of_prior_invoice?: boolean;
   has_remaining_balance_marker?: boolean;
   /** Candidate 8/9: physical delivery of goods (`ส่งมอบสินค้า` / `ส่งของ`), Revenue Code §78(1). */
@@ -61,6 +87,30 @@ export interface PreservedTemporalEvent {
 }
 
 export const VAT_RATE_VERIFIED_COVERAGE_START_ISO = "2023-10-01";
+
+export interface GoodsLotAllocationItem {
+  lot_id: string;
+  label_th: string;
+  taxable_base_thb: number;
+  controlling_tax_point_iso: string;
+  controlling_raw_date_th: string;
+  controlling_event_type: TemporalEventKind;
+  statutory_subclause_th: string;
+  decree_window: string;
+  governing_decree_work_id: string | null;
+  within_verified_coverage: boolean;
+  provenance_clause_th: string;
+  verified_rate_pct: number | null;
+  verified_vat_thb: number | null;
+  verified_gross_thb: number | null;
+  subsequent_non_taxable_events: Array<{
+    event_type: TemporalEventKind;
+    iso_date: string;
+    raw_text: string;
+    provenance_clause_th: string;
+    reason_th: string;
+  }>;
+}
 
 export interface SplitPaymentTaxPointItem {
   portion_index: number;
@@ -73,6 +123,25 @@ export interface SplitPaymentTaxPointItem {
   expired_or_non_governing_work_ids: string[];
   amount_thb?: number | null;
   settled_payment_date_iso?: string | null;
+  lot_ids?: string[];
+  lot_labels_th?: string[];
+  verified_rate_pct?: number | null;
+  verified_vat_thb?: number | null;
+  verified_gross_thb?: number | null;
+  governing_version_id?: string | null;
+  official_passage_ids?: string[];
+}
+
+export interface VerifiedGoodsVatAllocationRecord {
+  transaction_base_thb: number;
+  allocation_status: "RESOLVED" | "AMBIGUOUS_OVERLAP" | "AMBIGUOUS_COVERAGE";
+  ambiguity_question_th: string | null;
+  lot_allocations: GoodsLotAllocationItem[];
+  tax_date_buckets: SplitPaymentTaxPointItem[];
+  reconciled_total_base_thb: number;
+  reconciled_total_vat_thb: number | null;
+  reconciled_total_gross_thb: number | null;
+  remaining_unallocated_base_thb: number;
 }
 
 export interface StructuredCaseFactLedger {
@@ -95,6 +164,9 @@ export interface StructuredCaseFactLedger {
   temporal_facts: {
     transaction_or_event_dates: PreservedTemporalEvent[];
     legal_as_of_date: string | null;
+    declared_goods_lots?: DeclaredGoodsLot[];
+    non_occurring_or_negated_events?: NonOccurringTemporalClause[];
+    vat_portion_allocation_record?: VerifiedGoodsVatAllocationRecord;
     split_payment_tax_points?: SplitPaymentTaxPointItem[];
     controlling_tax_point: {
       iso_date: string | null;
@@ -236,14 +308,146 @@ function extractEventKindSpanAndCoverage(params: {
   return { amountThb, coverage: "UNSTATED" };
 }
 
+function canonicalizeLotId(token: string): string {
+  return `LOT_${thaiDigitsToArabic(token).trim().toUpperCase()}`;
+}
+
+function extractDeclaredGoodsLots(
+  cleanedText: string,
+  turnNumber: number
+): DeclaredGoodsLot[] {
+  const norm = thaiDigitsToArabic(cleanedText);
+  const found = new Map<string, DeclaredGoodsLot>();
+  // Matches structured goods lot/batch/tranche/set/item declarations such as:
+  // "ล็อต A มูลค่า 20,000 บาท", "ชุดที่ 1 ราคา 20,000 บาท", "Lot A (THB 20,000)", "รายการที่ 2 จำนวน 10,000 บาท"
+  // Deliberately excludes service installments (`งวดที่ 1`) and count phrases (`แบ่งเป็น 3 ล็อต`).
+  const lotDeclRe =
+    /(?:สินค้า\s*)?(ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s*(?:มูลค่า|ราคา|จำนวน|เป็นเงิน|\(|:)))\s*(?:\(\s*)?(?:มูลค่า|ราคา|จำนวน|เป็นเงิน|valued\s+at|worth|:)?\s*(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท|THB)?/gi;
+
+  for (const m of norm.matchAll(lotDeclRe)) {
+    const prefix = (m[1] || "").trim();
+    const tok = (m[2] || "").trim();
+    const rawNum = (m[3] || "").replace(/,/g, "");
+    const unit = (m[4] || "").trim();
+    // Require explicit currency/value cue when prefix is generic `ส่วนที่`
+    const fullSpan = m[0];
+    if (
+      /^ส่วนที่$/i.test(prefix) &&
+      !/(?:มูลค่า|ราคา|จำนวน|เป็นเงิน|บาท|THB|฿)/i.test(fullSpan)
+    ) {
+      continue;
+    }
+    if (!unit && !/(?:THB|฿|มูลค่า|ราคา)/i.test(fullSpan)) continue;
+    const n = Number(rawNum);
+    if (!Number.isFinite(n) || n <= 0) continue;
+    const amountThb = unit === "ล้านบาท" ? n * 1_000_000 : n;
+    const lotId = canonicalizeLotId(tok);
+    if (!found.has(lotId)) {
+      found.set(lotId, {
+        lot_id: lotId,
+        label_th: `${prefix} ${tok}`.replace(/\s+/g, " ").trim(),
+        amount_thb: amountThb,
+        source_turn: turnNumber,
+      });
+    }
+  }
+  const list = Array.from(found.values());
+  return list.length >= 2 ? list : [];
+}
+
+function extractLotReferencesFromClause(
+  clauseText: string,
+  declaredLots: DeclaredGoodsLot[]
+): {
+  coveredLotIds: string[];
+  excludedLotIds: string[];
+  coversAllLots: boolean;
+  isExplicitSameGoodsRepeat: boolean;
+  isExplicitDistinctGoods: boolean;
+} {
+  const norm = thaiDigitsToArabic(clauseText);
+  const declaredIds = new Set(declaredLots.map((l) => l.lot_id));
+  const excludedSet = new Set<string>();
+
+  const negatedLotRe =
+    /(?:ไม่ใช่|มิใช่|ไม่รวม(?:ถึง)?|ยกเว้น|\bnot\b|\bexcluding\b|\bother\s+than\b)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s|$|[.,()]))/gi;
+  let positiveSpan = norm;
+  for (const nm of norm.matchAll(negatedLotRe)) {
+    const lid = canonicalizeLotId(nm[1]);
+    if (declaredIds.size === 0 || declaredIds.has(lid)) {
+      excludedSet.add(lid);
+    }
+  }
+  positiveSpan = positiveSpan.replace(negatedLotRe, " ");
+
+  const isExplicitSameGoodsRepeat =
+    /(?:เดิมอีกครั้ง|เดิมซ้ำ|ส่วนเดียวกัน|ล็อตเดียวกัน|ชุดเดียวกัน|รายการเดียวกัน|สินค้าเดิม|สำหรับ(?:ล็อต|ชุดที่|รายการที่)\s*[A-Z0-9ก-ฮ]+\s*เดิม|same\s+(?:lot|goods|portion|batch))/i.test(
+      norm
+    );
+  const isExplicitDistinctGoods =
+    /(?:โดยเฉพาะ|แยกต่างหาก|คนละส่วน|คนละล็อต|คนละชุด|คนละรายการ|สินค้าอีกส่วน|อีกส่วนหนึ่ง|separate\s+(?:lot|goods|portion)|distinct\s+(?:lot|goods|portion)|another\s+(?:lot|portion))/i.test(
+      norm
+    );
+
+  if (declaredLots.length === 0) {
+    return {
+      coveredLotIds: [],
+      excludedLotIds: Array.from(excludedSet),
+      coversAllLots: false,
+      isExplicitSameGoodsRepeat,
+      isExplicitDistinctGoods,
+    };
+  }
+
+  const coversAllLots =
+    /(?:ทั้ง\s*[0-9]+\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทั้ง(?:สอง|สาม|สี่|ห้า)\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทุกล็อต|ทุกชุด|ทุกรายการ|สินค้าทั้งหมด|ทั้งหมด|ทั้งจำนวน|all\s+(?:[0-9]+\s+)?(?:lots?|batches?|items?|goods))/i.test(
+      positiveSpan
+    );
+  if (coversAllLots) {
+    return {
+      coveredLotIds: declaredLots
+        .map((l) => l.lot_id)
+        .filter((id) => !excludedSet.has(id)),
+      excludedLotIds: Array.from(excludedSet),
+      coversAllLots: true,
+      isExplicitSameGoodsRepeat,
+      isExplicitDistinctGoods,
+    };
+  }
+
+  const lotMentionRe =
+    /(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s|$|[.,()]))/gi;
+  const covered: string[] = [];
+  for (const lm of positiveSpan.matchAll(lotMentionRe)) {
+    const lid = canonicalizeLotId(lm[1]);
+    if (declaredIds.has(lid) && !excludedSet.has(lid) && !covered.includes(lid)) {
+      covered.push(lid);
+    }
+  }
+
+  return {
+    coveredLotIds: covered,
+    excludedLotIds: Array.from(excludedSet),
+    coversAllLots: false,
+    isExplicitSameGoodsRepeat,
+    isExplicitDistinctGoods,
+  };
+}
+
 function extractDatesWithEventKinds(
   cleanedText: string,
   turnNumber: number,
-  options?: { isImmovableTurn?: boolean }
+  options?: {
+    isImmovableTurn?: boolean;
+    declaredLots?: DeclaredGoodsLot[];
+    nonOccurringOut?: NonOccurringTemporalClause[];
+  }
 ): PreservedTemporalEvent[] {
   const norm = thaiDigitsToArabic(cleanedText);
   const events: PreservedTemporalEvent[] = [];
   const seen = new Set<string>();
+  const declaredLots = options?.declaredLots || [];
+  const declaredLotById = new Map(declaredLots.map((l) => [l.lot_id, l]));
 
   // Candidate 8: agreed Thai short-year policy — a 2-digit year directly after a Thai month name/abbreviation
   // (optionally `พ.ศ.`) is B.E. 25xx only within 40..79 and never when the digits continue as an amount, rate,
@@ -263,7 +467,7 @@ function extractDatesWithEventKinds(
   }
 
   const coBoundaryRe =
-    /(?:[.;]|ต่อมา|จากนั้น|ภายหลัง(?:จากนั้น)?|หลังจากนั้น|(?<![ก-๙])ส่วน(?=\s*(?:การ|ในส่วน))|แต่(?=\s*(?:ต่อมา|การ|ส่งมอบ|โอนกรรมสิทธิ์|รับชำระ|ชำระ|ออกใบกำกับ|ผู้|ลูกค้า|บริษัท|ยัง|ในวันที่|เมื่อวันที่|เลื่อน))|โดย(?=\s*(?:ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|โอนกรรมสิทธิ์|มีการโอนกรรมสิทธิ์|การส่งมอบ|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|จดทะเบียน))|เดิม(?=\s*(?:มีแผน|วางแผน|กำหนด|ตกลง))|(?:บริษัท|ลูกค้า|ผู้ให้บริการ|ผู้ประกอบการ|ผู้ขาย|ผู้ซื้อ|ผู้รับบริการ)(?=\s*(?:ออกใบกำกับ|ชำระ|รับชำระ|จ่าย|ได้รับชำระ|โอนกรรมสิทธิ์|ส่งมอบ)))/gi;
+    /(?:[.;]|ต่อมา|จากนั้น|ภายหลัง(?:จากนั้น)?|หลังจากนั้น|และ(?:ใน)?วันเดียวกัน|(?<![ก-๙])ส่วน(?=\s*(?:การ|ในส่วน|ล็อต|ชุด|รายการ|สินค้า))|แต่(?=\s*(?:ต่อมา|การ|ส่งมอบ|โอนกรรมสิทธิ์|รับชำระ|ชำระ|ออกใบกำกับ|ผู้|ลูกค้า|บริษัท|ยัง|ในวันที่|เมื่อวันที่|เลื่อน))|โดย(?=\s*(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|โอนกรรมสิทธิ์|มีการโอนกรรมสิทธิ์|การส่งมอบ|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|จดทะเบียน|บริษัท|ผู้))|เดิม(?=\s*(?:มีแผน|วางแผน|กำหนด|ตกลง))|\((?=\s*(?:สินค้า|ไม่|ยัง|ส่วน|ล็อต|ชุด|รายการ))|(?:บริษัท|ลูกค้า|ผู้ให้บริการ|ผู้ประกอบการ|ผู้ขาย|ผู้ซื้อ|ผู้รับบริการ)(?=\s*(?:ออกใบกำกับ|ชำระ|รับชำระ|จ่าย|ได้รับชำระ|โอนกรรมสิทธิ์|ส่งมอบ)))/gi;
 
   for (let k = 0; k < dateMatches.length; k++) {
     const { rawDate, iso, idx, endIdx } = dateMatches[k];
@@ -275,20 +479,68 @@ function extractDatesWithEventKinds(
     const rightCtx = norm.slice(endIdx, Math.min(norm.length, endIdx + 45));
     const ctx = `${leftCtx} ${rightCtx}`;
 
-    const rawPreSegment = norm.slice(Math.max(prevEndIdx, idx - 170), idx);
-    const rawPostSegment = norm.slice(endIdx, Math.min(nextStartIdx, endIdx + 120));
+    const rawPreSegment = norm.slice(Math.max(prevEndIdx, idx - 190), idx);
+    const rawPostSegment = norm.slice(endIdx, Math.min(nextStartIdx, endIdx + 170));
 
     let lastCoCut = 0;
     for (const bm of rawPreSegment.matchAll(coBoundaryRe)) {
       const pos = bm.index ?? 0;
-      if (rawPreSegment.length - pos >= 10) {
+      if (rawPreSegment.length - pos >= 8) {
         lastCoCut = pos;
       }
     }
     const rawCoClause = rawPreSegment.slice(lastCoCut);
 
+    // Candidate 10 (DEF-C9-3): Negated / boundary-only date suppression!
+    // Apply negation to the WHOLE clause: dates that only serve as a boundary for negated events
+    // (e.g. "โดยไม่มีการโอนกรรมสิทธิ์ รับชำระเงิน หรือออกใบกำกับภาษีใดๆ ก่อนวันที่ 1 ตุลาคม 2569",
+    //  "ก่อนวันที่ 1 ตุลาคม 2569 ไม่มีการโอนกรรมสิทธิ์ รับชำระเงิน หรือออกใบกำกับภาษีใดๆ",
+    //  "no payment or invoice before 1 October 2026") are NEVER positive VAT events on `iso`!
+    const immediatePreDate = norm.slice(Math.max(prevEndIdx, idx - 34), idx);
+    const hasBoundaryPrepositionBeforeDate =
+      /(?:ก่อนหน้า(?:วันที่|วัน)?|ในหรือก่อน(?:วันที่|วัน)?|ก่อน(?:วันที่|วัน)?|จนถึงก่อน(?:วันที่|วัน)?|\b(?:on\s+or\s+before|prior\s+to|before))\s*$/i.test(
+        immediatePreDate
+      );
+    const hasPreDateNegationCue =
+      /(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้(?:มีการ)?|ยังมิได้(?:มีการ)?|ไม่ได้(?:มีการ)?|มิได้(?:มีการ)?|ไม่เคย(?:มีการ)?|ปราศจากการ|\bno\s+(?:prior\s+|earlier\s+)?(?:payment|invoice|tax\s+invoice|ownership|title|transfer|delivery|act)|\bwithout\s+(?:any\s+)?(?:prior\s+|earlier\s+)?(?:payment|invoice|ownership|title|transfer)|\b(?:did|had|has)\s+not\b|\bnever\b)/i.test(
+        rawCoClause
+      );
+    const postBeforeClauseBreak = rawPostSegment
+      .split(
+        /(?:โดย(?:บริษัท|ผู้|โอน|ส่งมอบ|ออก|รับชำระ)|แต่|ต่อมา|จากนั้น|ส่วน(?:การ|ล็อต|ชุด|รายการ|สินค้า)|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[.;?])/
+      )[0]
+      .trim();
+    const hasPostDateNegationCue =
+      /^(?:นั้น\s*)?(?:(?:ทาง)?(?:บริษัท|ผู้ขาย|ผู้ประกอบการ|ลูกค้า|ผู้ซื้อ|คู่สัญญา|ทั้งนี้)\s*)?(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ยังไม่|ไม่เคย|there\s+(?:was|were|is|are)\s+no\b|no\s+(?:payment|invoice|tax\s+invoice|ownership|title|transfer|delivery)|(?:did|had|has)\s+not\b)/i.test(
+        postBeforeClauseBreak
+      );
+    if (hasBoundaryPrepositionBeforeDate && (hasPreDateNegationCue || hasPostDateNegationCue)) {
+      options?.nonOccurringOut?.push({
+        raw_date: rawDate,
+        iso_date: iso,
+        status: "NEGATED",
+        provenance_clause_th: `${rawCoClause.trim()} ${rawDate} ${hasPostDateNegationCue ? postBeforeClauseBreak : ""}`
+          .replace(/\s+/g, " ")
+          .trim()
+          .slice(0, 180),
+        source_turn: turnNumber,
+      });
+      continue;
+    }
+
+    const postQualifier = rawPostSegment
+      .split(
+        /(?:ส่วน(?:การ|ที่เหลือ|สินค้าที่เหลือ|ล็อต|ชุด|รายการ)|ต่อมา|จากนั้น|และ(?:ใน)?วันเดียวกัน|และ(?:ต่อมา|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|โอนกรรมสิทธิ์|งวด|ส่วน|อีก)(?!.*ในวันเดียวกัน)|\band\s+(?:receiv|pay|paid|deliver|issu|transfer)|,\s*(?:and\s+|then\s+)?(?:receiv|pay|paid|deliver)|แต่|โดยไม่มี|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/i
+      )[0]
+      .trim();
+    const postSameDayClause = rawPostSegment
+      .split(
+        /(?:โดยไม่มี|แต่|ต่อมา|จากนั้น|และ(?:ใน)?วันเดียวกัน(?=\s*\()|ส่วน(?:การ|ที่เหลือ|สินค้าที่เหลือ|ล็อต|ชุด|รายการ)|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/
+      )[0]
+      .trim();
+
     // Candidate 9 (§78(1)(a)): distinguish actual ownership transfer from a planned future transfer
-    // or a transfer that did NOT occur on this date.
+    // or a transfer that did NOT occur on this date (never crossing a trailing `โดยไม่มี...` clause!).
     const hasPlannedTitleMarker =
       /(?:มีแผน(?:ที่จะ|จะ)?|วางแผน(?:ที่จะ|จะ)?|คาดว่าจะ|ตั้งใจ(?:ที่จะ|จะ)?|เดิมกำหนด(?:ให้|ไว้|ว่าจะ)?|กำหนด(?:การ)?(?:ไว้)?(?:ว่า)?จะ|ตกลง(?:กัน)?ไว้(?:ก่อน)?ว่าจะ|เลื่อน(?:การ|วัน)?โอนกรรมสิทธิ์จาก(?:เดิม)?|(?:plan(?:ned|s)?|schedul(?:ed|es)|intend(?:ed|s)?|postponed)\s+to\s+transfer\s+(?:ownership|title)|(?:planned|scheduled|intended)\s+(?:ownership|title)\s+transfer)/i.test(
         rawCoClause
@@ -298,13 +550,21 @@ function extractDatesWithEventKinds(
           rawPostSegment
         ));
     const hasNegatedTitleMarker =
-      /(?:ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่มีการ|ยังไม่|สงวนกรรมสิทธิ์(?:ไว้)?(?:โดยยังไม่)?)\s*(?:มีการ)?โอนกรรมสิทธิ์|(?:did\s+not|has\s+not|had\s+not|without|no)\s+(?:transfer(?:red|ring)?\s+(?:ownership|title)|(?:ownership|title)\s+transfer)/i.test(
-        `${rawCoClause} ${rawPostSegment.slice(0, 55)}`
+      /(?:ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ยังไม่มีการ|ไม่มีการ|ยังไม่|สงวนกรรมสิทธิ์(?:ไว้)?(?:โดยยังไม่)?)\s*(?:มีการ)?โอนกรรมสิทธิ์|(?:did\s+not|has\s+not|had\s+not|without|no)\s+(?:transfer(?:red|ring)?\s+(?:ownership|title)|(?:ownership|title)\s+transfer)/i.test(
+        `${rawCoClause} ${postSameDayClause}`
       );
     const suppressOwnershipTransfer = hasPlannedTitleMarker || hasNegatedTitleMarker;
 
+    // Strip whole coordinated negated/planned clauses (including chained verbs like
+    // "ไม่มีการโอนกรรมสิทธิ์ รับชำระเงิน หรือออกใบกำกับภาษีใดๆ"), terminating cleanly after the final
+    // `หรือ`/`และ <verb>` item so a subsequent positive clause (`ออกใบกำกับภาษีวันที่ 20 กันยายน 2568`) is never eaten!
+    const negVerbAtom =
+      "(?:ใช้บริการ(?:ก่อน(?:ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?))?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)";
     const coClauseCleaned = rawCoClause.replace(
-      /(?:โดย)?(?:ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่มีการ|ไม่เคย|ยังไม่|มีแผน(?:ที่จะ|จะ)?|วางแผน(?:ที่จะ|จะ)?|กำหนด(?:การ)?(?:ไว้)?(?:ว่า)?จะ|เลื่อน(?:การ|วัน)?)\s*(?:มีการ)?(?:ใช้บริการ|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับภาษี|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)[^,.;)]*?(?=\s+(?:บริษัท|ลูกค้า|ผู้|ต่อมา|แต่|ส่วน|ออกใบกำกับ|รับชำระ|ชำระ|โอนกรรมสิทธิ์|ส่งมอบ)|$)/gi,
+      new RegExp(
+        `(?:โดย)?(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|ยังไม่|มีแผน(?:ที่จะ|จะ)?|วางแผน(?:ที่จะ|จะ)?|กำหนด(?:การ)?(?:ไว้)?(?:ว่า)?จะ|เลื่อน(?:การ|วัน)?)\\s*(?:มีการ)?${negVerbAtom}(?:(?:\\s*,?\\s*${negVerbAtom})*\\s*(?:หรือ|และ)\\s*${negVerbAtom})?(?:\\s*ใดๆ)?(?:\\s*ก่อน(?:หน้า)?(?:นั้น)?)?`,
+        "gi"
+      ),
       " "
     );
     if (
@@ -313,43 +573,84 @@ function extractDatesWithEventKinds(
         coClauseCleaned
       )
     ) {
-      // Purely planned / postponed / non-occurring event on this date: never fall through to TRANSFER or STATED_TRANSACTION_DATE!
+      options?.nonOccurringOut?.push({
+        raw_date: rawDate,
+        iso_date: iso,
+        status: hasPlannedTitleMarker ? "PLANNED" : "NEGATED",
+        provenance_clause_th: `${rawCoClause.trim()} ${rawDate}`.replace(/\s+/g, " ").trim().slice(0, 180),
+        source_turn: turnNumber,
+      });
       continue;
     }
 
-    const postQualifier = rawPostSegment
-      .split(
-        /(?:ส่วน(?:การ|ที่เหลือ|สินค้าที่เหลือ)|ต่อมา|จากนั้น|และ(?:ต่อมา|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|โอนกรรมสิทธิ์|งวด|ส่วน|อีก)(?!.*ในวันเดียวกัน)|\band\s+(?:receiv|pay|paid|deliver|issu|transfer)|,\s*(?:and\s+|then\s+)?(?:receiv|pay|paid|deliver)|แต่|โดยไม่มี|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/i
-      )[0]
-      .trim();
-    const postSameDayClause = rawPostSegment
-      .split(/(?:โดยไม่มี|แต่|ต่อมา|ส่วน|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/)[0]
-      .trim();
-    const hasPreDateVerb =
-      /(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle)/i.test(
-        coClauseCleaned
+    // Strip undated VAT-registrant / marital status phrases (even if left-sliced at rawPreSegment boundary!)
+    // BEFORE checking whether a dated verb exists before the date or classifying REGISTRATION.
+    const stripStatusRegistrationPhrases = (s: string) =>
+      s.replace(
+        /(?:(?:ผู้ประกอบการ|บริษัทที่)?จดทะเบียน(?:ภาษีมูลค่าเพิ่ม|\s*VAT)|สามีภริยาที่จดทะเบียนสมรส|จดทะเบียนสมรส)/gi,
+        " "
       );
+    const coClauseForPreVerb = stripStatusRegistrationPhrases(coClauseCleaned);
+    const hasPreDateVerb =
+      /(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle)/i.test(
+        coClauseForPreVerb
+      );
+    const postQualHasLotAssignment =
+      declaredLots.length >= 2 &&
+      extractLotReferencesFromClause(coClauseForPreVerb, declaredLots).coveredLotIds.length === 0 &&
+      extractLotReferencesFromClause(postQualifier, declaredLots).coveredLotIds.length > 0;
     const includePostSameDay =
       (!hasPreDateVerb && postSameDayClause.length > 0) ||
+      postQualHasLotAssignment ||
       /(?:ในวันเดียวกัน|วันเดียวกันนั้น|พร้อมกันในวันนั้น|on\s+the\s+same\s+day)/i.test(postSameDayClause) ||
       /^(?:พร้อม(?:กับ|ทั้ง)?|และพร้อมกันนั้น)\s*(?:โอนกรรมสิทธิ์|ส่งมอบ|ส่งของ|รับชำระ|ชำระ|ออกใบกำกับ)/.test(
         postSameDayClause
       );
-    const effectiveClause = includePostSameDay
-      ? `${coClauseCleaned} ${postSameDayClause}`.trim()
-      : coClauseCleaned.trim();
+    // When the action verb appears strictly AFTER the date (`เมื่อวันที่ 30 กันยายน 2569 บริษัทโอนกรรมสิทธิ์ในล็อต A...`),
+    // NEVER concatenate verb-less pre-date preamble text (such as a multi-lot declaration schedule) into `effectiveClause`!
+    const effectiveClause = !hasPreDateVerb && postSameDayClause.length > 0
+      ? postSameDayClause
+      : postQualHasLotAssignment && !/(?:ในวันเดียวกัน|วันเดียวกันนั้น|พร้อมกันในวันนั้น|on\s+the\s+same\s+day)/i.test(postSameDayClause)
+        ? `${coClauseCleaned} ${postQualifier}`.trim()
+        : includePostSameDay
+          ? `${coClauseCleaned} ${postSameDayClause}`.trim()
+          : coClauseCleaned.trim();
 
-    // Strip relative comparators (`ก่อนส่งมอบสินค้า`, `ก่อนรับชำระเงิน`, `prior to delivery`) before verb detection
-    // so an early event described as occurring "before delivery/payment" never emits the comparator event on this date!
-    const verbCheckClause = effectiveClause
-      .replace(
-        /(?:ก่อน|หลัง(?:จาก)?|แทนการ)\s*(?:การ)?(?:ส่งมอบ(?:สินค้า|ของ|บริการ)?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|รับชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ออกใบกำกับ(?:ภาษี)?|ใช้บริการ)/gi,
-        " "
+    // If the entire effective clause is purely negated after stripping coordinated negations (e.g. "วันที่ 1 ต.ค. ยังไม่มีการรับชำระเงินหรือออกใบกำกับภาษี"), skip!
+    if (
+      (hasPreDateNegationCue || hasPostDateNegationCue) &&
+      !/(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle)/i.test(
+        effectiveClause.replace(
+          /(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|ยังไม่)\s*(?:มีการ)?(?:ใช้บริการ|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)(?:(?:\s*(?:,|หรือ|และ)?\s*(?:โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?|ใช้บริการ|ใดๆ))*)/gi,
+          " "
+        )
       )
-      .replace(
-        /\b(?:before|prior\s+to|after|ahead\s+of)\s+(?:deliver(?:y|ing)|transfer(?:ring)?\s+(?:ownership|title)|payment|paying|issuing\s+(?:a\s+|the\s+)?(?:tax\s+)?invoice|invoicing)/gi,
-        " "
-      );
+    ) {
+      options?.nonOccurringOut?.push({
+        raw_date: rawDate,
+        iso_date: iso,
+        status: "NEGATED",
+        provenance_clause_th: `${rawCoClause.trim()} ${rawDate} ${postSameDayClause}`.replace(/\s+/g, " ").trim().slice(0, 180),
+        source_turn: turnNumber,
+      });
+      continue;
+    }
+
+    // If a single date match covers >=2 distinct declared lots with separate actions (e.g.
+    // "เมื่อวันที่ 30 กันยายน 2569 บริษัทโอนกรรมสิทธิ์ในล็อต A ให้แก่ผู้ซื้อ และได้รับชำระราคาพร้อมออกใบกำกับภาษีสำหรับล็อต B โดยเฉพาะ"),
+    // split into per-action sub-clauses so each distinct lot retains its own exact event type and amount!
+    const topLotRefs = extractLotReferencesFromClause(effectiveClause, declaredLots);
+    const actionSubClauses: string[] =
+      declaredLots.length >= 2 &&
+      !topLotRefs.coversAllLots &&
+      topLotRefs.coveredLotIds.length >= 2
+        ? effectiveClause
+            .split(
+              /(?:\s+และ(?:ในวันเดียวกัน)?(?:\s*(?:บริษัท|ผู้ขาย|ผู้ประกอบการ))?(?=\s*(?:ได้รับชำระ|รับชำระ|ชำระ|ออกใบกำกับ|โอนกรรมสิทธิ์|ส่งมอบ))|\s*,\s*(?:and\s+)?(?=(?:receiv|paid|issu|transfer|deliver)))/i
+            )
+            .map((s) => s.trim())
+            .filter((s) => s.length >= 6)
+        : [effectiveClause];
 
     const invoiceIssuanceRe =
       /(?:ออกใบกำกับภาษี(?!ไว้แล้ว)|ออกใบกำกับ(?!ภาษีไว้แล้ว)|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
@@ -360,115 +661,172 @@ function extractDatesWithEventKinds(
     const actualOwnershipTransferRe =
       /(?:โอนกรรมสิทธิ์|กรรมสิทธิ์(?:ในสินค้า|ของสินค้า|ในทรัพย์สินที่ขาย|สินค้า)?(?:ได้)?(?:โอน|ตกเป็นของ|เปลี่ยนมือ)|ผู้ซื้อได้(?:รับ)?กรรมสิทธิ์|(?:full\s+|partial\s+)?(?:ownership|title)(?:\s+(?:in|to|of)\s+(?:the\s+)?goods)?\s+(?:transfers?|transferred|passes?|passed)|transfer(?:s|red)?\s+(?:full\s+|partial\s+)?(?:ownership|title))/i;
 
-    const isInvoiceIssuance = invoiceIssuanceRe.test(verbCheckClause);
-    const isPaymentVerb = paymentVerbRe.test(verbCheckClause);
-    const isEnglishContinuedPayment =
-      !isInvoiceIssuance &&
-      !isPaymentVerb &&
-      ((/^\s*(?:and\s+)?(?:THB|฿)\s*[0-9,]+/i.test(rawPreSegment) &&
-        /(?:receiv(?:e|ed|es)\s+.*payment|two\s+equal\s+payment|paid\b)/i.test(
-          norm.slice(Math.max(0, idx - 140), idx)
-        )) ||
-        (/^\s*(?:กับอีก|และอีก)\s*[0-9,]+\s*บาท/.test(rawPreSegment) &&
-          /(?:ได้รับชำระ|รับชำระ|ชำระเงิน|ชำระค่า|จ่ายเงิน)/.test(
+    for (const subClauseRaw of actionSubClauses) {
+      // Strip relative comparators (`ก่อนส่งมอบสินค้า`, `ก่อนรับชำระเงิน`, `prior to delivery`) before verb detection
+      // so an early event described as occurring "before delivery/payment" never emits the comparator event on this date!
+      const verbCheckClause = subClauseRaw
+        .replace(
+          /(?:ก่อน|หลัง(?:จาก)?|แทนการ)\s*(?:การ)?(?:ส่งมอบ(?:สินค้า|ของ|บริการ)?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|รับชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ออกใบกำกับ(?:ภาษี)?|ใช้บริการ)/gi,
+          " "
+        )
+        .replace(
+          /\b(?:before|prior\s+to|after|ahead\s+of)\s+(?:deliver(?:y|ing)|transfer(?:ring)?\s+(?:ownership|title)|payment|paying|issuing\s+(?:a\s+|the\s+)?(?:tax\s+)?invoice|invoicing)/gi,
+          " "
+        );
+
+      const isInvoiceIssuance = invoiceIssuanceRe.test(verbCheckClause);
+      const isPaymentVerb = paymentVerbRe.test(verbCheckClause);
+      const isEnglishContinuedPayment =
+        actionSubClauses.length === 1 &&
+        !isInvoiceIssuance &&
+        !isPaymentVerb &&
+        ((/^\s*(?:and\s+)?(?:THB|฿)\s*[0-9,]+/i.test(rawPreSegment) &&
+          /(?:receiv(?:e|ed|es)\s+.*payment|two\s+equal\s+payment|paid\b)/i.test(
             norm.slice(Math.max(0, idx - 140), idx)
-          )));
-    const isInstallmentPaymentHint =
-      !isInvoiceIssuance &&
-      /(?:มัดจำ|งวดแรก|งวดที่\s*[0-9]|งวดที่(?:หนึ่ง|สอง|สาม)|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน|remaining\s+(?:THB|฿|balance|amount))/i.test(
-        localClause
+          )) ||
+          (/^\s*(?:กับอีก|และอีก)\s*[0-9,]+\s*บาท/.test(rawPreSegment) &&
+            /(?:ได้รับชำระ|รับชำระ|ชำระเงิน|ชำระค่า|จ่ายเงิน)/.test(
+              norm.slice(Math.max(0, idx - 140), idx)
+            )));
+      const isInstallmentPaymentHint =
+        actionSubClauses.length === 1 &&
+        !isInvoiceIssuance &&
+        !deliveryVerbRe.test(verbCheckClause) &&
+        !actualOwnershipTransferRe.test(verbCheckClause) &&
+        /(?:มัดจำ|งวดแรก|งวดที่\s*[0-9]|งวดที่(?:หนึ่ง|สอง|สาม)|ส่วนที่เหลือ|แบ่งชำระ|แบ่งจ่าย|ชำระบางส่วน|remaining\s+(?:THB|฿|balance|amount))/i.test(
+          localClause
+        );
+      const hasRemainingBalanceMarker = /(?:ส่วนที่เหลือ|ยอดคงเหลือ|remaining\s+(?:THB|฿|balance|amount|portion))/i.test(
+        subClauseRaw
       );
-    const hasRemainingBalanceMarker = /(?:ส่วนที่เหลือ|ยอดคงเหลือ|remaining\s+(?:THB|฿|balance|amount|portion))/i.test(
-      effectiveClause
-    );
-    const isSettlementOfPriorInvoice =
-      (isPaymentVerb || isEnglishContinuedPayment) &&
-      /(?:ตามใบกำกับภาษี(?:ดังกล่าว|นั้น)?|ที่ออกใบกำกับภาษีไว้แล้ว|สำหรับใบกำกับภาษี(?:ดังกล่าว|นั้น)|บาทนั้น|จำนวนนั้น|of\s+that\s+(?:THB|฿)?\s*[0-9,]+|for\s+that\s+(?:tax\s+)?invoice)/i.test(
-        effectiveClause
-      );
+      const isSettlementOfPriorInvoice =
+        (isPaymentVerb || isEnglishContinuedPayment) &&
+        /(?:ตามใบกำกับภาษี(?:ดังกล่าว|นั้น)?|ที่ออกใบกำกับภาษีไว้แล้ว|สำหรับใบกำกับภาษี(?:ดังกล่าว|นั้น)|บาทนั้น|จำนวนนั้น|of\s+that\s+(?:THB|฿)?\s*[0-9,]+|for\s+that\s+(?:tax\s+)?invoice)/i.test(
+          subClauseRaw
+        );
 
-    const matchedKinds: TemporalEventKind[] = [];
-    // Never mistake undated taxpayer/marital status adjectives (e.g. "ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม")
-    // for a dated REGISTRATION event, while keeping dated corporate/commercial/contract/machinery registrations
-    // classified as REGISTRATION (distinct from actual goods OWNERSHIP_TRANSFER!).
-    const registrationCheckClause = verbCheckClause.replace(
-      /(?:ผู้ประกอบการจดทะเบียน(?:ภาษีมูลค่าเพิ่ม|\s*VAT)?|สามีภริยาที่จดทะเบียนสมรส|จดทะเบียนสมรส)/gi,
-      ""
-    );
-    const hasActualOwnershipTransfer =
-      !suppressOwnershipTransfer && actualOwnershipTransferRe.test(verbCheckClause);
-    if (hasActualOwnershipTransfer) {
-      matchedKinds.push(options?.isImmovableTurn ? "REGISTRATION" : "OWNERSHIP_TRANSFER");
-    } else if (/จดทะเบียน/.test(registrationCheckClause)) {
-      matchedKinds.push("REGISTRATION");
-    }
+      const matchedKinds: TemporalEventKind[] = [];
+      const registrationCheckClause = stripStatusRegistrationPhrases(verbCheckClause);
+      const hasActualOwnershipTransfer =
+        !suppressOwnershipTransfer && actualOwnershipTransferRe.test(verbCheckClause);
+      if (hasActualOwnershipTransfer) {
+        matchedKinds.push(options?.isImmovableTurn ? "REGISTRATION" : "OWNERSHIP_TRANSFER");
+      } else if (/จดทะเบียน/.test(registrationCheckClause)) {
+        matchedKinds.push("REGISTRATION");
+      }
 
-    const isGoodsDelivery =
-      !options?.isImmovableTurn &&
-      deliveryVerbRe.test(verbCheckClause) &&
-      !/ส่งออก/.test(verbCheckClause);
-    if (isGoodsDelivery) {
-      matchedKinds.push("DELIVERY");
-    }
+      const isGoodsDelivery =
+        !options?.isImmovableTurn &&
+        deliveryVerbRe.test(verbCheckClause) &&
+        !/ส่งออก/.test(verbCheckClause);
+      if (isGoodsDelivery) {
+        matchedKinds.push("DELIVERY");
+      }
 
-    if (isSettlementOfPriorInvoice) {
-      matchedKinds.push("PAYMENT");
-    } else {
-      if (isPaymentVerb || isEnglishContinuedPayment || isInstallmentPaymentHint) {
+      if (isSettlementOfPriorInvoice) {
         matchedKinds.push("PAYMENT");
-      }
-      if (isInvoiceIssuance) {
-        matchedKinds.push("INVOICE");
-      }
-    }
-
-    if (/(?:ใช้บริการ|เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|used\s+the\s+service)/i.test(verbCheckClause)) {
-      matchedKinds.push("SERVICE_USE");
-    }
-    if (/รอบระยะเวลาบัญชี|รอบบัญชี/.test(ctx)) {
-      matchedKinds.push("ACCOUNTING_PERIOD_START");
-    }
-    if (/(?:ถามเมื่อ|วันที่ถาม|สอบถามเมื่อ|ณ\s*วันที่ถาม)/.test(verbCheckClause)) {
-      matchedKinds.push("QUESTION_DATE");
-    }
-    if (matchedKinds.length === 0) {
-      if (/(?:โอน|ยก|ให้|ขาย|ซื้อ)/.test(verbCheckClause) && !suppressOwnershipTransfer) {
-        matchedKinds.push("TRANSFER");
       } else {
-        matchedKinds.push("STATED_TRANSACTION_DATE");
+        if (isPaymentVerb || isEnglishContinuedPayment || isInstallmentPaymentHint) {
+          matchedKinds.push("PAYMENT");
+        }
+        if (isInvoiceIssuance) {
+          matchedKinds.push("INVOICE");
+        }
       }
-    }
 
-    const provenanceText = `${rawCoClause.trim()} ${rawDate}`.replace(/\s+/g, " ").trim().slice(0, 180);
-    for (const kind of matchedKinds) {
-      const dedupKey = `${turnNumber}:${kind}:${iso}`;
-      if (seen.has(dedupKey)) continue;
-      seen.add(dedupKey);
-      const { amountThb, coverage } = extractEventKindSpanAndCoverage({
-        kind,
-        effectiveClause: includePostSameDay ? effectiveClause : verbCheckClause,
-        postQualifier,
-      });
-      events.push({
-        event_type: kind,
-        raw_text: rawDate,
-        iso_date: iso,
-        source_turn: turnNumber,
-        provenance_clause_th: provenanceText,
-        ...(amountThb !== null ? { amount_thb: amountThb } : {}),
-        ...(kind === "OWNERSHIP_TRANSFER" || kind === "PAYMENT" || kind === "INVOICE" || kind === "DELIVERY"
-          ? { portion_coverage: coverage }
-          : {}),
-        ...(kind === "PAYMENT" && isSettlementOfPriorInvoice
-          ? { is_settlement_of_prior_invoice: true }
-          : {}),
-        ...(kind === "PAYMENT" && hasRemainingBalanceMarker
-          ? { has_remaining_balance_marker: true }
-          : {}),
-        ...(kind === "DELIVERY" || (isGoodsDelivery && kind !== "PAYMENT" && kind !== "INVOICE" && kind !== "OWNERSHIP_TRANSFER")
-          ? { is_goods_delivery: true }
-          : {}),
-      });
+      if (/(?:ใช้บริการ|เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|used\s+the\s+service)/i.test(verbCheckClause)) {
+        matchedKinds.push("SERVICE_USE");
+      }
+      if (/รอบระยะเวลาบัญชี|รอบบัญชี/.test(ctx)) {
+        matchedKinds.push("ACCOUNTING_PERIOD_START");
+      }
+      if (/(?:ถามเมื่อ|วันที่ถาม|สอบถามเมื่อ|ณ\s*วันที่ถาม)/.test(verbCheckClause)) {
+        matchedKinds.push("QUESTION_DATE");
+      }
+      if (matchedKinds.length === 0) {
+        if (/(?:โอน|ยก|ให้|ขาย|ซื้อ)/.test(verbCheckClause) && !suppressOwnershipTransfer) {
+          matchedKinds.push("TRANSFER");
+        } else {
+          matchedKinds.push("STATED_TRANSACTION_DATE");
+        }
+      }
+
+      const subLotRefs = extractLotReferencesFromClause(subClauseRaw, declaredLots);
+      const coveredLotIds = subLotRefs.coveredLotIds;
+      const lotKey = coveredLotIds.length > 0 ? coveredLotIds.join(",") : "";
+      const provenanceText = (
+        actionSubClauses.length > 1
+          ? `${subClauseRaw} (${rawDate})`
+          : includePostSameDay && !hasPreDateVerb
+            ? `${rawDate} ${postSameDayClause}`
+            : `${rawCoClause.trim()} ${rawDate}`
+      )
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 180);
+
+      for (const kind of matchedKinds) {
+        const dedupKey = `${turnNumber}:${kind}:${iso}:${lotKey}`;
+        if (seen.has(dedupKey)) continue;
+        seen.add(dedupKey);
+        const extracted = extractEventKindSpanAndCoverage({
+          kind,
+          effectiveClause:
+            actionSubClauses.length > 1
+              ? subClauseRaw
+              : includePostSameDay
+                ? effectiveClause
+                : verbCheckClause,
+          postQualifier: actionSubClauses.length > 1 ? "" : postQualifier,
+        });
+
+        // Resolve exact covered amount & portion coverage from declared lots when lot IDs are matched!
+        let resolvedAmountThb = extracted.amountThb;
+        let resolvedCoverage = extracted.coverage;
+        let coveredGoodsLabelTh: string | undefined = undefined;
+        if (coveredLotIds.length > 0) {
+          const matchedLots = coveredLotIds
+            .map((id) => declaredLotById.get(id))
+            .filter((l): l is DeclaredGoodsLot => Boolean(l));
+          if (matchedLots.length > 0) {
+            resolvedAmountThb = matchedLots.reduce((s, l) => s + l.amount_thb, 0);
+            resolvedCoverage =
+              subLotRefs.coversAllLots || matchedLots.length >= declaredLots.length
+                ? "FULL"
+                : "PARTIAL";
+            coveredGoodsLabelTh = matchedLots.map((l) => l.label_th).join(" และ ");
+          }
+        }
+
+        events.push({
+          event_type: kind,
+          raw_text: rawDate,
+          iso_date: iso,
+          source_turn: turnNumber,
+          event_status: "ACTUAL",
+          provenance_clause_th: provenanceText,
+          ...(resolvedAmountThb !== null ? { amount_thb: resolvedAmountThb } : {}),
+          ...(kind === "OWNERSHIP_TRANSFER" || kind === "PAYMENT" || kind === "INVOICE" || kind === "DELIVERY"
+            ? { portion_coverage: resolvedCoverage }
+            : {}),
+          ...(coveredLotIds.length > 0 ? { covered_lot_ids: coveredLotIds } : {}),
+          ...(subLotRefs.excludedLotIds.length > 0
+            ? { explicitly_excluded_lot_ids: subLotRefs.excludedLotIds }
+            : {}),
+          ...(coveredGoodsLabelTh ? { covered_goods_label_th: coveredGoodsLabelTh } : {}),
+          ...(subLotRefs.isExplicitSameGoodsRepeat ? { is_explicit_same_goods_repeat: true } : {}),
+          ...(subLotRefs.isExplicitDistinctGoods ? { is_explicit_distinct_goods: true } : {}),
+          ...(kind === "PAYMENT" && isSettlementOfPriorInvoice
+            ? { is_settlement_of_prior_invoice: true }
+            : {}),
+          ...(kind === "PAYMENT" && hasRemainingBalanceMarker
+            ? { has_remaining_balance_marker: true }
+            : {}),
+          ...(kind === "DELIVERY" || (isGoodsDelivery && kind !== "PAYMENT" && kind !== "INVOICE" && kind !== "OWNERSHIP_TRANSFER")
+            ? { is_goods_delivery: true }
+            : {}),
+        });
+      }
     }
   }
 
@@ -624,6 +982,8 @@ export function buildStructuredCaseFactLedger(input: {
   const factsMap = new Map<string, PreservedMaterialFact>();
   const overrides: StructuredCaseFactLedger["overrides"] = [];
   const allTemporalEvents: PreservedTemporalEvent[] = [];
+  const nonOccurringEvents: NonOccurringTemporalClause[] = [];
+  const declaredLotsMap = new Map<string, DeclaredGoodsLot>();
   const unknownFacts = new Set<string>();
   const questionsAsked: string[] = [];
 
@@ -1087,14 +1447,22 @@ export function buildStructuredCaseFactLedger(input: {
       });
     }
 
-    // 6. Amounts
+    // 6. Amounts & declared goods lot schedules
     extractAmountsForTurn(cleaned, turnNumber, factsMap, overrides);
+    const turnDeclaredLots = extractDeclaredGoodsLots(cleaned, turnNumber);
+    for (const lot of turnDeclaredLots) {
+      declaredLotsMap.set(lot.lot_id, lot);
+    }
 
-    // 7. Temporal events
+    // 7. Temporal events (with declared lot awareness and negated/boundary-date suppression)
     const isImmovableTurn =
       Boolean(factsMap.get("asset")?.normalized_category.startsWith("IMMOVABLE_PROPERTY")) &&
       !/(?:ขายสินค้า|ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ภาษีมูลค่าเพิ่ม|\bVAT\b)/i.test(norm);
-    const turnDates = extractDatesWithEventKinds(cleaned, turnNumber, { isImmovableTurn });
+    const turnDates = extractDatesWithEventKinds(cleaned, turnNumber, {
+      isImmovableTurn,
+      declaredLots: Array.from(declaredLotsMap.values()),
+      nonOccurringOut: nonOccurringEvents,
+    });
     allTemporalEvents.push(...turnDates);
 
     // 8. Explicitly stated unknown facts
@@ -1138,6 +1506,8 @@ export function buildStructuredCaseFactLedger(input: {
   let ambiguityReasonTh: string | null = null;
   let isSplitPaymentMultiTaxPoint = false;
   let splitPaymentTaxPoints: SplitPaymentTaxPointItem[] | undefined = undefined;
+  let vatPortionAllocationRecord: VerifiedGoodsVatAllocationRecord | undefined = undefined;
+  const declaredGoodsLots = Array.from(declaredLotsMap.values());
 
   const mergedAllUserText = allUserTurns.map((t) => t.raw_text).join(" ");
   const explicitUnknownDateInPrompt =
@@ -1189,9 +1559,35 @@ export function buildStructuredCaseFactLedger(input: {
   const maxMentionedAmountThb =
     allMentionedAmountsThb.length > 0 ? Math.max(...allMentionedAmountsThb) : 0;
 
-  const activeTurnVatDates = (
-    latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates
-  ).filter(
+  // When a multi-turn follow-up on a declared multi-lot goods sale updates a specific event (e.g. reassigning
+  // which lot a 30 Sep payment/invoice covers while keeping unchanged prior-turn events intact), merge the
+  // latest turn's updated `(event_type, iso_date)` events over the prior turns instead of dropping untouched lots!
+  const isMultiTurnLotEventPartialUpdate = Boolean(
+    allUserTurns.length >= 2 &&
+      declaredGoodsLots.length >= 2 &&
+      latestTurnNonQuestionDates.length > 0 &&
+      !latestTurnNonQuestionDates.some((e) => e.event_type === "DELIVERY" || e.is_goods_delivery) &&
+      nonQuestionDates.some(
+        (e) => e.source_turn < latestTurnNumber && (e.event_type === "DELIVERY" || e.is_goods_delivery)
+      )
+  );
+  const effectiveVatDateSource: PreservedTemporalEvent[] = isMultiTurnLotEventPartialUpdate
+    ? (() => {
+        const updatedKeys = new Set(
+          latestTurnNonQuestionDates.map((e) => `${e.event_type}:${e.iso_date}`)
+        );
+        const retainedPrior = nonQuestionDates.filter(
+          (e) =>
+            e.source_turn < latestTurnNumber &&
+            !updatedKeys.has(`${e.event_type}:${e.iso_date}`)
+        );
+        return [...retainedPrior, ...latestTurnNonQuestionDates];
+      })()
+    : latestTurnNonQuestionDates.length > 0
+      ? latestTurnNonQuestionDates
+      : nonQuestionDates;
+
+  const activeTurnVatDates = effectiveVatDateSource.filter(
     (e) =>
       e.event_type === "OWNERSHIP_TRANSFER" ||
       e.event_type === "DELIVERY" ||
@@ -1436,42 +1832,84 @@ export function buildStructuredCaseFactLedger(input: {
         vatWindowBucket(e.iso_date) === vatWindowBucket(goodsDelivery.iso_date)
     );
 
-  // Group known-amount partial early acts by date (deduplicating co-occurring title/payment/invoice covering the same lot on the same date)
-  const earlyPartialPortionsByDate: PreservedTemporalEvent[] = [];
-  if (goodsDelivery && goodsEarlyActs.length > 0 && !goodsEarlyActsCoverWhole) {
-    const seenEarlyDates = new Set<string>();
+  const computeVerifiedVatForDateAndBase = (
+    iso: string,
+    baseThb: number
+  ): { ratePct: number | null; vatThb: number | null; grossThb: number | null } => {
+    const within = iso >= VAT_RATE_VERIFIED_COVERAGE_START_ISO;
+    const govWid = governingDecreeWorkIdForIso(iso);
+    if (!within || !govWid || !Number.isFinite(baseThb) || baseThb <= 0) {
+      return { ratePct: null, vatThb: null, grossThb: null };
+    }
+    const vatThb = Math.round(baseThb * 0.07 * 100) / 100;
+    const grossThb = Math.round((baseThb + vatThb) * 100) / 100;
+    return { ratePct: 7, vatThb, grossThb };
+  };
+
+  // Group unnamed early acts into distinct clause units (co-occurring payment+invoice in the same local clause = 1 unit;
+  // two separate acts on different dates or separate clauses = 2 units unless explicitly linked as same/distinct goods).
+  const unnamedEarlyActUnits: PreservedTemporalEvent[] = [];
+  if (declaredGoodsLots.length < 2 && goodsDelivery && goodsEarlyActs.length > 0 && !goodsEarlyActsCoverWhole) {
+    const seenUnitKeys = new Set<string>();
     for (const ea of goodsEarlyActs) {
-      if (seenEarlyDates.has(ea.iso_date)) continue;
-      seenEarlyDates.add(ea.iso_date);
-      earlyPartialPortionsByDate.push(ea);
+      const unitKey = `${ea.iso_date}|${(ea.provenance_clause_th || "").slice(0, 60)}`;
+      if (seenUnitKeys.has(unitKey)) continue;
+      seenUnitKeys.add(unitKey);
+      unnamedEarlyActUnits.push(ea);
     }
   }
+  const hasExplicitAmbiguousOverlapWording =
+    /(?:ไม่(?:ได้)?ระบุว่า[^.;?]{0,80}(?:ส่วนเดียว(?:กัน)?|ล็อตเดียว(?:กัน)?|สินค้าเดิม)[^.;?]{0,40}หรือ[^.;?]{0,40}(?:คนละส่วน|คนละล็อต|แยกต่างหาก)|ยังไม่ชัดเจนว่า[^.;?]{0,60}(?:ซ้ำซ้อน|ส่วนเดียวกัน|คนละส่วน)|without\s+stating\s+whether[^.;?]{0,60}(?:same|separate|distinct))/i.test(
+      normMergedAll
+    );
+  const unnamedMultiEarlyOverlapAmbiguous = Boolean(
+    declaredGoodsLots.length < 2 &&
+      unnamedEarlyActUnits.length >= 2 &&
+      (hasExplicitAmbiguousOverlapWording ||
+        unnamedEarlyActUnits
+          .slice(1)
+          .some((u) => !u.is_explicit_same_goods_repeat && !u.is_explicit_distinct_goods))
+  );
+  const resolvedUnnamedEarlyPortions: PreservedTemporalEvent[] = unnamedMultiEarlyOverlapAmbiguous
+    ? []
+    : unnamedEarlyActUnits.length >= 2 &&
+        unnamedEarlyActUnits.slice(1).every((u) => Boolean(u.is_explicit_same_goods_repeat))
+      ? [unnamedEarlyActUnits[0]]
+      : unnamedEarlyActUnits;
+
   const allEarlyPartialAmountsKnown =
+    declaredGoodsLots.length < 2 &&
+    !unnamedMultiEarlyOverlapAmbiguous &&
     goodsReferenceTotalThb > 0 &&
-    earlyPartialPortionsByDate.length > 0 &&
-    earlyPartialPortionsByDate.every(
+    resolvedUnnamedEarlyPortions.length > 0 &&
+    resolvedUnnamedEarlyPortions.every(
       (ea) =>
         ea.portion_coverage === "PARTIAL" &&
         typeof ea.amount_thb === "number" &&
         ea.amount_thb > 0
     );
   const earlyPartialKnownSumThb = allEarlyPartialAmountsKnown
-    ? earlyPartialPortionsByDate.reduce((s, ea) => s + (ea.amount_thb ?? 0), 0)
+    ? resolvedUnnamedEarlyPortions.reduce((s, ea) => s + (ea.amount_thb ?? 0), 0)
     : 0;
   const isKnownPartialGoodsSplit =
     allEarlyPartialAmountsKnown && earlyPartialKnownSumThb <= goodsReferenceTotalThb + 1;
+  const hasDeclaredMultiLotGoods = Boolean(
+    isDomesticGoodsSale && goodsDelivery && declaredGoodsLots.length >= 2
+  );
 
   const isGoodsDeliveryTaxPoint = Boolean(
     isDomesticGoodsSale &&
       goodsDelivery &&
       // Keep multi-installment pure deposit splits without delivery-anchored portion facts on the split path ONLY when
-      // neither full coverage nor known-partial goods split nor unknown early act applies.
+      // neither declared lots nor full coverage nor known-partial goods split nor overlap ambiguity applies.
       !(
+        !hasDeclaredMultiLotGoods &&
+        !unnamedMultiEarlyOverlapAmbiguous &&
         goodsEarlyActs.length > 0 &&
         hasSplitPaymentWording &&
         !goodsEarlyActsCoverWhole &&
         !isKnownPartialGoodsSplit &&
-        earlyPartialPortionsByDate.some((e) => e.event_type === "PAYMENT") &&
+        resolvedUnnamedEarlyPortions.some((e) => e.event_type === "PAYMENT") &&
         distinctPaymentDateCount >= 2 &&
         !goodsEarlyActs.some((e) => e.event_type === "OWNERSHIP_TRANSFER")
       )
@@ -1482,29 +1920,61 @@ export function buildStructuredCaseFactLedger(input: {
       ? "โอนกรรมสิทธิ์ในสินค้า"
       : k === "PAYMENT"
         ? "รับชำระราคาสินค้า"
-        : "ออกใบกำกับภาษี";
+        : k === "DELIVERY"
+          ? "ส่งมอบสินค้า"
+          : "ออกใบกำกับภาษี";
   const goodsEventSubclauseTh = (k: TemporalEventKind): string =>
     k === "OWNERSHIP_TRANSFER"
       ? "มาตรา 78 (1) (ก)"
       : k === "PAYMENT"
         ? "มาตรา 78 (1) (ข)"
-        : "มาตรา 78 (1) (ค)";
+        : k === "DELIVERY"
+          ? "มาตรา 78 (1)"
+          : "มาตรา 78 (1) (ค)";
 
   if (isGoodsDeliveryTaxPoint && goodsDelivery) {
     if (goodsEarlyActs.length === 0) {
       controllingIso = goodsDelivery.iso_date;
       controllingEvent = `GOODS_DELIVERY (${goodsDelivery.raw_text}, Turn ${goodsDelivery.source_turn})`;
-      const hasSameDayTitle = activeTurnVatDates.some(
-        (e) => e.event_type === "OWNERSHIP_TRANSFER" && e.iso_date === goodsDelivery.iso_date
+      // Build explanatory text strictly from the ACTUAL positive events recorded on each date —
+      // same-day title and delivery alone NEVER imply same-day invoicing or payment!
+      const sameDayEventKinds = Array.from(
+        new Set(
+          activeTurnVatDates
+            .filter(
+              (e) =>
+                e.iso_date === goodsDelivery.iso_date &&
+                (e.event_type === "OWNERSHIP_TRANSFER" ||
+                  e.event_type === "DELIVERY" ||
+                  e.event_type === "PAYMENT" ||
+                  e.event_type === "INVOICE")
+            )
+            .map((e) => e.event_type)
+        )
       );
-      const hasLaterTitle = activeTurnVatDates.some(
-        (e) => e.event_type === "OWNERSHIP_TRANSFER" && e.iso_date > goodsDelivery.iso_date
+      const laterEvents = activeTurnVatDates
+        .filter(
+          (e) =>
+            e.iso_date > goodsDelivery.iso_date &&
+            (e.event_type === "OWNERSHIP_TRANSFER" ||
+              e.event_type === "PAYMENT" ||
+              e.event_type === "INVOICE")
+        )
+        .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
+      const sameDayLabels = sameDayEventKinds.map((k) => `การ${goodsEventActionTh(k)}`);
+      const laterLabels = laterEvents.map(
+        (e) => `การ${goodsEventActionTh(e.event_type)} (วันที่ ${e.iso_date})`
       );
-      statutoryRuleHint = hasLaterTitle
-        ? `ประมวลรัษฎากร มาตรา 78 (1): การขายสินค้า ความรับผิดในการเสียภาษีมูลค่าเพิ่มเกิดขึ้นเมื่อส่งมอบสินค้า (วันที่ ${goodsDelivery.iso_date}) การโอนกรรมสิทธิ์หรือการรับชำระราคาภายหลังการส่งมอบไม่เปลี่ยนวันเกิดความรับผิดและไม่ทำให้เสียภาษีซ้ำ`
-        : hasSameDayTitle
-          ? `ประมวลรัษฎากร มาตรา 78 (1): การโอนกรรมสิทธิ์ การส่งมอบสินค้า การรับชำระราคา และการออกใบกำกับภาษีสำหรับสินค้าเดียวกันเกิดขึ้นพร้อมกันในวันที่ ${goodsDelivery.iso_date} ความรับผิดในการเสียภาษีมูลค่าเพิ่มจึงเกิดขึ้นครั้งเดียวในวันที่ ${goodsDelivery.iso_date} โดยห้ามนับฐานภาษีซ้ำ`
-          : `ประมวลรัษฎากร มาตรา 78 (1): การขายสินค้า ความรับผิดในการเสียภาษีมูลค่าเพิ่มเกิดขึ้นเมื่อส่งมอบสินค้า (วันที่ ${goodsDelivery.iso_date}) การรับชำระเงินภายหลังไม่เปลี่ยนวันเกิดความรับผิด`;
+      const sameDaySummary =
+        sameDayLabels.length >= 2
+          ? `${sameDayLabels.join(" และ")}สำหรับสินค้าเดียวกันเกิดขึ้นในวันที่ ${goodsDelivery.iso_date}`
+          : `การส่งมอบสินค้าเกิดขึ้นในวันที่ ${goodsDelivery.iso_date}`;
+      const laterSummary =
+        laterLabels.length > 0
+          ? ` ส่วน${laterLabels.join(" และ")}ในภายหลังสำหรับสินค้าเดียวกันไม่เปลี่ยนวันเกิดความรับผิดและไม่ก่อให้เกิดภาระภาษีมูลค่าเพิ่มซ้ำ`
+          : " ความรับผิดในการเสียภาษีมูลค่าเพิ่มจึงเกิดขึ้นครั้งเดียวในวันที่ดังกล่าวโดยห้ามนับฐานภาษีซ้ำ";
+      statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78 (1): ${sameDaySummary} (ไม่มีเหตุการณ์เกิดก่อนวันส่งมอบ) ความรับผิดในการเสียภาษีมูลค่าเพิ่มจึงเกิดขึ้นครั้งเดียวทั้งจำนวนในวันที่ ${goodsDelivery.iso_date}.${laterSummary}`;
+
       if (
         legalAsOfDate &&
         legalAsOfDate !== controllingIso &&
@@ -1512,6 +1982,217 @@ export function buildStructuredCaseFactLedger(input: {
       ) {
         isAmbiguous = true;
         ambiguityReasonTh = `วันที่ในคำถาม (${controllingIso}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
+      }
+    } else if (hasDeclaredMultiLotGoods) {
+      // Candidate 10 — Portion/Lot-First Allocation Engine:
+      // 1) Resolve which lot(s) each actual event covers BEFORE grouping by date.
+      // 2) For each identified lot, select its single earliest supported trigger under §78(1).
+      // 3) Deduplicate subsequent events covering that same lot (no double counting!), while keeping
+      //    distinct lots on the same day separate and summing their bases cleanly into that tax date's bucket!
+      const unattributedCrossWindowEarlyAct = goodsEarlyActs.find(
+        (ea) =>
+          (!ea.covered_lot_ids || ea.covered_lot_ids.length === 0) &&
+          ea.portion_coverage !== "FULL" &&
+          vatWindowBucket(ea.iso_date) !== vatWindowBucket(goodsDelivery.iso_date)
+      );
+      if (unattributedCrossWindowEarlyAct) {
+        isAmbiguous = true;
+        controllingIso = null;
+        const actLabel = goodsEventActionTh(unattributedCrossWindowEarlyAct.event_type);
+        controllingEvent = `GOODS_EARLY_ACT_UNKNOWN_COVERAGE_CONDITIONAL (${unattributedCrossWindowEarlyAct.iso_date}:${unattributedCrossWindowEarlyAct.event_type}:${vatWindowBucket(unattributedCrossWindowEarlyAct.iso_date)} + ${goodsDelivery.iso_date}:DELIVERY:${vatWindowBucket(goodsDelivery.iso_date)})`;
+        ambiguityReasonTh = `มีการ${actLabel}ก่อนส่งมอบเมื่อวันที่ ${unattributedCrossWindowEarlyAct.raw_text} (${unattributedCrossWindowEarlyAct.iso_date}) แต่ข้อเท็จจริงยังไม่ระบุว่าครอบคลุมสินค้าล็อตใดบ้าง (${declaredGoodsLots.map((l) => l.label_th).join(", ")}) — กรุณาระบุว่าเหตุการณ์ดังกล่าวครอบคลุมสินค้าล็อตใด`;
+        unknownFacts.add(ambiguityReasonTh);
+        vatPortionAllocationRecord = {
+          transaction_base_thb: goodsReferenceTotalThb,
+          allocation_status: "AMBIGUOUS_COVERAGE",
+          ambiguity_question_th: ambiguityReasonTh,
+          lot_allocations: [],
+          tax_date_buckets: [],
+          reconciled_total_base_thb: 0,
+          reconciled_total_vat_thb: null,
+          reconciled_total_gross_thb: null,
+          remaining_unallocated_base_thb: goodsReferenceTotalThb,
+        };
+        statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78 (1): ${ambiguityReasonTh} ห้ามเดาล็อตที่ครอบคลุมและห้ามคำนวณยอดภาษีแยกตามวันที่จนกว่าจะระบุชัดเจน`;
+      } else {
+        const eventRank = (k: TemporalEventKind) =>
+          k === "OWNERSHIP_TRANSFER" ? 0 : k === "PAYMENT" ? 1 : k === "INVOICE" ? 2 : 3;
+        const lotAllocations: GoodsLotAllocationItem[] = [];
+        for (const lot of declaredGoodsLots) {
+          const lotEvents = activeTurnVatDates
+            .filter((ev) => {
+              if (
+                ev.event_type !== "OWNERSHIP_TRANSFER" &&
+                ev.event_type !== "PAYMENT" &&
+                ev.event_type !== "INVOICE" &&
+                ev.event_type !== "DELIVERY"
+              ) {
+                return false;
+              }
+              if (ev.explicitly_excluded_lot_ids?.includes(lot.lot_id)) {
+                return false;
+              }
+              if (ev.covered_lot_ids && ev.covered_lot_ids.length > 0) {
+                return ev.covered_lot_ids.includes(lot.lot_id);
+              }
+              return ev.portion_coverage === "FULL" || ev.event_type === "DELIVERY";
+            })
+            .sort((a, b) => {
+              const d = a.iso_date.localeCompare(b.iso_date);
+              if (d !== 0) return d;
+              return eventRank(a.event_type) - eventRank(b.event_type);
+            });
+          const primaryEv = lotEvents[0] || goodsDelivery;
+          const subsequentNonTaxable = lotEvents
+            .slice(1)
+            .filter((ev) => ev.iso_date > primaryEv.iso_date)
+            .map((ev) => ({
+              event_type: ev.event_type,
+              iso_date: ev.iso_date,
+              raw_text: ev.raw_text,
+              provenance_clause_th: ev.provenance_clause_th || "",
+              reason_th: `${lot.label_th} เกิดความรับผิดทางภาษีมูลค่าเพิ่มไปแล้วเมื่อวันที่ ${primaryEv.iso_date} (${goodsEventActionTh(primaryEv.event_type)}) — การ${goodsEventActionTh(ev.event_type)}เมื่อวันที่ ${ev.iso_date} สำหรับสินค้าเดิมไม่ก่อให้เกิดภาระภาษีซ้ำ`,
+            }));
+          const vatCalc = computeVerifiedVatForDateAndBase(primaryEv.iso_date, lot.amount_thb);
+          lotAllocations.push({
+            lot_id: lot.lot_id,
+            label_th: lot.label_th,
+            taxable_base_thb: lot.amount_thb,
+            controlling_tax_point_iso: primaryEv.iso_date,
+            controlling_raw_date_th: primaryEv.raw_text,
+            controlling_event_type: primaryEv.event_type,
+            statutory_subclause_th: goodsEventSubclauseTh(primaryEv.event_type),
+            decree_window: vatWindowBucket(primaryEv.iso_date),
+            governing_decree_work_id: governingDecreeWorkIdForIso(primaryEv.iso_date),
+            within_verified_coverage: primaryEv.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+            provenance_clause_th: primaryEv.provenance_clause_th || "",
+            verified_rate_pct: vatCalc.ratePct,
+            verified_vat_thb: vatCalc.vatThb,
+            verified_gross_thb: vatCalc.grossThb,
+            subsequent_non_taxable_events: subsequentNonTaxable,
+          });
+        }
+
+        // Group reconciled lot allocations by controlling_tax_point_iso (NEVER merging distinct lots into one base,
+        // and NEVER double-counting a lot across dates!)
+        const lotsByDate = new Map<string, GoodsLotAllocationItem[]>();
+        for (const la of lotAllocations) {
+          const arr = lotsByDate.get(la.controlling_tax_point_iso) || [];
+          arr.push(la);
+          lotsByDate.set(la.controlling_tax_point_iso, arr);
+        }
+        const sortedDates = Array.from(lotsByDate.keys()).sort((a, b) => a.localeCompare(b));
+        const taxDateBuckets: SplitPaymentTaxPointItem[] = sortedDates.map((iso, idx) => {
+          const group = lotsByDate.get(iso)!;
+          const bucketBase = Math.round(group.reduce((s, l) => s + l.taxable_base_thb, 0) * 100) / 100;
+          const vatCalc = computeVerifiedVatForDateAndBase(iso, bucketBase);
+          return {
+            portion_index: idx + 1,
+            iso_date: iso,
+            raw_text: group[0].controlling_raw_date_th,
+            event_type: group[0].controlling_event_type,
+            decree_window: vatWindowBucket(iso),
+            within_verified_coverage: iso >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+            governing_decree_work_id: governingDecreeWorkIdForIso(iso),
+            expired_or_non_governing_work_ids:
+              iso > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+            amount_thb: bucketBase,
+            lot_ids: group.map((l) => l.lot_id),
+            lot_labels_th: group.map((l) => l.label_th),
+            verified_rate_pct: vatCalc.ratePct,
+            verified_vat_thb: vatCalc.vatThb,
+            verified_gross_thb: vatCalc.grossThb,
+          };
+        });
+
+        const reconciledBase =
+          Math.round(taxDateBuckets.reduce((s, b) => s + (b.amount_thb ?? 0), 0) * 100) / 100;
+        const txBase = goodsReferenceTotalThb > 0 ? goodsReferenceTotalThb : reconciledBase;
+        const remainingBase = Math.max(0, Math.round((txBase - reconciledBase) * 100) / 100);
+        if (remainingBase > 1) {
+          const existingDelBucket = taxDateBuckets.find((b) => b.iso_date === goodsDelivery.iso_date);
+          if (existingDelBucket) {
+            existingDelBucket.amount_thb =
+              Math.round(((existingDelBucket.amount_thb ?? 0) + remainingBase) * 100) / 100;
+            const updVat = computeVerifiedVatForDateAndBase(
+              existingDelBucket.iso_date,
+              existingDelBucket.amount_thb
+            );
+            existingDelBucket.verified_rate_pct = updVat.ratePct;
+            existingDelBucket.verified_vat_thb = updVat.vatThb;
+            existingDelBucket.verified_gross_thb = updVat.grossThb;
+          } else {
+            const remVat = computeVerifiedVatForDateAndBase(goodsDelivery.iso_date, remainingBase);
+            taxDateBuckets.push({
+              portion_index: taxDateBuckets.length + 1,
+              iso_date: goodsDelivery.iso_date,
+              raw_text: goodsDelivery.raw_text,
+              event_type: "DELIVERY",
+              decree_window: vatWindowBucket(goodsDelivery.iso_date),
+              within_verified_coverage:
+                goodsDelivery.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+              governing_decree_work_id: governingDecreeWorkIdForIso(goodsDelivery.iso_date),
+              expired_or_non_governing_work_ids:
+                goodsDelivery.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+              amount_thb: remainingBase,
+              verified_rate_pct: remVat.ratePct,
+              verified_vat_thb: remVat.vatThb,
+              verified_gross_thb: remVat.grossThb,
+            });
+          }
+        }
+
+        const finalReconciledBase =
+          Math.round(taxDateBuckets.reduce((s, b) => s + (b.amount_thb ?? 0), 0) * 100) / 100;
+        const allBucketsVerified = taxDateBuckets.every(
+          (b) => typeof b.verified_vat_thb === "number" && b.verified_vat_thb > 0
+        );
+        const totalVatThb = allBucketsVerified
+          ? Math.round(taxDateBuckets.reduce((s, b) => s + (b.verified_vat_thb ?? 0), 0) * 100) / 100
+          : null;
+        const totalGrossThb =
+          totalVatThb !== null ? Math.round((finalReconciledBase + totalVatThb) * 100) / 100 : null;
+
+        vatPortionAllocationRecord = {
+          transaction_base_thb: txBase,
+          allocation_status: "RESOLVED",
+          ambiguity_question_th: null,
+          lot_allocations: lotAllocations,
+          tax_date_buckets: taxDateBuckets,
+          reconciled_total_base_thb: finalReconciledBase,
+          reconciled_total_vat_thb: totalVatThb,
+          reconciled_total_gross_thb: totalGrossThb,
+          remaining_unallocated_base_thb: Math.max(
+            0,
+            Math.round((txBase - finalReconciledBase) * 100) / 100
+          ),
+        };
+
+        isSplitPaymentMultiTaxPoint = taxDateBuckets.length >= 2;
+        splitPaymentTaxPoints = taxDateBuckets;
+        controllingIso = taxDateBuckets.length === 1 ? taxDateBuckets[0].iso_date : null;
+        controllingEvent = `GOODS_LOT_ALLOCATED_MULTI_TAX_POINT (${taxDateBuckets
+          .map(
+            (b) =>
+              `${b.iso_date}:${(b.lot_ids || []).join("+") || b.event_type}:${b.decree_window}:${b.amount_thb ?? "?"}`
+          )
+          .join(" | ")})`;
+        const bucketSummaries = taxDateBuckets
+          .map(
+            (b) =>
+              `วันที่ ${b.iso_date} (${b.decree_window}): ${(b.lot_labels_th || []).join(" + ")} ฐานภาษี ${(b.amount_thb ?? 0).toLocaleString("en-US")} บาท${
+                b.verified_vat_thb !== null && b.verified_vat_thb !== undefined
+                  ? ` (VAT 7% = ${b.verified_vat_thb.toLocaleString("en-US")} บาท)`
+                  : ""
+              }`
+          )
+          .join("; ");
+        const nonTaxableNotes = lotAllocations
+          .flatMap((l) => l.subsequent_non_taxable_events.map((s) => s.reason_th))
+          .slice(0, 4);
+        statutoryRuleHint =
+          `ประมวลรัษฎากร มาตรา 78 (1) ("ตามส่วนของการกระทำนั้นๆ") การจัดสรรตามล็อตสินค้า (นับแต่ละล็อตครั้งเดียวตามเหตุการณ์แรกสุดที่เกิดขึ้นและกระทบยอดตรงกับมูลค่ารวม ${finalReconciledBase.toLocaleString("en-US")} บาท): ${bucketSummaries}` +
+          (nonTaxableNotes.length > 0 ? ` | ข้อสังเกตห้ามนับซ้ำ: ${nonTaxableNotes.join("; ")}` : "");
       }
     } else if (goodsEarlyActsCoverWhole && earliestFullAct) {
       controllingIso = earliestFullAct.iso_date;
@@ -1525,25 +2206,66 @@ export function buildStructuredCaseFactLedger(input: {
         isAmbiguous = true;
         ambiguityReasonTh = `วันที่ในคำถาม (${controllingIso}) ขัดแย้งกับวันที่ที่ระบุในคำขอ applicable_date (${legalAsOfDate}) ซึ่งอยู่คนละช่วงวันใช้บังคับของพระราชกฤษฎีกา — กรุณายืนยันวันเกิดความรับผิดทางภาษีที่ถูกต้อง`;
       }
+    } else if (unnamedMultiEarlyOverlapAmbiguous) {
+      const condEvents: PreservedTemporalEvent[] = [...unnamedEarlyActUnits, goodsDelivery];
+      isSplitPaymentMultiTaxPoint = true;
+      splitPaymentTaxPoints = condEvents.map((ev, idx) => ({
+        portion_index: idx + 1,
+        iso_date: ev.iso_date,
+        raw_text: ev.raw_text,
+        event_type: ev === goodsDelivery ? "DELIVERY" : ev.event_type,
+        decree_window: vatWindowBucket(ev.iso_date),
+        within_verified_coverage: ev.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+        governing_decree_work_id: governingDecreeWorkIdForIso(ev.iso_date),
+        expired_or_non_governing_work_ids:
+          ev.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+      }));
+      controllingIso = null;
+      isAmbiguous = true;
+      const u1 = unnamedEarlyActUnits[0];
+      const u2 = unnamedEarlyActUnits[1];
+      controllingEvent = `GOODS_EARLY_ACT_AMBIGUOUS_OVERLAP_CONDITIONAL (${u1.iso_date}:${u1.event_type} vs ${u2.iso_date}:${u2.event_type} + ${goodsDelivery.iso_date}:DELIVERY)`;
+      ambiguityReasonTh = `มีการกระทำก่อนส่งมอบสินค้า 2 รายการ ได้แก่ การ${goodsEventActionTh(u1.event_type)}เมื่อวันที่ ${u1.raw_text} (${u1.iso_date}${u1.amount_thb ? `, ${u1.amount_thb.toLocaleString("en-US")} บาท` : ""}) และการ${goodsEventActionTh(u2.event_type)}เมื่อวันที่ ${u2.raw_text} (${u2.iso_date}${u2.amount_thb ? `, ${u2.amount_thb.toLocaleString("en-US")} บาท` : ""}) โดยข้อเท็จจริงยังไม่ชัดเจนว่าครอบคลุมสินค้าส่วนเดียวกันหรือสินค้าคนละส่วนกัน — กรุณาระบุว่าเหตุการณ์ทั้งสองครอบคลุมสินค้าส่วนเดียวกันหรือแยกคนละส่วนก่อนคำนวณยอดภาษีแต่ละช่วง`;
+      unknownFacts.add(ambiguityReasonTh);
+      vatPortionAllocationRecord = {
+        transaction_base_thb: goodsReferenceTotalThb,
+        allocation_status: "AMBIGUOUS_OVERLAP",
+        ambiguity_question_th: ambiguityReasonTh,
+        lot_allocations: [],
+        tax_date_buckets: splitPaymentTaxPoints,
+        reconciled_total_base_thb: 0,
+        reconciled_total_vat_thb: null,
+        reconciled_total_gross_thb: null,
+        remaining_unallocated_base_thb: goodsReferenceTotalThb,
+      };
+      statutoryRuleHint = `ประมวลรัษฎากร มาตรา 78 (1) ("ตามส่วนของการกระทำนั้นๆ") กรณีไม่ชัดเจนว่าการกระทำก่อนส่งมอบทั้งสองรายการครอบคลุมสินค้าส่วนเดียวกันหรือคนละส่วนกัน: ห้ามเดาว่าซ้ำซ้อนหรือแยกส่วน และห้ามคำนวณยอดภาษีเป็นตัวเงินสมมติ — ให้ตั้ง answer_status = "CONDITIONAL" ระบุข้อเท็จจริงที่ขาดหายและถามยืนยันว่าเหตุการณ์แต่ละรายการครอบคลุมสินค้าส่วนใด`;
     } else if (isKnownPartialGoodsSplit) {
       const remainderThb = Math.max(
         0,
         Math.round((goodsReferenceTotalThb - earlyPartialKnownSumThb) * 100) / 100
       );
-      const portions: SplitPaymentTaxPointItem[] = earlyPartialPortionsByDate.map((ea, idx) => ({
-        portion_index: idx + 1,
-        iso_date: ea.iso_date,
-        raw_text: ea.raw_text,
-        event_type: ea.event_type,
-        decree_window: vatWindowBucket(ea.iso_date),
-        within_verified_coverage: ea.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
-        governing_decree_work_id: governingDecreeWorkIdForIso(ea.iso_date),
-        expired_or_non_governing_work_ids:
-          ea.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
-        amount_thb: ea.amount_thb ?? null,
-        settled_payment_date_iso: goodsDelivery.iso_date,
-      }));
+      const portions: SplitPaymentTaxPointItem[] = resolvedUnnamedEarlyPortions.map((ea, idx) => {
+        const amt = ea.amount_thb ?? 0;
+        const vc = computeVerifiedVatForDateAndBase(ea.iso_date, amt);
+        return {
+          portion_index: idx + 1,
+          iso_date: ea.iso_date,
+          raw_text: ea.raw_text,
+          event_type: ea.event_type,
+          decree_window: vatWindowBucket(ea.iso_date),
+          within_verified_coverage: ea.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+          governing_decree_work_id: governingDecreeWorkIdForIso(ea.iso_date),
+          expired_or_non_governing_work_ids:
+            ea.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+          amount_thb: ea.amount_thb ?? null,
+          settled_payment_date_iso: goodsDelivery.iso_date,
+          verified_rate_pct: vc.ratePct,
+          verified_vat_thb: vc.vatThb,
+          verified_gross_thb: vc.grossThb,
+        };
+      });
       if (remainderThb > 1) {
+        const remVc = computeVerifiedVatForDateAndBase(goodsDelivery.iso_date, remainderThb);
         portions.push({
           portion_index: portions.length + 1,
           iso_date: goodsDelivery.iso_date,
@@ -1555,8 +2277,28 @@ export function buildStructuredCaseFactLedger(input: {
           expired_or_non_governing_work_ids:
             goodsDelivery.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
           amount_thb: remainderThb,
+          verified_rate_pct: remVc.ratePct,
+          verified_vat_thb: remVc.vatThb,
+          verified_gross_thb: remVc.grossThb,
         });
       }
+      const recBase = Math.round(portions.reduce((s, p) => s + (p.amount_thb ?? 0), 0) * 100) / 100;
+      const allV = portions.every((p) => typeof p.verified_vat_thb === "number" && p.verified_vat_thb > 0);
+      const recVat = allV
+        ? Math.round(portions.reduce((s, p) => s + (p.verified_vat_thb ?? 0), 0) * 100) / 100
+        : null;
+      vatPortionAllocationRecord = {
+        transaction_base_thb: goodsReferenceTotalThb,
+        allocation_status: "RESOLVED",
+        ambiguity_question_th: null,
+        lot_allocations: [],
+        tax_date_buckets: portions,
+        reconciled_total_base_thb: recBase,
+        reconciled_total_vat_thb: recVat,
+        reconciled_total_gross_thb:
+          recVat !== null ? Math.round((recBase + recVat) * 100) / 100 : null,
+        remaining_unallocated_base_thb: Math.max(0, Math.round((goodsReferenceTotalThb - recBase) * 100) / 100),
+      };
       isSplitPaymentMultiTaxPoint = portions.length >= 2;
       splitPaymentTaxPoints = portions;
       controllingIso = portions.length === 1 ? portions[0].iso_date : null;
@@ -1599,6 +2341,17 @@ export function buildStructuredCaseFactLedger(input: {
       unknownFacts.add(
         `มูลค่าหรือสัดส่วนของสินค้าที่${actLabel}ก่อนส่งมอบเมื่อวันที่ ${early.raw_text} (${early.iso_date})`
       );
+      vatPortionAllocationRecord = {
+        transaction_base_thb: goodsReferenceTotalThb,
+        allocation_status: "AMBIGUOUS_COVERAGE",
+        ambiguity_question_th: ambiguityReasonTh,
+        lot_allocations: [],
+        tax_date_buckets: splitPaymentTaxPoints,
+        reconciled_total_base_thb: 0,
+        reconciled_total_vat_thb: null,
+        reconciled_total_gross_thb: null,
+        remaining_unallocated_base_thb: goodsReferenceTotalThb,
+      };
       statutoryRuleHint =
         `ประมวลรัษฎากร มาตรา 78 (1) ("ตามส่วนของการกระทำนั้นๆ") กรณีไม่ทราบขอบเขตของการ${actLabel}ก่อนส่งมอบ: ห้ามเดาว่าการ${actLabel}เมื่อวันที่ ${early.iso_date} ครอบคลุมสินค้าทั้งหมด และห้ามปัดไปใช้วันส่งมอบวันที่ ${goodsDelivery.iso_date} ทั้งจำนวน — ให้ระบุข้อเท็จจริงที่ขาดหาย (${ambiguityReasonTh}) ตั้ง answer_status = "CONDITIONAL" (โดยไม่คำนวณยอดภาษีเป็นตัวเงินสมมติ) และชี้แจงว่าส่วนที่${actLabel}เมื่อวันที่ ${early.iso_date} ตกอยู่ภายใต้ ${vatWindowBucket(early.iso_date)} (ไม่เสียซ้ำวันส่งมอบ) ส่วนสินค้าที่เหลือที่ส่งมอบวันที่ ${goodsDelivery.iso_date} ตกอยู่ภายใต้ ${vatWindowBucket(goodsDelivery.iso_date)}`;
     }
@@ -1878,6 +2631,13 @@ export function buildStructuredCaseFactLedger(input: {
     temporal_facts: {
       transaction_or_event_dates: allTemporalEvents,
       legal_as_of_date: legalAsOfDate,
+      ...(declaredGoodsLots.length > 0 ? { declared_goods_lots: declaredGoodsLots } : {}),
+      ...(nonOccurringEvents.length > 0
+        ? { non_occurring_or_negated_events: nonOccurringEvents }
+        : {}),
+      ...(vatPortionAllocationRecord
+        ? { vat_portion_allocation_record: vatPortionAllocationRecord }
+        : {}),
       ...(splitPaymentTaxPoints ? { split_payment_tax_points: splitPaymentTaxPoints } : {}),
       controlling_tax_point: {
         iso_date: controllingIso,
