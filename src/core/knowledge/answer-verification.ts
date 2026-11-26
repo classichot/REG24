@@ -406,6 +406,8 @@ export function evaluateSubstantiveClaimSupport(params: {
   passages: SubstantiveSupportPassageInput[];
   verified_calculation_numeric_tokens?: string[];
   excluded_context_instruments?: string[];
+  /** Optional structured active asset category from CaseFactLedger (e.g. MOVABLE_PROPERTY_CASH_OR_OTHER vs IMMOVABLE_PROPERTY_*). */
+  case_asset_category?: string | null;
 }): SubstantiveClaimSupportOutcome {
   const strippedClaim = stripProvenanceHeaderPrefix(params.claim_text || "");
   if (!strippedClaim || params.passages.length === 0) {
@@ -638,22 +640,45 @@ export function evaluateSubstantiveClaimSupport(params: {
     }
   }
 
-  // 1c. Party & Asset-Type Grounding Check (e.g. Gift & Gratuitous Immovable Transfer):
+  // 1c. Party & Asset-Type Grounding Check (e.g. Gift & Gratuitous Immovable Transfer, DEF-C10-4):
   // Rejects any claim that applies a rule to the WRONG taxpayer party or WRONG asset type,
-  // or states an unsupported recipient PIT figure (including zero / no-tax) on a gratuitous immovable transfer!
+  // or states an unsupported recipient PIT figure (including zero / no-tax) on a gratuitous immovable transfer,
+  // while scoping strictly to current structured facts and affirmative asset references so a cash/movable gift
+  // contrasting itself with immovable property or paired with a mixed §42(26)/§42(27) excerpt is NEVER misclassified!
   const rawBracketHeader = /^\s*\[([^\]]{2,320})\]/u.exec(params.claim_text || "")?.[1] || "";
+  const IMMOVABLE_ASSET_RE =
+    /(?:ที่ดิน|อสังหาริมทรัพย์|ห้องชุด|คอนโดมิเนียม|คอนโด|อาคารชุด|อาคารพาณิชย์|บ้านพร้อมที่ดิน|บ้านเดี่ยว|ตึกแถว|ทาวน์โฮม|ทาวน์เฮาส์|สิ่งปลูกสร้าง|สวนผลไม้|ที่นา)/;
+  const NEGATED_OR_CONTRASTIVE_IMMOVABLE_RE =
+    /(?:มิใช่|ไม่ใช่|ไม่ได้เป็น|ไม่เป็น|ไม่ใช้บังคับกับ|ไม่เกี่ยวกับ|ไม่เข้า(?:กรณี|ลักษณะ|เกณฑ์)?|ต่างจาก|แยกจาก|นอกเหนือจาก|ไม่รวม(?:ถึง)?)\s*(?:กรณี(?:การ)?)?(?:การโอน(?:กรรมสิทธิ์|สิทธิครอบครอง)?(?:ใน)?)?(?:ที่ดิน|อสังหาริมทรัพย์|ห้องชุด|คอนโดมิเนียม|คอนโด|อาคารชุด|อาคารพาณิชย์|บ้านพร้อมที่ดิน|บ้านเดี่ยว|ตึกแถว|ทาวน์โฮม|ทาวน์เฮาส์|สิ่งปลูกสร้าง)/gi;
+  const structuredAssetIsCashOrMovable =
+    params.case_asset_category === "MOVABLE_PROPERTY_CASH_OR_OTHER";
+  const structuredAssetIsImmovable = Boolean(
+    params.case_asset_category?.startsWith("IMMOVABLE_PROPERTY")
+  );
+  const affirmativeHeaderForAsset = rawBracketHeader.replace(
+    NEGATED_OR_CONTRASTIVE_IMMOVABLE_RE,
+    " "
+  );
+  const affirmativeClaimForAsset = `${affirmativeHeaderForAsset} ${normClaim.replace(
+    NEGATED_OR_CONTRASTIVE_IMMOVABLE_RE,
+    " "
+  )}`;
+  const headerIsCashOrMovableGift =
+    /(?:เงินสด|โอนเงิน|เงินโอน|สังหาริมทรัพย์|(?<!ห้าง)หุ้น(?!ส่วน))/.test(
+      affirmativeHeaderForAsset
+    ) && !IMMOVABLE_ASSET_RE.test(affirmativeHeaderForAsset);
   const cites41BisWithoutCash =
     params.passages.some((p) => p.doc_id === "prov.th.rc.41_ทวิ") &&
     !/เงินสด|โอนเงิน/.test(normClaim);
   const mentionsLandOrImmovable =
-    cites41BisWithoutCash ||
-    /(?:ที่ดิน|อสังหาริมทรัพย์|ห้องชุด|คอนโดมิเนียม|คอนโด|อาคารชุด|อาคารพาณิชย์|บ้านพร้อมที่ดิน|บ้านเดี่ยว|ตึกแถว|ทาวน์โฮม|ทาวน์เฮาส์|สิ่งปลูกสร้าง|สวนผลไม้|ที่นา)/.test(
-      `${rawBracketHeader} ${normClaim}`
-    );
+    structuredAssetIsImmovable ||
+    (!structuredAssetIsCashOrMovable &&
+      !headerIsCashOrMovableGift &&
+      (cites41BisWithoutCash || IMMOVABLE_ASSET_RE.test(affirmativeClaimForAsset)));
   const mentionsMovableGiftSection =
     /มาตรา\s*42\s*\((?:27|28)\)|มาตรา\s*48\s*\((?:6|7)\)/.test(normClaim);
   const explicitlyDistinguishesMovableFromLand =
-    /ไม่นำเกณฑ์|เฉพาะ(?:กรณี)?(?:การให้)?สังหาริมทรัพย์|ไม่ใช่เงินสดหรือสังหาริมทรัพย์|ไม่ใช้บังคับกับการโอน|ไม่ได้บัญญัติสรุปภาระภาษี[^\n]{0,60}ผู้รับโอน|ไม่อาจระบุจำนวนภาษีของผู้รับโอน/.test(
+    /ไม่นำเกณฑ์|เฉพาะ(?:กรณี)?(?:การให้)?สังหาริมทรัพย์|ไม่ใช่เงินสดหรือสังหาริมทรัพย์|ไม่ใช้บังคับกับการโอน|มิใช่(?:การโอน)?อสังหาริมทรัพย์|ไม่ใช่(?:การโอน)?อสังหาริมทรัพย์|ต่างจากการโอนอสังหาริมทรัพย์|ไม่ได้บัญญัติสรุปภาระภาษี[^\n]{0,60}ผู้รับโอน|ไม่อาจระบุจำนวนภาษีของผู้รับโอน/.test(
       normClaim
     );
   const assertsRecipientTaxFigureForMovableRule =
@@ -1146,6 +1171,7 @@ export function verifyClaimAgainstPassages(
     supporting_passage_ids: string[];
     verified_calculation_numeric_tokens?: string[];
     excluded_context_instruments?: string[];
+    case_asset_category?: string | null;
   },
   availablePassages: Passage[]
 ): ClaimVerificationOutcome {
@@ -1260,6 +1286,7 @@ export function verifyClaimAgainstPassages(
     claim_text: claim.statement,
     verified_calculation_numeric_tokens: claim.verified_calculation_numeric_tokens,
     excluded_context_instruments: claim.excluded_context_instruments,
+    case_asset_category: claim.case_asset_category ?? null,
     passages: cited.map((p) => ({
       passage_id: p.passage_id,
       doc_id: p.work_id,

@@ -2236,7 +2236,11 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // and deterministic excess/5%-tax derivations ONLY on non-recipient-immovable issues when calcCheck.accepted!
     const citedVerbatimNorm = thaiDigitsToArabic(citedPackItems.map((p) => p.verbatim_text).join(" "));
     const issueScopeNorm = thaiDigitsToArabic(`${iss.issue_title_th} ${iss.party_or_scope_th}`);
+    const activeCaseAssetCategory =
+      params.factLedger.material_facts.find((f) => f.fact_key === "asset")?.normalized_category ??
+      null;
     const isRecipientOnImmovable =
+      activeCaseAssetCategory !== "MOVABLE_PROPERTY_CASH_OR_OTHER" &&
       /(?:ผู้รับโอน|ผู้รับให้|ภาระภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?:นางสาว|นาย|นาง|หลาน|บุตร))/.test(issueScopeNorm) &&
       !/(?:ผู้โอน(?!และผู้รับ)|ผู้ให้|หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ความรับผิดร่วม|ผู้โอนเป็นหลัก|เงินสด)/.test(issueScopeNorm) &&
       citedPackItems.some((p) => p.work_id === "prov.th.rc.41_ทวิ" || /\(26\)/.test(p.verbatim_text));
@@ -2692,6 +2696,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         supporting_passage_ids: finalPassageIds,
         verified_calculation_numeric_tokens: trustedTokensArr,
         excluded_context_instruments: excludedContextInstruments,
+        case_asset_category: activeCaseAssetCategory,
       },
       allRawPassages
     );
@@ -2744,6 +2749,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
             supporting_passage_ids: finalPassageIds,
             verified_calculation_numeric_tokens: trustedTokensArr,
             excluded_context_instruments: excludedContextInstruments,
+            case_asset_category: activeCaseAssetCategory,
           },
           allRawPassages
         );
@@ -2770,6 +2776,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           supporting_passage_ids: nextCandidateIds,
           verified_calculation_numeric_tokens: trustedTokensArr,
           excluded_context_instruments: excludedContextInstruments,
+          case_asset_category: activeCaseAssetCategory,
         },
         allRawPassages
       );
@@ -2855,6 +2862,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
             supporting_passage_ids: candidateIds,
             verified_calculation_numeric_tokens: trustedTokensArr,
             excluded_context_instruments: excludedContextInstruments,
+            case_asset_category: activeCaseAssetCategory,
           },
           allRawPassages
         );
@@ -2901,6 +2909,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
             supporting_passage_ids: candidateIds,
             verified_calculation_numeric_tokens: trustedTokensArr,
             excluded_context_instruments: excludedContextInstruments,
+            case_asset_category: activeCaseAssetCategory,
           },
           allRawPassages
         );
