@@ -1418,9 +1418,7 @@ export async function loadSavedAnswerFromPostgres(
     const isAuthorizedForLinkScope =
       lk.access_scope === "scope.platform.public" ||
       actor.authorized_scopes.includes(lk.access_scope) ||
-      (Boolean(actor.tenant_id) &&
-        actor.tenant_id !== "PUBLIC" &&
-        lk.access_scope === `scope.tenant.${actor.tenant_id}`) ||
+      (Boolean(actor.tenant_id) && lk.access_scope === `scope.tenant.${actor.tenant_id}`) ||
       (Boolean(actor.actor_id) && lk.access_scope === `scope.actor.${actor.actor_id}`);
     if (!isAuthorizedForLinkScope) {
       return { found: false, forbidden_restricted: true };

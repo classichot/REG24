@@ -169,11 +169,7 @@ export function isPassageCurrentlyAuthorizedAndActive(
   if (actor.authorized_scopes.includes(passage.access_scope)) {
     return true;
   }
-  if (
-    actor.tenant_id &&
-    actor.tenant_id !== "PUBLIC" &&
-    passage.access_scope === `scope.tenant.${actor.tenant_id}`
-  ) {
+  if (actor.tenant_id && passage.access_scope === `scope.tenant.${actor.tenant_id}`) {
     return true;
   }
   return Boolean(actor.actor_id) && passage.access_scope === `scope.actor.${actor.actor_id}`;
