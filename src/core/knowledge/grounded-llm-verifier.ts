@@ -366,6 +366,7 @@ const EXPLICIT_EXCLUSION_RE =
 
 interface ResolvedIssueAllocationTarget {
   targetIso: string | null;
+  portionIndex?: number | null;
   expectedBaseThb: number | null;
   governingDecreeWorkId: string | null;
   lotIds: string[];
@@ -373,6 +374,145 @@ interface ResolvedIssueAllocationTarget {
   sameDateBucketVatThb: number | null;
   sameDateBucketGrossThb: number | null;
   hasMixedDatesError: boolean;
+  assertedTaxPointConflictIso?: string | null;
+}
+
+const COMPARISON_CLAUSE_PAREN_RE =
+  /\([^)]*(?:เปรียบเทียบ|เทียบกับ|แยกจาก|ต่างจาก|ก่อน(?:การชำระ)?งวด|หลัง(?:การชำระ)?งวด|ไม่ใช่งวด|มิใช่งวด|compared\s+to|vs\.?|separate\s+from)[^)]*\)/gi;
+const COMPARISON_CLAUSE_INLINE_RE =
+  /(?:เปรียบเทียบกับ|เทียบกับ|แยกจาก|ต่างจาก|ก่อน(?:การชำระ)?งวด(?:ที่)?|หลัง(?:การชำระ)?งวด(?:ที่)?|ไม่ใช่งวด(?:ที่)?|มิใช่งวด(?:ที่)?|compared\s+(?:to|with)|as\s+opposed\s+to|separate\s+from)[^.;\n)]{0,110}/gi;
+
+function stripComparisonClausesForTarget(text: string): string {
+  return thaiDigitsToArabic(text || "")
+    .replace(/\s+/g, " ")
+    .replace(COMPARISON_CLAUSE_PAREN_RE, " ")
+    .replace(COMPARISON_CLAUSE_INLINE_RE, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildInstallmentOrdinalRegex(portionNum: number): RegExp {
+  if (portionNum === 1) {
+    return /(?:งวดแรก|งวดที่\s*1(?!\d)|งวดที่หนึ่ง|ส่วนแรก|ส่วนที่\s*1(?!\d)|ส่วนที่หนึ่ง|ล็อตแรก|ชุดที่\s*1(?!\d)|ชุดที่หนึ่ง|installment\s*(?:#\s*)?1(?!\d)|first\s+installment)/i;
+  }
+  if (portionNum === 2) {
+    return /(?:งวดที่สอง|งวดที่\s*2(?!\d)|ส่วนที่สอง|ส่วนที่\s*2(?!\d)|ส่วนที่เหลือ|ชุดที่\s*2(?!\d)|ชุดที่สอง|installment\s*(?:#\s*)?2(?!\d)|second\s+installment)/i;
+  }
+  if (portionNum === 3) {
+    return /(?:งวดที่สาม|งวดที่\s*3(?!\d)|ส่วนที่สาม|ส่วนที่\s*3(?!\d)|ชุดที่\s*3(?!\d)|ชุดที่สาม|installment\s*(?:#\s*)?3(?!\d)|third\s+installment)/i;
+  }
+  if (portionNum === 4) {
+    return /(?:งวดที่สี่|งวดที่\s*4(?!\d)|ส่วนที่สี่|ส่วนที่\s*4(?!\d)|ชุดที่\s*4(?!\d)|ชุดที่สี่|installment\s*(?:#\s*)?4(?!\d)|fourth\s+installment)/i;
+  }
+  return new RegExp(
+    `(?:งวดที่|ส่วนที่|ชุดที่|installment\\s*(?:#\\s*)?)${portionNum}(?!\\d)`,
+    "i"
+  );
+}
+
+function resolveIssueTargetInstallmentRecord(
+  issue: LlmDraftedIssue,
+  splitPoints: NonNullable<StructuredCaseFactLedger["temporal_facts"]["split_payment_tax_points"]>
+): {
+  portion: NonNullable<
+    StructuredCaseFactLedger["temporal_facts"]["split_payment_tax_points"]
+  >[number];
+  assertedTaxPointConflictIso: string | null;
+} | null {
+  if (splitPoints.length < 2) return null;
+
+  const rawHeader = thaiDigitsToArabic(`${issue.issue_title_th} ${issue.party_or_scope_th}`).replace(
+    /\s+/g,
+    " "
+  );
+  const cleanTitle = stripComparisonClausesForTarget(issue.issue_title_th);
+  const cleanScope = stripComparisonClausesForTarget(issue.party_or_scope_th);
+  const cleanHeader = `${cleanTitle} ${cleanScope}`.trim();
+  const cleanConc = stripComparisonClausesForTarget(issue.conclusion_th);
+
+  const matchDateIn = (haystack: string) =>
+    splitPoints.filter((sp) => {
+      const rawNorm = thaiDigitsToArabic(sp.raw_text).replace(/\s+/g, " ").trim();
+      return haystack.includes(sp.iso_date) || (rawNorm.length >= 6 && haystack.includes(rawNorm));
+    });
+  const matchOrdinalIn = (haystack: string) =>
+    splitPoints.filter((sp, idx) => {
+      const num = sp.portion_index ?? idx + 1;
+      return buildInstallmentOrdinalRegex(num).test(haystack);
+    });
+
+  // 0. If this issue is an explicit multi-portion conditional branch whose conclusion applies >= 2 distinct
+  //    split-point dates, do NOT collapse the whole branch to a single date mentioned in the title!
+  const concAllDateMatches = matchDateIn(
+    thaiDigitsToArabic(issue.conclusion_th).replace(/\s+/g, " ")
+  );
+  const isConditionalBranchHeader =
+    /(?:กรณีที่\s*[0-9]|ทางเลือก|หากออกใบกำกับ|หากยอดชำระ|หากโอนกรรมสิทธิ์|หากการโอนกรรมสิทธิ์|การพิจารณาวันเกิดความรับผิดแยกตามสัดส่วน|conditional|branch|scenario)/i.test(
+      rawHeader
+    );
+  if (isConditionalBranchHeader && concAllDateMatches.length >= 2) {
+    return null;
+  }
+
+  // DEF-C10-2: Resolve to a stable installment ID BEFORE inspecting dates so a sibling date in comparison text
+  // NEVER redirects the claim!
+  let selected:
+    | NonNullable<StructuredCaseFactLedger["temporal_facts"]["split_payment_tax_points"]>[number]
+    | null = null;
+
+  const titleOrd = matchOrdinalIn(cleanTitle);
+  if (titleOrd.length === 1) {
+    selected = titleOrd[0];
+  } else {
+    const scopeOrd = matchOrdinalIn(cleanScope);
+    if (scopeOrd.length === 1) {
+      selected = scopeOrd[0];
+    } else {
+      const headerDate = matchDateIn(cleanHeader);
+      if (headerDate.length === 1) {
+        selected = headerDate[0];
+      } else {
+        const concOrd = matchOrdinalIn(cleanConc);
+        if (concOrd.length === 1) {
+          selected = concOrd[0];
+        } else {
+          const concDate = matchDateIn(cleanConc);
+          if (concDate.length === 1) {
+            selected = concDate[0];
+          }
+        }
+      }
+    }
+  }
+
+  if (!selected) return null;
+
+  // Detect genuine label/date contradiction: the claim resolved to `selected` (e.g. งวดที่ 1 -> 2025-09-25),
+  // yet its primary conclusion affirmatively asserts a DIFFERENT sibling split-point date as THIS installment's
+  // own tax-point date (without citing `selected.iso_date` as its own tax point)!
+  let assertedTaxPointConflictIso: string | null = null;
+  const ownDateNorm = thaiDigitsToArabic(selected.raw_text).replace(/\s+/g, " ").trim();
+  const concMentionsOwnDate =
+    cleanConc.includes(selected.iso_date) ||
+    (ownDateNorm.length >= 6 && cleanConc.includes(ownDateNorm));
+  if (!concMentionsOwnDate) {
+    for (const sibling of splitPoints) {
+      if (sibling.iso_date === selected.iso_date) continue;
+      const sibRawNorm = thaiDigitsToArabic(sibling.raw_text).replace(/\s+/g, " ").trim();
+      const escSibRaw = sibRawNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escSibIso = sibling.iso_date.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const affirmativeSiblingTaxPointRe = new RegExp(
+        `(?:เกิดความรับผิด(?:ในการเสียภาษีมูลค่าเพิ่ม)?|วันเกิดความรับผิด|รับชำระ(?:ราคา)?|ชำระ(?:ค่าบริการ|ราคา|งวด)?|ออกใบกำกับภาษี|ส่งมอบสินค้า|โอนกรรมสิทธิ์)[^.;\\n]{0,60}?(?:ใน|เมื่อ|ณ)?\\s*(?:วันที่\\s*)?(?:${escSibIso}${escSibRaw.length >= 6 ? `|${escSibRaw}` : ""})`,
+        "i"
+      );
+      if (affirmativeSiblingTaxPointRe.test(cleanConc)) {
+        assertedTaxPointConflictIso = sibling.iso_date;
+        break;
+      }
+    }
+  }
+
+  return { portion: selected, assertedTaxPointConflictIso };
 }
 
 function resolveIssueTargetAllocation(
@@ -425,6 +565,7 @@ function resolveIssueTargetAllocation(
             : undefined;
         return {
           targetIso,
+          portionIndex: bucket?.portion_index ?? null,
           expectedBaseThb,
           governingDecreeWorkId: !hasMixedDecreeWindows
             ? matchedLots[0].governing_decree_work_id
@@ -442,18 +583,19 @@ function resolveIssueTargetAllocation(
               ? Math.round(matchedLots.reduce((s, l) => s + (l.verified_gross_thb ?? 0), 0) * 100) / 100
               : null),
           hasMixedDatesError: hasMixedDecreeWindows,
+          assertedTaxPointConflictIso: null,
         };
       }
     }
   }
 
-  // 2. Fallback to date / ordinal portion targeting on split_payment_tax_points
-  const targetIso = resolveIssueTargetSplitPortionIso(issue, splitPoints);
-  if (!targetIso) return null;
-  const matchedPortion = splitPoints.find((sp) => sp.iso_date === targetIso);
-  if (!matchedPortion) return null;
+  // 2. Stable installment-ID resolution on split_payment_tax_points (DEF-C10-2)
+  const resolvedInst = resolveIssueTargetInstallmentRecord(issue, splitPoints);
+  if (!resolvedInst) return null;
+  const matchedPortion = resolvedInst.portion;
   return {
-    targetIso,
+    targetIso: matchedPortion.iso_date,
+    portionIndex: matchedPortion.portion_index ?? null,
     expectedBaseThb:
       typeof matchedPortion.amount_thb === "number" && matchedPortion.amount_thb > 0
         ? matchedPortion.amount_thb
@@ -464,6 +606,7 @@ function resolveIssueTargetAllocation(
     sameDateBucketVatThb: matchedPortion.verified_vat_thb ?? null,
     sameDateBucketGrossThb: matchedPortion.verified_gross_thb ?? null,
     hasMixedDatesError: false,
+    assertedTaxPointConflictIso: resolvedInst.assertedTaxPointConflictIso,
   };
 }
 
@@ -471,50 +614,7 @@ function resolveIssueTargetSplitPortionIso(
   issue: LlmDraftedIssue,
   splitPoints: NonNullable<StructuredCaseFactLedger["temporal_facts"]["split_payment_tax_points"]>
 ): string | null {
-  if (splitPoints.length < 2) return null;
-  const headerText = thaiDigitsToArabic(`${issue.issue_title_th} ${issue.party_or_scope_th}`).replace(
-    /\s+/g,
-    " "
-  );
-  const matchIn = (haystack: string) =>
-    splitPoints.filter((sp) => {
-      const rawNorm = thaiDigitsToArabic(sp.raw_text).replace(/\s+/g, " ").trim();
-      return haystack.includes(sp.iso_date) || (rawNorm.length >= 6 && haystack.includes(rawNorm));
-    });
-
-  // 0. If this issue is an explicit multi-portion conditional branch whose conclusion applies >= 2 distinct
-  //    split-point dates (e.g. "กรณีที่ 2: หากออกใบกำกับภาษีบางส่วน ... และรับชำระส่วนที่เหลือ ..."),
-  //    do NOT collapse the whole branch to a single date mentioned in the title!
-  const concText = thaiDigitsToArabic(issue.conclusion_th).replace(/\s+/g, " ");
-  const concMatches = matchIn(concText);
-  const isConditionalBranchHeader = /(?:กรณีที่\s*[0-9]|ทางเลือก|หากออกใบกำกับ|หากยอดชำระ|หากโอนกรรมสิทธิ์|หากการโอนกรรมสิทธิ์|การพิจารณาวันเกิดความรับผิดแยกตามสัดส่วน|conditional|branch|scenario)/i.test(
-    headerText
-  );
-  if (isConditionalBranchHeader && concMatches.length >= 2) {
-    return null;
-  }
-
-  // 1. Prefer exact date match in issue title / party_or_scope (never fooled by expiry date cited in explanation!)
-  const headerMatches = matchIn(headerText);
-  if (headerMatches.length === 1) return headerMatches[0].iso_date;
-
-  // 2. Ordinal portion match in header (e.g. "งวดแรก" / "ส่วนที่ 1" / "ล็อตแรก" vs "งวดที่สอง" / "ส่วนที่ 2" / "ส่วนที่เหลือ")
-  const ordMatches = splitPoints.filter((sp, idx) => {
-    const num = sp.portion_index ?? idx + 1;
-    const ordRe =
-      num === 1
-        ? /(?:งวดแรก|งวดที่\s*1(?!\d)|ส่วนแรก|ส่วนที่\s*1(?!\d)|ล็อตแรก)/
-        : num === 2
-          ? /(?:งวดที่สอง|งวดที่\s*2(?!\d)|ส่วนที่สอง|ส่วนที่\s*2(?!\d)|ส่วนที่เหลือ)/
-          : new RegExp(`(?:งวดที่|ส่วนที่)\\s*${num}(?!\\d)`);
-    return ordRe.test(headerText);
-  });
-  if (ordMatches.length === 1) return ordMatches[0].iso_date;
-
-  // 3. Fallback to conclusion text
-  if (concMatches.length === 1) return concMatches[0].iso_date;
-
-  return null;
+  return resolveIssueTargetInstallmentRecord(issue, splitPoints)?.portion.iso_date ?? null;
 }
 
 function extractExplicitlyExcludedContextInstruments(params: {
@@ -604,6 +704,16 @@ function checkTemporalApplicabilityOfCitedPassages(
     const resolvedTarget = resolveIssueTargetAllocation(issue, factLedger);
     const targetIso =
       resolvedTarget?.targetIso ?? resolveIssueTargetSplitPortionIso(issue, splitPoints);
+    // DEF-C10-2: If the claim resolved to a specific installment ID (e.g. งวดที่ 1 -> 2025-09-25)
+    // yet affirmatively asserted a DIFFERENT sibling installment's date as its own tax point,
+    // reject ONLY this conflicting claim and preserve supported siblings!
+    if (resolvedTarget?.assertedTaxPointConflictIso && targetIso) {
+      return {
+        ok: false,
+        code: "OUT_OF_EFFECTIVE_DATE_WINDOW",
+        reason_th: `วันที่เกิดความรับผิดที่อ้างในข้อสรุป (${resolvedTarget.assertedTaxPointConflictIso}) ขัดแย้งกับวันเกิดความรับผิดจริงของงวดที่ระบุ (${targetIso})`,
+      };
+    }
     // If this issue targets strictly ONE portion date (e.g. Portion 2 on 2027-10-01), verify that
     // any cited time-limited decree excluded for THAT portion date is ONLY cited with explicit exclusion
     // AND alongside an in-window/timeless statute (e.g. §80) — NEVER as governing authority for that portion!
@@ -2041,6 +2151,71 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     });
     if (!calcCheck.accepted && calcCheck.rejection) {
       rejectedCalculations.push(calcCheck.rejection);
+    }
+
+    // DEF-C10-2 Negative Retention Guard: When an issue resolves to a single split/installment portion
+    // with a known verified VAT amount (e.g. Installment 1: 40,000 × 7% = 2,800 THB), NEVER allow the
+    // conclusion to affirmatively assert a conflicting VAT tax amount (e.g. echoing a disputed 4,200 THB
+    // from the user's prompt as this installment's tax!), while still permitting explicit refutations
+    // ("ที่คำนวณว่า 4,200 บาทนั้นไม่ถูกต้อง ... คิดเป็น VAT 2,800 บาท")!
+    const preEntailTargetAlloc = resolveIssueTargetAllocation(iss, params.factLedger);
+    const expectedPortionVat = preEntailTargetAlloc?.sameDateBucketVatThb ?? null;
+    if (
+      !isClarificationTurn &&
+      preEntailTargetAlloc &&
+      expectedPortionVat !== null &&
+      expectedPortionVat > 0 &&
+      preEntailTargetAlloc.targetIso
+    ) {
+      const cleanConclForVatAssert = stripComparisonClausesForTarget(iss.conclusion_th).replace(
+        /(?:รวม(?:ภาษีมูลค่าเพิ่ม|ทั้งสิ้น|ทั้ง\s*[0-9]+\s*(?:งวด|ล็อต|ชุด|ส่วน)|ทั้งหมด|ทั้งธุรกรรม)[^.;\n]{0,55})/gi,
+        " "
+      );
+      const vatAssertRe =
+        /(?:คิดเป็น|เป็นเงิน|เท่ากับ|ต้องเสีย(?:ภาษีมูลค่าเพิ่ม|VAT)?|เสีย(?:ภาษีมูลค่าเพิ่ม|VAT)?)\s*(?:ภาษีมูลค่าเพิ่ม|VAT)?\s*(?:จำนวน|เป็นเงิน|เท่ากับ)?\s*(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(?:บาท|THB)/gi;
+      let mismatchedAffirmedVat: number | null = null;
+      for (const vm of cleanConclForVatAssert.matchAll(vatAssertRe)) {
+        const val = Number((vm[1] || "").replace(/,/g, ""));
+        if (!Number.isFinite(val) || val <= 0) continue;
+        // Skip base or gross totals (only inspect tax-sized assertions that contradict expectedPortionVat)
+        if (
+          preEntailTargetAlloc.expectedBaseThb &&
+          Math.abs(val - preEntailTargetAlloc.expectedBaseThb) <= 1
+        ) {
+          continue;
+        }
+        if (
+          preEntailTargetAlloc.sameDateBucketGrossThb &&
+          Math.abs(val - preEntailTargetAlloc.sameDateBucketGrossThb) <= 1
+        ) {
+          continue;
+        }
+        if (Math.abs(val - expectedPortionVat) <= 1) continue;
+        const mStart = vm.index ?? 0;
+        const mEnd = mStart + vm[0].length;
+        const leftWin = cleanConclForVatAssert.slice(Math.max(0, mStart - 45), mStart);
+        const rightWin = cleanConclForVatAssert.slice(mEnd, Math.min(cleanConclForVatAssert.length, mEnd + 35));
+        const isExplicitRefutation =
+          /(?:ไม่ถูกต้อง|ไม่ใช่|มิใช่|ผิดพลาด|คลาดเคลื่อน|ไม่ตรง|ไม่เป็นจริง|not\s+correct|incorrect)/i.test(
+            `${leftWin} ${rightWin}`
+          ) ||
+          /(?:ที่ฝ่ายบัญชี|ที่ผู้ถาม|ที่คำนวณว่า|ตามที่ระบุว่า|ที่อ้างว่า)/i.test(leftWin);
+        if (!isExplicitRefutation) {
+          mismatchedAffirmedVat = val;
+          break;
+        }
+      }
+      if (mismatchedAffirmedVat !== null) {
+        rejectedClaims.push({
+          issue_id: iss.issue_id,
+          issue_title_th: iss.issue_title_th,
+          statement_before_verification: iss.conclusion_th,
+          cited_passage_ids: validPassageIds,
+          rejection_code: "UNGROUNDED_OR_CONTRADICTED_CLAIM",
+          rejection_reason_th: `ยอดภาษีมูลค่าเพิ่มที่สรุปสำหรับงวดวันที่ ${preEntailTargetAlloc.targetIso} (${mismatchedAffirmedVat.toLocaleString("en-US")} บาท) ขัดแย้งกับยอดภาษีที่คำนวณจากฐานของงวดนี้ (${expectedPortionVat.toLocaleString("en-US")} บาท)`,
+        });
+        continue;
+      }
     }
 
     // Gate 5: Substantive Claim-to-Passage Entailment (`verifyClaimAgainstPassages`)

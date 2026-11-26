@@ -252,7 +252,7 @@ function extractEventKindSpanAndCoverage(params: {
       : kind === "INVOICE"
         ? /(?:ออกใบกำกับภาษี|ออกใบกำกับ|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i
         : kind === "PAYMENT"
-          ? /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)|paid\b|payment(?:s)?\s+of|(?:and\s+)?(?:THB|฿)\s*[0-9,]+)/i
+          ? /(?:ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)|paid\b|payment(?:s)?\s+of|(?:and\s+)?(?:THB|฿)\s*[0-9,]+)/i
           : kind === "DELIVERY"
             ? /(?:ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ส่งสินค้า(?!ออก)|ส่งมอบ(?!บริการ)|\bdeliver(?:y|ed|s)?)/i
             : null;
@@ -654,7 +654,7 @@ function extractDatesWithEventKinds(
       );
     const coClauseForPreVerb = stripStatusRegistrationPhrases(coClauseCleaned);
     const hasPreDateVerb =
-      /(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle)/i.test(
+      /(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน|ออกใบกำกับ|ใช้บริการ|งวดแรก|งวดที่\s*[0-9]+|งวดที่(?:หนึ่ง|สอง|สาม|สี่)|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle|\binstallment)/i.test(
         coClauseForPreVerb
       );
     const postQualHasLotAssignment =
@@ -681,7 +681,7 @@ function extractDatesWithEventKinds(
     // If the entire effective clause is purely negated after stripping coordinated negations (e.g. "วันที่ 1 ต.ค. ยังไม่มีการรับชำระเงินหรือออกใบกำกับภาษี"), skip!
     if (
       (hasPreDateNegationCue || hasPostDateNegationCue) &&
-      !/(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle)/i.test(
+      !/(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่า|ชำระงวด|จ่ายเงิน|จ่ายงวด|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle)/i.test(
         effectiveClause.replace(
           /(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|ยังไม่)\s*(?:มีการ)?(?:ใช้บริการ|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)(?:(?:\s*(?:,|หรือ|และ)?\s*(?:โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?|ใช้บริการ|ใดๆ))*)/gi,
           " "
@@ -717,7 +717,7 @@ function extractDatesWithEventKinds(
     const invoiceIssuanceRe =
       /(?:ออกใบกำกับภาษี(?!ไว้แล้ว)|ออกใบกำกับ(?!ภาษีไว้แล้ว)|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
     const paymentVerbRe =
-      /(?:ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+|full\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|(?:full\s+)?payment(?:\s+of)?\b|paid\b)/i;
+      /(?:ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+|full\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|(?:full\s+)?payment(?:\s+of)?\b|paid\b)/i;
     const deliveryVerbRe =
       /(?:ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ส่งสินค้า(?!ออก)|ส่งมอบ(?!บริการ)|\bdeliver(?:y|ed|s)?(?:\s+of)?(?:\s+(?:the\s+|all\s+)?goods)?\b)/i;
     const actualOwnershipTransferRe =
@@ -2693,6 +2693,10 @@ export function buildStructuredCaseFactLedger(input: {
       const govWid = governingDecreeWorkIdForIso(ev.iso_date);
       const expiredWids =
         ev.iso_date > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [];
+      const portionAmt =
+        typeof ev.amount_thb === "number" && ev.amount_thb > 0 ? ev.amount_thb : null;
+      const portionVat =
+        portionAmt !== null ? computeVerifiedVatForDateAndBase(ev.iso_date, portionAmt) : null;
       return {
         portion_index: idx + 1,
         iso_date: ev.iso_date,
@@ -2702,6 +2706,14 @@ export function buildStructuredCaseFactLedger(input: {
         within_verified_coverage: ev.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
         governing_decree_work_id: govWid,
         expired_or_non_governing_work_ids: expiredWids,
+        ...(portionAmt !== null
+          ? {
+              amount_thb: portionAmt,
+              verified_rate_pct: portionVat?.ratePct ?? null,
+              verified_vat_thb: portionVat?.vatThb ?? null,
+              verified_gross_thb: portionVat?.grossThb ?? null,
+            }
+          : {}),
       };
     });
     controllingIso = null;
