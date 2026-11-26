@@ -401,10 +401,10 @@ function checkCaseFactPreservation(
 }
 
 const EXPLICIT_EXCLUSION_RE =
-  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|มิได้ใช้บังคับ|ยังไม่ถึง(?:กำหนด|วัน)|ไม่ใช้(?:บังคับ)?(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|มิใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ไม่ใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่(?:ใน|ภายใต้)|ยังไม่ตกอยู่(?:ใน|ภายใต้)|ไม่อยู่ภายใต้|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|ยังไม่อยู่ในบังคับ|ไม่อยู่ในบังคับ|ไม่ได้อยู่ในบังคับ|มิได้อยู่ในบังคับ|สิ้นสุด(?:การบังคับใช้|ช่วง(?:เวลา|ความรับผิด)?|ผล(?:การ)?ใช้บังคับ|ระยะเวลา|กำหนด|ในวันที่|เมื่อวันที่|ลง)|หมดอายุ|หมดระยะเวลา|พ้นช่วง(?:เวลา)?|พ้นระยะ(?:เวลา)?|หลัง(?:จาก)?ช่วง(?:เวลา)?|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ครอบคลุม(?:ความรับผิด)?ถึง(?:เพียง)?วันที่|ใช้บังคับถึง(?:เพียง)?วันที่|ยังไม่ครอบคลุม|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|เปลี่ยน[^.;\n]{0,45}จาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|เปลี่ยนมาอยู่ภายใต้|ย้ายจาก|เลื่อน(?:มา|จาก)|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ต่างจาก|แยกจาก|ไม่เข้าเกณฑ์|ไม่เข้าข่าย|ไม่เข้าลักษณะ|เปรียบเทียบ(?:กับ)?|เทียบกับ|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|OUT_OF_WINDOW|moved\s+from|instead\s+of|rather\s+than|not\s+applicable|does\s+not\s+apply|superseded|replaced\s+by|expired|outside\s+the\s+effective|compared\s+(?:to|with)|previously\s+under)/i;
+  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|มิได้ใช้บังคับ|ยังไม่ถึง(?:กำหนด|วัน)|ไม่ใช้(?:บังคับ)?(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|มิใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ไม่ใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ไม่ถูกต้อง|ไม่ตรง(?:กับ)?|ผิดพลาด|คลาดเคลื่อน|ข้อเสนอที่|ตามที่(?:ถาม|เสนอ|คำนวณ|ระบุ)|หากคำนวณ|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่(?:ใน|ภายใต้)|ยังไม่ตกอยู่(?:ใน|ภายใต้)|ไม่อยู่ภายใต้|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|ยังไม่อยู่ในบังคับ|ไม่อยู่ในบังคับ|ไม่ได้อยู่ในบังคับ|มิได้อยู่ในบังคับ|สิ้นสุด(?:การบังคับใช้|ช่วง(?:เวลา|ความรับผิด)?|ผล(?:การ)?ใช้บังคับ|ระยะเวลา|กำหนด|ในวันที่|เมื่อวันที่|ลง)|หมดอายุ|หมดระยะเวลา|พ้นช่วง(?:เวลา)?|พ้นระยะ(?:เวลา)?|หลัง(?:จาก)?ช่วง(?:เวลา)?|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ครอบคลุม(?:ความรับผิด)?ถึง(?:เพียง)?วันที่|ใช้บังคับถึง(?:เพียง)?วันที่|ยังไม่ครอบคลุม|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|เปลี่ยน[^.;\n]{0,45}จาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|เปลี่ยนมาอยู่ภายใต้|ย้ายจาก|เลื่อน(?:มา|จาก)|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ต่างจาก|แยกจาก|ไม่เข้าเกณฑ์|ไม่เข้าข่าย|ไม่เข้าลักษณะ|เปรียบเทียบ(?:กับ)?|เทียบกับ|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|OUT_OF_WINDOW|moved\s+from|instead\s+of|rather\s+than|not\s+applicable|does\s+not\s+apply|superseded|replaced\s+by|expired|outside\s+the\s+effective|compared\s+(?:to|with)|previously\s+under|\b(?:incorrect|wrong|erroneous)\b)/i;
 
 const BROAD_STRUCTURED_CONTRAST_CUE_RE =
-  /(?:ยังไม่|ไม่ใช้|ไม่ได้|มิใช่|ไม่ใช่|มิได้|สิ้นสุด|หมดอายุ|หมดระยะ|พ้น|ก่อน|หลัง|เปลี่ยน|ย้าย|แทน|เดิม|ต่าง|แยก|เทียบ|นอกช่วง|ไม่อยู่|ไม่ตกอยู่|ไม่ครอบคลุม|ไม่เข้า|\b(?:not|no|never|supersed\w*|expir\w*|instead|rather|compar\w*|prior|before|after|outside|previously)\b)/i;
+  /(?:ยังไม่|ไม่ใช้|ไม่ได้|มิใช่|ไม่ใช่|มิได้|ไม่ถูกต้อง|ไม่ตรง|ผิดพลาด|คลาดเคลื่อน|หากคำนวณ|ข้อเสนอ|สิ้นสุด|หมดอายุ|หมดระยะ|พ้น|ก่อน|หลัง|เปลี่ยน|ย้าย|แทน|เดิม|ต่าง|แยก|เทียบ|นอกช่วง|ไม่อยู่|ไม่ตกอยู่|ไม่ครอบคลุม|ไม่เข้า|\b(?:not|no|never|incorrect|wrong|erroneous|supersed\w*|expir\w*|instead|rather|compar\w*|prior|before|after|outside|previously)\b)/i;
 
 function workIdToCanonicalInstrumentId(workId: string): string | null {
   const w = (workId || "").trim();
@@ -562,6 +562,10 @@ function validateStructuredAssertedAndContrastAuthorities(params: {
       mentionMatches.every((m) => {
         const idx = m.index ?? 0;
         const leftImmediate = normClaimForContrast.slice(Math.max(0, idx - 65), idx);
+        const rightImmediate = normClaimForContrast.slice(
+          idx + m[0].length,
+          Math.min(normClaimForContrast.length, idx + m[0].length + 75)
+        );
         const win = normClaimForContrast.slice(
           Math.max(0, idx - 220),
           Math.min(normClaimForContrast.length, idx + 220)
@@ -569,7 +573,13 @@ function validateStructuredAssertedAndContrastAuthorities(params: {
         const isAffirmativeGoverning =
           /(?:อยู่ภายใต้บังคับ(?:ของ)?|เสียภาษี(?:มูลค่าเพิ่ม)?ตาม|คำนวณ(?:ภาษี)?ตาม|ลดอัตรา(?:ภาษี)?ตาม)\s*(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)?[^.;()]{0,35}$/i.test(
             leftImmediate
-          ) && !/(?:ไม่|ยังไม่|มิได้|ไม่ได้|มิใช่|ไม่ใช่|เปลี่ยน|ย้าย|แทน|เดิม)/i.test(leftImmediate);
+          ) &&
+          !/(?:ไม่|ยังไม่|มิได้|ไม่ได้|มิใช่|ไม่ใช่|เปลี่ยน|ย้าย|แทน|เดิม|หากคำนวณ|ข้อเสนอ|ตามที่(?:ถาม|เสนอ|คำนวณ))/i.test(
+            leftImmediate
+          ) &&
+          !/(?:ไม่ถูกต้อง|ไม่ตรง|ผิดพลาด|คลาดเคลื่อน|ไม่เป็นจริง|\b(?:incorrect|wrong)\b)/i.test(
+            rightImmediate
+          );
         if (isAffirmativeGoverning) return false;
         return EXPLICIT_EXCLUSION_RE.test(win) || BROAD_STRUCTURED_CONTRAST_CUE_RE.test(win);
       })
@@ -2684,6 +2694,44 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           }
         }
       }
+      const allocRec = params.factLedger.temporal_facts.vat_portion_allocation_record;
+      const conclusionAffirmsExpectedPortionVat = new RegExp(
+        `(?<![0-9.,])(?:${expectedPortionVat.toLocaleString("en-US").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|${String(expectedPortionVat).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?![0-9.,])`
+      ).test(thaiDigitsToArabic(iss.conclusion_th));
+      const txTotalAllowedAmounts: number[] = [];
+      const siblingBucketAllowedAmounts: number[] = [];
+      if (conclusionAffirmsExpectedPortionVat && allocRec) {
+        const buckets = allocRec.tax_date_buckets || [];
+        if (allocRec.transaction_base_thb > 0) {
+          txTotalAllowedAmounts.push(allocRec.transaction_base_thb);
+        }
+        const sumBucketVats = buckets.reduce(
+          (s, b) => s + (typeof b.verified_vat_thb === "number" ? b.verified_vat_thb : 0),
+          0
+        );
+        if (sumBucketVats > 0) {
+          txTotalAllowedAmounts.push(Math.round(sumBucketVats * 100) / 100);
+          if (allocRec.transaction_base_thb > 0) {
+            txTotalAllowedAmounts.push(
+              Math.round((allocRec.transaction_base_thb + sumBucketVats) * 100) / 100
+            );
+          }
+        }
+        for (const b of buckets) {
+          if (b.iso_date === preEntailTargetAlloc.targetIso) continue;
+          if (typeof b.amount_thb === "number" && b.amount_thb > 0) {
+            siblingBucketAllowedAmounts.push(b.amount_thb);
+          }
+          if (typeof b.verified_vat_thb === "number" && b.verified_vat_thb > 0) {
+            siblingBucketAllowedAmounts.push(b.verified_vat_thb);
+            if (typeof b.amount_thb === "number" && b.amount_thb > 0) {
+              siblingBucketAllowedAmounts.push(
+                Math.round((b.amount_thb + b.verified_vat_thb) * 100) / 100
+              );
+            }
+          }
+        }
+      }
       let mismatchedAffirmedVat: number | null = null;
       for (const vm of cleanConclForVatAssert.matchAll(vatAssertRe)) {
         const val = Number((vm[1] || "").replace(/,/g, ""));
@@ -2716,13 +2764,29 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         }
         const mStart = vm.index ?? 0;
         const mEnd = mStart + vm[0].length;
-        const leftWin = cleanConclForVatAssert.slice(Math.max(0, mStart - 45), mStart);
-        const rightWin = cleanConclForVatAssert.slice(mEnd, Math.min(cleanConclForVatAssert.length, mEnd + 35));
+        const leftWin = cleanConclForVatAssert.slice(Math.max(0, mStart - 60), mStart);
+        const rightWin = cleanConclForVatAssert.slice(mEnd, Math.min(cleanConclForVatAssert.length, mEnd + 50));
+        if (
+          txTotalAllowedAmounts.some((allowed) => Math.abs(val - allowed) <= 1) &&
+          /(?:รวม|ทั้งสิ้น|ทั้งธุรกรรม|ทั้ง\s*[0-9]+\s*(?:ส่วน|งวด|ล็อต|ชุด)|ทั้งหมด)/i.test(
+            `${leftWin} ${rightWin}`
+          )
+        ) {
+          continue;
+        }
+        if (
+          siblingBucketAllowedAmounts.some((allowed) => Math.abs(val - allowed) <= 1) &&
+          /(?:ไปแล้ว|ซ้ำ|ก่อนหน้า|เดิม|ส่วนที่\s*[0-9]|งวดที่\s*[0-9]|ล็อต\s*[A-Z]|ชุดที่\s*[0-9]|รายการที่\s*[0-9])/i.test(
+            `${leftWin} ${rightWin}`
+          )
+        ) {
+          continue;
+        }
         const isExplicitRefutation =
           /(?:ไม่ถูกต้อง|ไม่ใช่|มิใช่|ผิดพลาด|คลาดเคลื่อน|ไม่ตรง|ไม่เป็นจริง|not\s+correct|incorrect)/i.test(
             `${leftWin} ${rightWin}`
           ) ||
-          /(?:ที่ฝ่ายบัญชี|ที่ผู้ถาม|ที่คำนวณว่า|ตามที่ระบุว่า|ที่อ้างว่า)/i.test(leftWin);
+          /(?:ที่ฝ่ายบัญชี|ที่ผู้ถาม|ที่คำนวณว่า|ตามที่ระบุว่า|ที่อ้างว่า|ข้อเสนอ|หากคำนวณ)/i.test(leftWin);
         if (!isExplicitRefutation) {
           mismatchedAffirmedVat = val;
           break;
@@ -4092,6 +4156,43 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       return {
         status: "NEEDS_CLARIFICATION",
         rendered_answer_th: clarifyMsg,
+        verified_issues: [],
+        claims: [],
+        evidence_cards: [],
+        assumptions_th: cleanZeroIssueAssumptions,
+        clarification_questions_th: clarifyQs,
+        coverage_warnings_th: [],
+        rejected_calculations_diagnostic: buildRejectedDiagnostics(),
+        audit_trace: {
+          schema_version: "reg24.llm_audit_trace.v1",
+          generation_mode: "llm_grounded",
+          staging_flag_active: params.stagingFlagActive,
+          template_fallback_used: false,
+          input_fact_ledger: params.factLedger,
+          supplied_passages: suppliedPassagesAudit,
+          consumed_passage_ids: consumedPassageIds,
+          consumed_passage_versions: consumedPassageVersions,
+          provider_invocation: params.invocationAudit,
+          claims_before_verification: claimsBefore,
+          claims_after_verification: [],
+          rejected_claims: rejectedClaims,
+          rejected_calculations: rejectedCalculations,
+          final_answer_revision_id: null,
+        },
+      };
+    }
+
+    const unresolvedVatAlloc = params.factLedger.temporal_facts.vat_portion_allocation_record;
+    if (unresolvedVatAlloc && unresolvedVatAlloc.allocation_status !== "RESOLVED") {
+      const ambigQ =
+        unresolvedVatAlloc.ambiguity_question_th ||
+        cleanZeroIssueClarifications[0] ||
+        "กรุณายืนยันว่าเหตุการณ์ก่อนส่งมอบครอบคลุมสินค้าส่วนเดียวกับที่โอนกรรมสิทธิ์แล้วหรือเป็นสินค้าคนละส่วนกันก่อนคำนวณและจัดสรรภาษีมูลค่าเพิ่ม";
+      const clarifyQs =
+        cleanZeroIssueClarifications.length > 0 ? cleanZeroIssueClarifications : [ambigQ];
+      return {
+        status: "NEEDS_CLARIFICATION",
+        rendered_answer_th: `ต้องการข้อมูลยืนยันขอบเขตสินค้าเพิ่มเติมก่อนสรุปและจัดสรรภาษีมูลค่าเพิ่ม — ${ambigQ}`,
         verified_issues: [],
         claims: [],
         evidence_cards: [],
