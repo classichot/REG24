@@ -739,7 +739,13 @@ export function getUnifiedCitationLedgerView(
 export function isActorAuthorizedForScope(actor: Actor, accessScope: string): boolean {
   if (accessScope === "scope.platform.public") return true;
   if (actor.authorized_scopes.includes(accessScope)) return true;
-  if (actor.tenant_id && accessScope === `scope.tenant.${actor.tenant_id}`) return true;
+  if (
+    actor.tenant_id &&
+    actor.tenant_id !== "PUBLIC" &&
+    accessScope === `scope.tenant.${actor.tenant_id}`
+  ) {
+    return true;
+  }
   if (actor.actor_id && accessScope === `scope.actor.${actor.actor_id}`) return true;
   return false;
 }
@@ -4339,10 +4345,12 @@ export function resolveTraceableEvidenceById(
     };
   }
 
-  // Authorization & withdrawal enforcement (T10)
+  // Authorization & withdrawal/revocation enforcement (T10, DEF-C10-5)
   const isWithdrawn =
     Boolean(state.withdrawals[psg.doc_id]?.active) ||
-    Boolean(state.withdrawals[psg.version_id]?.active);
+    Boolean(state.withdrawals[psg.version_id]?.active) ||
+    (doc.record_type === "verified_official_attachment" &&
+      (!doc.eligible_for_citation || !psg.eligible_for_publication));
   const isAuthorized = isActorAuthorizedForScope(actor, psg.access_scope);
 
   if (isWithdrawn || !isAuthorized) {
@@ -4863,6 +4871,24 @@ export async function reopenSavedTraceableAnswerWithPostgres(
     };
   }
   if (pgLoaded.found && pgLoaded.answer) {
+    // Enforce live withdrawal state on Postgres-loaded answers as well (`T10`, `DEF-C10-5`)
+    const liveWithdrawals = store.getState().withdrawals;
+    for (const clm of pgLoaded.answer.claims) {
+      for (const ref of clm.evidence_references) {
+        if (ref.verification_status === "legacy_unverified") continue;
+        if (
+          liveWithdrawals[ref.doc_id]?.active ||
+          liveWithdrawals[ref.version_id]?.active
+        ) {
+          return {
+            found: false,
+            http_status: 404,
+            error_th:
+              "ไม่สามารถเปิดคำตอบนี้ได้ เนื่องจากมีเอกสารอ้างอิงที่จำกัดสิทธิ์หรือถูกถอนสิทธิ์การเข้าถึงสำหรับผู้ใช้งานปัจจุบัน",
+          };
+        }
+      }
+    }
     // Also check if any newer amendment exists in local or PG sources to attach `update_notices`
     const pgSources = await loadAllOnboardedSourcesFromPostgres();
     const view = getUnifiedCitationLedgerView(store, pgLoaded.answer.verifier_metadata.release_id);

@@ -1377,6 +1377,8 @@ export async function loadSavedAnswerFromPostgres(
     record_type: ClaimEvidenceReferenceDto["record_type"];
     access_permission: ClaimEvidenceReferenceDto["access_permission"];
     access_conditions_th: string | null;
+    eligible_for_citation?: boolean;
+    eligible_for_publication?: boolean;
     effective_from: string | null;
     publication_date: string | null;
     link_health: ClaimEvidenceReferenceDto["link_health"];
@@ -1390,6 +1392,7 @@ export async function loadSavedAnswerFromPostgres(
             p.printed_page_start, p.printed_page_end, p.anchors, p.access_scope,
             p.verbatim_text, d.original_title_th,
             d.issuer_id, d.source_family, d.record_type, d.access_permission, d.access_conditions_th,
+            d.eligible_for_citation, p.eligible_for_publication,
             v.effective_from::text AS effective_from, v.publication_date::text AS publication_date,
             COALESCE(loc.link_health, 'unchecked_live') AS link_health,
             loc.last_successful_verified_at::text AS last_successful_verified_at
@@ -1406,12 +1409,20 @@ export async function loadSavedAnswerFromPostgres(
     [row.answer_revision_id]
   );
 
-  // Enforce caller access scope on restricted passages (`T10`)
+  // Enforce caller access scope and live eligibility/revocation on restricted passages (`T10`, `DEF-C10-5`)
+  // Consistent with server-verified matter/tenant scope authorization in `isActorAuthorizedForScope`
   for (const lk of linksRes.rows) {
-    if (
-      lk.access_scope !== "scope.platform.public" &&
-      !actor.authorized_scopes.includes(lk.access_scope)
-    ) {
+    if (lk.eligible_for_citation === false || lk.eligible_for_publication === false) {
+      return { found: false, forbidden_restricted: true };
+    }
+    const isAuthorizedForLinkScope =
+      lk.access_scope === "scope.platform.public" ||
+      actor.authorized_scopes.includes(lk.access_scope) ||
+      (Boolean(actor.tenant_id) &&
+        actor.tenant_id !== "PUBLIC" &&
+        lk.access_scope === `scope.tenant.${actor.tenant_id}`) ||
+      (Boolean(actor.actor_id) && lk.access_scope === `scope.actor.${actor.actor_id}`);
+    if (!isAuthorizedForLinkScope) {
       return { found: false, forbidden_restricted: true };
     }
   }

@@ -162,11 +162,21 @@ export function isPassageCurrentlyAuthorizedAndActive(
     return false;
   }
 
-  // 2. Live access scope enforcement (return false without leaking private identity)
+  // 2. Live access scope enforcement (return false without leaking private identity; aligned with DEF-C10-5)
   if (passage.access_scope === "scope.platform.public") {
     return true;
   }
-  return actor.authorized_scopes.includes(passage.access_scope);
+  if (actor.authorized_scopes.includes(passage.access_scope)) {
+    return true;
+  }
+  if (
+    actor.tenant_id &&
+    actor.tenant_id !== "PUBLIC" &&
+    passage.access_scope === `scope.tenant.${actor.tenant_id}`
+  ) {
+    return true;
+  }
+  return Boolean(actor.actor_id) && passage.access_scope === `scope.actor.${actor.actor_id}`;
 }
 
 export function resolveAuthorizedEvidence(

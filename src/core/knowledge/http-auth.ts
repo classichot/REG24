@@ -95,15 +95,21 @@ export function resolveServerActor(req: Request, opts?: { requireCsrfForMutation
   // Never trust client-supplied x-reg24-actor-id when invite-only staging/trial authentication is active!
   const headerActorId = inviteOnly ? null : req.headers.get("x-reg24-actor-id")?.trim();
 
-  // Private tenant scopes can ONLY be granted by verified server secret header, never from JSON payload (AT08)
+  // Private tenant scopes can ONLY be granted by verified server credential or verified server secret header,
+  // never from JSON payload or spoofable client headers (AT08, DEF-C10-5).
   const verifiedTenantKey = req.headers.get("x-reg24-verified-tenant-scope")?.trim();
   const scopes = ["scope.platform.public"];
+  if (credentialTenantId) {
+    scopes.push(`scope.tenant.${credentialTenantId}`);
+  }
   if (
     verifiedTenantKey &&
     process.env.REG24_TENANT_SCOPE_SECRET &&
     req.headers.get("x-reg24-tenant-secret") === process.env.REG24_TENANT_SCOPE_SECRET
   ) {
-    scopes.push(verifiedTenantKey);
+    if (!scopes.includes(verifiedTenantKey)) {
+      scopes.push(verifiedTenantKey);
+    }
   }
 
   return {
