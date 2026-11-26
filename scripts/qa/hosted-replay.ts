@@ -460,7 +460,7 @@ async function uploadOfficialAttachment(
   actorId: string,
   spec: AttachmentFixtureSpec
 ): Promise<string> {
-  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/v1/knowledge/official-attachments`, {
+  const res = await fetch(`${baseUrl.replace(/\/$/, "")}/api/v1/knowledge/attachments`, {
     method: "POST",
     headers: buildAuthHeaders(actorId),
     body: JSON.stringify({

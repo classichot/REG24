@@ -4302,10 +4302,15 @@ export function checkAllocationToClaimConsistencyInvariant(params: {
   });
 
   const matchLotsInText = (rawTxt: string): string[] => {
-    const positiveTxt = thaiDigitsToArabic(rawTxt || "").replace(
-      /(?:ไม่รวม(?:ถึง)?|ไม่ใช่|มิใช่|ยกเว้น|\bnot\b|\bexcluding\b)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*[A-Z0-9ก-ฮ]+/gi,
-      " "
-    );
+    const positiveTxt = thaiDigitsToArabic(rawTxt || "")
+      .replace(
+        /(?:และ)?(?:การ)?ไม่(?:เก็บ|คิด|เสีย|นับ|เกิด)(?:ภาระ)?ภาษี(?:มูลค่าเพิ่ม)?ซ้ำ[^—\].,;]*/gi,
+        " "
+      )
+      .replace(
+        /(?:ไม่รวม(?:ถึง)?|ไม่ใช่|มิใช่|ยกเว้น|ต่างจาก|แยกจาก|\bnot\b|\bexcluding\b)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*[A-Z0-9ก-ฮ]+/gi,
+        " "
+      );
     const matched: string[] = [];
     for (const la of alloc.lot_allocations) {
       const escLabel = thaiDigitsToArabic(la.label_th).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -4323,10 +4328,24 @@ export function checkAllocationToClaimConsistencyInvariant(params: {
     return matched;
   };
 
+  const distinctLedgerDatesCount = new Set(
+    alloc.lot_allocations.map((l) => l.controlling_tax_point_iso)
+  ).size;
   const claimToLots = new Map<string, { claim: PublishedAtomicClaimDto; lotIds: string[] }>();
   for (const c of supportedNonSummaryClaims) {
     const header = /^\s*\[([^\]]{2,360})\]/u.exec(c.text || "")?.[1] || "";
     let matched = matchLotsInText(header);
+    if (
+      matched.length === alloc.lot_allocations.length &&
+      distinctLedgerDatesCount > 1 &&
+      header.includes(" — ")
+    ) {
+      const scopePart = header.split(" — ").slice(1).join(" — ");
+      const scopeMatched = matchLotsInText(scopePart);
+      if (scopeMatched.length > 0 && scopeMatched.length < alloc.lot_allocations.length) {
+        matched = scopeMatched;
+      }
+    }
     if (matched.length === 0) {
       const conclusionOnly = (c.text || "").split(/\s*\(/)[0] || c.text;
       matched = matchLotsInText(conclusionOnly);
@@ -4335,7 +4354,7 @@ export function checkAllocationToClaimConsistencyInvariant(params: {
       claimToLots.set(c.claim_id, { claim: c, lotIds: matched });
     } else if (
       matched.length === alloc.lot_allocations.length &&
-      new Set(alloc.lot_allocations.map((l) => l.controlling_tax_point_iso)).size === 1
+      distinctLedgerDatesCount === 1
     ) {
       claimToLots.set(c.claim_id, { claim: c, lotIds: matched });
     }

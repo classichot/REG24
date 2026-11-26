@@ -532,4 +532,61 @@ describe("C12 Workstream B — Allocation-to-Claim Consistency Invariant & Stale
       expect(grounded.answer).toContain("Verified VAT Allocation Record");
     }
   });
+
+  it("B4.5: non-double-taxation disclaimer mentioning sibling sets in claim header does not trigger false LOT_NOT_COVERED_OR_UNRESOLVED", () => {
+    const q =
+      "บริษัท ทดสอบหงส์ขาว จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ขายสินค้าทั่วไปในประเทศราคารวม 50,000 บาท (ยังไม่รวมภาษีมูลค่าเพิ่ม) แยกสินค้าเป็น 3 ชุด คือ ชุดที่ 1 ราคา 20,000 บาท ชุดที่ 2 ราคา 20,000 บาท และชุดที่ 3 ราคา 10,000 บาท เมื่อวันที่ 30 กันยายน 2569 บริษัทโอนกรรมสิทธิ์สำหรับชุดที่ 1 และในวันเดียวกันได้รับชำระราคาพร้อมออกใบกำกับภาษีสำหรับชุดที่ 2 โดยชุดที่ 3 ยังไม่มีการโอนกรรมสิทธิ์ รับชำระเงิน หรือออกใบกำกับภาษีก่อน จากนั้นบริษัทส่งมอบสินค้าทั้ง 3 ชุดพร้อมกันเมื่อวันที่ 1 ตุลาคม 2569";
+    const ledger = buildStructuredCaseFactLedger({ question: q, applicableDate: null });
+    const { state, rawById, pack } = loadVatPackAndRaw(["2026-09-30", "2026-10-01"]);
+
+    const i1 = makeLotIssue({
+      id: "ISSUE_1_VAT_PORTION_1_2026_09_30",
+      lotLabel: "ชุดที่ 1 และชุดที่ 2",
+      dateTh: "30 กันยายน 2569",
+      base: 40000,
+      vat: 2800,
+      decreeNum: "799",
+    });
+    const i2 = {
+      ...makeLotIssue({
+        id: "ISSUE_2_VAT_PORTION_2_2026_10_01",
+        lotLabel: "ชุดที่ 3",
+        dateTh: "1 ตุลาคม 2569",
+        base: 10000,
+        vat: 700,
+        decreeNum: "807",
+      }),
+      issue_title_th:
+        "วันเกิดความรับผิด กฎหมายที่ใช้บังคับ และภาษีมูลค่าเพิ่มสำหรับส่วนที่ 2 (สินค้าชุดที่ 3) และการไม่เก็บภาษีซ้ำจากการส่งมอบชุดที่ 1 และชุดที่ 2",
+      party_or_scope_th: "สินค้าชุดที่ 3 ฐานภาษี 10,000 บาท",
+    };
+
+    const verified = verifyAndRenderGroundedLlmDraft({
+      traceId: "trc.b4.nondouble_header",
+      factLedger: ledger,
+      passagePack: pack,
+      rawPassagesById: rawById,
+      state,
+      llmOk: true,
+      draft: {
+        answer_status: "ANSWERED",
+        overall_summary_th: "สรุป",
+        case_facts_used: [],
+        issues: [i1, i2],
+        assumptions_th: [],
+        clarification_questions_th: [],
+        evidence_gaps_th: [],
+      },
+      invocationAudit: MOCK_AUDIT,
+      stagingFlagActive: true,
+    });
+    const grounded = buildGroundedFromVerified("trc.b4.nondouble_header", verified);
+    const env = attachTraceableEnvelopeToGroundedAnswer(STORE, grounded, {
+      question: q,
+      actor: ACTOR,
+    });
+    expect(env.grounded_answer_status).toBe("ANSWERED");
+    expect(env.claims.filter((c) => c.published)).toHaveLength(2);
+    expect(grounded.answer).toContain("Verified VAT Allocation Record");
+  });
 });

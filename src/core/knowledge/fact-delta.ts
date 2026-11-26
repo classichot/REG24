@@ -14,6 +14,7 @@ import { GoogleGenAI } from "@google/genai";
 import type { StructuredCaseFactLedger, TemporalEventKind } from "./case-fact-ledger";
 import { thaiDigitsToArabic } from "./identity";
 import {
+  extractOutputTextFromGeminiInteraction,
   resolveConfiguredProviderAndModel,
   resolveThinkingLevelForModel,
   type GroundedLlmProviderId,
@@ -679,69 +680,85 @@ export async function extractStructuredFactDeltaWithModel(params: {
   }
 
   const client = new GoogleGenAI({ apiKey });
-  const timeoutMs = params.timeoutMs ?? 60_000;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutMs = params.timeoutMs ?? 90_000;
+  const maxSameModelAttempts = 2;
+  let lastErrorMsg = "FactDelta interaction returned empty text output.";
+  let lastFailureClass: ProviderFailureClassification = "BLOCKED_OR_INCOMPLETE";
+  let lastResolvedModel: string | null = requestedModel;
+  let lastInputTokens = 0;
+  let lastOutputTokens = 0;
+  let lastThoughtTokens = 0;
+  let lastTotalTokens = 0;
 
-  try {
-    const interaction = await client.interactions.create(
-      {
-        model: requestedModel,
-        store: false,
-        system_instruction: FACT_DELTA_SYSTEM_INSTRUCTION,
-        input: userPrompt,
-        generation_config: {
-          temperature: 0.0,
-          max_output_tokens: 8192,
-          thinking_level,
+  for (let attemptIdx = 0; attemptIdx < maxSameModelAttempts; attemptIdx++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const interaction = await client.interactions.create(
+        {
+          model: requestedModel,
+          store: false,
+          system_instruction: FACT_DELTA_SYSTEM_INSTRUCTION,
+          input: userPrompt,
+          generation_config: {
+            temperature: 0.0,
+            max_output_tokens: 16384,
+            thinking_level,
+          },
+          response_format: {
+            type: "text",
+            mime_type: "application/json",
+            schema: FACT_DELTA_JSON_SCHEMA,
+          } as unknown as Record<string, unknown>,
         },
-        response_format: {
-          type: "text",
-          mime_type: "application/json",
-          schema: FACT_DELTA_JSON_SCHEMA,
-        } as unknown as Record<string, unknown>,
-      },
-      { signal: controller.signal }
-    );
-    clearTimeout(timer);
+        { signal: controller.signal }
+      );
+      clearTimeout(timer);
 
-    const outputs = Array.isArray((interaction as unknown as Record<string, unknown>).outputs)
-      ? ((interaction as unknown as Record<string, unknown>).outputs as Array<
-          Record<string, unknown>
-        >)
-      : [];
-    const outputText = outputs
-      .filter((o) => o && o.type === "text" && typeof o.text === "string")
-      .map((o) => String(o.text))
-      .join("\n")
-      .trim();
+      const extracted = extractOutputTextFromGeminiInteraction(interaction);
+      const outputText = extracted.text.trim();
+      const providerStatus = extracted.status;
+      const resolvedModel = extracted.resolvedModel || requestedModel;
 
-    const usage = ((interaction as unknown as Record<string, unknown>).usage || {}) as Record<
-      string,
-      unknown
-    >;
-    const inputTokens = Number(usage.total_input_tokens ?? usage.input_tokens ?? 0);
-    const outputTokens = Number(usage.total_output_tokens ?? usage.output_tokens ?? 0);
-    const thoughtTokens = Number(usage.total_thought_tokens ?? usage.thought_tokens ?? 0);
-    const totalTokens = Number(
-      usage.total_tokens ?? inputTokens + outputTokens + thoughtTokens
-    );
-    const resolvedModel =
-      typeof (interaction as unknown as Record<string, unknown>).model === "string"
-        ? String((interaction as unknown as Record<string, unknown>).model)
-        : requestedModel;
+      const usage = ((interaction as unknown as Record<string, unknown>).usage || {}) as Record<
+        string,
+        unknown
+      >;
+      const inputTokens = Number(usage.total_input_tokens ?? usage.input_tokens ?? 0);
+      const outputTokens = Number(usage.total_output_tokens ?? usage.output_tokens ?? 0);
+      const thoughtTokens = Number(usage.total_thought_tokens ?? usage.thought_tokens ?? 0);
+      const totalTokens = Number(
+        usage.total_tokens ?? inputTokens + outputTokens + thoughtTokens
+      );
+      lastResolvedModel = resolvedModel;
+      lastInputTokens = inputTokens;
+      lastOutputTokens = outputTokens;
+      lastThoughtTokens = thoughtTokens;
+      lastTotalTokens = totalTokens;
 
-    if (!outputText) {
+      if (
+        !outputText ||
+        (providerStatus && providerStatus !== "completed" && providerStatus !== "COMPLETED")
+      ) {
+        lastFailureClass = "BLOCKED_OR_INCOMPLETE";
+        lastErrorMsg = `FactDelta interaction returned status='${providerStatus || "empty"}' without complete text output.`;
+        continue;
+      }
+
+      const cleanedJson = outputText
+        .replace(/^```json\s*/i, "")
+        .replace(/^```\s*/i, "")
+        .replace(/```$/i, "")
+        .trim();
+      const parsedRaw = JSON.parse(cleanedJson) as unknown;
+      const validation = validateFactDelta(parsedRaw, params.priorLedger, params.userTurnText);
+
       return {
-        ok: false,
-        provider_failed: true,
-        raw_delta: null,
-        validation: {
-          valid: false,
-          normalized_delta: null,
-          rejection_reasons: ["Empty output from FactDelta model call."],
-        },
-        raw_output_text: null,
+        ok: validation.valid,
+        provider_failed: false,
+        raw_delta: normalizeRawFactDelta(parsedRaw),
+        validation,
+        raw_output_text: outputText,
         invocation_audit: {
           provider: "google-gemini",
           requested_model: requestedModel,
@@ -750,81 +767,60 @@ export async function extractStructuredFactDeltaWithModel(params: {
           temperature: 0,
           silent_fallback_disabled: true,
           live_provider_called: true,
-          failure_classification: "BLOCKED_OR_INCOMPLETE",
+          failure_classification: "NONE",
           latency_ms: Math.max(1, Date.now() - startMs),
           input_tokens: inputTokens,
           output_tokens: outputTokens,
           thought_tokens: thoughtTokens,
           total_tokens: totalTokens,
-          error_summary: "FactDelta interaction returned empty text output.",
+          error_summary: null,
         },
       };
+    } catch (err) {
+      clearTimeout(timer);
+      const msg = err instanceof Error ? err.message : String(err);
+      const httpMatch = /\b([45]\d{2})\b/.exec(msg);
+      const httpStatus = httpMatch ? Number(httpMatch[1]) : null;
+      lastFailureClass = classifyFactDeltaError(httpStatus, msg);
+      lastErrorMsg = msg.slice(0, 300);
+      const isRetryableSameModel =
+        lastFailureClass === "BLOCKED_OR_INCOMPLETE" ||
+        lastFailureClass === "INVALID_OUTPUT" ||
+        lastFailureClass === "TIMEOUT" ||
+        (lastFailureClass === "PROVIDER_UNAVAILABLE" && (httpStatus === null || httpStatus >= 500));
+      if (!isRetryableSameModel) {
+        break;
+      }
     }
-
-    const cleanedJson = outputText
-      .replace(/^```json\s*/i, "")
-      .replace(/^```\s*/i, "")
-      .replace(/```$/i, "")
-      .trim();
-    const parsedRaw = JSON.parse(cleanedJson) as unknown;
-    const validation = validateFactDelta(parsedRaw, params.priorLedger, params.userTurnText);
-
-    return {
-      ok: validation.valid,
-      provider_failed: false,
-      raw_delta: normalizeRawFactDelta(parsedRaw),
-      validation,
-      raw_output_text: outputText,
-      invocation_audit: {
-        provider: "google-gemini",
-        requested_model: requestedModel,
-        resolved_model: resolvedModel,
-        thinking_level,
-        temperature: 0,
-        silent_fallback_disabled: true,
-        live_provider_called: true,
-        failure_classification: "NONE",
-        latency_ms: Math.max(1, Date.now() - startMs),
-        input_tokens: inputTokens,
-        output_tokens: outputTokens,
-        thought_tokens: thoughtTokens,
-        total_tokens: totalTokens,
-        error_summary: null,
-      },
-    };
-  } catch (err) {
-    clearTimeout(timer);
-    const msg = err instanceof Error ? err.message : String(err);
-    const httpMatch = /\b([45]\d{2})\b/.exec(msg);
-    const httpStatus = httpMatch ? Number(httpMatch[1]) : null;
-    return {
-      ok: false,
-      provider_failed: true,
-      raw_delta: null,
-      validation: {
-        valid: false,
-        normalized_delta: null,
-        rejection_reasons: [msg.slice(0, 300)],
-      },
-      raw_output_text: null,
-      invocation_audit: {
-        provider: "google-gemini",
-        requested_model: requestedModel,
-        resolved_model: null,
-        thinking_level,
-        temperature: 0,
-        silent_fallback_disabled: true,
-        live_provider_called: true,
-        failure_classification: classifyFactDeltaError(httpStatus, msg),
-        latency_ms: Math.max(1, Date.now() - startMs),
-        input_tokens: 0,
-        output_tokens: 0,
-        thought_tokens: 0,
-        total_tokens: 0,
-        error_summary: msg.slice(0, 300),
-      },
-    };
   }
+
+  return {
+    ok: false,
+    provider_failed: true,
+    raw_delta: null,
+    validation: {
+      valid: false,
+      normalized_delta: null,
+      rejection_reasons: [lastErrorMsg],
+    },
+    raw_output_text: null,
+    invocation_audit: {
+      provider: "google-gemini",
+      requested_model: requestedModel,
+      resolved_model: lastResolvedModel,
+      thinking_level,
+      temperature: 0,
+      silent_fallback_disabled: true,
+      live_provider_called: true,
+      failure_classification: lastFailureClass,
+      latency_ms: Math.max(1, Date.now() - startMs),
+      input_tokens: lastInputTokens,
+      output_tokens: lastOutputTokens,
+      thought_tokens: lastThoughtTokens,
+      total_tokens: lastTotalTokens,
+      error_summary: lastErrorMsg,
+    },
+  };
 }
 
 function extractMentionedLotHintsForClarification(

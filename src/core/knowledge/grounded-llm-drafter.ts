@@ -820,7 +820,7 @@ function classifyProviderFailure(
   return "PROVIDER_UNAVAILABLE";
 }
 
-function extractOutputTextFromGeminiInteraction(interaction: unknown): {
+export function extractOutputTextFromGeminiInteraction(interaction: unknown): {
   text: string;
   resolvedModel: string | null;
   status: string | null;

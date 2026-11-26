@@ -401,7 +401,10 @@ function checkCaseFactPreservation(
 }
 
 const EXPLICIT_EXCLUSION_RE =
-  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่ภายใต้|ไม่อยู่ภายใต้|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|สิ้นสุดการบังคับใช้|สิ้นสุดระยะเวลา|สิ้นสุดในวันที่|สิ้นสุดเมื่อวันที่|สิ้นสุดลง|พ้นช่วง(?:เวลา)?|หลัง(?:จาก)?ช่วง(?:เวลา)?|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|เปลี่ยน[^.;\n]{0,45}จาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|เปลี่ยนมาอยู่ภายใต้|ย้ายจาก|เลื่อน(?:มา|จาก)|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ต่างจาก|เปรียบเทียบ(?:กับ)?|เทียบกับ|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|OUT_OF_WINDOW|moved\s+from|instead\s+of|rather\s+than|not\s+applicable|does\s+not\s+apply|superseded|replaced\s+by|expired|outside\s+the\s+effective|compared\s+(?:to|with)|previously\s+under)/i;
+  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|มิได้ใช้บังคับ|ยังไม่ถึง(?:กำหนด|วัน)|ไม่ใช้(?:บังคับ)?(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|มิใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ไม่ใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่(?:ใน|ภายใต้)|ยังไม่ตกอยู่(?:ใน|ภายใต้)|ไม่อยู่ภายใต้|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|ยังไม่อยู่ในบังคับ|ไม่อยู่ในบังคับ|ไม่ได้อยู่ในบังคับ|มิได้อยู่ในบังคับ|สิ้นสุด(?:การบังคับใช้|ช่วง(?:เวลา|ความรับผิด)?|ผล(?:การ)?ใช้บังคับ|ระยะเวลา|กำหนด|ในวันที่|เมื่อวันที่|ลง)|หมดอายุ|หมดระยะเวลา|พ้นช่วง(?:เวลา)?|พ้นระยะ(?:เวลา)?|หลัง(?:จาก)?ช่วง(?:เวลา)?|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ครอบคลุม(?:ความรับผิด)?ถึง(?:เพียง)?วันที่|ใช้บังคับถึง(?:เพียง)?วันที่|ยังไม่ครอบคลุม|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|เปลี่ยน[^.;\n]{0,45}จาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|เปลี่ยนมาอยู่ภายใต้|ย้ายจาก|เลื่อน(?:มา|จาก)|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ต่างจาก|แยกจาก|ไม่เข้าเกณฑ์|ไม่เข้าข่าย|ไม่เข้าลักษณะ|เปรียบเทียบ(?:กับ)?|เทียบกับ|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|OUT_OF_WINDOW|moved\s+from|instead\s+of|rather\s+than|not\s+applicable|does\s+not\s+apply|superseded|replaced\s+by|expired|outside\s+the\s+effective|compared\s+(?:to|with)|previously\s+under)/i;
+
+const BROAD_STRUCTURED_CONTRAST_CUE_RE =
+  /(?:ยังไม่|ไม่ใช้|ไม่ได้|มิใช่|ไม่ใช่|มิได้|สิ้นสุด|หมดอายุ|หมดระยะ|พ้น|ก่อน|หลัง|เปลี่ยน|ย้าย|แทน|เดิม|ต่าง|แยก|เทียบ|นอกช่วง|ไม่อยู่|ไม่ตกอยู่|ไม่ครอบคลุม|ไม่เข้า|\b(?:not|no|never|supersed\w*|expir\w*|instead|rather|compar\w*|prior|before|after|outside|previously)\b)/i;
 
 function workIdToCanonicalInstrumentId(workId: string): string | null {
   const w = (workId || "").trim();
@@ -503,19 +506,33 @@ function validateStructuredAssertedAndContrastAuthorities(params: {
     }
   }
 
+  const normClaimForContrast = thaiDigitsToArabic(claimTextForContrast).replace(/\s+/g, " ");
   const sentences = splitTextIntoAuditSentences(claimTextForContrast);
   const contrastList = Array.isArray(issue.contrast_mentions) ? issue.contrast_mentions : [];
   const validatedContrastInstruments: string[] = [];
 
+  const canonicalizeContrastWorkId = (rawWid: string): string => {
+    const trimmed = thaiDigitsToArabic(rawWid || "").trim();
+    if (state.works[trimmed]) return trimmed;
+    const rdNum = /(?:^subreg\.th\.rc\.royal_decree\.|^(?:RD|พ\.ร\.ฎ\.|พรฎ\.?)\s*[._-]?\s*|ฉบับที่\s*)([0-9]{2,4})$/i.exec(
+      trimmed
+    )?.[1];
+    if (rdNum && state.works[`subreg.th.rc.royal_decree.${rdNum}`]) {
+      return `subreg.th.rc.royal_decree.${rdNum}`;
+    }
+    return trimmed;
+  };
+
   for (const cm of contrastList) {
-    const wid = (cm.work_id || "").trim();
+    const wid = canonicalizeContrastWorkId(cm.work_id || "");
     if (!wid || assertedWorkIds.has(wid)) continue;
     // Must exist in pinned release corpus (no fabricated decrees/rulings can pass as contrast!)
     if (!state.works[wid]) continue;
     const canonId = workIdToCanonicalInstrumentId(wid);
     if (!canonId) continue;
 
-    // Every sentence mentioning this contrast instrument MUST carry a negation/comparison/transition marker!
+    // Every mention of this contrast instrument MUST carry a negation/comparison/transition marker
+    // either in its sentence or in a local ±200-char window around the mention!
     const mentioningSentences = sentences.filter((s) =>
       sentenceMentionsCanonicalInstrument(s, canonId)
     );
@@ -523,10 +540,40 @@ function validateStructuredAssertedAndContrastAuthorities(params: {
       validatedContrastInstruments.push(canonId);
       continue;
     }
-    const allHaveContrastMarker = mentioningSentences.every((s) =>
+    const allSentencesHaveContrast = mentioningSentences.every((s) =>
       EXPLICIT_EXCLUSION_RE.test(thaiDigitsToArabic(s))
     );
-    if (allHaveContrastMarker) {
+    if (allSentencesHaveContrast) {
+      validatedContrastInstruments.push(canonId);
+      continue;
+    }
+    const numPart = canonId.replace(/^(?:พรฎ\.|ทป\.|ฎีกา\.)/, "");
+    const esc = numPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const mentionMatches = Array.from(
+      normClaimForContrast.matchAll(
+        new RegExp(
+          `(?:ฉบับที่\\s*${esc}|(?:พ\\.ร\\.ฎ\\.|พระราชกฤษฎีกา)\\s*\\(?\\s*${esc}\\s*\\)?(?![0-9/])|ท\\.ป\\.\\s*${esc}|ฎีกาที่\\s*${esc})`,
+          "g"
+        )
+      )
+    );
+    if (
+      mentionMatches.length > 0 &&
+      mentionMatches.every((m) => {
+        const idx = m.index ?? 0;
+        const leftImmediate = normClaimForContrast.slice(Math.max(0, idx - 65), idx);
+        const win = normClaimForContrast.slice(
+          Math.max(0, idx - 220),
+          Math.min(normClaimForContrast.length, idx + 220)
+        );
+        const isAffirmativeGoverning =
+          /(?:อยู่ภายใต้บังคับ(?:ของ)?|เสียภาษี(?:มูลค่าเพิ่ม)?ตาม|คำนวณ(?:ภาษี)?ตาม|ลดอัตรา(?:ภาษี)?ตาม)\s*(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)?[^.;()]{0,35}$/i.test(
+            leftImmediate
+          ) && !/(?:ไม่|ยังไม่|มิได้|ไม่ได้|มิใช่|ไม่ใช่|เปลี่ยน|ย้าย|แทน|เดิม)/i.test(leftImmediate);
+        if (isAffirmativeGoverning) return false;
+        return EXPLICIT_EXCLUSION_RE.test(win) || BROAD_STRUCTURED_CONTRAST_CUE_RE.test(win);
+      })
+    ) {
       validatedContrastInstruments.push(canonId);
     }
   }
@@ -1059,7 +1106,10 @@ function extractExplicitlyExcludedContextInstruments(params: {
   for (const inst of candidateInstruments) {
     const numPart = inst.replace(/^(?:พรฎ\.|ทป\.|ฎีกา\.)/, "");
     const esc = numPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const mentionRe = new RegExp(`(?:ฉบับที่\\s*${esc}|ท\\.ป\\.\\s*${esc}|ฎีกาที่\\s*${esc})`, "g");
+    const mentionRe = new RegExp(
+      `(?:ฉบับที่\\s*${esc}|(?:พ\\.ร\\.ฎ\\.|พระราชกฤษฎีกา)\\s*\\(?\\s*${esc}\\s*\\)?(?![0-9/])|ท\\.ป\\.\\s*${esc}|ฎีกาที่\\s*${esc})`,
+      "g"
+    );
     const matches = Array.from(normClaim.matchAll(mentionRe));
     if (matches.length === 0) continue;
     // Require EVERY mention of this uncited instrument to appear within an explicit exclusion context!
@@ -2613,11 +2663,33 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       );
       const vatAssertRe =
         /(?:คิดเป็น|เป็นเงิน|เท่ากับ|ต้องเสีย(?:ภาษีมูลค่าเพิ่ม|VAT)?|เสีย(?:ภาษีมูลค่าเพิ่ม|VAT)?)\s*(?:ภาษีมูลค่าเพิ่ม|VAT)?\s*(?:จำนวน|เป็นเงิน|เท่ากับ)?\s*(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(?:บาท|THB)/gi;
+      const sameBucketLots = (
+        params.factLedger.temporal_facts.vat_portion_allocation_record?.lot_allocations || []
+      ).filter((l) => l.controlling_tax_point_iso === preEntailTargetAlloc.targetIso);
+      const conclusionAffirmsExpectedBucketVat =
+        expectedBucketVat !== null &&
+        sameBucketLots.length >= 2 &&
+        new RegExp(
+          `(?<![0-9.,])(?:${expectedBucketVat.toLocaleString("en-US").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}|${String(expectedBucketVat).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})(?![0-9.,])`
+        ).test(thaiDigitsToArabic(iss.conclusion_th));
+      const constituentLotAllowedAmounts: number[] = [];
+      if (conclusionAffirmsExpectedBucketVat) {
+        for (const sl of sameBucketLots) {
+          constituentLotAllowedAmounts.push(sl.taxable_base_thb);
+          if (typeof sl.verified_vat_thb === "number") {
+            constituentLotAllowedAmounts.push(sl.verified_vat_thb);
+            constituentLotAllowedAmounts.push(
+              Math.round((sl.taxable_base_thb + sl.verified_vat_thb) * 100) / 100
+            );
+          }
+        }
+      }
       let mismatchedAffirmedVat: number | null = null;
       for (const vm of cleanConclForVatAssert.matchAll(vatAssertRe)) {
         const val = Number((vm[1] || "").replace(/,/g, ""));
         if (!Number.isFinite(val) || val <= 0) continue;
-        // Skip base, own-portion gross, bucket gross, own-portion VAT, or same-date multi-lot bucket VAT
+        // Skip base, own-portion gross, bucket gross, own-portion VAT, same-date multi-lot bucket VAT,
+        // or constituent per-lot verified breakdown amounts when the conclusion also affirms the bucket total
         const ownGross =
           preEntailTargetAlloc.expectedBaseThb && expectedOwnPortionVat
             ? Math.round((preEntailTargetAlloc.expectedBaseThb + expectedOwnPortionVat) * 100) / 100
@@ -2639,6 +2711,9 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         }
         if (Math.abs(val - expectedPortionVat) <= 1) continue;
         if (expectedBucketVat !== null && Math.abs(val - expectedBucketVat) <= 1) continue;
+        if (constituentLotAllowedAmounts.some((allowed) => Math.abs(val - allowed) <= 1)) {
+          continue;
+        }
         const mStart = vm.index ?? 0;
         const mEnd = mStart + vm[0].length;
         const leftWin = cleanConclForVatAssert.slice(Math.max(0, mStart - 45), mStart);

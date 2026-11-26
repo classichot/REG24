@@ -665,4 +665,115 @@ describe("REG24 C12 Workstream C — Authority model, C2 sentence withholding, C
       )
     ).toBe(true);
   });
+
+  it("C1 + VAT multi-lot breakdown regression: natural Thai contrast wording (สิ้นสุดช่วงความรับผิด / ยังไม่อยู่ในบังคับ / ไม่ใช้ พ.ร.ฎ.) and per-lot breakdown inside a bucket claim pass cleanly", () => {
+    const store = TEST_STORE;
+    const state = store.getState();
+    const { passagePack, rawPassagesById, byWork } = buildPackFromStore(
+      [
+        "prov.th.rc.78",
+        "prov.th.rc.80",
+        "subreg.th.rc.royal_decree.799",
+        "subreg.th.rc.royal_decree.807",
+        "subreg.th.rd.vat_local_tax_guide",
+      ],
+      ["2026-09-29", "2026-10-01"]
+    );
+    const p78 = byWork.get("prov.th.rc.78")![0].passage_id;
+    const p80 = byWork.get("prov.th.rc.80")![0].passage_id;
+    const pGuide = byWork.get("subreg.th.rd.vat_local_tax_guide")![0].passage_id;
+    const p799 = byWork.get("subreg.th.rc.royal_decree.799")!.map((p) => p.passage_id);
+    const p807 = byWork.get("subreg.th.rc.royal_decree.807")!.map((p) => p.passage_id);
+
+    const q =
+      "บริษัท ทดสอบนกแก้ว จำกัด เป็นผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ขายสินค้าทั่วไปในประเทศให้แก่ผู้ซื้อรายเดียว ราคารวม 50,000 บาท (ยังไม่รวมภาษีมูลค่าเพิ่ม) แบ่งเป็น 3 ล็อต คือ ล็อต A มูลค่า 20,000 บาท ล็อต B มูลค่า 20,000 บาท และล็อต C มูลค่า 10,000 บาท บริษัทโอนกรรมสิทธิ์ในล็อต A เมื่อวันที่ 29 กันยายน 2569 และเมื่อวันที่ 30 กันยายน 2569 ได้รับชำระราคาและออกใบกำกับภาษีสำหรับล็อต A เท่านั้น ส่วนเหตุการณ์อื่นทั้งหมด ได้แก่ การโอนกรรมสิทธิ์ การรับชำระราคา และการออกใบกำกับภาษีของล็อต B และล็อต C รวมทั้งการส่งมอบสินค้าทั้ง 3 ล็อต เกิดขึ้นเมื่อวันที่ 1 ตุลาคม 2569 โดยไม่มีเหตุการณ์ใดของล็อต B และล็อต C ก่อนวันที่ 1 ตุลาคม 2569";
+    const factLedger = buildStructuredCaseFactLedger({ question: q, applicableDate: null });
+
+    const draft: GroundedLlmDraftResponse = {
+      answer_status: "ANSWERED",
+      overall_summary_th: "ล็อต A 1,400 บาท (29 ก.ย. 2569, พ.ร.ฎ. 799) และล็อต B+C 2,100 บาท (1 ต.ค. 2569, พ.ร.ฎ. 807)",
+      case_facts_used: [],
+      issues: [
+        {
+          issue_id: "ISSUE_1_LOT_A_2026_09_29",
+          issue_title_th: "ส่วนที่ 1: ล็อต A (29 กันยายน 2569)",
+          party_or_scope_th: "ล็อต A มูลค่า 20,000 บาท",
+          conclusion_th:
+            "ล็อต A เกิดความรับผิดวันที่ 29 กันยายน 2569 ตามมาตรา 78 (1) (ก) ภายใต้พระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 อัตราร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 1,400 บาท",
+          material_facts_relied_on: ["โอนกรรมสิทธิ์ล็อต A วันที่ 29 กันยายน 2569"],
+          governing_passage_ids: [p78, p80, ...p799, pGuide],
+          asserted_authorities: [
+            { work_id: "prov.th.rc.78" },
+            { work_id: "subreg.th.rc.royal_decree.799" },
+            { work_id: "subreg.th.rd.vat_local_tax_guide" },
+          ],
+          contrast_mentions: [{ work_id: "subreg.th.rc.royal_decree.807", role: "not_applicable" }],
+          application_explanation_th:
+            "ตามมาตรา 78 (1) และพระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 คงจัดเก็บภาษีมูลค่าเพิ่มร้อยละ 6.3 ถึงวันที่ 30 กันยายน 2569 (โดยยังไม่อยู่ในบังคับและยังไม่ถึงกำหนดใช้บังคับของพระราชกฤษฎีกา (ฉบับที่ 807) พ.ศ. 2569 ซึ่งเริ่มใช้บังคับวันที่ 1 ตุลาคม 2569) เมื่อรวมภาษีท้องถิ่นร้อยละ 0.7 รวมร้อยละ 7.0 เป็นภาษีมูลค่าเพิ่ม 1,400 บาท",
+          authority_distinction_note_th: "",
+          proposed_calculation: {
+            is_computable_from_stated_facts: true,
+            formula_description_th: "20,000 × 7% = 1,400 บาท",
+            tax_base_thb: 20_000,
+            exempt_amount_thb: 0,
+            taxable_amount_thb: 20_000,
+            rate_pct: 7,
+            computed_tax_thb: 1_400,
+            missing_inputs_th: [],
+            steps_th: ["20,000 × 7% = 1,400 บาท"],
+          },
+          missing_facts_or_uncertainties_th: [],
+        },
+        {
+          issue_id: "ISSUE_2_LOT_B_C_2026_10_01",
+          issue_title_th: "ส่วนที่ 2: ล็อต B และล็อต C (1 ตุลาคม 2569)",
+          party_or_scope_th: "ล็อต B 20,000 บาท และล็อต C 10,000 บาท (รวม 30,000 บาท)",
+          conclusion_th:
+            "ล็อต B และล็อต C รวมมูลค่า 30,000 บาท เกิดความรับผิดวันที่ 1 ตุลาคม 2569 ตามมาตรา 78 (1) ภายใต้พระราชกฤษฎีกา (ฉบับที่ 807) พ.ศ. 2569 อัตราร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่มรวม 2,100 บาท (แยกเป็นล็อต B เท่ากับ 1,400 บาท และล็อต C เท่ากับ 700 บาท ยอดรวมทั้งสิ้น 32,100 บาท)",
+          material_facts_relied_on: ["ส่งมอบล็อต B และล็อต C วันที่ 1 ตุลาคม 2569"],
+          governing_passage_ids: [p78, p80, ...p807, pGuide],
+          asserted_authorities: [
+            { work_id: "prov.th.rc.78" },
+            { work_id: "subreg.th.rc.royal_decree.807" },
+            { work_id: "subreg.th.rd.vat_local_tax_guide" },
+          ],
+          contrast_mentions: [{ work_id: "subreg.th.rc.royal_decree.799", role: "not_applicable" }],
+          application_explanation_th:
+            "ในวันที่ 1 ตุลาคม 2569 พระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 สิ้นสุดช่วงความรับผิดที่ครอบคลุมไปแล้ว (ไม่ใช้พระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568) จึงใช้พระราชกฤษฎีกา (ฉบับที่ 807) พ.ศ. 2569 ลดอัตราเหลือร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่มรวม 2,100 บาท",
+          authority_distinction_note_th: "",
+          proposed_calculation: {
+            is_computable_from_stated_facts: true,
+            formula_description_th: "30,000 × 7% = 2,100 บาท",
+            tax_base_thb: 30_000,
+            exempt_amount_thb: 0,
+            taxable_amount_thb: 30_000,
+            rate_pct: 7,
+            computed_tax_thb: 2_100,
+            missing_inputs_th: [],
+            steps_th: ["30,000 × 7% = 2,100 บาท"],
+          },
+          missing_facts_or_uncertainties_th: [],
+        },
+      ],
+      assumptions_th: [],
+      clarification_questions_th: [],
+      evidence_gaps_th: [],
+    };
+
+    const out = verifyAndRenderGroundedLlmDraft({
+      traceId: "trc.c12.contrast_and_breakdown",
+      factLedger,
+      passagePack,
+      rawPassagesById,
+      state,
+      llmOk: true,
+      draft,
+      invocationAudit: TEST_INVOCATION_AUDIT,
+      stagingFlagActive: true,
+    });
+
+    expect(out.audit_trace.rejected_claims).toEqual([]);
+    expect(out.status).toBe("ANSWERED");
+    expect(out.verified_issues).toHaveLength(2);
+  });
 });
