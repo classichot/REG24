@@ -341,7 +341,10 @@ function createInMemoryPostgresSimulator() {
         .sort((a, b) => Number(b.revision_number) - Number(a.revision_number));
       return { rows: rows as T[], rowCount: rows.length };
     }
-    if (q.includes("FROM citation_published_answer WHERE answer_revision_id = $1 OR answer_id = $1")) {
+    if (
+      q.includes("FROM citation_published_answer WHERE answer_revision_id = $1 OR answer_id = $1") ||
+      q.includes("FROM citation_published_answer WHERE answer_revision_id = $1")
+    ) {
       const key = String(params[0]);
       const rows = Array.from(tables.answers.values())
         .filter((r) => r.answer_revision_id === key || r.answer_id === key)
@@ -356,7 +359,10 @@ function createInMemoryPostgresSimulator() {
         .sort((a, b) => Number(a.revision_number) - Number(b.revision_number));
       return { rows: rows as T[], rowCount: rows.length };
     }
-    if (q.includes("FROM citation_published_answer WHERE owner_tenant_id = 'PUBLIC'")) {
+    if (
+      q.includes("FROM citation_published_answer WHERE owner_tenant_id = 'PUBLIC'") ||
+      (q.includes("FROM citation_published_answer") && q.includes("ORDER BY generated_at DESC"))
+    ) {
       const rows = Array.from(tables.answers.values()).sort((a, b) =>
         String(b.generated_at).localeCompare(String(a.generated_at))
       );

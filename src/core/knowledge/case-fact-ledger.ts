@@ -13,7 +13,8 @@
  */
 
 import type { ConversationTurnInput } from "./contracts";
-import { thaiDigitsToArabic } from "./identity";
+import type { FactDelta, FactDeltaAuditRecord } from "./fact-delta";
+import { sha256Bytes, thaiDigitsToArabic } from "./identity";
 import { stripNegatedFactualClauses } from "./legal-issue-fact-analyzer";
 import { parseFlexibleThaiOrEnglishDateToIso } from "./temporal-versioning";
 
@@ -142,6 +143,8 @@ export interface VerifiedGoodsVatAllocationRecord {
   reconciled_total_vat_thb: number | null;
   reconciled_total_gross_thb: number | null;
   remaining_unallocated_base_thb: number;
+  /** C12 B3: Deterministic hash of the ledger state that produced this allocation record. */
+  ledger_after_hash?: string | null;
 }
 
 export interface StructuredCaseFactLedger {
@@ -187,6 +190,10 @@ export interface StructuredCaseFactLedger {
     recipient_kinship_category: string | null;
     is_ambiguous_lan_sao: boolean;
   };
+  /** C12 A3/B3: Deterministic hash of canonical ledger state (declared lots, active events, allocation). */
+  ledger_state_hash?: string;
+  /** C12 A3: Audit record of structured FactDelta applied on follow-up turns (`turn >= 2`). */
+  fact_delta_audit?: FactDeltaAuditRecord | null;
 }
 
 const THAI_MONTH_REGEX_SRC =
@@ -326,7 +333,7 @@ function extractDeclaredGoodsLots(
   // "ล็อต A มูลค่า 20,000 บาท", "ชุดที่ 1 ราคา 20,000 บาท", "Lot A (THB 20,000)", "รายการที่ 2 จำนวน 10,000 บาท"
   // Deliberately excludes service installments (`งวดที่ 1`) and count phrases (`แบ่งเป็น 3 ล็อต`).
   const lotDeclRe =
-    /(?:สินค้า\s*)?(ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s*(?:มูลค่า|ราคา|จำนวน|เป็นเงิน|\(|:)))\s*(?:\(\s*)?(?:มูลค่า|ราคา|จำนวน|เป็นเงิน|valued\s+at|worth|:)?\s*(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท|THB)?/gi;
+    /(?:สินค้า\s*)?(ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|set|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s*(?:มูลค่า|ราคา|จำนวน|เป็นเงิน|\(|:)))\s*(?:\(\s*)?(?:มูลค่า|ราคา|จำนวน|เป็นเงิน|valued\s+at|worth|:)?\s*(?:THB|฿)?\s*([0-9]{1,3}(?:,[0-9]{3})+|[0-9]+(?:\.[0-9]+)?)\s*(ล้านบาท|บาท|THB)?/gi;
 
   for (const m of norm.matchAll(lotDeclRe)) {
     const prefix = (m[1] || "").trim();
@@ -373,16 +380,22 @@ function extractLotReferencesFromClause(
   const declaredIds = new Set(declaredLots.map((l) => l.lot_id));
   const excludedSet = new Set<string>();
 
-  const negatedLotRe =
-    /(?:ไม่ใช่|มิใช่|ไม่รวม(?:ถึง)?|ยกเว้น|\bnot\b|\bexcluding\b|\bother\s+than\b)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s|$|[.,()]))/gi;
+  const lotUnitTok = "(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|set|batch|tranche|item)";
+  const negatedLotSpanRe = new RegExp(
+    `(?:ไม่ใช่|มิใช่|ไม่รวม(?:ถึง)?|ยกเว้น|\\bnot\\b|\\bexcluding\\b|\\bother\\s+than\\b)\\s*(?:สินค้า\\s*)?${lotUnitTok}\\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\\s|$|[.,()]))(?:\\s*(?:,|\\/|และ|หรือ|\\bor\\b|\\band\\b)\\s*(?:สินค้า\\s*)?(?:${lotUnitTok}\\s*)?([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\\s|$|[.,()])))*`,
+    "gi"
+  );
   let positiveSpan = norm;
-  for (const nm of norm.matchAll(negatedLotRe)) {
-    const lid = canonicalizeLotId(nm[1]);
-    if (declaredIds.size === 0 || declaredIds.has(lid)) {
-      excludedSet.add(lid);
+  for (const nm of norm.matchAll(negatedLotSpanRe)) {
+    const subLotRe = /(?:^|[\s,\/(])(?:(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|set|batch|tranche|item)\s*)?([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s|$|[.,()]))/gi;
+    for (const sm of nm[0].matchAll(subLotRe)) {
+      const lid = canonicalizeLotId(sm[1]);
+      if (declaredIds.size === 0 || declaredIds.has(lid)) {
+        excludedSet.add(lid);
+      }
     }
   }
-  positiveSpan = positiveSpan.replace(negatedLotRe, " ");
+  positiveSpan = positiveSpan.replace(negatedLotSpanRe, " ");
 
   const isExplicitSameGoodsRepeat =
     /(?:เดิมอีกครั้ง|เดิมซ้ำ|ส่วนเดียวกัน|ล็อตเดียวกัน|ชุดเดียวกัน|รายการเดียวกัน|สินค้าเดิม|สำหรับ(?:ล็อต|ชุดที่|รายการที่)\s*[A-Z0-9ก-ฮ]+\s*เดิม|same\s+(?:lot|goods|portion|batch))/i.test(
@@ -422,12 +435,13 @@ function extractLotReferencesFromClause(
   // Strip negated lot-event subclauses inside a clause (e.g. "โดยไม่มีเหตุการณ์ใดของล็อต B และล็อต C",
   // "โดยล็อต B และล็อต C ไม่มีการโอนกรรมสิทธิ์") and record those lots as excluded rather than covered!
   const negatedSubclausePatterns = [
-    /(?:โดย|ซึ่ง|แต่|ส่วน)?\s*(?:ยังไม่มี|ไม่มี|ยังไม่ได้|ไม่ได้|มิได้|ไม่เคย)\s*(?:เหตุการณ์(?:ใด)?|การกระทำ(?:ใด)?|การ)?[^.;\n]{0,60}?(?:ของ|สำหรับ)?\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ)\s*[A-Z0-9ก-ฮ]+(?:\s*(?:,|และ|หรือ)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ)?\s*[A-Z0-9ก-ฮ]+)*/gi,
-    /(?:โดย|ซึ่ง|แต่|ส่วน)?\s*(?:สำหรับ\s*)?(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ)\s*[A-Z0-9ก-ฮ]+(?:\s*(?:,|และ|หรือ)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ)?\s*[A-Z0-9ก-ฮ]+)*\s*(?:ยังไม่มี|ไม่มี|ยังไม่ได้|ไม่ได้|มิได้|ไม่เคย|ยังไม่)/gi,
+    /(?:โดย|ซึ่ง|แต่|ส่วน)?\s*(?:ยังไม่มี|ไม่มี|ยังไม่ได้|ไม่ได้|มิได้|ไม่เคย)\s*(?:เหตุการณ์(?:ใด)?|การกระทำ(?:ใด)?|การ)?[^.;\n]{0,60}?(?:ของ|สำหรับ)?\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|lot|set|item)\s*[A-Z0-9ก-ฮ]+(?:\s*(?:,|และ|หรือ|กับ|\band\b|\bor\b)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|lot|set|item)?\s*[A-Z0-9ก-ฮ]+)*/gi,
+    /(?:โดย|ซึ่ง|แต่|ส่วน)?\s*(?:สำหรับ\s*)?(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|lot|set|item)\s*[A-Z0-9ก-ฮ]+(?:\s*(?:,|และ|หรือ|กับ|\band\b|\bor\b)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|lot|set|item)?\s*[A-Z0-9ก-ฮ]+)*\s*(?:ยังไม่มี|ไม่มี|ยังไม่ได้|ไม่ได้|มิได้|ไม่เคย|ยังไม่)/gi,
+    /\bno\s+(?:prior\s+|earlier\s+)?(?:event|events|act|acts|transfer|payment|invoice|tax\s+invoice)[^.;\n]{0,60}?\bfor\s+(?:lot|set|item)\s*[A-Z0-9]+(?:\s*(?:,|and|or)\s*(?:lot|set|item)?\s*[A-Z0-9]+)*/gi,
   ];
   let positiveSpanOnly = positiveSpanNoBoilerplate;
   const lotMentionRe =
-    /(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s|$|[.,()]))/gi;
+    /(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|set|batch|tranche|item)\s*([A-Z](?![A-Za-z0-9])|[1-9][0-9]?(?![0-9])|[ก-ฮ](?=\s|$|[.,()]))/gi;
   for (const negPat of negatedSubclausePatterns) {
     for (const nm of positiveSpanOnly.matchAll(negPat)) {
       for (const lm of nm[0].matchAll(lotMentionRe)) {
@@ -449,7 +463,7 @@ function extractLotReferencesFromClause(
   }
 
   const explicitCollectiveAllLots =
-    /(?:ทั้ง\s*[0-9]+\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทั้ง(?:สอง|สาม|สี่|ห้า)\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทุกล็อต|ทุกชุด|ทุกรายการ|สินค้าทั้งหมด|all\s+(?:[0-9]+\s+)?(?:lots?|batches?|items?|goods))/i.test(
+    /(?:ทั้ง\s*[0-9]+\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทั้ง(?:สอง|สาม|สี่|ห้า)\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|ทุกล็อต|ทุกชุด|ทุกรายการ|สินค้าทั้งหมด|\ball\s+(?:[0-9]+\s+)?(?:lots?|sets?|batches?|items?|goods))/i.test(
       positiveSpanOnly
     );
   const coversAllLots =
@@ -509,7 +523,7 @@ function extractDatesWithEventKinds(
   }
 
   const coBoundaryRe =
-    /(?:[.;]|ต่อมา|จากนั้น|ภายหลัง(?:จากนั้น)?|หลังจากนั้น|และ(?:ใน)?วันเดียวกัน|(?<![ก-๙])ส่วน(?=\s*(?:การ|ในส่วน|เหตุการณ์|ที่เหลือ|ล็อต|ล๊อต|ชุด|รายการ|สินค้า|สำหรับ|ของ))|แต่(?=\s*(?:ต่อมา|การ|ส่งมอบ|โอนกรรมสิทธิ์|รับชำระ|ชำระ|ออกใบกำกับ|ผู้|ลูกค้า|บริษัท|ยัง|ในวันที่|เมื่อวันที่|เลื่อน))|โดย(?=\s*(?:สำหรับ|ยังไม่มี|ไม่มี|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|โอนกรรมสิทธิ์|มีการโอนกรรมสิทธิ์|การส่งมอบ|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|จดทะเบียน|บริษัท|ผู้))|และ(?=\s*สำหรับ\s*(?:ล็อต|ล๊อต|ชุด|รายการ))|เดิม(?=\s*(?:มีแผน|วางแผน|กำหนด|ตกลง))|\((?=\s*(?:สินค้า|ไม่|ยัง|ส่วน|ล็อต|ชุด|รายการ))|(?:บริษัท|ลูกค้า|ผู้ให้บริการ|ผู้ประกอบการ|ผู้ขาย|ผู้ซื้อ|ผู้รับบริการ)(?=\s*(?:ออกใบกำกับ|แบ่งชำระ|แบ่งจ่าย|ชำระ|รับชำระ|จ่าย|ได้รับชำระ|โอนกรรมสิทธิ์|ส่งมอบ)))/gi;
+    /(?:[.;]|ทั้งนี้|ต่อมา|จากนั้น|ภายหลัง(?:จากนั้น)?|หลังจากนั้น|และ(?:ใน)?วันเดียวกัน|,\s*and\s+on\s+the\s+same\s+day|\band\s+on\s+the\s+same\s+day|(?<=บาท\)?\s+)(?=(?:(?:โอนกรรมสิทธิ์|ส่งมอบ|รับชำระ|ได้รับชำระ|ชำระ|ออกใบกำกับ)[^\n]{0,20}(?:ล็อต|ล๊อต|ชุดที่|รายการที่|lot)|(?:ล็อต|ล๊อต|ชุดที่|รายการที่|lot)\s*[A-Z1-9ก-ฮ]+\s*(?:โอนกรรมสิทธิ์|ส่งมอบ|รับชำระ|ได้รับชำระ|ชำระ|ออกใบกำกับ)))|(?<![ก-๙])ส่วน(?=\s*(?:การ|ในส่วน|เหตุการณ์|ที่เหลือ|ล็อต|ล๊อต|ชุด|รายการ|สินค้า|สำหรับ|ของ))|แต่(?=\s*(?:ต่อมา|การ|ส่งมอบ|โอนกรรมสิทธิ์|รับชำระ|ชำระ|ออกใบกำกับ|ผู้|ลูกค้า|บริษัท|ยัง|ในวันที่|เมื่อวันที่|เลื่อน))|โดย(?=\s*(?:สำหรับ|ยังไม่มี|ไม่มี|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|โอนกรรมสิทธิ์|มีการโอนกรรมสิทธิ์|การส่งมอบ|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|จดทะเบียน|บริษัท|ผู้))|และ(?=\s*สำหรับ\s*(?:ล็อต|ล๊อต|ชุด|รายการ))|เดิม(?=\s*(?:มีแผน|วางแผน|กำหนด|ตกลง))|\((?=\s*(?:สินค้า|ไม่|ยัง|ส่วน|ล็อต|ชุด|รายการ|no\s+early|no\s+prior))|(?:บริษัท|ลูกค้า|ผู้ให้บริการ|ผู้ประกอบการ|ผู้ขาย|ผู้ซื้อ|ผู้รับบริการ)(?=\s*(?:ออกใบกำกับ|แบ่งชำระ|แบ่งจ่าย|ชำระ|รับชำระ|จ่าย|ได้รับชำระ|โอนกรรมสิทธิ์|ส่งมอบ)))/gi;
 
   for (let k = 0; k < dateMatches.length; k++) {
     const { rawDate, iso, idx, endIdx } = dateMatches[k];
@@ -559,12 +573,15 @@ function extractDatesWithEventKinds(
     //  "ก่อนวันที่ 1 ตุลาคม 2569 ไม่มีการโอนกรรมสิทธิ์ รับชำระเงิน หรือออกใบกำกับภาษีใดๆ",
     //  "no payment or invoice before 1 October 2026") are NEVER positive VAT events on `iso`!
     const immediatePreDate = norm.slice(Math.max(prevEndIdx, idx - 34), idx);
+    const hasBeforeDeliveryDayDateCue =
+      /ก่อนวันส่งมอบ(?:สินค้า)?วันที่\s*$/.test(immediatePreDate);
     const hasBoundaryPrepositionBeforeDate =
+      !hasBeforeDeliveryDayDateCue &&
       /(?:ก่อนหน้า(?:วันที่|วัน)?|ในหรือก่อน(?:วันที่|วัน)?|ก่อน(?:วันที่|วัน)?|จนถึงก่อน(?:วันที่|วัน)?|\b(?:on\s+or\s+before|prior\s+to|before))\s*$/i.test(
         immediatePreDate
       );
     const hasPreDateNegationCue =
-      /(?:ยังไม่มี(?:การ|เหตุการณ์|การกระทำ)|ไม่มี(?:การ|เหตุการณ์|การกระทำ)|ยังไม่ได้(?:มีการ)?|ยังมิได้(?:มีการ)?|ไม่ได้(?:มีการ)?|มิได้(?:มีการ)?|ไม่เคย(?:มีการ)?|ปราศจากการ|\bno\s+(?:prior\s+|earlier\s+)?(?:event|events|act|acts|payment|invoice|tax\s+invoice|ownership|title|transfer|delivery)|\bwithout\s+(?:any\s+)?(?:prior\s+|earlier\s+)?(?:event|events|act|acts|payment|invoice|ownership|title|transfer)|\b(?:did|had|has)\s+not\b|\bnever\b)/i.test(
+      /(?:ยังไม่มี(?:การ|เหตุการณ์|การกระทำ|ใบกำกับ|การชำระ|การโอน|การส่งมอบ)|ไม่มี(?:การ|เหตุการณ์|การกระทำ|ใบกำกับ|การชำระ|การโอน|การส่งมอบ)|ยังไม่ได้(?:มีการ)?|ยังมิได้(?:มีการ)?|ไม่ได้(?:มีการ)?|มิได้(?:มีการ)?|ไม่เคย(?:มีการ)?|ปราศจากการ|\bno\s+(?:prior\s+|earlier\s+|early\s+)?(?:event|events|act|acts|payment|invoice|tax\s+invoice|ownership|title|transfer|delivery)|\bwithout\s+(?:any\s+)?(?:prior\s+|earlier\s+|early\s+)?(?:event|events|act|acts|payment|invoice|ownership|title|transfer)|\b(?:did|had|has)\s+not\b|\bnever\b)/i.test(
         rawCoClause
       );
     const postBeforeClauseBreak = rawPostSegment
@@ -575,6 +592,10 @@ function extractDatesWithEventKinds(
     const hasPostDateNegationCue =
       /^(?:นั้น\s*)?(?:(?:ทาง)?(?:บริษัท|ผู้ขาย|ผู้ประกอบการ|ลูกค้า|ผู้ซื้อ|คู่สัญญา|ทั้งนี้)\s*)?(?:ยังไม่มี(?:การ|เหตุการณ์|การกระทำ)|ไม่มี(?:การ|เหตุการณ์|การกระทำ)|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ยังไม่|ไม่เคย|there\s+(?:was|were|is|are)\s+no\b|no\s+(?:event|events|act|acts|payment|invoice|tax\s+invoice|ownership|title|transfer|delivery)|(?:did|had|has)\s+not\b)/i.test(
         postBeforeClauseBreak
+      );
+    const positiveWhenTailMatch =
+      /^\s*,?\s*(?:when|on\s+which(?:\s+date)?|ซึ่ง(?:มีการ)?|อันเป็นวันที่)\s+([^.;?]{6,140})/i.exec(
+        rawPostSegment
       );
     if (hasBoundaryPrepositionBeforeDate && (hasPreDateNegationCue || hasPostDateNegationCue)) {
       options?.nonOccurringOut?.push({
@@ -587,17 +608,19 @@ function extractDatesWithEventKinds(
           .slice(0, 180),
         source_turn: turnNumber,
       });
-      continue;
+      if (!positiveWhenTailMatch) {
+        continue;
+      }
     }
 
     const postQualifier = rawPostSegment
       .split(
-        /(?:(?<=เท่านั้น)\s+|(?<![ก-๙])ส่วน(?:การ|เหตุการณ์|ที่เหลือ|สินค้าที่เหลือ|ล็อต|ล๊อต|ชุด|รายการ|สำหรับ|ของ)|ต่อมา|จากนั้น|และ(?:ใน)?วันเดียวกัน|และ(?:ต่อมา|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|โอนกรรมสิทธิ์|งวด|ส่วน|อีก|สำหรับ\s*(?:ล็อต|ล๊อต|ชุด|รายการ))(?!.*ในวันเดียวกัน)|\band\s+(?:receiv|pay|paid|deliver|issu|transfer)|,\s*(?:and\s+|then\s+)?(?:receiv|pay|paid|deliver)|แต่|โดย(?:ยัง)?ไม่มี|โดย(?:สำหรับ\s*)?(?:ล็อต|ล๊อต|ชุด|รายการ|ส่วนที่เหลือ|สินค้าส่วนที่เหลือ)[^\n]{0,55}?(?:(?:ยัง)?ไม่มี|เหมือนเดิม|คงเดิม|ไม่เปลี่ยน)|ซึ่ง(?:ยัง)?ไม่มี|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/i
+        /(?:(?<=เท่านั้น)\s+|(?<![ก-๙])ส่วน(?:การ|เหตุการณ์|ที่เหลือ|สินค้าที่เหลือ|ล็อต|ล๊อต|ชุด|รายการ|สำหรับ|ของ)|ทั้งนี้|ต่อมา|จากนั้น|และ(?:ใน)?วันเดียวกัน|,\s*and\s+on\s+the\s+same\s+day|\band\s+on\s+the\s+same\s+day|และ(?:ต่อมา|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|โอนกรรมสิทธิ์|งวด|ส่วน|อีก|สำหรับ\s*(?:ล็อต|ล๊อต|ชุด|รายการ))(?!.*ในวันเดียวกัน)|\band\s+(?:receiv|pay|paid|deliver|issu|transfer)|,\s*(?:and\s+|then\s+)?(?:receiv|pay|paid|deliver|payment\b|tax\s+invoice\b)|แต่|โดย(?:ยัง)?ไม่มี|โดย(?:สำหรับ\s*)?(?:ล็อต|ล๊อต|ชุด|รายการ|ส่วนที่เหลือ|สินค้าส่วนที่เหลือ)[^\n]{0,55}?(?:(?:ยัง)?ไม่มี|เหมือนเดิม|คงเดิม|ไม่เปลี่ยน)|ซึ่ง(?:ยัง)?ไม่มี|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/i
       )[0]
       .trim();
     const postSameDayClause = rawPostSegment
       .split(
-        /(?:(?<=เท่านั้น)\s+|โดย(?:ยัง)?ไม่มี|โดย(?:สำหรับ\s*)?(?:ล็อต|ล๊อต|ชุด|รายการ|ส่วนที่เหลือ|สินค้าส่วนที่เหลือ)[^\n]{0,55}?(?:(?:ยัง)?ไม่มี|เหมือนเดิม|คงเดิม|ไม่เปลี่ยน)|ซึ่ง(?:ยัง)?ไม่มี|แต่|ต่อมา|จากนั้น|และ(?:ใน)?วันเดียวกัน(?=\s*\()|(?<![ก-๙])ส่วน(?:การ|เหตุการณ์|ที่เหลือ|สินค้าที่เหลือ|ล็อต|ล๊อต|ชุด|รายการ|สำหรับ|ของ)|และ\s*สำหรับ\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/
+        /(?:(?<=เท่านั้น)\s+|โดย(?:ยัง)?ไม่มี|โดย(?:สำหรับ\s*)?(?:ล็อต|ล๊อต|ชุด|รายการ|ส่วนที่เหลือ|สินค้าส่วนที่เหลือ)[^\n]{0,55}?(?:(?:ยัง)?ไม่มี|เหมือนเดิม|คงเดิม|ไม่เปลี่ยน)|ซึ่ง(?:ยัง)?ไม่มี|ทั้งนี้|แต่|ต่อมา|จากนั้น|และ(?:ใน)?วันเดียวกัน(?=\s*\()|,\s*and\s+on\s+the\s+same\s+day|\band\s+on\s+the\s+same\s+day|(?<![ก-๙])ส่วน(?:การ|เหตุการณ์|ที่เหลือ|สินค้าที่เหลือ|ล็อต|ล๊อต|ชุด|รายการ|สำหรับ|ของ)|และ\s*สำหรับ\s*(?:ล็อต|ล๊อต|ชุด|รายการ)|วันเกิด|ต้องใช้|ต้องเรียกเก็บ|ต้องคิด|คิดเป็น|เสียภาษี|[?;.])/i
       )[0]
       .trim();
 
@@ -670,13 +693,18 @@ function extractDatesWithEventKinds(
       );
     // When the action verb appears strictly AFTER the date (`เมื่อวันที่ 30 กันยายน 2569 บริษัทโอนกรรมสิทธิ์ในล็อต A...`),
     // NEVER concatenate verb-less pre-date preamble text (such as a multi-lot declaration schedule) into `effectiveClause`!
-    const effectiveClause = !hasPreDateVerb && postSameDayClause.length > 0
-      ? postSameDayClause
-      : postQualHasLotAssignment && !/(?:ในวันเดียวกัน|วันเดียวกันนั้น|พร้อมกันในวันนั้น|on\s+the\s+same\s+day)/i.test(postSameDayClause)
-        ? `${coClauseCleaned} ${postQualifier}`.trim()
-        : includePostSameDay
-          ? `${coClauseCleaned} ${postSameDayClause}`.trim()
-          : coClauseCleaned.trim();
+    const effectiveClause =
+      hasBeforeDeliveryDayDateCue
+        ? "ส่งมอบสินค้าทั้งหมด"
+        : hasBoundaryPrepositionBeforeDate && hasPreDateNegationCue && positiveWhenTailMatch
+          ? positiveWhenTailMatch[1].trim()
+        : !hasPreDateVerb && postSameDayClause.length > 0
+          ? postSameDayClause
+          : postQualHasLotAssignment && !/(?:ในวันเดียวกัน|วันเดียวกันนั้น|พร้อมกันในวันนั้น|on\s+the\s+same\s+day)/i.test(postSameDayClause)
+            ? `${coClauseCleaned} ${postQualifier}`.trim()
+            : includePostSameDay
+              ? `${coClauseCleaned} ${postSameDayClause}`.trim()
+              : coClauseCleaned.trim();
 
     // If the entire effective clause is purely negated after stripping coordinated negations (e.g. "วันที่ 1 ต.ค. ยังไม่มีการรับชำระเงินหรือออกใบกำกับภาษี"), skip!
     if (
@@ -708,27 +736,27 @@ function extractDatesWithEventKinds(
       topLotRefs.coveredLotIds.length >= 2
         ? effectiveClause
             .split(
-              /(?:\s+และ(?:ในวันเดียวกัน)?(?:\s*(?:บริษัท|ผู้ขาย|ผู้ประกอบการ))?(?=\s*(?:ได้รับชำระ|รับชำระ|ชำระ|ออกใบกำกับ|โอนกรรมสิทธิ์|ส่งมอบ))|\s*,\s*(?:and\s+)?(?=(?:receiv|paid|issu|transfer|deliver)))/i
+              /(?:\s+และ(?:ในวันเดียวกัน)?(?:\s*(?:บริษัท|ผู้ขาย|ผู้ประกอบการ))?(?=\s*(?:ได้รับชำระ|รับชำระ|ชำระ|ออกใบกำกับ|โอนกรรมสิทธิ์|ส่งมอบ))|\s*,\s*(?:and\s+)?(?=(?:receiv|paid|issu|transfer|deliver|payment\b|tax\s+invoice\b)))/i
             )
             .map((s) => s.trim())
             .filter((s) => s.length >= 6)
         : [effectiveClause];
 
     const invoiceIssuanceRe =
-      /(?:ออกใบกำกับภาษี(?!ไว้แล้ว)|ออกใบกำกับ(?!ภาษีไว้แล้ว)|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|\binvoiced\b)/i;
+      /(?:ออกใบกำกับภาษี(?!ไว้แล้ว)|ออกใบกำกับ(?!ภาษีไว้แล้ว)|ออกใบแจ้งหนี้|issue(?:d|s)?\s+(?:a\s+|an\s+|the\s+)?(?:partial\s+|full\s+|initial\s+)?(?:tax\s+)?invoice|(?:tax\s+)?invoice\s+(?:is|was|are|were)\s+issued|payment\s+(?:and|plus)\s+(?:a\s+)?tax\s+invoice|\binvoiced\b)/i;
     const paymentVerbRe =
-      /(?:ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+|full\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|(?:full\s+)?payment(?:\s+of)?\b|paid\b)/i;
+      /(?:ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่าบริการ|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน(?:ล่วงหน้า|มัดจำ|ค่าสินค้า|ชำระ)|receiv(?:e|ed|es)\s+(?:two\s+equal\s+|equal\s+|the\s+remaining\s+|partial\s+|final\s+|first\s+|second\s+|full\s+)?(?:payment(?:s)?|installment(?:s)?|THB|฿)|(?:full\s+)?payment(?:\s+(?:of|is|was|plus|and))?\b|paid\b)/i;
     const deliveryVerbRe =
-      /(?:ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ส่งสินค้า(?!ออก)|ส่งมอบ(?!บริการ)|\bdeliver(?:y|ed|s)?(?:\s+of)?(?:\s+(?:the\s+|all\s+)?goods)?\b)/i;
+      /(?:ส่งมอบสินค้า|ส่งมอบของ|ส่งของ|ส่งสินค้า(?!ออก)|ส่งมอบ(?!บริการ)|\bdeliver(?:y|ed|s)?(?:\s+of)?(?:\s+(?:the\s+|all\s+)?(?:[0-9]+\s+)?(?:goods|lots?|sets?|items?))?\b)/i;
     const actualOwnershipTransferRe =
-      /(?:โอนกรรมสิทธิ์|กรรมสิทธิ์(?:ในสินค้า|ของสินค้า|ในทรัพย์สินที่ขาย|สินค้า)?(?:ได้)?(?:โอน|ตกเป็นของ|เปลี่ยนมือ)|ผู้ซื้อได้(?:รับ)?กรรมสิทธิ์|(?:full\s+|partial\s+)?(?:ownership|title)(?:\s+(?:in|to|of)\s+(?:the\s+)?goods)?\s+(?:transfers?|transferred|passes?|passed)|transfer(?:s|red)?\s+(?:full\s+|partial\s+)?(?:ownership|title))/i;
+      /(?:โอนกรรมสิทธิ์|กรรมสิทธิ์(?:ในสินค้า|ของสินค้า|ในทรัพย์สินที่ขาย|สินค้า)?(?:ได้)?(?:โอน|ตกเป็นของ|เปลี่ยนมือ)|ผู้ซื้อได้(?:รับ)?กรรมสิทธิ์|(?:full\s+|partial\s+)?(?:ownership|title)(?:\s+(?:in|to|of)\s+[^\n,.;]{1,35})?\s+(?:transfers?|transferred|passes?|passed)|transfer(?:s|red)?\s+(?:full\s+|partial\s+)?(?:ownership|title))/i;
 
     for (const subClauseRaw of actionSubClauses) {
       // Strip relative comparators (`ก่อนส่งมอบสินค้า`, `ก่อนรับชำระเงิน`, `prior to delivery`) before verb detection
       // so an early event described as occurring "before delivery/payment" never emits the comparator event on this date!
       const verbCheckClause = subClauseRaw
         .replace(
-          /(?:ก่อน|หลัง(?:จาก)?|แทนการ)\s*(?:การ)?(?:ส่งมอบ(?:สินค้า|ของ|บริการ)?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|รับชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ออกใบกำกับ(?:ภาษี)?|ใช้บริการ)/gi,
+          /(?:ก่อน|หลัง(?:จาก)?|แทนการ)\s*(?:การ|วัน)?(?:ส่งมอบ(?:สินค้า|ของ|บริการ)?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|รับชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ออกใบกำกับ(?:ภาษี)?|ใช้บริการ)/gi,
           " "
         )
         .replace(
@@ -1527,7 +1555,18 @@ export function buildStructuredCaseFactLedger(input: {
     }
 
     // 6. Amounts & declared goods lot schedules
-    extractAmountsForTurn(cleaned, turnNumber, factsMap, overrides);
+    // Prevent a follow-up restating a single lot's existing value (e.g. "เฉพาะล็อต C มูลค่า 10,000 บาท")
+    // from overwriting the overall transaction total (`50,000 บาท`) unless a total-price override cue is stated.
+    const isSingleLotFollowUpAmountMention =
+      turnNumber >= 2 &&
+      declaredLotsMap.size >= 2 &&
+      /(?:ล็อต|ล๊อต|ชุดที่|รายการที่|\blot\b)/i.test(thaiDigitsToArabic(cleaned)) &&
+      !/(?:ราคารวม|มูลค่ารวม|ราคาสินค้าทั้งหมด|แก้ราคาขายรวม|เปลี่ยนราคารวม|total\s+(?:price|value|amount))/i.test(
+        thaiDigitsToArabic(cleaned)
+      );
+    if (!isSingleLotFollowUpAmountMention) {
+      extractAmountsForTurn(cleaned, turnNumber, factsMap, overrides);
+    }
     const turnDeclaredLots = extractDeclaredGoodsLots(cleaned, turnNumber);
     for (const lot of turnDeclaredLots) {
       declaredLotsMap.set(lot.lot_id, lot);
@@ -2815,7 +2854,7 @@ export function buildStructuredCaseFactLedger(input: {
     ambiguityReasonTh = "ไม่ปรากฏวันที่เกิดความรับผิดทางภาษีในคำถามหรือคำขอ";
   }
 
-  return {
+  const builtLedger: StructuredCaseFactLedger = {
     turn_count: allUserTurns.length,
     is_new_conversation: isNewConversation,
     user_turns: userTurnsOut,
@@ -2852,4 +2891,871 @@ export function buildStructuredCaseFactLedger(input: {
       is_ambiguous_lan_sao: isAmbiguousLanSao,
     },
   };
+  const stateHash = computeLedgerStateHash(builtLedger);
+  builtLedger.ledger_state_hash = stateHash;
+  if (builtLedger.temporal_facts.vat_portion_allocation_record) {
+    builtLedger.temporal_facts.vat_portion_allocation_record.ledger_after_hash = stateHash;
+  }
+  return builtLedger;
+}
+
+const THAI_MONTH_NAMES = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+
+function formatIsoDateToThaiLabel(iso: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return iso;
+  const yearBe = Number(m[1]) + 543;
+  const monthIdx = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  const monthName = THAI_MONTH_NAMES[monthIdx] || m[2];
+  return `${day} ${monthName} ${yearBe}`;
+}
+
+function vatWindowBucketForIso(iso: string): string {
+  if (iso >= "2024-10-01" && iso <= "2025-09-30") return "RD_790";
+  if (iso >= "2025-10-01" && iso <= "2026-09-30") return "RD_799";
+  if (iso >= "2026-10-01" && iso <= "2027-09-30") return "RD_807";
+  if (iso > "2027-09-30") return "POST_807";
+  if (iso >= "2023-10-01" && iso <= "2024-09-30") return "RD_780";
+  return "PRE_CUTOFF_BEFORE_2023_10_01";
+}
+
+function governingDecreeWorkIdForIsoDate(iso: string): string | null {
+  if (iso >= "2023-10-01" && iso <= "2024-09-30") return "subreg.th.rc.royal_decree.780";
+  if (iso >= "2024-10-01" && iso <= "2025-09-30") return "subreg.th.rc.royal_decree.790";
+  if (iso >= "2025-10-01" && iso <= "2026-09-30") return "subreg.th.rc.royal_decree.799";
+  if (iso >= "2026-10-01" && iso <= "2027-09-30") return "subreg.th.rc.royal_decree.807";
+  return null;
+}
+
+function computeVerifiedVatForIsoAndBase(
+  iso: string,
+  baseThb: number
+): { ratePct: number | null; vatThb: number | null; grossThb: number | null } {
+  const within = iso >= VAT_RATE_VERIFIED_COVERAGE_START_ISO;
+  const govWid = governingDecreeWorkIdForIsoDate(iso);
+  if (!within || !govWid || !Number.isFinite(baseThb) || baseThb <= 0) {
+    return { ratePct: null, vatThb: null, grossThb: null };
+  }
+  const vatThb = Math.round(baseThb * 0.07 * 100) / 100;
+  const grossThb = Math.round((baseThb + vatThb) * 100) / 100;
+  return { ratePct: 7, vatThb, grossThb };
+}
+
+function deltaGoodsEventActionTh(k: TemporalEventKind): string {
+  return k === "OWNERSHIP_TRANSFER"
+    ? "โอนกรรมสิทธิ์ในสินค้า"
+    : k === "PAYMENT"
+      ? "รับชำระราคาสินค้า"
+      : k === "DELIVERY"
+        ? "ส่งมอบสินค้า"
+        : "ออกใบกำกับภาษี";
+}
+
+function deltaGoodsEventSubclauseTh(k: TemporalEventKind): string {
+  return k === "OWNERSHIP_TRANSFER"
+    ? "มาตรา 78 (1) (ก)"
+    : k === "PAYMENT"
+      ? "มาตรา 78 (1) (ข)"
+      : k === "DELIVERY"
+        ? "มาตรา 78 (1)"
+        : "มาตรา 78 (1) (ค)";
+}
+
+/**
+ * C12 A3/B3: Deterministic SHA-256 fingerprint of a ledger's semantic state
+ * (declared lots, active temporal events, legal_as_of_date, and core allocation record).
+ * Deliberately excludes `ledger_after_hash` itself so stamping is idempotent.
+ */
+export function computeLedgerStateHash(ledger: StructuredCaseFactLedger): string {
+  const lots = [...(ledger.temporal_facts.declared_goods_lots || [])]
+    .sort((a, b) => a.lot_id.localeCompare(b.lot_id))
+    .map((l) => ({ lot_id: l.lot_id, amount_thb: l.amount_thb }));
+
+  const events = (ledger.temporal_facts.transaction_or_event_dates || [])
+    .filter((e) => e.event_status !== "NEGATED" && e.event_type !== "QUESTION_DATE")
+    .map((e) => ({
+      event_type: e.event_type,
+      iso_date: e.iso_date,
+      covered_lot_ids: [...(e.covered_lot_ids || [])].sort(),
+      explicitly_excluded_lot_ids: [...(e.explicitly_excluded_lot_ids || [])].sort(),
+      portion_coverage: e.portion_coverage || "UNSTATED",
+      amount_thb: e.amount_thb ?? null,
+    }))
+    .sort((a, b) =>
+      `${a.iso_date}|${a.event_type}|${a.covered_lot_ids.join(",")}|${a.portion_coverage}|${a.amount_thb ?? ""}`.localeCompare(
+        `${b.iso_date}|${b.event_type}|${b.covered_lot_ids.join(",")}|${b.portion_coverage}|${b.amount_thb ?? ""}`
+      )
+    );
+
+  const alloc = ledger.temporal_facts.vat_portion_allocation_record;
+  const allocCore = alloc
+    ? {
+        allocation_status: alloc.allocation_status,
+        transaction_base_thb: alloc.transaction_base_thb,
+        lots: [...alloc.lot_allocations]
+          .sort((a, b) => a.lot_id.localeCompare(b.lot_id))
+          .map((la) => ({
+            lot_id: la.lot_id,
+            taxable_base_thb: la.taxable_base_thb,
+            controlling_tax_point_iso: la.controlling_tax_point_iso,
+            controlling_event_type: la.controlling_event_type,
+            decree_window: la.decree_window,
+            verified_vat_thb: la.verified_vat_thb,
+          })),
+        buckets: alloc.tax_date_buckets.map((b) => ({
+          iso_date: b.iso_date,
+          decree_window: b.decree_window,
+          amount_thb: b.amount_thb ?? null,
+          lot_ids: [...(b.lot_ids || [])].sort(),
+        })),
+      }
+    : null;
+
+  const valueFacts = ledger.material_facts
+    .filter((f) => /_thb$/i.test(f.fact_key))
+    .map((f) => ({ k: f.fact_key, c: f.normalized_category }))
+    .sort((a, b) => a.k.localeCompare(b.k));
+
+  return sha256Bytes(
+    JSON.stringify({
+      lots,
+      events,
+      legal_as_of_date: ledger.temporal_facts.legal_as_of_date ?? null,
+      controlling_iso: ledger.temporal_facts.controlling_tax_point.iso_date ?? null,
+      alloc: allocCore,
+      valueFacts,
+    })
+  );
+}
+
+/**
+ * C12 A3 Pure Delta Applicator:
+ * Applies a validated `FactDelta` to `priorLedger` without mutating `priorLedger`,
+ * then deterministically rebuilds `vat_portion_allocation_record`, `split_payment_tax_points`,
+ * and `controlling_tax_point` from scratch (NEVER copying the prior turn's allocation record),
+ * and stamps `ledger_state_hash` / `ledger_after_hash`.
+ */
+export function applyFactDelta(
+  priorLedger: StructuredCaseFactLedger,
+  delta: FactDelta,
+  opts?: { userTurnText?: string; applicableDate?: string | null }
+): StructuredCaseFactLedger {
+  const nextTurnNumber = priorLedger.turn_count + (opts?.userTurnText ? 1 : 0);
+  const clonedLots: DeclaredGoodsLot[] = (priorLedger.temporal_facts.declared_goods_lots || []).map(
+    (l) => ({ ...l })
+  );
+  const lotMap = new Map<string, DeclaredGoodsLot>(clonedLots.map((l) => [l.lot_id, l]));
+  const allDeclaredIds = clonedLots.map((l) => l.lot_id);
+
+  let workingEvents: PreservedTemporalEvent[] = (
+    priorLedger.temporal_facts.transaction_or_event_dates || []
+  ).map((e) => ({
+    ...e,
+    ...(e.covered_lot_ids ? { covered_lot_ids: [...e.covered_lot_ids] } : {}),
+    ...(e.explicitly_excluded_lot_ids
+      ? { explicitly_excluded_lot_ids: [...e.explicitly_excluded_lot_ids] }
+      : {}),
+  }));
+
+  const clonedMaterialFacts: PreservedMaterialFact[] = priorLedger.material_facts.map((f) => ({
+    ...f,
+    overridden_from: f.overridden_from ? { ...f.overridden_from } : null,
+  }));
+  const clonedOverrides = priorLedger.overrides.map((o) => ({ ...o }));
+  const clonedUserTurns = priorLedger.user_turns.map((t) => ({ ...t }));
+  if (opts?.userTurnText) {
+    clonedUserTurns.push({
+      turn_number: nextTurnNumber,
+      raw_text: opts.userTurnText,
+      cleaned_active_text: stripNegatedFactualClauses(opts.userTurnText),
+      explicit_applicable_date: opts.applicableDate ?? null,
+    });
+  }
+
+  const computeLotSubsetSum = (lotIds: string[]): number | null => {
+    if (lotIds.length === 0 || lotMap.size === 0) return null;
+    const sum = lotIds.reduce((s, lid) => s + (lotMap.get(lid)?.amount_thb ?? 0), 0);
+    return sum > 0 ? Math.round(sum * 100) / 100 : null;
+  };
+  const formatLotLabels = (lotIds: string[]): string =>
+    lotIds.map((lid) => lotMap.get(lid)?.label_th || lid).join(" และ ");
+
+  const buildFreshEvent = (params: {
+    eventType: TemporalEventKind;
+    isoDate: string;
+    lots: string[];
+    amountThb: number | null;
+    sourceSpan: string;
+  }): PreservedTemporalEvent => {
+    const coverAll =
+      allDeclaredIds.length > 0 && params.lots.length >= allDeclaredIds.length;
+    const computedAmt = params.amountThb ?? computeLotSubsetSum(params.lots);
+    return {
+      event_type: params.eventType,
+      iso_date: params.isoDate,
+      raw_text: formatIsoDateToThaiLabel(params.isoDate),
+      source_turn: nextTurnNumber,
+      event_status: "ACTUAL",
+      provenance_clause_th: params.sourceSpan,
+      ...(computedAmt !== null ? { amount_thb: computedAmt } : {}),
+      portion_coverage:
+        allDeclaredIds.length === 0
+          ? "UNSTATED"
+          : coverAll
+            ? "FULL"
+            : params.lots.length > 0
+              ? "PARTIAL"
+              : "UNSTATED",
+      ...(params.lots.length > 0
+        ? {
+            covered_lot_ids: [...params.lots],
+            covered_goods_label_th: formatLotLabels(params.lots),
+          }
+        : {}),
+      ...(params.eventType === "DELIVERY" ? { is_goods_delivery: true } : {}),
+    };
+  };
+
+  for (const ch of delta.changes) {
+    const targetLots = [...ch.lots];
+
+    if (ch.op === "reassign_lots") {
+      const matchDate = ch.from_date || ch.to_date;
+      const newDate = ch.to_date || ch.from_date;
+      const matchesEvent = (e: PreservedTemporalEvent) => {
+        if (e.event_status === "NEGATED" || e.event_type === "QUESTION_DATE") return false;
+        if (ch.event_type && e.event_type !== ch.event_type) return false;
+        if (!ch.event_type && !["OWNERSHIP_TRANSFER", "DELIVERY", "PAYMENT", "INVOICE"].includes(e.event_type)) {
+          return false;
+        }
+        if (matchDate && e.iso_date !== matchDate) return false;
+        return true;
+      };
+
+      const matchedIndices: number[] = [];
+      for (let i = 0; i < workingEvents.length; i++) {
+        if (matchesEvent(workingEvents[i])) matchedIndices.push(i);
+      }
+
+      if (ch.lots_mode === "only") {
+        if (matchedIndices.length > 0) {
+          const groupedByType = new Map<TemporalEventKind, PreservedTemporalEvent[]>();
+          for (const idx of matchedIndices) {
+            const ev = workingEvents[idx];
+            const arr = groupedByType.get(ev.event_type) || [];
+            arr.push(ev);
+            groupedByType.set(ev.event_type, arr);
+          }
+          const matchedSet = new Set(matchedIndices);
+          workingEvents = workingEvents.filter((_, i) => !matchedSet.has(i));
+          for (const [evType, oldGroup] of groupedByType.entries()) {
+            const effectiveIso = newDate || oldGroup[0].iso_date;
+            workingEvents.push(
+              buildFreshEvent({
+                eventType: evType,
+                isoDate: effectiveIso,
+                lots: targetLots,
+                amountThb: ch.amount_thb,
+                sourceSpan: ch.source_span,
+              })
+            );
+          }
+        } else if (ch.event_type && newDate && targetLots.length > 0) {
+          workingEvents.push(
+            buildFreshEvent({
+              eventType: ch.event_type,
+              isoDate: newDate,
+              lots: targetLots,
+              amountThb: ch.amount_thb,
+              sourceSpan: ch.source_span,
+            })
+          );
+        }
+      } else if (ch.lots_mode === "add") {
+        if (matchedIndices.length > 0) {
+          for (const idx of matchedIndices) {
+            const ev = workingEvents[idx];
+            const merged = Array.from(new Set([...(ev.covered_lot_ids || []), ...targetLots]));
+            workingEvents[idx] = {
+              ...ev,
+              iso_date: newDate || ev.iso_date,
+              raw_text: formatIsoDateToThaiLabel(newDate || ev.iso_date),
+              source_turn: nextTurnNumber,
+              provenance_clause_th: ch.source_span,
+              covered_lot_ids: merged,
+              covered_goods_label_th: formatLotLabels(merged),
+              portion_coverage:
+                allDeclaredIds.length > 0 && merged.length >= allDeclaredIds.length
+                  ? "FULL"
+                  : "PARTIAL",
+              amount_thb: ch.amount_thb ?? computeLotSubsetSum(merged) ?? ev.amount_thb,
+              explicitly_excluded_lot_ids: (ev.explicitly_excluded_lot_ids || []).filter(
+                (id) => !targetLots.includes(id)
+              ),
+            };
+          }
+        } else if (ch.event_type && newDate && targetLots.length > 0) {
+          workingEvents.push(
+            buildFreshEvent({
+              eventType: ch.event_type,
+              isoDate: newDate,
+              lots: targetLots,
+              amountThb: ch.amount_thb,
+              sourceSpan: ch.source_span,
+            })
+          );
+        }
+      } else if (ch.lots_mode === "remove") {
+        const nextList: PreservedTemporalEvent[] = [];
+        for (let i = 0; i < workingEvents.length; i++) {
+          const ev = workingEvents[i];
+          if (!matchedIndices.includes(i)) {
+            nextList.push(ev);
+            continue;
+          }
+          const baseLots =
+            ev.covered_lot_ids && ev.covered_lot_ids.length > 0
+              ? ev.covered_lot_ids
+              : [...allDeclaredIds];
+          const remaining = baseLots.filter((id) => !targetLots.includes(id));
+          if (remaining.length === 0) continue;
+          nextList.push({
+            ...ev,
+            source_turn: nextTurnNumber,
+            provenance_clause_th: ch.source_span,
+            covered_lot_ids: remaining,
+            covered_goods_label_th: formatLotLabels(remaining),
+            portion_coverage:
+              allDeclaredIds.length > 0 && remaining.length >= allDeclaredIds.length
+                ? "FULL"
+                : "PARTIAL",
+            amount_thb: computeLotSubsetSum(remaining) ?? ev.amount_thb,
+          });
+        }
+        workingEvents = nextList;
+      }
+
+      clonedOverrides.push({
+        fact_key: `fact_delta:reassign_lots:${ch.event_type || "ALL"}:${matchDate || "*"}`,
+        from_text_th: `${matchDate || "-"}`,
+        from_turn: Math.max(1, nextTurnNumber - 1),
+        to_text_th: `${newDate || matchDate || "-"} (${formatLotLabels(targetLots)}, ${ch.lots_mode})`,
+        to_turn: nextTurnNumber,
+      });
+    } else if (ch.op === "set_event") {
+      const targetDate = ch.to_date || ch.from_date;
+      if (!ch.event_type || !targetDate) continue;
+      const effectiveLots = targetLots.length > 0 ? targetLots : [...allDeclaredIds];
+
+      // If `from_date` is set and differs from `targetDate`, detach `effectiveLots` from `from_date` first.
+      if (ch.from_date && ch.from_date !== targetDate) {
+        const strippedFrom: PreservedTemporalEvent[] = [];
+        for (const ev of workingEvents) {
+          if (ev.event_type === ch.event_type && ev.iso_date === ch.from_date) {
+            const baseLots =
+              ev.covered_lot_ids && ev.covered_lot_ids.length > 0
+                ? ev.covered_lot_ids
+                : [...allDeclaredIds];
+            const rem = baseLots.filter((id) => !effectiveLots.includes(id));
+            if (rem.length > 0) {
+              strippedFrom.push({
+                ...ev,
+                covered_lot_ids: rem,
+                covered_goods_label_th: formatLotLabels(rem),
+                portion_coverage:
+                  allDeclaredIds.length > 0 && rem.length >= allDeclaredIds.length
+                    ? "FULL"
+                    : "PARTIAL",
+                amount_thb: computeLotSubsetSum(rem) ?? ev.amount_thb,
+              });
+            }
+            continue;
+          }
+          strippedFrom.push(ev);
+        }
+        workingEvents = strippedFrom;
+      }
+
+      // Deduplicate/replace on `targetDate`
+      const cleanedTarget: PreservedTemporalEvent[] = [];
+      const exclusiveSameDateReassign =
+        ch.lots_mode === "only" && Boolean(ch.from_date && ch.from_date === targetDate);
+      for (const ev of workingEvents) {
+        if (ev.event_type === ch.event_type && ev.iso_date === targetDate) {
+          if (exclusiveSameDateReassign) {
+            continue;
+          }
+          if (effectiveLots.length === 0) continue;
+          const baseLots =
+            ev.covered_lot_ids && ev.covered_lot_ids.length > 0
+              ? ev.covered_lot_ids
+              : [...allDeclaredIds];
+          const rem = baseLots.filter((id) => !effectiveLots.includes(id));
+          if (rem.length > 0) {
+            cleanedTarget.push({
+              ...ev,
+              covered_lot_ids: rem,
+              covered_goods_label_th: formatLotLabels(rem),
+              portion_coverage:
+                allDeclaredIds.length > 0 && rem.length >= allDeclaredIds.length
+                  ? "FULL"
+                  : "PARTIAL",
+              amount_thb: computeLotSubsetSum(rem) ?? ev.amount_thb,
+            });
+          }
+          continue;
+        }
+        cleanedTarget.push(ev);
+      }
+      cleanedTarget.push(
+        buildFreshEvent({
+          eventType: ch.event_type,
+          isoDate: targetDate,
+          lots: effectiveLots,
+          amountThb: ch.amount_thb,
+          sourceSpan: ch.source_span,
+        })
+      );
+      workingEvents = cleanedTarget;
+
+      clonedOverrides.push({
+        fact_key: `fact_delta:set_event:${ch.event_type}:${effectiveLots.join("+") || "ALL"}`,
+        from_text_th: ch.from_date || "-",
+        from_turn: Math.max(1, nextTurnNumber - 1),
+        to_text_th: `${targetDate} (${formatLotLabels(effectiveLots)})`,
+        to_turn: nextTurnNumber,
+      });
+    } else if (ch.op === "shift_date") {
+      if (!ch.from_date || !ch.to_date || ch.from_date === ch.to_date) continue;
+      const nextList: PreservedTemporalEvent[] = [];
+      for (const ev of workingEvents) {
+        if (ev.iso_date !== ch.from_date) {
+          nextList.push(ev);
+          continue;
+        }
+        if (ch.event_type && ev.event_type !== ch.event_type) {
+          nextList.push(ev);
+          continue;
+        }
+        if (targetLots.length === 0) {
+          nextList.push({
+            ...ev,
+            iso_date: ch.to_date,
+            raw_text: formatIsoDateToThaiLabel(ch.to_date),
+            source_turn: nextTurnNumber,
+            provenance_clause_th: `[แก้ไขวันที่จาก ${ch.from_date} เป็น ${ch.to_date}] ${ch.source_span}`.slice(
+              0,
+              180
+            ),
+          });
+          continue;
+        }
+        const evLots =
+          ev.covered_lot_ids && ev.covered_lot_ids.length > 0
+            ? ev.covered_lot_ids
+            : [...allDeclaredIds];
+        const moving = evLots.filter((id) => targetLots.includes(id));
+        const staying = evLots.filter((id) => !targetLots.includes(id));
+        if (moving.length === 0) {
+          nextList.push(ev);
+          continue;
+        }
+        if (staying.length > 0) {
+          nextList.push({
+            ...ev,
+            covered_lot_ids: staying,
+            covered_goods_label_th: formatLotLabels(staying),
+            portion_coverage:
+              allDeclaredIds.length > 0 && staying.length >= allDeclaredIds.length
+                ? "FULL"
+                : "PARTIAL",
+            amount_thb: computeLotSubsetSum(staying) ?? ev.amount_thb,
+          });
+        }
+        nextList.push({
+          ...ev,
+          iso_date: ch.to_date,
+          raw_text: formatIsoDateToThaiLabel(ch.to_date),
+          source_turn: nextTurnNumber,
+          provenance_clause_th: `[แก้ไขวันที่จาก ${ch.from_date} เป็น ${ch.to_date}] ${ch.source_span}`.slice(
+            0,
+            180
+          ),
+          covered_lot_ids: moving,
+          covered_goods_label_th: formatLotLabels(moving),
+          portion_coverage:
+            allDeclaredIds.length > 0 && moving.length >= allDeclaredIds.length
+              ? "FULL"
+              : "PARTIAL",
+          amount_thb: computeLotSubsetSum(moving) ?? ev.amount_thb,
+        });
+      }
+      workingEvents = nextList;
+
+      clonedOverrides.push({
+        fact_key: `fact_delta:shift_date:${ch.from_date}`,
+        from_text_th: ch.from_date,
+        from_turn: Math.max(1, nextTurnNumber - 1),
+        to_text_th: ch.to_date,
+        to_turn: nextTurnNumber,
+      });
+    } else if (ch.op === "remove_event") {
+      const targetDate = ch.from_date || ch.to_date;
+      const nextList: PreservedTemporalEvent[] = [];
+      for (const ev of workingEvents) {
+        const typeMatch = !ch.event_type || ev.event_type === ch.event_type;
+        const dateMatch = !targetDate || ev.iso_date === targetDate;
+        if (!typeMatch || !dateMatch) {
+          nextList.push(ev);
+          continue;
+        }
+        if (targetLots.length === 0) {
+          continue;
+        }
+        const evLots =
+          ev.covered_lot_ids && ev.covered_lot_ids.length > 0
+            ? ev.covered_lot_ids
+            : [...allDeclaredIds];
+        const remaining = evLots.filter((id) => !targetLots.includes(id));
+        if (remaining.length > 0) {
+          nextList.push({
+            ...ev,
+            source_turn: nextTurnNumber,
+            covered_lot_ids: remaining,
+            covered_goods_label_th: formatLotLabels(remaining),
+            portion_coverage:
+              allDeclaredIds.length > 0 && remaining.length >= allDeclaredIds.length
+                ? "FULL"
+                : "PARTIAL",
+            amount_thb: computeLotSubsetSum(remaining) ?? ev.amount_thb,
+          });
+        }
+      }
+      workingEvents = nextList;
+
+      clonedOverrides.push({
+        fact_key: `fact_delta:remove_event:${ch.event_type || "ALL"}:${targetDate || "*"}`,
+        from_text_th: `${ch.event_type || "ALL"} @ ${targetDate || "*"}`,
+        from_turn: Math.max(1, nextTurnNumber - 1),
+        to_text_th: "removed",
+        to_turn: nextTurnNumber,
+      });
+    } else if (ch.op === "set_amount" && ch.amount_thb !== null && ch.amount_thb > 0) {
+      if (targetLots.length === 1 && lotMap.has(targetLots[0])) {
+        const lot = lotMap.get(targetLots[0])!;
+        const prevAmt = lot.amount_thb;
+        lot.amount_thb = ch.amount_thb;
+        lot.source_turn = nextTurnNumber;
+        const newTotal = clonedLots.reduce((s, l) => s + l.amount_thb, 0);
+        const valFact = clonedMaterialFacts.find(
+          (f) => f.fact_key === "stated_asset_value_thb" || f.fact_key === "service_or_sale_consideration_thb"
+        );
+        if (valFact) {
+          valFact.overridden_from = {
+            previous_text_th: valFact.original_text_th,
+            previous_category: valFact.normalized_category,
+            previous_turn: valFact.source_turn,
+          };
+          valFact.original_text_th = `${newTotal.toLocaleString("en-US")} บาท`;
+          valFact.normalized_category = `STATED_VALUE_THB_${Math.round(newTotal)}`;
+          valFact.source_turn = nextTurnNumber;
+        }
+        clonedOverrides.push({
+          fact_key: `fact_delta:set_amount:${lot.lot_id}`,
+          from_text_th: `${prevAmt.toLocaleString("en-US")} บาท`,
+          from_turn: Math.max(1, nextTurnNumber - 1),
+          to_text_th: `${ch.amount_thb.toLocaleString("en-US")} บาท`,
+          to_turn: nextTurnNumber,
+        });
+      } else if (targetLots.length === 0) {
+        const valFact = clonedMaterialFacts.find(
+          (f) => f.fact_key === "stated_asset_value_thb" || f.fact_key === "service_or_sale_consideration_thb"
+        );
+        const prevText = valFact?.original_text_th || "-";
+        if (valFact) {
+          valFact.overridden_from = {
+            previous_text_th: valFact.original_text_th,
+            previous_category: valFact.normalized_category,
+            previous_turn: valFact.source_turn,
+          };
+          valFact.original_text_th = `${ch.amount_thb.toLocaleString("en-US")} บาท`;
+          valFact.normalized_category = `STATED_VALUE_THB_${Math.round(ch.amount_thb)}`;
+          valFact.source_turn = nextTurnNumber;
+        }
+        clonedOverrides.push({
+          fact_key: "fact_delta:set_amount:TOTAL",
+          from_text_th: prevText,
+          from_turn: Math.max(1, nextTurnNumber - 1),
+          to_text_th: `${ch.amount_thb.toLocaleString("en-US")} บาท`,
+          to_turn: nextTurnNumber,
+        });
+      }
+    }
+  }
+
+  // Rebuild `vat_portion_allocation_record` and `controlling_tax_point` deterministically from scratch
+  // (NEVER copying `priorLedger.temporal_facts.vat_portion_allocation_record`!).
+  const activeEvents = workingEvents.filter(
+    (e) => e.event_status !== "NEGATED" && e.event_type !== "QUESTION_DATE"
+  );
+  const goodsDeliveries = activeEvents
+    .filter((e) => e.is_goods_delivery || e.event_type === "DELIVERY")
+    .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
+  const primaryDelivery = goodsDeliveries[0] || null;
+
+  let rebuiltAlloc: VerifiedGoodsVatAllocationRecord | undefined = undefined;
+  let rebuiltSplitPoints: SplitPaymentTaxPointItem[] | undefined = undefined;
+  let rebuiltControlling = { ...priorLedger.temporal_facts.controlling_tax_point };
+
+  if (clonedLots.length >= 2) {
+    const eventRank = (k: TemporalEventKind) =>
+      k === "OWNERSHIP_TRANSFER" ? 0 : k === "PAYMENT" ? 1 : k === "INVOICE" ? 2 : 3;
+    const lotAllocations: GoodsLotAllocationItem[] = [];
+
+    for (const lot of clonedLots) {
+      const lotEvents = activeEvents
+        .filter((ev) => {
+          if (
+            ev.event_type !== "OWNERSHIP_TRANSFER" &&
+            ev.event_type !== "PAYMENT" &&
+            ev.event_type !== "INVOICE" &&
+            ev.event_type !== "DELIVERY"
+          ) {
+            return false;
+          }
+          if (ev.explicitly_excluded_lot_ids?.includes(lot.lot_id)) return false;
+          if (ev.covered_lot_ids && ev.covered_lot_ids.length > 0) {
+            return ev.covered_lot_ids.includes(lot.lot_id);
+          }
+          return ev.portion_coverage === "FULL" || ev.event_type === "DELIVERY";
+        })
+        .sort((a, b) => {
+          const d = a.iso_date.localeCompare(b.iso_date);
+          if (d !== 0) return d;
+          return eventRank(a.event_type) - eventRank(b.event_type);
+        });
+
+      const primaryEv = lotEvents[0] || primaryDelivery;
+      if (!primaryEv) continue;
+
+      const subsequentNonTaxable = lotEvents
+        .slice(1)
+        .filter((ev) => ev.iso_date > primaryEv.iso_date)
+        .map((ev) => ({
+          event_type: ev.event_type,
+          iso_date: ev.iso_date,
+          raw_text: ev.raw_text,
+          provenance_clause_th: ev.provenance_clause_th || "",
+          reason_th: `${lot.label_th} เกิดความรับผิดทางภาษีมูลค่าเพิ่มไปแล้วเมื่อวันที่ ${primaryEv.iso_date} (${deltaGoodsEventActionTh(primaryEv.event_type)}) — การ${deltaGoodsEventActionTh(ev.event_type)}เมื่อวันที่ ${ev.iso_date} สำหรับสินค้าเดิมไม่ก่อให้เกิดภาระภาษีซ้ำ`,
+        }));
+      const vatCalc = computeVerifiedVatForIsoAndBase(primaryEv.iso_date, lot.amount_thb);
+      lotAllocations.push({
+        lot_id: lot.lot_id,
+        label_th: lot.label_th,
+        taxable_base_thb: lot.amount_thb,
+        controlling_tax_point_iso: primaryEv.iso_date,
+        controlling_raw_date_th: primaryEv.raw_text,
+        controlling_event_type: primaryEv.event_type,
+        statutory_subclause_th: deltaGoodsEventSubclauseTh(primaryEv.event_type),
+        decree_window: vatWindowBucketForIso(primaryEv.iso_date),
+        governing_decree_work_id: governingDecreeWorkIdForIsoDate(primaryEv.iso_date),
+        within_verified_coverage: primaryEv.iso_date >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+        provenance_clause_th: primaryEv.provenance_clause_th || "",
+        verified_rate_pct: vatCalc.ratePct,
+        verified_vat_thb: vatCalc.vatThb,
+        verified_gross_thb: vatCalc.grossThb,
+        subsequent_non_taxable_events: subsequentNonTaxable,
+      });
+    }
+
+    const lotsByDate = new Map<string, GoodsLotAllocationItem[]>();
+    for (const la of lotAllocations) {
+      const arr = lotsByDate.get(la.controlling_tax_point_iso) || [];
+      arr.push(la);
+      lotsByDate.set(la.controlling_tax_point_iso, arr);
+    }
+    const sortedDates = Array.from(lotsByDate.keys()).sort((a, b) => a.localeCompare(b));
+    const taxDateBuckets: SplitPaymentTaxPointItem[] = sortedDates.map((iso, idx) => {
+      const group = lotsByDate.get(iso)!;
+      const bucketBase =
+        Math.round(group.reduce((s, l) => s + l.taxable_base_thb, 0) * 100) / 100;
+      const vatCalc = computeVerifiedVatForIsoAndBase(iso, bucketBase);
+      return {
+        portion_index: idx + 1,
+        iso_date: iso,
+        raw_text: group[0].controlling_raw_date_th,
+        event_type: group[0].controlling_event_type,
+        decree_window: vatWindowBucketForIso(iso),
+        within_verified_coverage: iso >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+        governing_decree_work_id: governingDecreeWorkIdForIsoDate(iso),
+        expired_or_non_governing_work_ids:
+          iso > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+        amount_thb: bucketBase,
+        lot_ids: group.map((l) => l.lot_id),
+        lot_labels_th: group.map((l) => l.label_th),
+        verified_rate_pct: vatCalc.ratePct,
+        verified_vat_thb: vatCalc.vatThb,
+        verified_gross_thb: vatCalc.grossThb,
+      };
+    });
+
+    const declaredTotal = Math.round(clonedLots.reduce((s, l) => s + l.amount_thb, 0) * 100) / 100;
+    const finalReconciledBase =
+      Math.round(taxDateBuckets.reduce((s, b) => s + (b.amount_thb ?? 0), 0) * 100) / 100;
+    const allBucketsVerified = taxDateBuckets.every(
+      (b) => typeof b.verified_vat_thb === "number" && b.verified_vat_thb > 0
+    );
+    const totalVatThb = allBucketsVerified
+      ? Math.round(taxDateBuckets.reduce((s, b) => s + (b.verified_vat_thb ?? 0), 0) * 100) / 100
+      : null;
+    const totalGrossThb =
+      totalVatThb !== null ? Math.round((finalReconciledBase + totalVatThb) * 100) / 100 : null;
+
+    rebuiltAlloc = {
+      transaction_base_thb: declaredTotal,
+      allocation_status: "RESOLVED",
+      ambiguity_question_th: null,
+      lot_allocations: lotAllocations,
+      tax_date_buckets: taxDateBuckets,
+      reconciled_total_base_thb: finalReconciledBase,
+      reconciled_total_vat_thb: totalVatThb,
+      reconciled_total_gross_thb: totalGrossThb,
+      remaining_unallocated_base_thb: Math.max(
+        0,
+        Math.round((declaredTotal - finalReconciledBase) * 100) / 100
+      ),
+    };
+    rebuiltSplitPoints = taxDateBuckets;
+    const bucketSummaries = taxDateBuckets
+      .map(
+        (b) =>
+          `วันที่ ${b.iso_date} (${b.decree_window}): ${(b.lot_labels_th || []).join(" + ")} ฐานภาษี ${(b.amount_thb ?? 0).toLocaleString("en-US")} บาท${
+            b.verified_vat_thb !== null && b.verified_vat_thb !== undefined
+              ? ` (VAT 7% = ${b.verified_vat_thb.toLocaleString("en-US")} บาท)`
+              : ""
+          }`
+      )
+      .join("; ");
+    const nonTaxableNotes = lotAllocations
+      .flatMap((l) => l.subsequent_non_taxable_events.map((s) => s.reason_th))
+      .slice(0, 4);
+
+    rebuiltControlling = {
+      iso_date: taxDateBuckets.length === 1 ? taxDateBuckets[0].iso_date : null,
+      controlling_event: `GOODS_LOT_ALLOCATED_MULTI_TAX_POINT (${taxDateBuckets
+        .map(
+          (b) =>
+            `${b.iso_date}:${(b.lot_ids || []).join("+") || b.event_type}:${b.decree_window}:${b.amount_thb ?? "?"}`
+        )
+        .join(" | ")})`,
+      statutory_rule_hint:
+        `ประมวลรัษฎากร มาตรา 78 (1) ("ตามส่วนของการกระทำนั้นๆ") การจัดสรรตามล็อตสินค้า (นับแต่ละล็อตครั้งเดียวตามเหตุการณ์แรกสุดที่เกิดขึ้นและกระทบยอดตรงกับมูลค่ารวม ${finalReconciledBase.toLocaleString("en-US")} บาท): ${bucketSummaries}` +
+        (nonTaxableNotes.length > 0 ? ` | ข้อสังเกตห้ามนับซ้ำ: ${nonTaxableNotes.join("; ")}` : ""),
+      is_ambiguous: false,
+      ambiguity_reason_th: null,
+      ...(taxDateBuckets.length >= 2 ? { is_split_payment_multi_tax_point: true } : {}),
+    };
+  } else {
+    // Non-lot single/split VAT transaction: recompute controlling tax point from updated activeEvents
+    const vatEvs = activeEvents
+      .filter((e) =>
+        ["OWNERSHIP_TRANSFER", "DELIVERY", "PAYMENT", "INVOICE", "SERVICE_USE"].includes(
+          e.event_type
+        )
+      )
+      .sort((a, b) => a.iso_date.localeCompare(b.iso_date));
+    if (vatEvs.length > 0) {
+      const distinctDates = Array.from(new Set(vatEvs.map((e) => e.iso_date)));
+      if (
+        priorLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+        distinctDates.length >= 2
+      ) {
+        rebuiltSplitPoints = distinctDates.map((iso, idx) => {
+          const ev = vatEvs.find((e) => e.iso_date === iso)!;
+          const amt = ev.amount_thb ?? null;
+          const vc = amt ? computeVerifiedVatForIsoAndBase(iso, amt) : null;
+          return {
+            portion_index: idx + 1,
+            iso_date: iso,
+            raw_text: ev.raw_text,
+            event_type: ev.event_type,
+            decree_window: vatWindowBucketForIso(iso),
+            within_verified_coverage: iso >= VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+            governing_decree_work_id: governingDecreeWorkIdForIsoDate(iso),
+            expired_or_non_governing_work_ids:
+              iso > "2027-09-30" ? ["subreg.th.rc.royal_decree.807"] : [],
+            ...(amt !== null
+              ? {
+                  amount_thb: amt,
+                  verified_rate_pct: vc?.ratePct ?? null,
+                  verified_vat_thb: vc?.vatThb ?? null,
+                  verified_gross_thb: vc?.grossThb ?? null,
+                }
+              : {}),
+          };
+        });
+        rebuiltControlling = {
+          ...rebuiltControlling,
+          iso_date: null,
+          is_split_payment_multi_tax_point: true,
+          controlling_event: `SPLIT_PAYMENT_MULTI_TAX_POINT (${rebuiltSplitPoints.map((p) => `${p.iso_date}:${p.decree_window}`).join(" + ")})`,
+        };
+      } else {
+        const earliest = vatEvs[0];
+        rebuiltControlling = {
+          ...rebuiltControlling,
+          iso_date: earliest.iso_date,
+          is_split_payment_multi_tax_point: false,
+          controlling_event: `${earliest.event_type} (${earliest.raw_text}, Turn ${earliest.source_turn})`,
+        };
+      }
+    }
+  }
+
+  const nextLedger: StructuredCaseFactLedger = {
+    ...priorLedger,
+    turn_count: clonedUserTurns.length,
+    is_new_conversation: false,
+    user_turns: clonedUserTurns,
+    material_facts: clonedMaterialFacts,
+    overrides: clonedOverrides,
+    temporal_facts: {
+      ...priorLedger.temporal_facts,
+      transaction_or_event_dates: workingEvents,
+      legal_as_of_date: opts?.applicableDate ?? priorLedger.temporal_facts.legal_as_of_date,
+      ...(clonedLots.length > 0 ? { declared_goods_lots: clonedLots } : {}),
+      ...(rebuiltAlloc ? { vat_portion_allocation_record: rebuiltAlloc } : {}),
+      ...(rebuiltSplitPoints ? { split_payment_tax_points: rebuiltSplitPoints } : {}),
+      controlling_tax_point: rebuiltControlling,
+    },
+    questions_asked_th: opts?.userTurnText ? [opts.userTurnText] : priorLedger.questions_asked_th,
+  };
+
+  if (!rebuiltAlloc) {
+    delete nextLedger.temporal_facts.vat_portion_allocation_record;
+  }
+  if (!rebuiltSplitPoints) {
+    delete nextLedger.temporal_facts.split_payment_tax_points;
+  }
+
+  const afterHash = computeLedgerStateHash(nextLedger);
+  nextLedger.ledger_state_hash = afterHash;
+  if (nextLedger.temporal_facts.vat_portion_allocation_record) {
+    nextLedger.temporal_facts.vat_portion_allocation_record.ledger_after_hash = afterHash;
+  }
+  return nextLedger;
 }

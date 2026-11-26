@@ -508,6 +508,8 @@ export interface ClaimLedgerItem {
   claim_type: "direct_source_statement" | "qualified_legal_synthesis" | "fact_distinction" | "abstention_notice";
   statement_role: StatementRole;
   supporting_passage_ids: string[];
+  /** C12 C3: Sibling decree §1-2 & §3 context passages attached with `support_role: "context"` (non-governing). */
+  context_passage_ids?: string[];
   applicable_version_id: string | null;
   factual_conditions: string[];
   exceptions: string[];
@@ -567,6 +569,12 @@ export interface ExecutionProvenanceMetadata {
   /** Per-answer actual execution record distinguishing live model reasoning from deterministic rule-only responses. */
   execution_mode?: "llm_invoked" | "rule_only_model_not_invoked";
   provider_invocation?: Record<string, unknown>;
+  /** C12 A3/E: Structured follow-up FactDelta audit metadata for UI "Facts changed this turn" & Neon Save/Reopen. */
+  fact_delta?: Record<string, unknown> | null;
+  ledger_before_hash?: string | null;
+  ledger_after_hash?: string | null;
+  delta_disagreement?: boolean;
+  delta_disagreement_summary?: string | null;
 }
 
 export interface GroundedAnswer {

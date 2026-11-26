@@ -92,6 +92,16 @@ export interface LlmProposedCalculation {
   steps_th: string[];
 }
 
+export interface AssertedAuthorityRef {
+  work_id: string;
+  section?: string | null;
+}
+
+export interface ContrastAuthorityMention {
+  work_id: string;
+  role: "not_applicable" | "superseded" | "compared";
+}
+
 export interface LlmDraftedIssue {
   issue_id: string;
   issue_title_th: string;
@@ -99,6 +109,10 @@ export interface LlmDraftedIssue {
   conclusion_th: string;
   material_facts_relied_on: string[];
   governing_passage_ids: string[];
+  /** C12 C1: Every instrument this claim affirmatively relies on as governing authority. */
+  asserted_authorities?: AssertedAuthorityRef[];
+  /** C12 C1: Instruments mentioned solely to exclude, supersede, or contrast (never carrying bound numbers). */
+  contrast_mentions?: ContrastAuthorityMention[];
   application_explanation_th: string;
   authority_distinction_note_th: string;
   proposed_calculation: LlmProposedCalculation | null;
@@ -517,6 +531,31 @@ export const GROUNDED_LLM_RESPONSE_SCHEMA = {
           conclusion_th: { type: "string" },
           material_facts_relied_on: { type: "array", items: { type: "string" } },
           governing_passage_ids: { type: "array", items: { type: "string" } },
+          asserted_authorities: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                work_id: { type: "string" },
+                section: { type: "string" },
+              },
+              required: ["work_id"],
+            },
+          },
+          contrast_mentions: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                work_id: { type: "string" },
+                role: {
+                  type: "string",
+                  enum: ["not_applicable", "superseded", "compared"],
+                },
+              },
+              required: ["work_id", "role"],
+            },
+          },
           application_explanation_th: { type: "string" },
           authority_distinction_note_th: { type: "string" },
           proposed_calculation: {
@@ -548,6 +587,8 @@ export const GROUNDED_LLM_RESPONSE_SCHEMA = {
           "conclusion_th",
           "material_facts_relied_on",
           "governing_passage_ids",
+          "asserted_authorities",
+          "contrast_mentions",
           "application_explanation_th",
           "authority_distinction_note_th",
           "missing_facts_or_uncertainties_th",
@@ -628,6 +669,31 @@ function normalizeParsedDraftResponse(
           ? iss.material_facts_relied_on
           : [],
         governing_passage_ids: govIds,
+        asserted_authorities: Array.isArray(iss.asserted_authorities)
+          ? iss.asserted_authorities
+              .filter((a) => a && typeof a.work_id === "string" && a.work_id.trim().length > 0)
+              .map((a) => ({
+                work_id: a.work_id.trim(),
+                section:
+                  typeof a.section === "string" && a.section.trim().length > 0
+                    ? a.section.trim()
+                    : null,
+              }))
+          : [],
+        contrast_mentions: Array.isArray(iss.contrast_mentions)
+          ? iss.contrast_mentions
+              .filter(
+                (c) =>
+                  c &&
+                  typeof c.work_id === "string" &&
+                  c.work_id.trim().length > 0 &&
+                  (c.role === "not_applicable" || c.role === "superseded" || c.role === "compared")
+              )
+              .map((c) => ({
+                work_id: c.work_id.trim(),
+                role: c.role,
+              }))
+          : [],
         missing_facts_or_uncertainties_th: Array.isArray(iss.missing_facts_or_uncertainties_th)
           ? iss.missing_facts_or_uncertainties_th
           : [],
@@ -705,8 +771,9 @@ const GROUNDED_SYSTEM_INSTRUCTION = `คุณคือทนายความ�
    - หากมีหลายเทิร์น ให้ยึดข้อเท็จจริงที่อัปเดตล่าสุดจากเทิร์นหลังทับค่าที่เปลี่ยนไป และคงข้อเท็จจริงเดิมที่ไม่ได้เปลี่ยนไว้ เมื่อเทิร์นหลังแก้ไขมูลค่าหรือฐานภาษี ให้คำนวณและระบุเฉพาะตัวเลขภาษีและยอดรวมทั้งสิ้นจากฐานภาษีใหม่ล่าสุดเท่านั้น (ห้ามนำตัวเลขภาษีเดิมที่ถูกแก้ไขทับแล้ว หรือคำเปรียบเทียบเช่น "2 เท่า" มาปะปนในข้อสรุปของประเด็นคำนวณใหม่)
    - แยกแยะวันทำธุรกรรม (transaction date), วันที่อ้างอิงกฎหมาย (legal as-of date) และวันเกิดความรับผิดทางภาษี (controlling tax point เช่น มาตรา 78 (1) สำหรับการขายสินค้าซึ่งรวมถึงการโอนกรรมสิทธิ์สินค้า การรับชำระราคา หรือการออกใบกำกับภาษีก่อนส่งมอบตามส่วนของการกระทำนั้นๆ และมาตรา 78/1 (1) สำหรับบริการ) ให้ชัดเจน ห้ามสมมติวันที่เองเมื่อวันที่ขาดหายหรือคลุมเครือ และห้ามคิดภาษีมูลค่าเพิ่มซ้ำเมื่อการโอนกรรมสิทธิ์ การส่งมอบ การรับชำระราคา และการออกใบกำกับภาษีครอบคลุมสินค้าเดียวกัน
    - กรณีแบ่งรับชำระหลายงวด โอนกรรมสิทธิ์สินค้าบางส่วนก่อนส่งมอบ หรือออกใบกำกับภาษีบางส่วน (split_payment_tax_points มีหลายส่วน): ต้องแยกวิเคราะห์แต่ละส่วนเป็นประเด็นแยกกันโดยระบุวันเกิดความรับผิด จำนวนเงิน และกฎหมายที่ใช้บังคับเฉพาะส่วนนั้นตาม applicable_tax_point_dates ของแต่ละหลักฐาน หากมีการโอนกรรมสิทธิ์สินค้าบางส่วนหรือออกใบกำกับภาษีบางส่วนก่อนส่งมอบ/รับชำระ ความรับผิดของส่วนนั้นเกิดขึ้น ณ วันที่มีการกระทำก่อนตามมาตรา 78 (1) หรือมาตรา 78/1 (1) (การส่งมอบ การรับชำระเงิน หรือการออกใบกำกับภาษีสำหรับส่วนที่เกิดความรับผิดไปแล้วในภายหลังไม่ก่อให้เกิดภาระภาษีมูลค่าเพิ่มซ้ำอีก) ส่วนยอดคงเหลือจะเกิดความรับผิดเมื่อส่งมอบสินค้าหรือรับชำระเงิน หากข้อเท็จจริงไม่ระบุขอบเขตมูลค่าของการโอนกรรมสิทธิ์ก่อนส่งมอบหรือใบกำกับภาษี (ทั้งหมดหรือบางส่วน) หรือไม่ระบุการจัดสรรการชำระเงินเมื่อมียอดชำระเท่ากันหลายงวด และข้อเท็จจริงที่ขาดหายเปลี่ยนพระราชกฤษฎีกาที่ใช้บังคับ ห้ามเดาหรืออนุมานเองและห้ามปัดไปใช้วันส่งมอบทั้งจำนวน ให้ตั้ง answer_status = "CONDITIONAL" ระบุข้อเท็จจริงที่ขาดหายและถามยืนยันใน clarification_questions_th พร้อมนำเสนอเงื่อนไขแยกแต่ละทางเลือกที่มีหลักฐานรองรับโดยไม่เก็บภาษีซ้ำและไม่ตัดยอดตกหล่น ห้ามนำวันที่หรือพระราชกฤษฎีกาของงวดก่อนหน้ามาใช้กับงวดที่อยู่นอกช่วงวันใช้บังคับ (excluded_tax_point_dates) และสำหรับงวดที่เกิดหลังวันสิ้นสุดพระราชกฤษฎีกาชั่วคราว (เช่น หลัง 30 กันยายน 2570) ห้ามอ้างพระราชกฤษฎีกาที่สิ้นสุดแล้วเป็นกฎหมายควบคุมและห้ามสมมติว่าจะมีพระราชกฤษฎีกาขยายเวลาลดอัตราในอนาคต ให้ระบุตามเพดานประมวลรัษฎากร มาตรา 80 เว้นแต่จะมีการตราพระราชกฤษฎีกาฉบับใหม่ก่อนวันเกิดความรับผิดของงวดนั้น
-2. อ้างอิงเฉพาะ passage_id ที่มีอยู่จริงใน PASSAGE_PACK และถูกผูกไว้ใน governing_passage_ids ของประเด็นนั้นเท่านั้น:
-   - ห้ามประดิษฐ์เลขมาตรา อนุมาตรา เลขพระราชกฤษฎีกา เลขคำสั่งกรมสรรพากร (ท.ป./ป.) หรือเลขหนังสือตอบข้อหารือ กค ที่ไม่ปรากฏตรงตัวในข้อความของ passage ที่อ้างอิงใน governing_passage_ids และ **ห้ามนำหนังสือตอบข้อหารือ กค กฎหมายลำดับรอง หรือคำสั่งใดๆ (รวมถึงข้อหารือเก่าใน PASSAGE_PACK ที่ไม่ได้ใช้เป็นหลักฐานควบคุมใน governing_passage_ids) ไปกล่าวถึงลอยๆ ใน authority_distinction_note_th, overall_summary_th, issue_title_th, assumptions_th, missing_facts_or_uncertainties_th หรือ case_facts_used เด็ดขาด** ทุกแหล่งอ้างอิงที่เอ่ยชื่อในคำตอบทุกช่องต้องมี passage_id รองรับอยู่ใน governing_passage_ids ของประเด็นนั้นเสมอ (ตรวจสอบเลขอนุมาตราให้ตรงกับ verbatim_text ของ passage ที่อ้างอิงทุกครั้ง; หากกล่าวถึงอัตรารวมภาษีท้องถิ่นของ VAT ร้อยละ 7 ให้ระบุ passage_id ของคู่มือ/คำแนะนำทางการเรื่องภาษีท้องถิ่นใน governing_passage_ids ด้วย; สำหรับภาษีธุรกิจเฉพาะ หากไม่มีตัวบทภาษีท้องถิ่นใน PASSAGE_PACK ห้ามระบุอัตรารวมร้อยละ 3.3 ให้ระบุเฉพาะอัตราตามตัวบทประมวลรัษฎากร มาตรา 91/6 (3) คือร้อยละ 3.0 เท่านั้น; และห้ามระบุตัวเลขเบี้ยปรับหรือเงินเพิ่ม เช่น 6 เท่า หากไม่มีตัวบทมาตรานั้นใน PASSAGE_PACK)
+2. อ้างอิงเฉพาะ passage_id ที่มีอยู่จริงใน PASSAGE_PACK และถูกผูกไว้ใน governing_passage_ids ของประเด็นนั้นเท่านั้น พร้อมจำแนก asserted_authorities และ contrast_mentions ให้ชัดเจนในทุกประเด็น:
+   - ในทุกประเด็น (issues[]), ต้องระบุ asserted_authorities: [{ work_id, section? }] สำหรับทุกบทบัญญัติ/กฎหมายลำดับรอง/คู่มือที่ประเด็นนั้นใช้เป็นฐานกฎหมายควบคุมจริง (โดยต้องมี passage_id ของ work_id นั้นอยู่ใน governing_passage_ids เสมอ) และระบุ contrast_mentions: [{ work_id, role: "not_applicable" | "superseded" | "compared" }] สำหรับทุกกฎหมายลำดับรองที่กล่าวถึงเฉพาะเพื่อตัดออก เปรียบเทียบ หรืออธิบายการเปลี่ยนช่วงกฎหมายจากเทิร์นก่อน (เช่น เปลี่ยนจาก พ.ร.ฎ. ฉบับที่ 807 มาเป็น พ.ร.ฎ. ฉบับที่ 799) โดยห้ามนำกฎหมายที่อยู่ใน contrast_mentions มาเป็นฐานคำนวณตัวเลขภาษีของประเด็นนี้เด็ดขาด
+   - ห้ามประดิษฐ์เลขมาตรา อนุมาตรา เลขพระราชกฤษฎีกา เลขคำสั่งกรมสรรพากร (ท.ป./ป.) หรือเลขหนังสือตอบข้อหารือ กค ที่ไม่ปรากฏตรงตัวในข้อความของ passage ที่อ้างอิงใน governing_passage_ids และ **ห้ามนำหนังสือตอบข้อหารือ กค กฎหมายลำดับรอง หรือคำสั่งใดๆ (รวมถึงข้อหารือเก่าใน PASSAGE_PACK ที่ไม่ได้ใช้เป็นหลักฐานควบคุมใน governing_passage_ids) ไปกล่าวถึงลอยๆ ใน authority_distinction_note_th, overall_summary_th, issue_title_th, assumptions_th, missing_facts_or_uncertainties_th หรือ case_facts_used เด็ดขาด** ทุกแหล่งอ้างอิงที่เอ่ยชื่อในคำตอบทุกช่องต้องมี passage_id รองรับอยู่ใน governing_passage_ids ของประเด็นนั้นเสมอ (ยกเว้นกรณีระบุชัดใน contrast_mentions พร้อมถ้อยคำปฏิเสธ/เปรียบเทียบ) (ตรวจสอบเลขอนุมาตราให้ตรงกับ verbatim_text ของ passage ที่อ้างอิงทุกครั้ง; หากกล่าวถึงอัตรารวมภาษีท้องถิ่นของ VAT ร้อยละ 7 ให้ระบุ passage_id ของคู่มือ/คำแนะนำทางการเรื่องภาษีท้องถิ่นใน governing_passage_ids ด้วย; สำหรับภาษีธุรกิจเฉพาะ หากไม่มีตัวบทภาษีท้องถิ่นใน PASSAGE_PACK ห้ามระบุอัตรารวมร้อยละ 3.3 ให้ระบุเฉพาะอัตราตามตัวบทประมวลรัษฎากร มาตรา 91/6 (3) คือร้อยละ 3.0 เท่านั้น; และห้ามระบุตัวเลขเบี้ยปรับหรือเงินเพิ่ม เช่น 6 เท่า หากไม่มีตัวบทมาตรานั้นใน PASSAGE_PACK)
    - ตรวจสอบช่วงเวลาใช้บังคับ (valid_from / valid_to) ของทุกกฎหมายลำดับรองและพระราชกฤษฎีกาเทียบกับวันเกิดความรับผิดทางภาษี ห้ามนำพระราชกฤษฎีกาที่อยู่นอกช่วงวันใช้บังคับ (temporal_applicability_hint = "OUT_OF_WINDOW") มาใช้เป็นกฎหมายควบคุมสำหรับธุรกรรมนั้น และห้ามเหมารวมใช้ฉบับล่าสุดเมื่อไม่มีวันที่หรือวันที่อยู่นอกช่วง
    - พระราชกฤษฎีกาที่แก้ไขเพิ่มเติมมาตราของพระราชกฤษฎีกาฉบับเดิม (เช่น พระราชกฤษฎีกาลดอัตราภาษีมูลค่าเพิ่มที่แก้ไขมาตรา 4 แห่งพระราชกฤษฎีกา (ฉบับที่ 646)): ช่วงเวลา "ตั้งแต่วันที่ 1 ตุลาคม 2560 ถึง..." เป็นข้อความในมาตราที่ถูกแก้ไขของพระราชกฤษฎีกาฉบับเดิม ไม่ใช่วันเริ่มใช้บังคับของพระราชกฤษฎีกาฉบับแก้ไข ห้ามเขียนว่าพระราชกฤษฎีกาฉบับแก้ไขลดอัตราหรือใช้บังคับตั้งแต่ปี 2560 ให้ระบุวันเริ่มใช้บังคับของพระราชกฤษฎีกาฉบับแก้ไขตามมาตรา 2 ของฉบับนั้น (และใส่ passage_id ของมาตรา 1–2 ใน governing_passage_ids เมื่อมีใน PASSAGE_PACK) แยกจากช่วงเวลาในข้อความมาตราที่ถูกแก้ไข
    - แยกแยะลำดับศักดิ์แหล่งอ้างอิงเฉพาะรายการที่ผูกไว้ใน governing_passage_ids ของประเด็นนั้นอย่างชัดเจน: กฎหมายแม่บท/ประมวลรัษฎากร (CONTROLLING_STATUTE), กฎหมายลำดับรอง/พระราชกฤษฎีกา/ประกาศอธิบดี (CONTROLLING_SUBORDINATE_LEGISLATION), คู่มือ/คำแนะนำ (OFFICIAL_GUIDANCE) และหนังสือตอบข้อหารือเฉพาะราย (CASE_SPECIFIC_TAX_RULING — กล่าวถึงเฉพาะเมื่อจำเป็นต้องใช้ passage_id ของข้อหารือนั้นใน governing_passage_ids เท่านั้น ห้ามดึงข้อหารือก่อนปี พ.ศ. 2558 เช่นข้อหารือตามกฎกระทรวงเดิมที่ไม่เกี่ยวข้องกับการคำนวณตามมาตรา 42 (26) มาเปรียบเทียบประกอบโดยไม่ได้ผูกหลักฐาน)

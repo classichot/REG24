@@ -310,7 +310,8 @@ export type ClaimSupportRole =
   | "transitional_applicability"
   | "requester_factual_context"
   | "official_summary_scope"
-  | "verified_attachment_authority";
+  | "verified_attachment_authority"
+  | "context";
 
 export interface ClaimEvidenceReferenceDto {
   link_id: string;

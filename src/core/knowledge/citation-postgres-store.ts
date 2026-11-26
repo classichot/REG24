@@ -53,6 +53,39 @@ let onboardedSourcesCache: {
   };
 } | null = null;
 const syncedCanonicalBundleKeys = new Set<string>();
+let ensuredContextSupportRoleConstraint = false;
+
+async function ensureContextSupportRoleConstraintInPostgres(
+  db: CitationDbTransport
+): Promise<void> {
+  if (ensuredContextSupportRoleConstraint) return;
+  try {
+    await db(
+      `ALTER TABLE citation_claim_evidence_link
+         DROP CONSTRAINT IF EXISTS citation_claim_evidence_link_support_role_check`
+    );
+    await db(
+      `ALTER TABLE citation_claim_evidence_link
+         ADD CONSTRAINT citation_claim_evidence_link_support_role_check CHECK (
+           support_role IN (
+             'primary_authority',
+             'statutory_premise',
+             'ruling_application',
+             'judicial_reasoning',
+             'exception_or_proviso',
+             'transitional_applicability',
+             'requester_factual_context',
+             'official_summary_scope',
+             'verified_attachment_authority',
+             'context'
+           )
+         )`
+    );
+    ensuredContextSupportRoleConstraint = true;
+  } catch {
+    // Non-fatal if constraint already updated or running under read-only/mock transport
+  }
+}
 
 export function invalidateCitationPostgresReadCaches(): void {
   onboardedSourcesCache = null;
@@ -887,6 +920,14 @@ export async function persistAnswerRevisionToPostgres(params: {
   // Deterministic audit_id bound to `answer_revision` so retry is 100% idempotent (zero duplicate rows!)
   const deterministicAuditId = `caud.pg.${sha256Bytes(`pub:${env.answer_revision}`).slice(0, 14)}`;
 
+  // C12 C3: Ensure Postgres CHECK constraint permits `support_role = 'context'` before inserting context links.
+  const hasContextSupportLinks = env.claims.some((c) =>
+    c.evidence_references.some((r) => r.support_role === "context")
+  );
+  if (hasContextSupportLinks) {
+    await ensureContextSupportRoleConstraintInPostgres(db);
+  }
+
   if (!customCitationDbTransport || customCitationTxTransport) {
     // ATOMIC TRANSACTIONAL SAVE (Section 4):
     // Saves `citation_published_answer` + `citation_atomic_claim` + `citation_claim_evidence_link`
@@ -1441,6 +1482,7 @@ export async function loadSavedAnswerFromPostgres(
     requester_factual_context: "ข้อเท็จจริงของผู้ขอหารือในเอกสารต้นฉบับ",
     official_summary_scope: "สรุปย่อทางการ",
     verified_attachment_authority: "เอกสารกฎหมายทางการที่แนบและยืนยันต้นฉบับแล้ว",
+    context: "บริบทเปรียบเทียบกฎหมายลำดับรองต่างช่วงเวลา (Context)",
   };
   const familyLabels: Record<string, string> = {
     gazette_enactment: "กฎหมาย/บทบัญญัติประกาศในราชกิจจานุเบกษา",

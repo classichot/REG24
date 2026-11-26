@@ -10,9 +10,20 @@
 import { verifyClaimAgainstPassages } from "./answer-verification";
 import { getDeployedGitCommit } from "./baseline";
 import {
+  applyFactDelta,
   buildStructuredCaseFactLedger,
+  computeLedgerStateHash,
   VAT_RATE_VERIFIED_COVERAGE_START_ISO,
+  type StructuredCaseFactLedger,
 } from "./case-fact-ledger";
+import {
+  evaluateFactDeltaFailClosed,
+  extractStructuredFactDeltaWithModel,
+  hasCorrectionKeywords,
+  shouldRunStructuredFactDelta,
+  type FactDeltaAuditRecord,
+  type MockFactDeltaExtractorFn,
+} from "./fact-delta";
 import {
   attachTraceableEnvelopeToGroundedAnswer,
   CLAIM_RULESET_VERSION,
@@ -646,6 +657,7 @@ export async function queryKnowledge(
       thinkingLevel: GroundedThinkingLevel;
       specialConstraints?: GroundedLlmSpecialConstraints;
     }) => Promise<GroundedLlmDraftResponse> | GroundedLlmDraftResponse;
+    mockFactDeltaExtractorForTesting?: MockFactDeltaExtractorFn;
   }
 ): Promise<GroundedAnswer> {
   const store = options?.store || getDefaultKnowledgeStore();
@@ -792,6 +804,7 @@ async function executeCoreKnowledgeQuery(
       thinkingLevel: GroundedThinkingLevel;
       specialConstraints?: GroundedLlmSpecialConstraints;
     }) => Promise<GroundedLlmDraftResponse> | GroundedLlmDraftResponse;
+    mockFactDeltaExtractorForTesting?: MockFactDeltaExtractorFn;
   }
 ): Promise<GroundedAnswer> {
   const startedAt = Date.now();
@@ -1541,11 +1554,258 @@ async function executeCoreKnowledgeQuery(
   // ============================================================================
   if (isGroundedLlmStagingModeEnabled(req) && req.mode !== "exact_lookup") {
     const rawQ = options?.rawOriginalQuestion || req.question;
-    const factLedger = buildStructuredCaseFactLedger({
+    const regexFactLedger = buildStructuredCaseFactLedger({
       question: rawQ,
       applicableDate: req.applicable_date ?? null,
       conversationHistory: req.conversation_history,
     });
+    let factLedger: StructuredCaseFactLedger = regexFactLedger;
+    let activeFactDeltaAudit: FactDeltaAuditRecord | null = null;
+
+    // C12 Workstream A (A2 + A3 + A4):
+    // On follow-up turns (`turn >= 2`) for VAT temporal/lot matters, extract a typed `FactDelta`
+    // using constrained `gemini-4-neon @ low` (temperature 0, no fallback), apply it deterministically
+    // via pure `applyFactDelta(priorLedger, delta)` (never copying prior allocation records), log any
+    // cross-check disagreement with the legacy regex ledger, and fail closed on low confidence / unapplied corrections.
+    const priorUserTurns = (req.conversation_history || []).filter(
+      (t) => t.role === "user" && typeof t.content === "string" && t.content.trim().length > 0
+    );
+    const hasLiveGeminiKey = Boolean(
+      (
+        process.env.GEMINI_API_KEY ||
+        process.env.GOOGLE_GENERATIVE_AI_API_KEY ||
+        process.env.GOOGLE_API_KEY ||
+        ""
+      ).trim()
+    );
+    const skipModelDeltaInOfflineMockVitest =
+      Boolean(process.env.VITEST) &&
+      Boolean(options?.llmMockInvokerForTesting) &&
+      !options?.mockFactDeltaExtractorForTesting &&
+      !hasLiveGeminiKey;
+
+    if (
+      priorUserTurns.length >= 1 &&
+      !options?.captureRealAppEvidenceAssemblyOnly &&
+      !skipModelDeltaInOfflineMockVitest
+    ) {
+      let priorLedger = buildStructuredCaseFactLedger({
+        question: priorUserTurns[priorUserTurns.length - 1].content,
+        applicableDate: null,
+        conversationHistory: priorUserTurns.slice(0, -1),
+      });
+
+      // If an intermediate prior turn (turn k >= 2 in a 3+ turn chain) was itself a non-regex correction
+      // (e.g., English turn 2 followed by turn 3), replay its structured FactDelta before applying the current turn.
+      if (priorUserTurns.length >= 2 && shouldRunStructuredFactDelta(priorLedger)) {
+        let chainedLedger = buildStructuredCaseFactLedger({
+          question: priorUserTurns[0].content,
+          applicableDate: null,
+          conversationHistory: [],
+        });
+        let chainedFromStart = false;
+        for (let ti = 1; ti < priorUserTurns.length; ti++) {
+          const stepTurnText = priorUserTurns[ti].content;
+          const stepRegexLedger = buildStructuredCaseFactLedger({
+            question: stepTurnText,
+            applicableDate: null,
+            conversationHistory: priorUserTurns.slice(0, ti),
+          });
+          const beforeH = computeLedgerStateHash(chainedLedger);
+          const regexH = computeLedgerStateHash(stepRegexLedger);
+          if (chainedFromStart || (hasCorrectionKeywords(stepTurnText) && beforeH === regexH)) {
+            chainedFromStart = true;
+            const prevStepExtraction = await extractStructuredFactDeltaWithModel({
+              priorLedger: chainedLedger,
+              userTurnText: stepTurnText,
+              overrideModel:
+                process.env.VERCEL_ENV !== "production" ? req.override_model ?? null : null,
+              thinkingLevel: "low",
+              mockExtractorForTesting: options?.mockFactDeltaExtractorForTesting,
+            });
+            if (prevStepExtraction.validation.valid && prevStepExtraction.validation.normalized_delta) {
+              chainedLedger = applyFactDelta(
+                chainedLedger,
+                prevStepExtraction.validation.normalized_delta,
+                { userTurnText: stepTurnText, applicableDate: null }
+              );
+            }
+          } else {
+            chainedLedger = stepRegexLedger;
+          }
+        }
+        if (chainedFromStart) {
+          priorLedger = chainedLedger;
+        }
+      }
+
+      if (shouldRunStructuredFactDelta(priorLedger)) {
+        const ledgerBeforeHash = computeLedgerStateHash(priorLedger);
+        const deltaExtraction = await extractStructuredFactDeltaWithModel({
+          priorLedger,
+          userTurnText: rawQ,
+          overrideModel:
+            process.env.VERCEL_ENV !== "production" ? req.override_model ?? null : null,
+          thinkingLevel: "low",
+          mockExtractorForTesting: options?.mockFactDeltaExtractorForTesting,
+        });
+
+        if (deltaExtraction.provider_failed) {
+          const fc = deltaExtraction.invocation_audit.failure_classification || "PROVIDER_UNAVAILABLE";
+          const unableMsg = `ไม่สามารถสกัดการเปลี่ยนแปลงข้อเท็จจริงในรอบถามต่อจากแบบจำลองภาษาได้ในขณะนี้ (Trace ID: ${traceId}, ${fc}) — ระบบระงับการคำนวณและไม่นำข้อมูลเดิมที่อาจล้าสมัยมาใช้แทนโดยอัตโนมัติ (No Silent Fallback)`;
+          return {
+            release_id: releaseId,
+            knowledge_snapshot_at: snapshotAt,
+            status: "REVIEW_REQUIRED",
+            answer: unableMsg,
+            claims: [],
+            evidence: [],
+            assumptions: [],
+            clarification_questions: [],
+            coverage_warnings: [
+              `[${fc}] FactDelta extraction failed (${deltaExtraction.invocation_audit.error_summary || "provider unavailable"}); silent fallback disabled.`,
+            ],
+            applicable_date: req.applicable_date ?? null,
+            model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+            trace_id: traceId,
+            latency_ms: Math.max(1, Date.now() - startedAt),
+            execution_provenance: {
+              ...buildProvenance(),
+              model_id: `${deltaExtraction.invocation_audit.provider}:${deltaExtraction.invocation_audit.requested_model}`,
+              model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+              generation_mode: "llm_grounded",
+              execution_mode: deltaExtraction.invocation_audit.live_provider_called
+                ? "llm_invoked"
+                : "rule_only_model_not_invoked",
+              provider_invocation: {
+                provider: deltaExtraction.invocation_audit.provider,
+                requested_model: deltaExtraction.invocation_audit.requested_model,
+                resolved_model: deltaExtraction.invocation_audit.resolved_model,
+                actual_model_invoked: deltaExtraction.invocation_audit.resolved_model,
+                live_provider_called: deltaExtraction.invocation_audit.live_provider_called,
+                silent_fallback_disabled: true,
+                failure_classification: fc,
+                error_summary: deltaExtraction.invocation_audit.error_summary,
+                latency_ms: deltaExtraction.invocation_audit.latency_ms,
+                stage: "fact_delta_extraction",
+              },
+              ledger_before_hash: ledgerBeforeHash,
+              ledger_after_hash: ledgerBeforeHash,
+            },
+          };
+        }
+
+        const candidateLedger =
+          deltaExtraction.validation.valid && deltaExtraction.validation.normalized_delta
+            ? applyFactDelta(priorLedger, deltaExtraction.validation.normalized_delta, {
+                userTurnText: rawQ,
+                applicableDate: req.applicable_date ?? null,
+              })
+            : priorLedger;
+        const ledgerAfterHash = computeLedgerStateHash(candidateLedger);
+
+        const summarizeAlloc = (l: StructuredCaseFactLedger): string => {
+          const rec = l.temporal_facts.vat_portion_allocation_record;
+          if (!rec) return `ctrl:${l.temporal_facts.controlling_tax_point.iso_date || "null"}`;
+          return rec.lot_allocations
+            .map((a) => `${a.lot_id}=${a.controlling_tax_point_iso}:${a.decree_window}:${a.taxable_base_thb}`)
+            .sort()
+            .join("|");
+        };
+        const deltaSig = summarizeAlloc(candidateLedger);
+        const regexSig = summarizeAlloc(regexFactLedger);
+        const deltaDisagreement = deltaSig !== regexSig;
+        const deltaDisagreementSummary = deltaDisagreement
+          ? `delta=[${deltaSig}] vs regex=[${regexSig}]`
+          : null;
+
+        const failClosed = evaluateFactDeltaFailClosed({
+          userTurnText: rawQ,
+          priorLedger,
+          extraction: deltaExtraction,
+          ledgerBeforeHash,
+          ledgerAfterHash,
+        });
+
+        activeFactDeltaAudit = {
+          schema_version: "reg24.fact_delta.v1",
+          turn_number: priorUserTurns.length + 1,
+          fact_delta: deltaExtraction.validation.normalized_delta ?? deltaExtraction.raw_delta,
+          validation_passed: deltaExtraction.validation.valid,
+          validation_rejection_reasons: deltaExtraction.validation.rejection_reasons,
+          ledger_before_hash: ledgerBeforeHash,
+          ledger_after_hash: ledgerAfterHash,
+          ledger_changed: ledgerBeforeHash !== ledgerAfterHash,
+          delta_disagreement: deltaDisagreement,
+          delta_disagreement_summary: deltaDisagreementSummary,
+          fail_closed_triggered: failClosed.fail_closed,
+          fail_closed_reason: failClosed.reason,
+          invocation_audit: deltaExtraction.invocation_audit,
+        };
+
+        candidateLedger.fact_delta_audit = activeFactDeltaAudit;
+
+        if (failClosed.fail_closed && failClosed.clarification_question_th) {
+          const clarifyQ = failClosed.clarification_question_th;
+          return {
+            release_id: releaseId,
+            knowledge_snapshot_at: snapshotAt,
+            status: "NEEDS_CLARIFICATION",
+            answer: clarifyQ,
+            claims: [],
+            evidence: [],
+            assumptions: [],
+            clarification_questions: [clarifyQ],
+            coverage_warnings: [...coverageWarnings],
+            applicable_date: req.applicable_date ?? null,
+            model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+            trace_id: traceId,
+            latency_ms: Math.max(1, Date.now() - startedAt),
+            execution_provenance: {
+              ...buildProvenance(),
+              model_id: `${deltaExtraction.invocation_audit.provider}:${deltaExtraction.invocation_audit.resolved_model || deltaExtraction.invocation_audit.requested_model}`,
+              model_policy_version: GROUNDED_LLM_PROMPT_VERSION,
+              generation_mode: "llm_grounded",
+              execution_mode: "llm_invoked",
+              provider_invocation: deltaExtraction.invocation_audit as unknown as Record<string, unknown>,
+              fact_delta: activeFactDeltaAudit.fact_delta as unknown as Record<string, unknown> | null,
+              ledger_before_hash: ledgerBeforeHash,
+              ledger_after_hash: ledgerAfterHash,
+              delta_disagreement: deltaDisagreement,
+              delta_disagreement_summary: deltaDisagreementSummary,
+              configuration: {
+                ...buildProvenance().configuration,
+                grounded_llm_staging_enabled: true,
+                template_fallback_disabled: true,
+              },
+            },
+            llm_audit_trace: {
+              schema_version: "reg24.llm_audit_trace.v1",
+              generation_mode: "llm_grounded",
+              staging_flag_active: true,
+              template_fallback_used: false,
+              input_fact_ledger: candidateLedger,
+              fact_delta: activeFactDeltaAudit.fact_delta,
+              ledger_before_hash: ledgerBeforeHash,
+              ledger_after_hash: ledgerAfterHash,
+              delta_disagreement: deltaDisagreement,
+              delta_disagreement_summary: deltaDisagreementSummary,
+              fact_delta_audit: activeFactDeltaAudit,
+              supplied_passages: [],
+              consumed_passage_ids: [],
+              consumed_passage_versions: [],
+              claims_before_verification: [],
+              claims_after_verification: [],
+              rejected_claims: [],
+              rejected_calculations: [],
+              final_answer_revision_id: null,
+            },
+          };
+        }
+
+        factLedger = candidateLedger;
+      }
+    }
 
     const candidatePassages: Passage[] = [];
     const seenWorkIds = new Set<string>();
@@ -2109,6 +2369,17 @@ async function executeCoreKnowledgeQuery(
           ? "llm_invoked"
           : "rule_only_model_not_invoked",
         provider_invocation: llmRes.invocation_audit as unknown as Record<string, unknown>,
+        ...(activeFactDeltaAudit
+          ? {
+              fact_delta: activeFactDeltaAudit.fact_delta as unknown as Record<string, unknown> | null,
+              ledger_before_hash: activeFactDeltaAudit.ledger_before_hash,
+              ledger_after_hash: activeFactDeltaAudit.ledger_after_hash,
+              delta_disagreement: activeFactDeltaAudit.delta_disagreement,
+              delta_disagreement_summary: activeFactDeltaAudit.delta_disagreement_summary,
+            }
+          : {
+              ledger_after_hash: factLedger.ledger_state_hash ?? null,
+            }),
         configuration: {
           ...buildProvenance().configuration,
           grounded_llm_staging_enabled: true,

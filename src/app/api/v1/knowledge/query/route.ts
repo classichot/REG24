@@ -16,7 +16,7 @@ import type {
   QaSyntheticFixtureId,
 } from "../../../../../core/knowledge/contracts";
 import { flushPendingSection47RestrictedDiagnostics } from "../../../../../core/knowledge/s47-restricted-diagnostics";
-import { redactAuthorityIdentifiersFromPublicDiagnosticTh } from "../../../../../core/knowledge/authority-surface-auditor";
+import { sanitizePublicLlmAuditTraceForHttp } from "../../../../../core/knowledge/grounded-llm-verifier";
 import {
   assertFollowUpConversationIntegrity,
   findIdempotentQueryRevisionByOperationKey,
@@ -156,74 +156,6 @@ export async function POST(req: Request) {
     const wantsStream =
       body.stream === true ||
       (req.headers.get("accept") || "").toLowerCase().includes("text/event-stream");
-
-    const sanitizePublicLlmAuditTraceForHttp = (
-      rawTrace: Record<string, unknown> | undefined
-    ): Record<string, unknown> | undefined => {
-      if (!rawTrace || typeof rawTrace !== "object") return undefined;
-      const redactPublicDiag = (s: unknown): string =>
-        typeof s === "string"
-          ? redactAuthorityIdentifiersFromPublicDiagnosticTh(
-              s
-                .replace(
-                  /\(\s*[0-9๐-๙][0-9๐-๙,.\s]*(?:บาท|ล้านบาท|%|เปอร์เซ็นต์|วัน|เดือน|ปี)?\s*\)/g,
-                  "(ตัวเลขถูกระงับ)"
-                )
-                .replace(/[0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})+\s*(?:บาท|ล้านบาท)?/g, "[ตัวเลขถูกระงับ]")
-                .replace(/(?<![0-9๐-๙])[0-9๐-๙]+\s*(?:บาท|ล้านบาท)/g, "[จำนวนเงินถูกระงับ]")
-            )
-          : "";
-      const rawRejClaims = Array.isArray(rawTrace.rejected_claims)
-        ? (rawTrace.rejected_claims as Array<Record<string, unknown>>)
-        : [];
-      const rawRejCalcs = Array.isArray(rawTrace.rejected_calculations)
-        ? (rawTrace.rejected_calculations as Array<Record<string, unknown>>)
-        : [];
-      const rawClaimsAfter = Array.isArray(rawTrace.claims_after_verification)
-        ? (rawTrace.claims_after_verification as Array<Record<string, unknown>>)
-        : [];
-      const verifiedUsedPassageIds = new Set<string>(
-        rawClaimsAfter.flatMap((ca) =>
-          Array.isArray(ca.supporting_passage_ids)
-            ? (ca.supporting_passage_ids as unknown[]).filter(
-                (id): id is string => typeof id === "string"
-              )
-            : []
-        )
-      );
-      const rawSupplied = Array.isArray(rawTrace.supplied_passages)
-        ? (rawTrace.supplied_passages as Array<Record<string, unknown>>)
-        : [];
-      return {
-        ...rawTrace,
-        supplied_passage_count: rawSupplied.length,
-        supplied_passages: rawSupplied.filter(
-          (sp) => typeof sp.passage_id === "string" && verifiedUsedPassageIds.has(sp.passage_id)
-        ),
-        // Never leak unverified pre-check draft conclusions, unlinked authorities, or rejected numbers over HTTP
-        claims_before_verification: Array.isArray(rawTrace.claims_before_verification)
-          ? (rawTrace.claims_before_verification as Array<Record<string, unknown>>).map((c) => ({
-              issue_id: c.issue_id,
-              issue_title_th: redactPublicDiag(c.issue_title_th),
-              governing_passage_ids: c.governing_passage_ids,
-              has_proposed_calculation: c.has_proposed_calculation,
-            }))
-          : [],
-        rejected_claims: rawRejClaims.map((rc) => ({
-          issue_id: rc.issue_id,
-          issue_title_th: redactPublicDiag(rc.issue_title_th),
-          cited_passage_ids: rc.cited_passage_ids,
-          rejection_code: rc.rejection_code,
-          rejection_reason_th: redactPublicDiag(rc.rejection_reason_th),
-        })),
-        rejected_calculations: rawRejCalcs.map((rc) => ({
-          issue_id: rc.issue_id,
-          issue_title_th: redactPublicDiag(rc.issue_title_th),
-          rejection_code: rc.rejection_code,
-          rejection_reason_th: redactPublicDiag(rc.rejection_reason_th),
-        })),
-      };
-    };
 
     const querySaveOpKey =
       (typeof body.save_operation_key === "string" && body.save_operation_key.trim()) ||

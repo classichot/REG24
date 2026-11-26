@@ -22,6 +22,10 @@ export interface ClaimVerificationOutcome {
   verification_result: ClaimLedgerItem["verification_result"];
   allow_confident_answer: boolean;
   reason: string;
+  /** Internal-only diagnostic metadata (never returned to UI or public API responses). */
+  offending_identifier?: string | null;
+  offending_sentence_th?: string | null;
+  rule_name?: string | null;
 }
 
 export interface SubstantiveSupportPassageInput {
@@ -45,6 +49,36 @@ export interface SubstantiveClaimSupportOutcome {
     | "INSUFFICIENT_SUBSTANTIVE_OVERLAP";
   detail_th: string;
   overlap_ratio: number;
+  /** Internal-only unredacted diagnostic fields for C0 root-cause auditing. */
+  offending_identifier?: string | null;
+  offending_sentence_th?: string | null;
+  rule_name?: string | null;
+}
+
+export function extractOffendingSentenceForIdentifier(
+  rawText: string,
+  identifier: string | null | undefined
+): string | null {
+  if (!rawText || !rawText.trim()) return null;
+  const arabicText = thaiDigitsToArabic(rawText);
+  const sentences = arabicText
+    .split(/(?:\n+|(?<=[.!?。;])\s+|(?=\s*(?:ทั้งนี้|อนึ่ง|นอกจากนี้|อย่างไรก็ตาม|สำหรับ|ส่วน|ด้าน)\s+))/u)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!identifier) {
+    return sentences[0]?.slice(0, 320) || arabicText.slice(0, 320);
+  }
+  const needle = thaiDigitsToArabic(identifier).trim();
+  const numPart = needle.replace(/^(?:พรฎ\.|กฎกระทรวง\.|ปอ\.|ทป\.|ป\.|ฎีกา\.|พรบแก้ไข\.|กค\s*)/i, "").trim();
+  const hit = sentences.find((s) => {
+    const low = s.toLowerCase();
+    if (low.includes(needle.toLowerCase())) return true;
+    if (numPart && new RegExp(`(?:ฉบับที่\\s*|พ\\.ร\\.ฎ\\.\\s*\\(?|ท\\.ป\\.\\s*|ที่\\s*ป\\.\\s*|ฎีกาที่\\s*|กค\\.?\\s*)${numPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![0-9])`, "i").test(s)) {
+      return true;
+    }
+    return false;
+  });
+  return (hit || sentences[0] || arabicText).slice(0, 360);
 }
 
 const THAI_NUMBER_WORD_REPLACEMENTS: Array<[RegExp, string]> = [
@@ -484,6 +518,9 @@ export function evaluateSubstantiveClaimSupport(params: {
           reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
           detail_th: `ระงับการรับรองข้อกล่าวอ้าง เนื่องจากหลักฐานที่แนบไม่ได้รองรับอนุมาตรา "${sec}" ที่ระบุในข้อสรุป`,
           overlap_ratio: 0,
+          offending_identifier: sec,
+          offending_sentence_th: extractOffendingSentenceForIdentifier(strippedClaim, sec),
+          rule_name: "answer-verification:section_subclause",
         };
       }
       continue;
@@ -500,6 +537,9 @@ export function evaluateSubstantiveClaimSupport(params: {
         reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
         detail_th: `ระงับการรับรองข้อกล่าวอ้าง เนื่องจากหลักฐานที่แนบไม่ได้กล่าวถึงหรือรองรับ "${sec}" ที่อ้างในข้อสรุป`,
         overlap_ratio: 0,
+        offending_identifier: sec,
+        offending_sentence_th: extractOffendingSentenceForIdentifier(strippedClaim, sec),
+        rule_name: "answer-verification:section",
       };
     }
   }
@@ -670,11 +710,16 @@ export function evaluateSubstantiveClaimSupport(params: {
   const cites41BisWithoutCash =
     params.passages.some((p) => p.doc_id === "prov.th.rc.41_ทวิ") &&
     !/เงินสด|โอนเงิน/.test(normClaim);
+  // C12 C4 (DEF-C10-4 class): When structured `case_asset_category` is provided by the CaseFactLedger,
+  // the immovable-property guard (§41 bis / §50(6)) fires ONLY when the fact ledger contains an immovable-asset
+  // fact (`IMMOVABLE_PROPERTY_*`). For cash or movable gifts (`MOVABLE_PROPERTY_CASH_OR_OTHER` or no immovable fact),
+  // it MUST NOT run even if prose or excerpts mention land or §41 bis in contrast!
   const mentionsLandOrImmovable =
-    structuredAssetIsImmovable ||
-    (!structuredAssetIsCashOrMovable &&
-      !headerIsCashOrMovableGift &&
-      (cites41BisWithoutCash || IMMOVABLE_ASSET_RE.test(affirmativeClaimForAsset)));
+    params.case_asset_category !== undefined
+      ? structuredAssetIsImmovable
+      : !structuredAssetIsCashOrMovable &&
+        !headerIsCashOrMovableGift &&
+        (cites41BisWithoutCash || IMMOVABLE_ASSET_RE.test(affirmativeClaimForAsset));
   const mentionsMovableGiftSection =
     /มาตรา\s*42\s*\((?:27|28)\)|มาตรา\s*48\s*\((?:6|7)\)/.test(normClaim);
   const explicitlyDistinguishesMovableFromLand =
@@ -813,6 +858,9 @@ export function evaluateSubstantiveClaimSupport(params: {
         reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
         detail_th: `ระงับการรับรองข้อกล่าวอ้าง เนื่องจากหลักฐานที่แนบไม่ใช่และไม่ได้อ้างถึงเลขที่หนังสือ "${rId}"`,
         overlap_ratio: 0,
+        offending_identifier: rId,
+        offending_sentence_th: extractOffendingSentenceForIdentifier(strippedClaim, rId),
+        rule_name: "answer-verification:ruling",
       };
     }
   }
@@ -886,6 +934,9 @@ export function evaluateSubstantiveClaimSupport(params: {
         reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",
         detail_th: `ระงับการรับรองข้อกล่าวอ้าง เนื่องจากหลักฐานที่แนบไม่ได้กล่าวถึงกฎหมายลำดับรองหรือคำพิพากษา (${inst}) ที่ระบุในข้อสรุป`,
         overlap_ratio: 0,
+        offending_identifier: inst,
+        offending_sentence_th: extractOffendingSentenceForIdentifier(strippedClaim, inst),
+        rule_name: "answer-verification:subordinate_or_judicial_instrument",
       };
     }
   }
@@ -1300,6 +1351,9 @@ export function verifyClaimAgainstPassages(
       verification_result: "UNSUPPORTED",
       allow_confident_answer: false,
       reason: `INSUFFICIENT_SUBSTANTIVE_SUPPORT:${substantive.reason_code}:${substantive.detail_th}`,
+      offending_identifier: substantive.offending_identifier ?? null,
+      offending_sentence_th: substantive.offending_sentence_th ?? null,
+      rule_name: substantive.rule_name ?? `answer-verification:${substantive.reason_code}`,
     };
   }
 

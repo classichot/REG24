@@ -18,7 +18,13 @@ import {
   sanitizeIncidentalSurfaceText,
   type VerifiedAuthorityPassageBinding,
 } from "./authority-surface-auditor";
-import { buildStructuredCaseFactLedger } from "./case-fact-ledger";
+import {
+  applyFactDelta,
+  buildStructuredCaseFactLedger,
+  computeLedgerStateHash,
+  type StructuredCaseFactLedger,
+} from "./case-fact-ledger";
+import { validateFactDelta } from "./fact-delta";
 import {
   evaluateSection47ClaimAmountsAndSubclauses,
   verifySection47AllowanceComponentsFromFacts,
@@ -108,6 +114,7 @@ export const SUPPORT_ROLE_LABELS_TH: Record<ClaimSupportRole, string> = {
   requester_factual_context: "ข้อเท็จจริงของผู้ขอหารือในเอกสารต้นฉบับ",
   official_summary_scope: "สรุปย่อทางการ (รับรองเฉพาะขอบเขตที่สรุปย่อระบุ)",
   verified_attachment_authority: "เอกสารกฎหมายทางการที่แนบและยืนยันต้นฉบับแล้ว",
+  context: "บริบทเปรียบเทียบกฎหมายลำดับรองต่างช่วงเวลา (Context)",
 };
 
 export const SOURCE_FAMILY_LABELS_TH: Record<OfficialSourceFamily, string> = {
@@ -1165,7 +1172,7 @@ export interface ProposedStructuredClaimInput {
 }
 
 const PUBLICATION_EXPLICIT_EXCLUSION_RE =
-  /(?:สิ้นสุด(?:ลง)?|พ้นช่วง(?:เวลา)?|หลังจากช่วง(?:เวลา)?|หลังพ้น|ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|มิได้ใช้บังคับ|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|ไม่อยู่ภายใต้|ไม่ครอบคลุม|หมดอายุ|หมดเขต|ครบกำหนด|ไม่นำมาใช้|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|เปลี่ยนจาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|อยู่นอกช่วง|นอกช่วงเวลา|expired|ended|does\s+not\s+apply|outside\s+the\s+effective)/i;
+  /(?:สิ้นสุด(?:ลง)?|พ้นช่วง(?:เวลา)?|หลังจากช่วง(?:เวลา)?|หลังพ้น|ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|มิได้ใช้บังคับ|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|ไม่อยู่ภายใต้|ไม่ครอบคลุม|หมดอายุ|หมดเขต|ครบกำหนด|ไม่นำมาใช้|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|เปลี่ยน[^.;\n]{0,45}จาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|เปลี่ยนมาอยู่ภายใต้|ย้ายจาก|เลื่อน(?:มา|จาก)|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|อยู่นอกช่วง|นอกช่วงเวลา|expired|ended|does\s+not\s+apply|outside\s+the\s+effective|moved\s+from|instead\s+of|rather\s+than|not\s+applicable|superseded|replaced\s+by|previously\s+under)/i;
 
 /**
  * DEF-C10-1: Preserves upstream verified excluded-context instruments (e.g. a sibling Royal Decree mentioned
@@ -1236,6 +1243,8 @@ export interface ValidateAndPublishAnswerInput {
   user_supplied_facts?: string[];
   assumptions?: string[];
   persist_atomically?: boolean;
+  /** C12 C4: Structured active asset category from CaseFactLedger (scopes immovable-property guard). */
+  case_asset_category?: string | null;
 }
 
 /**
@@ -1667,23 +1676,46 @@ export function validateAndBuildTraceableAnswer(
       ])
     );
     const claimOwnCalcTokens = mergedOwnCalcTokens.length > 0 ? mergedOwnCalcTokens : undefined;
+    const governingRefsForClaim = validRefsForClaim.filter((r) => r.support_role !== "context");
+    const contextRefsForClaim = validRefsForClaim.filter((r) => r.support_role === "context");
+    const contextInstrumentsFromRole = new Set<string>();
+    for (const cref of contextRefsForClaim) {
+      const mDec = /^subreg\.th\.rc\.royal_decree\.([0-9]+)$/.exec(cref.doc_id);
+      if (mDec) contextInstrumentsFromRole.add(`พรฎ.${mDec[1]}`);
+      const cDoc = view.documents[cref.doc_id];
+      const cPsg = view.passages[cref.evidence_id];
+      const cBlob = thaiDigitsToArabic(
+        `${cDoc?.source_native_id || ""} ${cDoc?.original_title_th || ""} ${cPsg?.verbatim_text || ""}`
+      );
+      for (const inst of extractCanonicalInstrumentNumbers(cBlob)) {
+        contextInstrumentsFromRole.add(inst);
+      }
+    }
     const resolvedExcludedInstruments =
-      claimDecision === "supported" && validRefsForClaim.length > 0
-        ? resolveExcludedContextInstrumentsForPublication({
-            claimText: prop.text,
-            citedPassageIds: new Set(validRefsForClaim.map((r) => r.evidence_id)),
-            candidatePassages,
-            viewDocuments: view.documents,
-            upstreamExcluded: prop.excluded_context_instruments,
-          })
+      claimDecision === "supported" && governingRefsForClaim.length > 0
+        ? Array.from(
+            new Set([
+              ...resolveExcludedContextInstrumentsForPublication({
+                claimText: prop.text,
+                citedPassageIds: new Set(governingRefsForClaim.map((r) => r.evidence_id)),
+                candidatePassages,
+                viewDocuments: view.documents,
+                upstreamExcluded: prop.excluded_context_instruments,
+              }),
+              ...Array.from(contextInstrumentsFromRole),
+            ])
+          )
         : [];
-    if (claimDecision === "supported" && validRefsForClaim.length > 0) {
+    if (claimDecision === "supported" && governingRefsForClaim.length > 0) {
       const substantiveCheck = evaluateSubstantiveClaimSupport({
         claim_text: prop.text,
         verified_calculation_numeric_tokens: claimOwnCalcTokens,
         excluded_context_instruments:
           resolvedExcludedInstruments.length > 0 ? resolvedExcludedInstruments : undefined,
-        passages: validRefsForClaim.map((ref) => {
+        ...(input.case_asset_category !== undefined
+          ? { case_asset_category: input.case_asset_category }
+          : {}),
+        passages: governingRefsForClaim.map((ref) => {
           const psg = view.passages[ref.evidence_id]!;
           const doc = view.documents[ref.doc_id];
           return {
@@ -2142,19 +2174,31 @@ export function commitTraceableAnswerAtomically(
     );
     const boundTokensForThisClaimOnly =
       mergedCommitTokens.length > 0 ? mergedCommitTokens : undefined;
-    const commitExcludedInstruments = resolveExcludedContextInstrumentsForPublication({
-      claimText: sc.text,
-      citedPassageIds: new Set(scLinks.map((l) => l.evidence_id)),
-      candidatePassages: allEnvelopeCandidatePassages,
-      viewDocuments: unified.documents,
-      upstreamExcluded: sc.excluded_context_instruments,
-    });
+    const scGoverningLinks = scLinks.filter((l) => l.support_role !== "context");
+    const scContextLinks = scLinks.filter((l) => l.support_role === "context");
+    const commitContextInstruments = new Set<string>();
+    for (const cl of scContextLinks) {
+      const mDec = /^subreg\.th\.rc\.royal_decree\.([0-9]+)$/.exec(cl.doc_id);
+      if (mDec) commitContextInstruments.add(`พรฎ.${mDec[1]}`);
+    }
+    const commitExcludedInstruments = Array.from(
+      new Set([
+        ...resolveExcludedContextInstrumentsForPublication({
+          claimText: sc.text,
+          citedPassageIds: new Set(scGoverningLinks.map((l) => l.evidence_id)),
+          candidatePassages: allEnvelopeCandidatePassages,
+          viewDocuments: unified.documents,
+          upstreamExcluded: sc.excluded_context_instruments,
+        }),
+        ...Array.from(commitContextInstruments),
+      ])
+    );
     const substantive = evaluateSubstantiveClaimSupport({
       claim_text: sc.text,
       verified_calculation_numeric_tokens: boundTokensForThisClaimOnly,
       excluded_context_instruments:
         commitExcludedInstruments.length > 0 ? commitExcludedInstruments : undefined,
-      passages: scLinks.map((l) => {
+      passages: (scGoverningLinks.length > 0 ? scGoverningLinks : scLinks).map((l) => {
         const psg = unified.passages[l.evidence_id]!;
         const doc = unified.documents[l.doc_id];
         return {
@@ -3323,15 +3367,55 @@ export async function saveOrReviseAnswerServerVerified(
     const val = parseAmountVal(pm[1] || pm[2] || "", pm[3]);
     if (val !== null) prevMonetaryBasesThb.push(val);
   }
-  // Independently recompute server-side VAT lot/portion allocation from user turn text (+ predecessor turn)
-  // so Save re-verification consumes the exact same verified allocation record without trusting client numbers!
-  const serverSaveFactLedger = buildStructuredCaseFactLedger({
+  // Independently recompute server-side VAT lot/portion allocation from user turn text (+ full conversation history
+  // / server-validated FactDelta when present) so Save re-verification consumes the exact same verified allocation
+  // record without trusting unverified client numbers!
+  const saveHistoryForLedger: ConversationTurnInput[] =
+    params.query_persistence_context?.conversation_history &&
+    params.query_persistence_context.conversation_history.length > 0
+      ? params.query_persistence_context.conversation_history
+      : pgOwn.question_texts && pgOwn.question_texts.length > 0
+        ? pgOwn.question_texts.map((qt) => ({ role: "user" as const, content: qt }))
+        : localExistingChain.length > 0
+          ? localExistingChain
+              .map((r) => r.question_text)
+              .filter((qt): qt is string => Boolean(qt && qt.trim()))
+              .map((qt) => ({ role: "user" as const, content: qt }))
+          : authoritativePredecessorQuestionText
+            ? [{ role: "user", content: authoritativePredecessorQuestionText }]
+            : [];
+  const rawSaveFactDelta =
+    sub.execution_provenance?.fact_delta ??
+    params.grounded_answer_snapshot?.execution_provenance?.fact_delta ??
+    null;
+  let serverSaveFactLedger: StructuredCaseFactLedger = buildStructuredCaseFactLedger({
     question: params.question_text || "",
     applicableDate: sub.as_of_date ?? null,
-    conversationHistory: authoritativePredecessorQuestionText
-      ? [{ role: "user", content: authoritativePredecessorQuestionText }]
-      : [],
+    conversationHistory: saveHistoryForLedger,
   });
+  if (rawSaveFactDelta && saveHistoryForLedger.length > 0) {
+    const priorSaveUserTurns = saveHistoryForLedger.filter(
+      (t) => t.role === "user" && typeof t.content === "string" && t.content.trim().length > 0
+    );
+    if (priorSaveUserTurns.length > 0) {
+      const priorSaveLedger = buildStructuredCaseFactLedger({
+        question: priorSaveUserTurns[priorSaveUserTurns.length - 1].content,
+        applicableDate: null,
+        conversationHistory: priorSaveUserTurns.slice(0, -1),
+      });
+      const validatedSaveDelta = validateFactDelta(
+        rawSaveFactDelta,
+        priorSaveLedger,
+        params.question_text || ""
+      );
+      if (validatedSaveDelta.valid && validatedSaveDelta.normalized_delta) {
+        serverSaveFactLedger = applyFactDelta(priorSaveLedger, validatedSaveDelta.normalized_delta, {
+          userTurnText: params.question_text || "",
+          applicableDate: sub.as_of_date ?? null,
+        });
+      }
+    }
+  }
   const serverAllocatedVatBasesThb = new Set<number>();
   const saveVatAlloc = serverSaveFactLedger.temporal_facts.vat_portion_allocation_record;
   const saveSameDecreeWindowLotMap = new Map<number, string[]>();
@@ -3459,6 +3543,7 @@ export async function saveOrReviseAnswerServerVerified(
     const validRefs = (rawClm.evidence_references || []).filter((r) =>
       Boolean(unified.passages[r.evidence_id])
     );
+    const nonContextValidRefs = validRefs.filter((r) => r.support_role !== "context");
     for (const r of validRefs) candidateIds.add(r.evidence_id);
 
     // Preserve multi-authority support groups per `(required_group, support_role)` so statutory + ruling pairs remain intact!
@@ -3511,7 +3596,7 @@ export async function saveOrReviseAnswerServerVerified(
       const compTax =
         typeof cand.outputs?.computed_tax_thb === "number" ? cand.outputs.computed_tax_thb : null;
       const canonicalCitedBlob = thaiDigitsToArabic(
-        validRefs.map((r) => unified.passages[r.evidence_id]?.verbatim_text || "").join(" ")
+        nonContextValidRefs.map((r) => unified.passages[r.evidence_id]?.verbatim_text || "").join(" ")
       );
       const baseInQuestion =
         tBase !== null &&
@@ -3605,7 +3690,7 @@ export async function saveOrReviseAnswerServerVerified(
     // directly from THIS claim's cited canonical passages, plus non-overridden predecessor conversation bases
     // when the follow-up turn did not introduce a new monetary base (e.g. G3t2 changing only the recipient).
     const citedThresholdBlob = thaiDigitsToArabic(
-      validRefs.map((r) => unified.passages[r.evidence_id]?.verbatim_text || "").join(" ")
+      nonContextValidRefs.map((r) => unified.passages[r.evidence_id]?.verbatim_text || "").join(" ")
     );
     if (citedThresholdBlob.includes("ยี่สิบล้านบาท")) {
       mergedPerClaimTokens.add("20000000");
@@ -3641,7 +3726,7 @@ export async function saveOrReviseAnswerServerVerified(
     // guide (1/9 local tax = 0.7%, combined = 7.0%) verified against canonical passages, deterministically ground
     // the exact combined rate tokens + exact VAT-exclusive/VAT-inclusive arithmetic derived from question_text.
     const validPassageDocIds = new Set(
-      validRefs
+      nonContextValidRefs
         .map((r) => unified.passages[r.evidence_id]?.doc_id)
         .filter((d): d is string => Boolean(d))
     );
@@ -3685,7 +3770,7 @@ export async function saveOrReviseAnswerServerVerified(
       verifiedTokensForThisClaimOnly = Array.from(tokenSet);
     }
 
-    const citesSection47InClaim = validRefs.some((r) => {
+    const citesSection47InClaim = nonContextValidRefs.some((r) => {
       const docRec = unified.documents[r.doc_id];
       return docRec?.canonical_work_id === "prov.th.rc.47" || r.doc_id === "prov.th.rc.47";
     });
@@ -3771,6 +3856,10 @@ export async function saveOrReviseAnswerServerVerified(
     });
   }
 
+  const serverSaveAssetCategory =
+    serverSaveFactLedger.material_facts.find((f) => f.fact_key === "asset")?.normalized_category ??
+    null;
+
   const serverValidated = validateAndBuildTraceableAnswer(store, {
     answer_id: requestedAnswerId,
     revision_number: nextRevHint,
@@ -3787,6 +3876,7 @@ export async function saveOrReviseAnswerServerVerified(
     proposed_claims: proposedClaims,
     user_supplied_facts: sub.user_supplied_facts || [],
     assumptions: sub.assumptions || [],
+    case_asset_category: serverSaveAssetCategory,
     persist_atomically: false,
   });
   if (sub.execution_provenance) {
@@ -4056,6 +4146,421 @@ export async function saveOrReviseAnswerServerVerified(
   return committedLocal;
 }
 
+export interface AllocationClaimInvariantViolation {
+  code:
+    | "STALE_ALLOCATION_RECORD"
+    | "LOT_NOT_COVERED_OR_UNRESOLVED"
+    | "DUPLICATE_LOT_CLAIM_COVERAGE"
+    | "CLAIM_MERGES_DIFFERENT_DECREE_WINDOWS"
+    | "CLAIM_BASE_MISMATCH"
+    | "CLAIM_VAT_MISMATCH"
+    | "CLAIM_DATE_MISMATCH"
+    | "CLAIM_DECREE_VERSION_MISMATCH"
+    | "TOTAL_BASE_NOT_CONSERVED";
+  lot_ids: string[];
+  expected_date_iso?: string | null;
+  observed_date_iso?: string | null;
+  detail_th: string;
+}
+
+export interface AllocationClaimInvariantResult {
+  ok: boolean;
+  stale_allocation_record: boolean;
+  violations: AllocationClaimInvariantViolation[];
+  clarification_question_th: string | null;
+}
+
+const INVARIANT_THAI_MONTHS_FULL = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+const INVARIANT_THAI_MONTHS_SHORT = [
+  "ม.ค.",
+  "ก.พ.",
+  "มี.ค.",
+  "เม.ย.",
+  "พ.ค.",
+  "มิ.ย.",
+  "ก.ค.",
+  "ส.ค.",
+  "ก.ย.",
+  "ต.ค.",
+  "พ.ย.",
+  "ธ.ค.",
+];
+const INVARIANT_EN_MONTHS_FULL = [
+  "january",
+  "february",
+  "march",
+  "april",
+  "may",
+  "june",
+  "july",
+  "august",
+  "september",
+  "october",
+  "november",
+  "december",
+];
+const INVARIANT_EN_MONTHS_SHORT = [
+  "jan",
+  "feb",
+  "mar",
+  "apr",
+  "may",
+  "jun",
+  "jul",
+  "aug",
+  "sep",
+  "oct",
+  "nov",
+  "dec",
+];
+
+function textMentionsIsoDate(rawText: string, iso: string): boolean {
+  const norm = thaiDigitsToArabic(rawText || "").replace(/\s+/g, " ");
+  if (norm.includes(iso)) return true;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return false;
+  const yCe = Number(m[1]);
+  const yBe = yCe + 543;
+  const yBeShort = String(yBe).slice(-2);
+  const moIdx = Number(m[2]) - 1;
+  const day = Number(m[3]);
+  const thFull = INVARIANT_THAI_MONTHS_FULL[moIdx];
+  const thShort = INVARIANT_THAI_MONTHS_SHORT[moIdx]?.replace(/\./g, "\\.");
+  const enFull = INVARIANT_EN_MONTHS_FULL[moIdx];
+  const enShort = INVARIANT_EN_MONTHS_SHORT[moIdx];
+  if (!thFull) return false;
+  const re = new RegExp(
+    `(?:(?<!\\d)${day}\\s*(?:${thFull}|${thShort})\\s*(?:พ\\.ศ\\.\\s*)?(?:${yBe}|${yBeShort})(?!\\d)|(?<!\\d)${day}\\s*(?:${enFull}|${enShort})\\.?(?:\\s+${yCe})?\\b|\\b(?:${enFull}|${enShort})\\.?\\s+${day}(?:st|nd|rd|th)?(?:,?\\s+${yCe})?\\b)`,
+    "i"
+  );
+  return re.test(norm);
+}
+
+/**
+ * C12 Workstream B (B1 + B3):
+ * Verifies hard consistency between `vat_portion_allocation_record` and the published claims before publish:
+ * 1. B3 freshness: `vat_portion_allocation_record.ledger_after_hash` MUST match the active ledger's hash.
+ * 2. B1 coverage: every lot in `lot_allocations` is covered by exactly 1 published claim OR listed in `unresolved_issues`
+ *    with a user-visible explanation.
+ * 3. B1 agreement: every covering claim's bound calculation matches the record on `tax_base_thb`, `computed_tax_thb`,
+ *    controlling date, and decree `work_id`/`version_id`.
+ * 4. B1 conservation: `sum(published bases) + sum(unresolved bases) === declared total`.
+ */
+export function checkAllocationToClaimConsistencyInvariant(params: {
+  factLedger: StructuredCaseFactLedger;
+  publishedClaims: PublishedAtomicClaimDto[];
+  unresolvedIssues: TraceableAnswerEnvelope["unresolved_issues"];
+  isLlmGrounded: boolean;
+}): AllocationClaimInvariantResult {
+  const alloc = params.factLedger.temporal_facts.vat_portion_allocation_record;
+  if (!alloc || alloc.allocation_status !== "RESOLVED" || alloc.lot_allocations.length < 2) {
+    return {
+      ok: true,
+      stale_allocation_record: false,
+      violations: [],
+      clarification_question_th: null,
+    };
+  }
+
+  const violations: AllocationClaimInvariantViolation[] = [];
+  const activeLedgerHash =
+    params.factLedger.ledger_state_hash || computeLedgerStateHash(params.factLedger);
+  const staleAllocationRecord =
+    !alloc.ledger_after_hash || alloc.ledger_after_hash !== activeLedgerHash;
+  if (staleAllocationRecord) {
+    violations.push({
+      code: "STALE_ALLOCATION_RECORD",
+      lot_ids: alloc.lot_allocations.map((l) => l.lot_id),
+      detail_th: `บันทึกการจัดสรร VAT (hash=${alloc.ledger_after_hash || "missing"}) ไม่ตรงกับสถานะข้อเท็จจริงของรอบปัจจุบัน (hash=${activeLedgerHash})`,
+    });
+  }
+
+  const supportedNonSummaryClaims = params.publishedClaims.filter((c) => {
+    if (c.verification_decision !== "supported" || !c.published) return false;
+    if (c.claim_type === "user_fact_or_assumption" || c.claim_type === "scoped_unresolved_notice") {
+      return false;
+    }
+    const header = /^\s*\[([^\]]{2,360})\]/u.exec(c.text || "")?.[1] || "";
+    const isGrandSummary = /(?:สรุปรวม|ยอดรวมทั้งสิ้น|รวมทั้ง\s*[0-9]+\s*(?:ล็อต|ชุด|รายการ)|รวมทั้งธุรกรรม|ภาพรวมทั้งหมด)/i.test(
+      thaiDigitsToArabic(header)
+    );
+    if (isGrandSummary) return false;
+    return true;
+  });
+
+  const matchLotsInText = (rawTxt: string): string[] => {
+    const positiveTxt = thaiDigitsToArabic(rawTxt || "").replace(
+      /(?:ไม่รวม(?:ถึง)?|ไม่ใช่|มิใช่|ยกเว้น|\bnot\b|\bexcluding\b)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ|ส่วนที่|lot|batch|tranche|item)\s*[A-Z0-9ก-ฮ]+/gi,
+      " "
+    );
+    const matched: string[] = [];
+    for (const la of alloc.lot_allocations) {
+      const escLabel = thaiDigitsToArabic(la.label_th).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const lotToken = la.lot_id.replace(/^LOT_/, "");
+      const escTok = lotToken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const escLotId = la.lot_id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(
+        `(?:${escLabel}|${escLotId}|(?:ล็อต|ล๊อต|ชุดที่|รายการที่|lot)[\\s_-]*${escTok})(?![A-Za-z0-9])`,
+        "i"
+      );
+      if (re.test(positiveTxt)) {
+        matched.push(la.lot_id);
+      }
+    }
+    return matched;
+  };
+
+  const claimToLots = new Map<string, { claim: PublishedAtomicClaimDto; lotIds: string[] }>();
+  for (const c of supportedNonSummaryClaims) {
+    const header = /^\s*\[([^\]]{2,360})\]/u.exec(c.text || "")?.[1] || "";
+    let matched = matchLotsInText(header);
+    if (matched.length === 0) {
+      const conclusionOnly = (c.text || "").split(/\s*\(/)[0] || c.text;
+      matched = matchLotsInText(conclusionOnly);
+    }
+    if (matched.length > 0 && matched.length < alloc.lot_allocations.length) {
+      claimToLots.set(c.claim_id, { claim: c, lotIds: matched });
+    } else if (
+      matched.length === alloc.lot_allocations.length &&
+      new Set(alloc.lot_allocations.map((l) => l.controlling_tax_point_iso)).size === 1
+    ) {
+      claimToLots.set(c.claim_id, { claim: c, lotIds: matched });
+    }
+  }
+
+  const lotById = new Map(alloc.lot_allocations.map((l) => [l.lot_id, l]));
+  const bucketByIso = new Map(alloc.tax_date_buckets.map((b) => [b.iso_date, b]));
+  const allLedgerDates = Array.from(
+    new Set([
+      ...alloc.lot_allocations.map((l) => l.controlling_tax_point_iso),
+      ...(params.factLedger.temporal_facts.transaction_or_event_dates || [])
+        .filter((e) => e.event_status !== "NEGATED" && e.event_type !== "QUESTION_DATE")
+        .map((e) => e.iso_date),
+    ])
+  ).sort();
+
+  let publishedBaseSum = 0;
+  let unresolvedBaseSum = 0;
+  const unresolvedBlob = thaiDigitsToArabic(
+    (params.unresolvedIssues || [])
+      .map((u) => `${u.scope_key || ""} ${u.explanation_th || ""} ${(u.withheld_claim_ids || []).join(" ")}`)
+      .join("\n")
+  );
+
+  for (const la of alloc.lot_allocations) {
+    const covering = Array.from(claimToLots.values()).filter((m) => m.lotIds.includes(la.lot_id));
+    if (covering.length === 0) {
+      const lotToken = la.lot_id.replace(/^LOT_/, "");
+      const escLabel = thaiDigitsToArabic(la.label_th).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const lotListedInUnresolved =
+        params.unresolvedIssues.length > 0 &&
+        new RegExp(
+          `(?:${escLabel}|${la.lot_id}|(?:ล็อต|ล๊อต|ชุดที่|รายการที่|lot)[\\s_-]*${lotToken})(?![A-Za-z0-9])`,
+          "i"
+        ).test(unresolvedBlob);
+      if (lotListedInUnresolved) {
+        unresolvedBaseSum = Math.round((unresolvedBaseSum + la.taxable_base_thb) * 100) / 100;
+      } else {
+        const competingDate =
+          allLedgerDates.find((d) => d !== la.controlling_tax_point_iso) || null;
+        violations.push({
+          code: "LOT_NOT_COVERED_OR_UNRESOLVED",
+          lot_ids: [la.lot_id],
+          expected_date_iso: la.controlling_tax_point_iso,
+          observed_date_iso: competingDate,
+          detail_th: `${la.label_th} (วันเกิดความรับผิดตามบันทึก ${la.controlling_tax_point_iso}, ฐานภาษี ${la.taxable_base_thb.toLocaleString("en-US")} บาท) ไม่มีข้อกล่าวอ้างที่เผยแพร่รองรับและไม่ได้ระบุอยู่ในรายการ unresolved_issues`,
+        });
+      }
+    } else if (covering.length > 1) {
+      violations.push({
+        code: "DUPLICATE_LOT_CLAIM_COVERAGE",
+        lot_ids: [la.lot_id],
+        expected_date_iso: la.controlling_tax_point_iso,
+        detail_th: `${la.label_th} ถูกครอบคลุมซ้ำโดยข้อกล่าวอ้างที่เผยแพร่ ${covering.length} รายการ`,
+      });
+    } else {
+      publishedBaseSum = Math.round((publishedBaseSum + la.taxable_base_thb) * 100) / 100;
+    }
+  }
+
+  let sumUniqueClaimCalcBases = 0;
+  let allCoveringHaveCalc = claimToLots.size > 0;
+
+  for (const { claim, lotIds } of claimToLots.values()) {
+    const groupLots = lotIds.map((id) => lotById.get(id)!).filter(Boolean);
+    if (groupLots.length === 0) continue;
+
+    const distinctDates = Array.from(new Set(groupLots.map((l) => l.controlling_tax_point_iso)));
+    const distinctDecrees = Array.from(new Set(groupLots.map((l) => l.governing_decree_work_id || "")));
+    if (distinctDecrees.length > 1) {
+      violations.push({
+        code: "CLAIM_MERGES_DIFFERENT_DECREE_WINDOWS",
+        lot_ids: lotIds,
+        expected_date_iso: distinctDates[0] || null,
+        observed_date_iso: distinctDates[1] || null,
+        detail_th: `ข้อกล่าวอ้างเดียวรวมล็อตที่มีพระราชกฤษฎีกาต่างฉบับกัน (${lotIds.join(", ")})`,
+      });
+      continue;
+    }
+
+    const expectedIso = distinctDates[0];
+    const expectedDecreeWorkId = groupLots[0].governing_decree_work_id;
+    const expectedBucket = bucketByIso.get(expectedIso);
+    const expectedDecreeVersionId = expectedBucket?.governing_version_id || null;
+    const expectedBase =
+      Math.round(groupLots.reduce((s, l) => s + l.taxable_base_thb, 0) * 100) / 100;
+    const expectedVat = groupLots.every((l) => typeof l.verified_vat_thb === "number")
+      ? Math.round(groupLots.reduce((s, l) => s + (l.verified_vat_thb ?? 0), 0) * 100) / 100
+      : null;
+
+    if (claim.bound_calculation) {
+      const calcBase = claim.bound_calculation.inputs.tax_base_thb;
+      const calcVat = claim.bound_calculation.outputs.computed_tax_thb;
+      if (typeof calcBase === "number" && Number.isFinite(calcBase)) {
+        sumUniqueClaimCalcBases = Math.round((sumUniqueClaimCalcBases + calcBase) * 100) / 100;
+      } else {
+        allCoveringHaveCalc = false;
+      }
+      if (typeof calcBase !== "number" || !Number.isFinite(calcBase) || Math.abs(calcBase - expectedBase) > 1) {
+        violations.push({
+          code: "CLAIM_BASE_MISMATCH",
+          lot_ids: lotIds,
+          expected_date_iso: expectedIso,
+          detail_th: `ฐานภาษีในข้อกล่าวอ้าง (${calcBase ?? "null"} บาท) ไม่ตรงกับบันทึกจัดสรรของ ${groupLots.map((l) => l.label_th).join(" + ")} (${expectedBase.toLocaleString("en-US")} บาท)`,
+        });
+      }
+      if (
+        expectedVat !== null &&
+        (typeof calcVat !== "number" || !Number.isFinite(calcVat) || Math.abs(calcVat - expectedVat) > 1.5)
+      ) {
+        violations.push({
+          code: "CLAIM_VAT_MISMATCH",
+          lot_ids: lotIds,
+          expected_date_iso: expectedIso,
+          detail_th: `ยอด VAT ในข้อกล่าวอ้าง (${calcVat ?? "null"} บาท) ไม่ตรงกับบันทึกจัดสรรของ ${groupLots.map((l) => l.label_th).join(" + ")} (${expectedVat.toLocaleString("en-US")} บาท)`,
+        });
+      }
+    } else {
+      allCoveringHaveCalc = false;
+      if (params.isLlmGrounded && expectedVat !== null) {
+        violations.push({
+          code: "CLAIM_BASE_MISMATCH",
+          lot_ids: lotIds,
+          expected_date_iso: expectedIso,
+          detail_th: `ข้อกล่าวอ้างของ ${groupLots.map((l) => l.label_th).join(" + ")} ไม่มี bound_calculation ที่ยืนยันตรงกับบันทึกจัดสรร`,
+        });
+      }
+    }
+
+    // Check governing decree work_id & version_id (ignoring `context`-only sibling decree references!)
+    if (expectedDecreeWorkId) {
+      const governingRefs = (claim.evidence_references || []).filter(
+        (r) => (r.support_role as string) !== "context"
+      );
+      const governingDecreeRefs = governingRefs.filter((r) =>
+        /^subreg\.th\.rc\.royal_decree\.(780|790|799|807)$/.test(r.doc_id)
+      );
+      const matchingDecreeRef = governingDecreeRefs.find((r) => r.doc_id === expectedDecreeWorkId);
+      const conflictingDecreeRef = governingDecreeRefs.find((r) => r.doc_id !== expectedDecreeWorkId);
+      const versionMismatch = Boolean(
+        matchingDecreeRef &&
+          expectedDecreeVersionId &&
+          matchingDecreeRef.version_id !== expectedDecreeVersionId
+      );
+      if (!matchingDecreeRef || conflictingDecreeRef || versionMismatch) {
+        const competingDate =
+          allLedgerDates.find((d) => d !== expectedIso) || null;
+        violations.push({
+          code: "CLAIM_DECREE_VERSION_MISMATCH",
+          lot_ids: lotIds,
+          expected_date_iso: expectedIso,
+          observed_date_iso: competingDate,
+          detail_th: `พระราชกฤษฎีกาที่ใช้ควบคุมของ ${groupLots.map((l) => l.label_th).join(" + ")} ไม่ตรงกับบันทึกจัดสรร (คาดหวัง ${expectedDecreeWorkId}${expectedDecreeVersionId ? `@${expectedDecreeVersionId}` : ""} แต่พบ ${governingDecreeRefs.map((r) => `${r.doc_id}@${r.version_id}`).join(", ") || "none"})`,
+        });
+      }
+    }
+
+    // Check every constituent lot's controlling date appears in claim text (supports single-date
+    // claims AND same-decree multi-date claims such as Lot A 29 Sep + Lot B 30 Sep under RD 799)
+    const missingExpectedDates = distinctDates.filter((d) => !textMentionsIsoDate(claim.text, d));
+    if (missingExpectedDates.length > 0) {
+      const missingIso = missingExpectedDates[0];
+      const observedDateInClaim =
+        allLedgerDates.find(
+          (d) => !distinctDates.includes(d) && textMentionsIsoDate(claim.text, d)
+        ) || null;
+      violations.push({
+        code: "CLAIM_DATE_MISMATCH",
+        lot_ids: lotIds,
+        expected_date_iso: missingIso,
+        observed_date_iso: observedDateInClaim,
+        detail_th: `วันเกิดความรับผิดในข้อกล่าวอ้างของ ${groupLots.map((l) => l.label_th).join(" + ")} ไม่ตรงกับวันที่ในบันทึกจัดสรร (${missingIso})`,
+      });
+    }
+  }
+
+  // Conservation of total base
+  const declaredTotal = alloc.transaction_base_thb;
+  if (Math.abs(publishedBaseSum + unresolvedBaseSum - declaredTotal) > 1) {
+    violations.push({
+      code: "TOTAL_BASE_NOT_CONSERVED",
+      lot_ids: alloc.lot_allocations.map((l) => l.lot_id),
+      detail_th: `ผลรวมฐานภาษีที่เผยแพร่ (${publishedBaseSum.toLocaleString("en-US")} บาท) บวกฐานที่ระงับ (${unresolvedBaseSum.toLocaleString("en-US")} บาท) ไม่เท่ากับมูลค่ารวมของธุรกรรม (${declaredTotal.toLocaleString("en-US")} บาท)`,
+    });
+  } else if (
+    allCoveringHaveCalc &&
+    Math.abs(sumUniqueClaimCalcBases + unresolvedBaseSum - declaredTotal) > 1
+  ) {
+    violations.push({
+      code: "TOTAL_BASE_NOT_CONSERVED",
+      lot_ids: alloc.lot_allocations.map((l) => l.lot_id),
+      detail_th: `ผลรวมฐานภาษีใน bound_calculation (${sumUniqueClaimCalcBases.toLocaleString("en-US")} บาท) บวกฐานที่ระงับ (${unresolvedBaseSum.toLocaleString("en-US")} บาท) ไม่เท่ากับมูลค่ารวมของธุรกรรม (${declaredTotal.toLocaleString("en-US")} บาท)`,
+    });
+  }
+
+  if (violations.length === 0) {
+    return {
+      ok: true,
+      stale_allocation_record: false,
+      violations: [],
+      clarification_question_th: null,
+    };
+  }
+
+  const primaryViolation =
+    violations.find((v) => v.code !== "TOTAL_BASE_NOT_CONSERVED") || violations[0];
+  const affectedLotLabels = primaryViolation.lot_ids
+    .map((id) => lotById.get(id)?.label_th || id)
+    .join(", ");
+  const dateA = primaryViolation.expected_date_iso || allLedgerDates[0] || "-";
+  const dateB =
+    primaryViolation.observed_date_iso ||
+    allLedgerDates.find((d) => d !== dateA) ||
+    allLedgerDates[allLedgerDates.length - 1] ||
+    "-";
+  const clarificationQuestionTh = `พบความไม่สอดคล้องของวันเกิดความรับผิดหรือการจัดสรรภาษีมูลค่าเพิ่มสำหรับ${affectedLotLabels || "ล็อตสินค้า"} (วันที่ที่เป็นไปได้: ${dateA} เทียบกับ ${dateB}) — กรุณายืนยันวันเกิดความรับผิดและขอบเขตเหตุการณ์ที่ครอบคลุม${affectedLotLabels || "ล็อตสินค้าดังกล่าว"}ให้ชัดเจนก่อนระบบสรุปและแสดงบันทึกการจัดสรรภาษีมูลค่าเพิ่ม`;
+
+  return {
+    ok: false,
+    stale_allocation_record: staleAllocationRecord,
+    violations,
+    clarification_question_th: clarificationQuestionTh,
+  };
+}
+
 /**
  * Bridges existing `GroundedAnswer` from `queryKnowledge()` through the full atomic claim segmentation,
  * canonical evidence resolution, and publication gate, producing a 100% compliant `TraceableAnswerEnvelope`.
@@ -4077,6 +4582,9 @@ export function attachTraceableEnvelopeToGroundedAnswer(
   for (const clm of grounded.claims) {
     for (const pid of clm.supporting_passage_ids || []) {
       if (view.passages[pid]) authorizedCandidateIds.add(pid);
+    }
+    for (const cpid of clm.context_passage_ids || []) {
+      if (view.passages[cpid]) authorizedCandidateIds.add(cpid);
     }
   }
 
@@ -4190,6 +4698,29 @@ export function attachTraceableEnvelopeToGroundedAnswer(
           evidence_ids: otherIds,
         });
       }
+      // C12 C3: Attach sibling decree context passages as `support_role: "context"` (preserving governing passages unchanged).
+      const contextIds = (rawClm.context_passage_ids || []).filter(
+        (id) => authorizedCandidateIds.has(id) && !supportIds.includes(id)
+      );
+      if (contextIds.length > 0) {
+        const ctxByDoc = new Map<string, string[]>();
+        for (const cid of contextIds) {
+          const dId = view.passages[cid]?.doc_id || "unknown";
+          const arr = ctxByDoc.get(dId) || [];
+          arr.push(cid);
+          ctxByDoc.set(dId, arr);
+        }
+        let cIdx = 0;
+        for (const [, docCtxIds] of ctxByDoc.entries()) {
+          cIdx++;
+          groups.push({
+            group_id: `grp.sibling_decree_context.${cIdx}`,
+            role: "context",
+            evidence_ids: docCtxIds,
+            expected_version_id: view.passages[docCtxIds[0]]?.version_id ?? null,
+          });
+        }
+      }
       return groups;
     };
 
@@ -4203,7 +4734,9 @@ export function attachTraceableEnvelopeToGroundedAnswer(
       const isExceptionSeg = /^(?:เว้นแต่|ยกเว้น|ทั้งนี้)/.test(segText);
       const baseGroups = buildGroups();
       const segGroups = isExceptionSeg
-        ? baseGroups.map((g) => ({ ...g, role: "exception_or_proviso" as ClaimSupportRole }))
+        ? baseGroups.map((g) =>
+            g.role === "context" ? g : { ...g, role: "exception_or_proviso" as ClaimSupportRole }
+          )
         : baseGroups;
 
       const atomicClaimId =
@@ -4240,6 +4773,17 @@ export function attachTraceableEnvelopeToGroundedAnswer(
     });
   }
 
+  const ledgerForEnvelopeAssetScope =
+    grounded.llm_audit_trace && typeof grounded.llm_audit_trace === "object"
+      ? ((grounded.llm_audit_trace as Record<string, unknown>).input_fact_ledger as
+          | StructuredCaseFactLedger
+          | undefined)
+      : undefined;
+  const envelopeCaseAssetCategory = ledgerForEnvelopeAssetScope
+    ? (ledgerForEnvelopeAssetScope.material_facts.find((f) => f.fact_key === "asset")
+        ?.normalized_category ?? null)
+    : undefined;
+
   const builtEnvelope = validateAndBuildTraceableAnswer(store, {
     answer_id: `ans.${grounded.trace_id}`,
     channel: params.channel || "api",
@@ -4253,6 +4797,9 @@ export function attachTraceableEnvelopeToGroundedAnswer(
     user_supplied_facts: userFacts,
     assumptions: grounded.assumptions,
     persist_atomically: false,
+    ...(envelopeCaseAssetCategory !== undefined
+      ? { case_asset_category: envelopeCaseAssetCategory }
+      : {}),
   });
 
   // Preserve exact upstream GroundedAnswer outcome (CONDITIONAL -> partial, NEEDS_CLARIFICATION / INSUFFICIENT_EVIDENCE / REVIEW_REQUIRED -> insufficient)
@@ -4369,6 +4916,117 @@ export function attachTraceableEnvelopeToGroundedAnswer(
       answer: syncedAnswerBody,
       coverage_warnings: mergedCoverageWarnings,
     };
+  }
+
+  // C12 Workstream B (B1 + B3): Hard Allocation-to-Claim Consistency Invariant before publish.
+  // Never allow a published answer where a lot's claim disagrees with (or is silently omitted from)
+  // the Verified VAT Allocation Record shown beside it, or where a stale allocation record hash is carried over.
+  const auditTraceObj =
+    grounded.llm_audit_trace && typeof grounded.llm_audit_trace === "object"
+      ? (grounded.llm_audit_trace as Record<string, unknown>)
+      : null;
+
+  // C12 B1: Surface verifier-withheld claims explicitly in `unresolved_issues` (never silently dropped)
+  if (auditTraceObj && Array.isArray(auditTraceObj.rejected_claims)) {
+    const existingScopeKeys = new Set(builtEnvelope.unresolved_issues.map((u) => u.scope_key));
+    for (const rawRc of auditTraceObj.rejected_claims as Array<Record<string, unknown>>) {
+      const issueId = typeof rawRc?.issue_id === "string" ? rawRc.issue_id : "";
+      if (!issueId || existingScopeKeys.has(issueId)) continue;
+      existingScopeKeys.add(issueId);
+      const titleTh = typeof rawRc.issue_title_th === "string" ? rawRc.issue_title_th : issueId;
+      const reasonTh =
+        typeof rawRc.rejection_reason_th === "string"
+          ? rawRc.rejection_reason_th
+          : "ประเด็นถูกระงับการเผยแพร่เนื่องจากไม่ผ่านการตรวจสอบหลักฐานหรือช่วงเวลาใช้บังคับ";
+      builtEnvelope.unresolved_issues.push({
+        issue_id: `unres.${grounded.trace_id}.${issueId}`,
+        scope_key: issueId,
+        reason_code: "INSUFFICIENT_CORPUS_EVIDENCE",
+        explanation_th: `${titleTh}: ${reasonTh}`,
+        withheld_claim_ids: [],
+      });
+    }
+  }
+
+  const invariantLedger =
+    (auditTraceObj?.input_fact_ledger as StructuredCaseFactLedger | undefined) ?? null;
+  if (
+    invariantLedger &&
+    grounded.status !== "REVIEW_REQUIRED" &&
+    grounded.status !== "INSUFFICIENT_EVIDENCE" &&
+    grounded.status !== "NEEDS_CLARIFICATION"
+  ) {
+    const invCheck = checkAllocationToClaimConsistencyInvariant({
+      factLedger: invariantLedger,
+      publishedClaims: builtEnvelope.claims,
+      unresolvedIssues: builtEnvelope.unresolved_issues,
+      isLlmGrounded: grounded.execution_provenance?.generation_mode === "llm_grounded",
+    });
+    if (!invCheck.ok) {
+      const clarifyQuestion =
+        invCheck.clarification_question_th ||
+        "พบความไม่สอดคล้องระหว่างการจัดสรรวันเกิดความรับผิดกับข้อกล่าวอ้างของสินค้าแต่ละล็อต — กรุณายืนยันวันเกิดความรับผิดและขอบเขตสินค้าแต่ละล็อตก่อนระบบคำนวณภาษีมูลค่าเพิ่ม";
+      const stripAllocRecordLine = (txt: string): string =>
+        (txt || "")
+          .replace(
+            /^-\s*\*\*การจัดสรรวันเกิดความรับผิดแยกตามส่วน\/ล็อตสินค้า\s*\(Verified VAT Allocation Record\)\*\*:[^\n]*\n?/gm,
+            ""
+          )
+          .trim();
+
+      const invariantWarnCodes = Array.from(
+        new Set([
+          ...(builtEnvelope.coverage_warnings_th || []),
+          ...(invCheck.stale_allocation_record
+            ? ["stale_allocation_record: บันทึกการจัดสรร VAT ไม่ตรงกับแฮชข้อเท็จจริงของรอบปัจจุบัน"]
+            : []),
+          ...invCheck.violations.map(
+            (v) => `allocation_claim_invariant_violation [${v.code}]: ${v.detail_th}`
+          ),
+        ])
+      );
+
+      builtEnvelope.grounded_answer_status = "NEEDS_CLARIFICATION";
+      builtEnvelope.status = "insufficient";
+      builtEnvelope.clarification_questions_th = Array.from(
+        new Set([...(builtEnvelope.clarification_questions_th || []), clarifyQuestion])
+      );
+      builtEnvelope.coverage_warnings_th = invariantWarnCodes;
+      // Do NOT publish contradictory lot claims or any Verified VAT Allocation Record on invariant violation!
+      builtEnvelope.claims = [];
+      builtEnvelope.rendered_answer_th = stripAllocRecordLine(
+        `ต้องการข้อมูลยืนยันเพิ่มเติมก่อนสรุปผลและจัดสรรภาษีมูลค่าเพิ่ม — ${clarifyQuestion}`
+      );
+      builtEnvelope.unresolved_issues = [
+        ...builtEnvelope.unresolved_issues,
+        {
+          issue_id: `unres.${grounded.trace_id}.allocation_invariant`,
+          scope_key: "vat_lot_allocation_consistency",
+          reason_code: "CONTRADICTING_EXCEPTION_UNRESOLVED",
+          explanation_th: clarifyQuestion,
+          withheld_claim_ids: publishedSupportedClaims.map((c) => c.claim_id),
+        },
+      ];
+
+      grounded.status = "NEEDS_CLARIFICATION";
+      grounded.claims = [];
+      grounded.answer = builtEnvelope.rendered_answer_th;
+      grounded.clarification_questions = [...builtEnvelope.clarification_questions_th];
+      grounded.coverage_warnings = invariantWarnCodes;
+      if (auditTraceObj) {
+        auditTraceObj.stale_allocation_record = invCheck.stale_allocation_record;
+        auditTraceObj.allocation_claim_invariant_violations = invCheck.violations;
+      }
+
+      groundedForSnapshot = {
+        ...grounded,
+        status: "NEEDS_CLARIFICATION",
+        claims: [],
+        answer: builtEnvelope.rendered_answer_th,
+        clarification_questions: [...builtEnvelope.clarification_questions_th],
+        coverage_warnings: invariantWarnCodes,
+      };
+    }
   }
 
   builtEnvelope.grounded_answer_snapshot = sanitizeGroundedAnswerSnapshot(

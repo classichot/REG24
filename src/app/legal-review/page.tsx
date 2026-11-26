@@ -2073,6 +2073,136 @@ export default function LegalTeamReviewStudioPage() {
                   </span>
                 </div>
 
+                {/* C12 Workstream E4: Concise "Facts changed this turn" panel on follow-up revisions */}
+                {(() => {
+                  const prov =
+                    answerResult.execution_provenance ??
+                    traceableEnvelope?.execution_provenance ??
+                    null;
+                  const fd = (prov?.fact_delta ?? null) as {
+                    is_correction?: boolean;
+                    confidence?: string;
+                    unchanged_scope?: string;
+                    changes?: Array<{
+                      op: string;
+                      event_type?: string | null;
+                      lots?: string[];
+                      lots_mode?: string;
+                      from_date?: string | null;
+                      to_date?: string | null;
+                      amount_thb?: number | null;
+                      source_span?: string;
+                    }>;
+                  } | null;
+                  const beforeH = prov?.ledger_before_hash ?? null;
+                  const afterH = prov?.ledger_after_hash ?? null;
+                  const hasHashChange = Boolean(beforeH && afterH && beforeH !== afterH);
+                  if (!fd && !hasHashChange) return null;
+                  const changes = Array.isArray(fd?.changes) ? fd.changes : [];
+                  return (
+                    <div
+                      data-testid="facts-changed-this-turn-panel"
+                      style={{
+                        background: "#0f172a",
+                        border: "1px solid #38bdf8",
+                        padding: "10px 12px",
+                        fontSize: "12px",
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: "6px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          flexWrap: "wrap",
+                          gap: "8px",
+                        }}
+                      >
+                        <strong style={{ color: "#7dd3fc" }}>
+                          🔄 ข้อเท็จจริงที่เปลี่ยนแปลงในรอบนี้ (Facts changed this turn)
+                        </strong>
+                        <span style={{ color: "#94a3b8", fontSize: "11px" }}>
+                          {fd ? (
+                            <>
+                              confidence=<code>{fd.confidence}</code> · scope=
+                              <code>{fd.unchanged_scope}</code>
+                            </>
+                          ) : null}
+                          {beforeH && afterH ? (
+                            <>
+                              {fd ? " · " : ""}
+                              ledger: <code>{beforeH.slice(0, 12)}</code> →{" "}
+                              <code>{afterH.slice(0, 12)}</code>
+                            </>
+                          ) : null}
+                        </span>
+                      </div>
+                      {changes.length === 0 ? (
+                        <div style={{ color: "#cbd5e1" }}>
+                          ไม่มีการเปลี่ยนแปลงข้อเท็จจริงในรอบนี้ (คงข้อเท็จจริงเดิมทั้งหมด)
+                        </div>
+                      ) : (
+                        <ul
+                          style={{
+                            margin: 0,
+                            paddingLeft: "18px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "4px",
+                            color: "#e2e8f0",
+                          }}
+                        >
+                          {changes.map((ch, idx) => (
+                            <li key={idx}>
+                              <code style={{ color: "#fde047" }}>{ch.op}</code>
+                              {ch.event_type ? (
+                                <>
+                                  {" "}
+                                  · <code>{ch.event_type}</code>
+                                </>
+                              ) : null}
+                              {ch.lots && ch.lots.length > 0 ? (
+                                <>
+                                  {" "}
+                                  · lots: <strong>{ch.lots.join(", ")}</strong> (
+                                  <code>{ch.lots_mode}</code>)
+                                </>
+                              ) : null}
+                              {ch.from_date || ch.to_date ? (
+                                <>
+                                  {" "}
+                                  · date:{" "}
+                                  <code>
+                                    {ch.from_date && ch.to_date
+                                      ? `${ch.from_date} → ${ch.to_date}`
+                                      : ch.to_date || ch.from_date}
+                                  </code>
+                                </>
+                              ) : null}
+                              {typeof ch.amount_thb === "number" ? (
+                                <>
+                                  {" "}
+                                  · amount:{" "}
+                                  <strong>{ch.amount_thb.toLocaleString("en-US")} THB</strong>
+                                </>
+                              ) : null}
+                              {ch.source_span ? (
+                                <span style={{ color: "#94a3b8" }}>
+                                  {" "}
+                                  — &ldquo;{ch.source_span}&rdquo;
+                                </span>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 <div
                   style={{
                     whiteSpace: "pre-wrap",

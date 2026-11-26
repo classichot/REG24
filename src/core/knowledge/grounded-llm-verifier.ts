@@ -15,6 +15,7 @@
 
 import {
   extractCanonicalInstrumentNumbers,
+  extractOffendingSentenceForIdentifier,
   verifyClaimAgainstPassages,
 } from "./answer-verification";
 import {
@@ -32,7 +33,11 @@ import {
   type Section47AllowanceEvalResult,
 } from "./tax-calculation-verifier";
 import { recordSection47RestrictedDiagnostic } from "./s47-restricted-diagnostics";
-import type { StructuredCaseFactLedger } from "./case-fact-ledger";
+import {
+  computeLedgerStateHash,
+  type StructuredCaseFactLedger,
+} from "./case-fact-ledger";
+import type { FactDelta, FactDeltaAuditRecord } from "./fact-delta";
 import type {
   ClaimBoundCalculationRecord,
   RejectedCalculationDiagnosticDto,
@@ -159,6 +164,13 @@ export function applyAmendingDecreeCommencementAttribution(
   };
 }
 
+export interface RejectedClaimDetailInternal {
+  offending_identifier: string | null;
+  offending_sentence_th: string | null;
+  rule_name: string | null;
+  raw_reason_unredacted: string;
+}
+
 export interface RejectedClaimAuditEntry {
   issue_id: string;
   issue_title_th: string;
@@ -174,6 +186,11 @@ export interface RejectedClaimAuditEntry {
     | "S47_SUBCLAUSE_AMOUNT_MISMATCH"
     | "S47_TOKEN_NOT_IN_AUTHORIZED_SET";
   rejection_reason_th: string;
+  /**
+   * C0 Server-Internal Only Diagnostic — unredacted offending identifier & sentence.
+   * MUST NEVER be exposed in UI, HTTP/SSE API responses, public coverage_warnings, or saved public snapshots.
+   */
+  rejection_detail_internal?: RejectedClaimDetailInternal;
 }
 
 export interface RejectedCalculationAuditEntry {
@@ -252,6 +269,28 @@ export interface GroundedLlmAuditTrace {
   rejected_claims: RejectedClaimAuditEntry[];
   rejected_calculations: RejectedCalculationAuditEntry[];
   final_answer_revision_id: string | null;
+  /** C12 A3: Structured follow-up FactDelta & ledger state hashes. */
+  fact_delta?: FactDelta | null;
+  ledger_before_hash?: string | null;
+  ledger_after_hash?: string | null;
+  delta_disagreement?: boolean;
+  delta_disagreement_summary?: string | null;
+  fact_delta_audit?: FactDeltaAuditRecord | null;
+  /** C12 B3: True when a carried-over / stale vat_portion_allocation_record hash mismatch was detected. */
+  stale_allocation_record?: boolean;
+  /** C12 C1: Cross-check log comparing legacy authority-surface-auditor regex vs structured asserted/contrast model. */
+  authority_surface_auditor_crosscheck?: Array<{
+    issue_id: string;
+    regex_flagged_without_contrast: string[];
+    structured_contrast_allowed: string[];
+    dropped_side_sentences_count: number;
+  }>;
+  /** C12 C2: Side sentences dropped without withholding the entire claim (carried zero bound numbers). */
+  dropped_side_sentences?: Array<{
+    issue_id: string;
+    dropped_sentence_th: string;
+    unsupported_identifiers: string[];
+  }>;
 }
 
 export interface GroundedLlmVerificationOutcome {
@@ -362,7 +401,357 @@ function checkCaseFactPreservation(
 }
 
 const EXPLICIT_EXCLUSION_RE =
-  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่ภายใต้|ไม่อยู่ภายใต้|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|สิ้นสุดการบังคับใช้|สิ้นสุดระยะเวลา|สิ้นสุดในวันที่|สิ้นสุดเมื่อวันที่|สิ้นสุดลง|พ้นช่วง(?:เวลา)?|หลัง(?:จาก)?ช่วง(?:เวลา)?|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|เปลี่ยนจาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|OUT_OF_WINDOW)/;
+  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่ภายใต้|ไม่อยู่ภายใต้|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|สิ้นสุดการบังคับใช้|สิ้นสุดระยะเวลา|สิ้นสุดในวันที่|สิ้นสุดเมื่อวันที่|สิ้นสุดลง|พ้นช่วง(?:เวลา)?|หลัง(?:จาก)?ช่วง(?:เวลา)?|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|เปลี่ยน[^.;\n]{0,45}จาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|เปลี่ยนมาอยู่ภายใต้|ย้ายจาก|เลื่อน(?:มา|จาก)|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ต่างจาก|เปรียบเทียบ(?:กับ)?|เทียบกับ|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|OUT_OF_WINDOW|moved\s+from|instead\s+of|rather\s+than|not\s+applicable|does\s+not\s+apply|superseded|replaced\s+by|expired|outside\s+the\s+effective|compared\s+(?:to|with)|previously\s+under)/i;
+
+function workIdToCanonicalInstrumentId(workId: string): string | null {
+  const w = (workId || "").trim();
+  const rdM = /^subreg\.th\.rc\.royal_decree\.([0-9]+)$/.exec(w);
+  if (rdM) return `พรฎ.${rdM[1]}`;
+  const mrM = /^subreg\.th\.rc\.min_reg\.([0-9]+)$/.exec(w);
+  if (mrM) return `กฎกระทรวง.${mrM[1]}`;
+  const tpM = /^subreg\.th\.rd\.order_tp\.([0-9]+)_([0-9]+)$/.exec(w);
+  if (tpM) return `ทป.${tpM[1]}/${tpM[2]}`;
+  const pM = /^subreg\.th\.rd\.order_p\.([0-9]+)_([0-9]+)$/.exec(w);
+  if (pM) return `ป.${pM[1]}/${pM[2]}`;
+  const secM = /^prov\.th\.rc\.(.+)$/.exec(w);
+  if (secM) return `มาตรา ${secM[1].replace(/_/g, " ")}`;
+  return null;
+}
+
+function splitTextIntoAuditSentences(rawText: string): string[] {
+  if (!rawText || !rawText.trim()) return [];
+  // Protect common Thai/English abbreviations and decimal numbers from sentence splits
+  const protectedStr = rawText
+    .replace(/(พ\.ศ\.|พ\.ร\.ฎ\.|พ\.ร\.บ\.|พ\.ร\.ก\.|ท\.ป\.|ป\.|ม\.ค\.|ก\.พ\.|มี\.ค\.|เม\.ย\.|พ\.ค\.|มิ\.ย\.|ก\.ค\.|ส\.ค\.|ก\.ย\.|ต\.ค\.|พ\.ย\.|ธ\.ค\.|No\.|RD\.)/gi, (m) =>
+      m.replace(/\./g, "\uE000")
+    )
+    .replace(/(\d)\.(\d)/g, "$1\uE001$2");
+
+  const parts = protectedStr
+    .split(
+      /(?:\n+|(?<=[.!?。;])\s+|(?=\s+(?:ทั้งนี้|อนึ่ง|นอกจากนี้|อีกทั้ง|อย่างไรก็ตาม|อย่างไรก็ดี|หมายเหตุ:?)\s+))/u
+    )
+    .map((s) => s.replace(/\uE000/g, ".").replace(/\uE001/g, ".").trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : [rawText.trim()];
+}
+
+function sentenceMentionsCanonicalInstrument(sentence: string, canonicalId: string): boolean {
+  const extracted = extractNamedAuthoritiesFromText(sentence);
+  if (extracted.some((a) => a.canonicalId === canonicalId)) return true;
+  const norm = thaiDigitsToArabic(sentence);
+  if (canonicalId.startsWith("พรฎ.")) {
+    const num = canonicalId.slice("พรฎ.".length);
+    return new RegExp(`(?:ฉบับที่\\s*|พ\\.ร\\.ฎ\\.\\s*\\(?|\\bRD\\s*)${num}(?![0-9])`, "i").test(norm);
+  }
+  return norm.toLowerCase().includes(canonicalId.toLowerCase());
+}
+
+/**
+ * C12 C1: Validates structured `asserted_authorities` (must be backed by bound governing passages)
+ * and `contrast_mentions` (must exist in the pinned release corpus, NOT be asserted, and appear
+ * strictly in sentences carrying a negation/comparison/transition marker — never carrying governing numbers).
+ */
+function validateStructuredAssertedAndContrastAuthorities(params: {
+  issue: LlmDraftedIssue;
+  finalPassageIds: string[];
+  packById: Map<string, GroundedPassagePackItem>;
+  state: CanonicalPersistedState;
+  claimTextForContrast: string;
+}): {
+  ok: boolean;
+  offending_identifier?: string | null;
+  offending_sentence_th?: string | null;
+  reason_th?: string;
+  validatedContrastInstruments: string[];
+} {
+  const { issue, finalPassageIds, packById, state, claimTextForContrast } = params;
+  const boundPackItems = finalPassageIds
+    .map((pid) => packById.get(pid))
+    .filter((p): p is GroundedPassagePackItem => Boolean(p));
+  const boundWorkIds = new Set(boundPackItems.map((p) => p.work_id));
+  const amendedBaseDecrees = new Set(
+    resolveInPlaceAmendedBaseDecreeBindings(
+      boundPackItems.map((p) => ({
+        work_id: p.work_id,
+        pinpoint: p.pinpoint,
+        verbatim_text: p.verbatim_text,
+      }))
+    ).map((b) => `subreg.th.rc.royal_decree.${b.amendedBaseDecreeNum}`)
+  );
+
+  const assertedList = Array.isArray(issue.asserted_authorities) ? issue.asserted_authorities : [];
+  const assertedWorkIds = new Set<string>();
+  for (const a of assertedList) {
+    const wid = (a.work_id || "").trim();
+    if (!wid) continue;
+    assertedWorkIds.add(wid);
+    const canonId = workIdToCanonicalInstrumentId(wid) || wid;
+    const isBoundDirectly = boundWorkIds.has(wid) || boundWorkIds.has(wid.replace(/\//g, "_"));
+    const isBoundAmendedBase = amendedBaseDecrees.has(wid);
+    const isStatutory165Ref =
+      wid === "subreg.th.rc.royal_decree.165" &&
+      (boundWorkIds.has("prov.th.rc.50") || boundWorkIds.has("prov.th.rc.48"));
+    if (!isBoundDirectly && !isBoundAmendedBase && !isStatutory165Ref) {
+      return {
+        ok: false,
+        offending_identifier: canonId,
+        offending_sentence_th: extractOffendingSentenceForIdentifier(claimTextForContrast, canonId),
+        reason_th: `UNGROUNDED_LEGAL_IDENTIFIER: ประเด็นนี้อ้างใช้กฎหมายควบคุม (${canonId}) ใน asserted_authorities แต่ไม่มีหลักฐานที่ตรวจสอบแล้วผูกไว้ในประเด็นนี้`,
+        validatedContrastInstruments: [],
+      };
+    }
+  }
+
+  const sentences = splitTextIntoAuditSentences(claimTextForContrast);
+  const contrastList = Array.isArray(issue.contrast_mentions) ? issue.contrast_mentions : [];
+  const validatedContrastInstruments: string[] = [];
+
+  for (const cm of contrastList) {
+    const wid = (cm.work_id || "").trim();
+    if (!wid || assertedWorkIds.has(wid)) continue;
+    // Must exist in pinned release corpus (no fabricated decrees/rulings can pass as contrast!)
+    if (!state.works[wid]) continue;
+    const canonId = workIdToCanonicalInstrumentId(wid);
+    if (!canonId) continue;
+
+    // Every sentence mentioning this contrast instrument MUST carry a negation/comparison/transition marker!
+    const mentioningSentences = sentences.filter((s) =>
+      sentenceMentionsCanonicalInstrument(s, canonId)
+    );
+    if (mentioningSentences.length === 0) {
+      validatedContrastInstruments.push(canonId);
+      continue;
+    }
+    const allHaveContrastMarker = mentioningSentences.every((s) =>
+      EXPLICIT_EXCLUSION_RE.test(thaiDigitsToArabic(s))
+    );
+    if (allHaveContrastMarker) {
+      validatedContrastInstruments.push(canonId);
+    }
+  }
+
+  return {
+    ok: true,
+    validatedContrastInstruments: Array.from(new Set(validatedContrastInstruments)),
+  };
+}
+
+/**
+ * C12 C2: Sentence-level withholding for unsupported side mentions.
+ * If every unsupported authority identifier sits strictly in sentence(s) that carry NONE of the
+ * claim's bound numbers (tax base, computed VAT, taxable amount, controlling date), drop ONLY
+ * those sentence(s) and keep the verified claim; if ANY unsupported identifier sits in a sentence
+ * carrying a bound number, return `{ rescued: false }` so the entire claim is withheld!
+ */
+function dropUnsupportedSideSentencesWithoutBoundNumbers(params: {
+  rawText: string;
+  verifiedBindings: VerifiedAuthorityPassageBinding[];
+  excludedContextInstruments: string[];
+  boundNumberNeedles: string[];
+  allowEmptyResult?: boolean;
+}): {
+  rescued: boolean;
+  blockedByBoundNumber: boolean;
+  cleanedText: string;
+  droppedSentences: Array<{ sentence: string; unsupportedIds: string[] }>;
+} {
+  const { rawText, verifiedBindings, excludedContextInstruments, boundNumberNeedles, allowEmptyResult } = params;
+  if (!rawText || !rawText.trim()) {
+    return { rescued: false, blockedByBoundNumber: false, cleanedText: rawText, droppedSentences: [] };
+  }
+  const initialUnsup = findUnsupportedAuthoritiesInText(rawText, verifiedBindings, {
+    excludedContextInstruments,
+  });
+  if (initialUnsup.length === 0) {
+    return { rescued: true, blockedByBoundNumber: false, cleanedText: rawText.trim(), droppedSentences: [] };
+  }
+
+  const sentences = splitTextIntoAuditSentences(rawText);
+  const sentenceCarriesBoundNumber = (s: string): boolean => {
+    const norm = thaiDigitsToArabic(s).replace(/\s+/g, " ");
+    for (const needle of boundNumberNeedles) {
+      if (!needle || needle.length < 2) continue;
+      if (/^\d+(?:,\d{3})*(?:\.\d+)?$/.test(needle)) {
+        const esc = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (new RegExp(`(?<![0-9.,])${esc}(?![0-9.,])`).test(norm)) {
+          return true;
+        }
+      } else if (norm.toLowerCase().includes(needle.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const kept: string[] = [];
+  const dropped: Array<{ sentence: string; unsupportedIds: string[] }> = [];
+
+  for (const sent of sentences) {
+    const unsupInSent = findUnsupportedAuthoritiesInText(sent, verifiedBindings, {
+      excludedContextInstruments,
+    });
+    if (unsupInSent.length === 0) {
+      kept.push(sent);
+      continue;
+    }
+    if (sentenceCarriesBoundNumber(sent)) {
+      // Unsupported authority sits in a sentence carrying a bound number -> DO NOT rescue; withhold claim!
+      return {
+        rescued: false,
+        blockedByBoundNumber: true,
+        cleanedText: rawText,
+        droppedSentences: [],
+      };
+    }
+    dropped.push({
+      sentence: sent,
+      unsupportedIds: unsupInSent.map((u) => u.canonicalId),
+    });
+  }
+
+  if (dropped.length === 0) {
+    return { rescued: false, blockedByBoundNumber: false, cleanedText: rawText, droppedSentences: [] };
+  }
+  if (kept.length === 0) {
+    if (allowEmptyResult) {
+      return { rescued: true, blockedByBoundNumber: false, cleanedText: "", droppedSentences: dropped };
+    }
+    return { rescued: false, blockedByBoundNumber: false, cleanedText: rawText, droppedSentences: [] };
+  }
+  const joined = kept.join(" ").replace(/\s{2,}/g, " ").trim();
+  if (joined.length < 24 && !allowEmptyResult) {
+    return { rescued: false, blockedByBoundNumber: false, cleanedText: rawText, droppedSentences: [] };
+  }
+  const remainingUnsup = findUnsupportedAuthoritiesInText(joined, verifiedBindings, {
+    excludedContextInstruments,
+  });
+  if (remainingUnsup.length > 0) {
+    return { rescued: false, blockedByBoundNumber: false, cleanedText: rawText, droppedSentences: [] };
+  }
+  return { rescued: true, blockedByBoundNumber: false, cleanedText: joined, droppedSentences: dropped };
+}
+
+const THAI_MONTH_NAMES_BY_NUM: Record<string, string> = {
+  "01": "มกราคม",
+  "02": "กุมภาพันธ์",
+  "03": "มีนาคม",
+  "04": "เมษายน",
+  "05": "พฤษภาคม",
+  "06": "มิถุนายน",
+  "07": "กรกฎาคม",
+  "08": "สิงหาคม",
+  "09": "กันยายน",
+  "10": "ตุลาคม",
+  "11": "พฤศจิกายน",
+  "12": "ธันวาคม",
+};
+
+function buildIssueBoundNumberNeedles(
+  issue: LlmDraftedIssue,
+  verifiedCalc: LlmProposedCalculation | null,
+  factLedger: StructuredCaseFactLedger
+): string[] {
+  const needles = new Set<string>();
+  const addNum = (v: number | null | undefined) => {
+    if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+      needles.add(String(v));
+      needles.add(v.toLocaleString("en-US"));
+    }
+  };
+  if (verifiedCalc) {
+    addNum(verifiedCalc.tax_base_thb);
+    addNum(verifiedCalc.exempt_amount_thb);
+    addNum(verifiedCalc.taxable_amount_thb);
+    addNum(verifiedCalc.computed_tax_thb);
+    if (
+      typeof verifiedCalc.tax_base_thb === "number" &&
+      typeof verifiedCalc.computed_tax_thb === "number"
+    ) {
+      addNum(Math.round((verifiedCalc.tax_base_thb + verifiedCalc.computed_tax_thb) * 100) / 100);
+    }
+  } else {
+    // Even without a numeric calculation (e.g. conditional donor WHT framework), protect sentences carrying
+    // stated monetary values from the case facts so operative legal rules are never dropped as "side sentences".
+    for (const f of factLedger.material_facts) {
+      if (f.fact_key === "monetary_value") {
+        const normVal = thaiDigitsToArabic(f.original_text_th || "");
+        for (const m of normVal.matchAll(/\b\d{1,3}(?:,\d{3})+\b/g)) {
+          const n = Number(m[0].replace(/,/g, ""));
+          if (Number.isFinite(n) && n > 0) addNum(n);
+        }
+      }
+    }
+  }
+  const targetAlloc = resolveIssueTargetAllocation(issue, factLedger);
+  const targetIso =
+    targetAlloc?.targetIso || factLedger.temporal_facts.controlling_tax_point.iso_date || null;
+  if (targetIso && /^\d{4}-\d{2}-\d{2}$/.test(targetIso)) {
+    needles.add(targetIso);
+    const [yStr, mStr, dStr] = targetIso.split("-");
+    const dayNum = Number(dStr);
+    const thMonth = THAI_MONTH_NAMES_BY_NUM[mStr];
+    const beYear = Number(yStr) + 543;
+    if (thMonth && Number.isFinite(dayNum)) {
+      needles.add(`${dayNum} ${thMonth}`);
+      needles.add(`${dayNum} ${thMonth} ${beYear}`);
+    }
+  }
+  return Array.from(needles);
+}
+
+/**
+ * C12 C3: When a VAT allocation spans > 1 Royal Decree effective window (e.g. RD 799 + RD 807),
+ * identifies each spanned decree's §1–2 and §3 passages in `passagePack` so they can be attached
+ * to sibling-window claims with `support_role: "context"` without altering governing passages.
+ */
+function computeSpannedDecreeContextPassageMap(
+  factLedger: StructuredCaseFactLedger,
+  passagePack: GroundedPassagePackItem[]
+): Map<string, string[]> {
+  const spannedWorkIds = new Set<string>();
+  const vatAlloc = factLedger.temporal_facts.vat_portion_allocation_record;
+  if (vatAlloc && vatAlloc.allocation_status === "RESOLVED") {
+    for (const b of vatAlloc.tax_date_buckets) {
+      if (b.governing_decree_work_id) spannedWorkIds.add(b.governing_decree_work_id);
+    }
+    for (const l of vatAlloc.lot_allocations) {
+      if (l.governing_decree_work_id) spannedWorkIds.add(l.governing_decree_work_id);
+    }
+  }
+  if (spannedWorkIds.size <= 1) {
+    const splits = factLedger.temporal_facts.split_payment_tax_points || [];
+    for (const sp of splits) {
+      if (sp.iso_date >= "2023-10-01" && sp.iso_date <= "2024-09-30") {
+        spannedWorkIds.add("subreg.th.rc.royal_decree.780");
+      } else if (sp.iso_date >= "2024-10-01" && sp.iso_date <= "2025-09-30") {
+        spannedWorkIds.add("subreg.th.rc.royal_decree.790");
+      } else if (sp.iso_date >= "2025-10-01" && sp.iso_date <= "2026-09-30") {
+        spannedWorkIds.add("subreg.th.rc.royal_decree.799");
+      } else if (sp.iso_date >= "2026-10-01" && sp.iso_date <= "2027-09-30") {
+        spannedWorkIds.add("subreg.th.rc.royal_decree.807");
+      }
+    }
+  }
+  const result = new Map<string, string[]>();
+  if (spannedWorkIds.size <= 1) return result;
+
+  for (const wid of spannedWorkIds) {
+    const decreePassages = passagePack.filter((p) => p.work_id === wid);
+    if (decreePassages.length === 0) continue;
+    const sec12Or3 = decreePassages.filter((p) => {
+      const hay = thaiDigitsToArabic(`${p.pinpoint || ""} ${(p.verbatim_text || "").slice(0, 180)}`);
+      return /(?:มาตรา\s*[123](?![0-9])|section\s*[123]\b)/i.test(hay);
+    });
+    const selected = (sec12Or3.length > 0 ? sec12Or3 : decreePassages.slice(0, 2)).map(
+      (p) => p.passage_id
+    );
+    if (selected.length > 0) {
+      result.set(wid, Array.from(new Set(selected)));
+    }
+  }
+  return result;
+}
 
 interface ResolvedIssueAllocationTarget {
   targetIso: string | null;
@@ -525,11 +914,10 @@ function resolveIssueTargetAllocation(
     return null;
   }
 
-  const headerText = thaiDigitsToArabic(`${issue.issue_title_th} ${issue.party_or_scope_th}`).replace(
-    /\s+/g,
-    " "
-  );
-  // 1. If declared lot allocations exist, match explicit lot labels in header first (e.g. "ล็อต A", "ล็อต B และล็อต C", "ล็อต A และล็อต B")
+  const headerText = thaiDigitsToArabic(
+    `${issue.issue_id || ""} ${issue.issue_title_th} ${issue.party_or_scope_th}`
+  ).replace(/\s+/g, " ");
+  // 1. If declared lot allocations exist, match explicit lot labels in header/issue_id first (e.g. "ล็อต A", "LOT_B", "ล็อต B และล็อต C")
   if (alloc && alloc.allocation_status === "RESOLVED" && alloc.lot_allocations.length >= 2) {
     const isSummaryHeader = /(?:สรุปรวม|ยอดรวมทั้งสิ้น|รวมทั้ง\s*[0-9]+\s*ล็อต|รวมทั้งธุรกรรม|ภาพรวมทั้งหมด)/i.test(
       headerText
@@ -543,8 +931,9 @@ function resolveIssueTargetAllocation(
         const escLabel = thaiDigitsToArabic(la.label_th).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const lotToken = la.lot_id.replace(/^LOT_/, "");
         const escTok = lotToken.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const escLotId = la.lot_id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
         const re = new RegExp(
-          `(?:${escLabel}|(?:ล็อต|ล๊อต|ชุดที่|รายการที่|lot)\\s*${escTok})(?![A-Za-z0-9])`,
+          `(?:${escLabel}|${escLotId}|(?:ล็อต|ล๊อต|ชุดที่|รายการที่|lot)[\\s_-]*${escTok})(?![A-Za-z0-9])`,
           "i"
         );
         return re.test(positiveHeaderText);
@@ -689,18 +1078,39 @@ function extractExplicitlyExcludedContextInstruments(params: {
 function checkTemporalApplicabilityOfCitedPassages(
   issue: LlmDraftedIssue,
   citedItems: GroundedPassagePackItem[],
-  factLedger: StructuredCaseFactLedger
+  factLedger: StructuredCaseFactLedger,
+  contextOnlyPassageIds?: Set<string>
 ): { ok: boolean; code?: RejectedClaimAuditEntry["rejection_code"]; reason_th?: string } {
   const controllingIso = factLedger.temporal_facts.controlling_tax_point.iso_date;
   const splitPoints = factLedger.temporal_facts.split_payment_tax_points || [];
+  const hasResolvedLotAllocations = Boolean(
+    factLedger.temporal_facts.vat_portion_allocation_record?.allocation_status === "RESOLVED" &&
+      (factLedger.temporal_facts.vat_portion_allocation_record?.lot_allocations.length || 0) >= 2
+  );
   const isSplitMultiTaxPoint = Boolean(
-    factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+    (factLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+      splitPoints.length >= 2) ||
+      hasResolvedLotAllocations ||
       splitPoints.length >= 2
   );
+  const governingCitedItems = contextOnlyPassageIds
+    ? citedItems.filter((p) => !contextOnlyPassageIds.has(p.passage_id))
+    : citedItems;
   const combinedText = thaiDigitsToArabic(`${issue.conclusion_th} ${issue.application_explanation_th}`);
   const explicitlyExcludes = EXPLICIT_EXCLUSION_RE.test(combinedText);
 
-  // Per-tax-point temporal verification for multi-tax-point (split-payment / multi-lot) transactions:
+  const isPassageOutOfWindowForIso = (p: GroundedPassagePackItem, iso: string): boolean => {
+    if ((p.excluded_tax_point_dates || []).includes(iso)) return true;
+    const vf = p.effective_dates.valid_from;
+    const vt = p.effective_dates.valid_to;
+    if (vf && iso < vf) return true;
+    if (vt && iso > vt) return true;
+    return false;
+  };
+
+  // C12 B2: Per-lot & per-installment temporal verification — ALWAYS read this claim's own lot/installment
+  // date from `vat_portion_allocation_record` / `split_payment_tax_points`, NEVER falling back to an answer-wide
+  // `controlling_tax_point` when lot/installment records exist!
   if (isSplitMultiTaxPoint) {
     const resolvedTarget = resolveIssueTargetAllocation(issue, factLedger);
     const targetIso =
@@ -715,16 +1125,13 @@ function checkTemporalApplicabilityOfCitedPassages(
         reason_th: `วันที่เกิดความรับผิดที่อ้างในข้อสรุป (${resolvedTarget.assertedTaxPointConflictIso}) ขัดแย้งกับวันเกิดความรับผิดจริงของงวดที่ระบุ (${targetIso})`,
       };
     }
-    // If this issue targets strictly ONE portion date (e.g. Portion 2 on 2027-10-01), verify that
-    // any cited time-limited decree excluded for THAT portion date is ONLY cited with explicit exclusion
-    // AND alongside an in-window/timeless statute (e.g. §80) — NEVER as governing authority for that portion!
     if (targetIso) {
-      const excludedForPortion = citedItems.filter((p) =>
-        (p.excluded_tax_point_dates || []).includes(targetIso)
+      const excludedForPortion = governingCitedItems.filter((p) =>
+        isPassageOutOfWindowForIso(p, targetIso)
       );
       if (excludedForPortion.length > 0) {
-        const hasValidAuthorityForPortion = citedItems.some(
-          (p) => !(p.excluded_tax_point_dates || []).includes(targetIso)
+        const hasValidAuthorityForPortion = governingCitedItems.some(
+          (p) => !isPassageOutOfWindowForIso(p, targetIso)
         );
         if (!explicitlyExcludes || !hasValidAuthorityForPortion) {
           const labels = excludedForPortion
@@ -744,8 +1151,10 @@ function checkTemporalApplicabilityOfCitedPassages(
     return { ok: true };
   }
 
-  const outOfWindowItems = citedItems.filter(
-    (p) => p.effective_dates.temporal_applicability_hint === "OUT_OF_WINDOW"
+  const outOfWindowItems = governingCitedItems.filter(
+    (p) =>
+      p.effective_dates.temporal_applicability_hint === "OUT_OF_WINDOW" ||
+      (controllingIso ? isPassageOutOfWindowForIso(p, controllingIso) : false)
   );
   if (outOfWindowItems.length > 0 && controllingIso) {
     // Allow citing an out-of-window decree ONLY if the conclusion explicitly states it does NOT apply
@@ -943,17 +1352,12 @@ function verifyProposedCalculation(params: {
   const issueScopeBlob = thaiDigitsToArabic(
     `${params.issue.issue_title_th} ${params.issue.party_or_scope_th} ${params.issue.conclusion_th}`
   );
-  const allFactBlob = thaiDigitsToArabic(
-    [
-      ...params.factLedger.user_turns.map((t) => t.raw_text),
-      ...params.factLedger.material_facts.map((f) => f.original_text_th),
-      ...params.citedItems.map((c) => `${c.work_id} ${c.title_th}`),
-    ].join(" ")
+  // C12 C4 (DEF-C10-4 class): Immovable-property guard (§41 bis / §50(6)) fires ONLY when the
+  // structured CaseFactLedger contains an immovable-asset fact (`IMMOVABLE_PROPERTY_*`).
+  // For cash or movable gifts (`MOVABLE_PROPERTY_CASH_OR_OTHER`), it MUST NOT run!
+  const isImmovableContext = params.factLedger.material_facts.some(
+    (f) => f.fact_key === "asset" && f.normalized_category.startsWith("IMMOVABLE_PROPERTY")
   );
-  const isImmovableContext =
-    /(?:ที่ดิน|ห้องชุด|คอนโด|บ้านเดี่ยว|บ้านพร้อมที่ดิน|อาคารพาณิชย์|สิ่งปลูกสร้าง|อสังหาริมทรัพย์|prov\.th\.rc\.41_ทวิ)/.test(
-      allFactBlob
-    ) && !/(?:เงินสด|โอนเงิน)/.test(allFactBlob);
   const isImmovableRecipientPitIssue =
     isImmovableContext &&
     /(?:ผู้รับโอน|ผู้รับให้|ภาระภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?:นางสาว|นาย|นาง|หลาน|บุตร))/.test(
@@ -1405,6 +1809,7 @@ function renderNeutralGroundedLlmAnswerTh(params: {
   factLedger: StructuredCaseFactLedger;
   verifiedIssues: VerifiedLlmIssue[];
   usedPassages: GroundedPassagePackItem[];
+  governingPassageIdSet?: Set<string>;
   rejectedClaims: RejectedClaimAuditEntry[];
   rejectedCalculations: RejectedCalculationAuditEntry[];
   assumptions: string[];
@@ -1436,21 +1841,28 @@ function renderNeutralGroundedLlmAnswerTh(params: {
       `- **วันเกิดความรับผิดทางภาษีที่ใช้พิจารณา (Controlling Tax Point)**: ${tf.controlling_tax_point.iso_date} (${tf.controlling_tax_point.controlling_event || "-"})`
     );
   } else if (tf.vat_portion_allocation_record?.allocation_status === "RESOLVED") {
-    const bucketSummary = tf.vat_portion_allocation_record.tax_date_buckets
-      .map(
-        (b) =>
-          `${b.iso_date} (${b.decree_window}${
-            b.lot_labels_th && b.lot_labels_th.length > 0 ? `, ${b.lot_labels_th.join(" + ")}` : ""
-          }: ฐานภาษี ${(b.amount_thb ?? 0).toLocaleString("en-US")} บาท${
-            typeof b.verified_vat_thb === "number"
-              ? `, VAT ${b.verified_vat_thb.toLocaleString("en-US")} บาท`
-              : ""
-          })`
-      )
-      .join(" · ");
-    factLines.push(
-      `- **การจัดสรรวันเกิดความรับผิดแยกตามส่วน/ล็อตสินค้า (Verified VAT Allocation Record)**: ${bucketSummary}`
-    );
+    // C12 B3: Render "Verified VAT Allocation Record" ONLY when `ledger_after_hash` matches the
+    // active ledger used for this turn's claims — never render a stale/carried-over record!
+    const activeLedgerHash =
+      params.factLedger.ledger_state_hash || computeLedgerStateHash(params.factLedger);
+    const recHash = tf.vat_portion_allocation_record.ledger_after_hash;
+    if (recHash && recHash === activeLedgerHash) {
+      const bucketSummary = tf.vat_portion_allocation_record.tax_date_buckets
+        .map(
+          (b) =>
+            `${b.iso_date} (${b.decree_window}${
+              b.lot_labels_th && b.lot_labels_th.length > 0 ? `, ${b.lot_labels_th.join(" + ")}` : ""
+            }: ฐานภาษี ${(b.amount_thb ?? 0).toLocaleString("en-US")} บาท${
+              typeof b.verified_vat_thb === "number"
+                ? `, VAT ${b.verified_vat_thb.toLocaleString("en-US")} บาท`
+                : ""
+            })`
+        )
+        .join(" · ");
+      factLines.push(
+        `- **การจัดสรรวันเกิดความรับผิดแยกตามส่วน/ล็อตสินค้า (Verified VAT Allocation Record)**: ${bucketSummary}`
+      );
+    }
   } else if (tf.controlling_tax_point.ambiguity_reason_th) {
     factLines.push(
       `- **วันเกิดความรับผิดทางภาษี (Controlling Tax Point)**: ยังไม่ชัดเจน — ${tf.controlling_tax_point.ambiguity_reason_th}`
@@ -1535,7 +1947,11 @@ function renderNeutralGroundedLlmAnswerTh(params: {
     const urlNote = p.official_url
       ? `ต้นฉบับ: ${p.official_url} (สถานะลิงก์ออนไลน์: ยังไม่ได้ตรวจเช็ก HTTP สดในคำขอนี้)`
       : "ไม่มี URL ต้นฉบับภายนอกที่ยืนยันได้";
-    return `- **${p.official_identifier}** — ${p.title_th} | *${AUTHORITY_TIER_LABEL_TH[p.authority_tier]}* | รุ่น \`${p.version_id}\` | ตำแหน่งอ้างอิง: \`${p.pinpoint}\` | ${windowStr} | รูปแบบ: ${repLabel} | ${urlNote}`;
+    const contextOnlyTag =
+      params.governingPassageIdSet && !params.governingPassageIdSet.has(p.passage_id)
+        ? " | *บริบทเปรียบเทียบ (Context — มิใช่กฎหมายควบคุมของประเด็น)*"
+        : "";
+    return `- **${p.official_identifier}** — ${p.title_th} | *${AUTHORITY_TIER_LABEL_TH[p.authority_tier]}*${contextOnlyTag} | รุ่น \`${p.version_id}\` | ตำแหน่งอ้างอิง: \`${p.pinpoint}\` | ${windowStr} | รูปแบบ: ${repLabel} | ${urlNote}`;
   });
   if (sourceLines.length > 0) {
     const fullAnswerDraftText = `${params.verifiedIssues
@@ -2063,6 +2479,17 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   };
 
   let strippedIncidentalMissingAuthorityCount = 0;
+  let droppedSideSentenceCount = 0;
+  const authoritySurfaceCrosscheckLog: NonNullable<
+    GroundedLlmAuditTrace["authority_surface_auditor_crosscheck"]
+  > = [];
+  const droppedSideSentencesLog: NonNullable<
+    GroundedLlmAuditTrace["dropped_side_sentences"]
+  > = [];
+  const spannedDecreeContextPassageMap = computeSpannedDecreeContextPassageMap(
+    params.factLedger,
+    params.passagePack
+  );
 
   for (let idx = 0; idx < workingIssues.length; idx++) {
     const rawIss = workingIssues[idx];
@@ -2121,6 +2548,13 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         cited_passage_ids: validPassageIds,
         rejection_code: tempCheck.code || "OUT_OF_EFFECTIVE_DATE_WINDOW",
         rejection_reason_th: tempCheck.reason_th || "ช่วงเวลาใช้บังคับของกฎหมายไม่สอดคล้องกับข้อเท็จจริง",
+        rejection_detail_internal: {
+          offending_identifier: null,
+          offending_sentence_th: iss.conclusion_th.slice(0, 360),
+          rule_name: "grounded-llm-verifier:checkTemporalApplicabilityOfCitedPassages",
+          raw_reason_unredacted:
+            tempCheck.reason_th || "ช่วงเวลาใช้บังคับของกฎหมายไม่สอดคล้องกับข้อเท็จจริง",
+        },
       });
       continue;
     }
@@ -2254,7 +2688,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       params.factLedger.material_facts.find((f) => f.fact_key === "asset")?.normalized_category ??
       null;
     const isRecipientOnImmovable =
-      activeCaseAssetCategory !== "MOVABLE_PROPERTY_CASH_OR_OTHER" &&
+      Boolean(activeCaseAssetCategory?.startsWith("IMMOVABLE_PROPERTY")) &&
       /(?:ผู้รับโอน|ผู้รับให้|ภาระภาษีเงินได้(?:บุคคลธรรมดา)?ของ(?:นางสาว|นาย|นาง|หลาน|บุตร))/.test(issueScopeNorm) &&
       !/(?:ผู้โอน(?!และผู้รับ)|ผู้ให้|หักภาษี\s*ณ\s*ที่จ่าย|มาตรา\s*54|ความรับผิดร่วม|ผู้โอนเป็นหลัก|เงินสด)/.test(issueScopeNorm) &&
       citedPackItems.some((p) => p.work_id === "prov.th.rc.41_ทวิ" || /\(26\)/.test(p.verbatim_text));
@@ -2649,21 +3083,132 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         finalPassageIds.push(p47Unit2.passage_id);
       }
     }
-    const excludedContextInstruments = extractExplicitlyExcludedContextInstruments({
+    const baseExcludedContextInstruments = extractExplicitlyExcludedContextInstruments({
       issue: iss,
       validPassageIds: finalPassageIds,
       passagePack: params.passagePack,
       factLedger: params.factLedger,
     });
 
-    // Candidate 6 P0: Strip incidental unverified authority references in heading/party/comparison clauses
-    // BEFORE claim entailment while keeping essential authority checks strict!
+    // C12 C1: Primary structured authority verification (`asserted_authorities` vs `contrast_mentions`).
+    // `asserted_authorities` MUST map to a bound governing passage; `contrast_mentions` MUST exist in the
+    // pinned corpus and appear only in sentences carrying an explicit contrast/exclusion/transition marker.
+    const rawIssueTextForAuthority = `${iss.conclusion_th} ${iss.application_explanation_th || ""}`;
+    const structuredAuthCheck = validateStructuredAssertedAndContrastAuthorities({
+      issue: iss,
+      finalPassageIds,
+      packById,
+      state: params.state,
+      claimTextForContrast: rawIssueTextForAuthority,
+    });
+    if (!structuredAuthCheck.ok) {
+      const failReason =
+        structuredAuthCheck.reason_th ||
+        "UNGROUNDED_LEGAL_IDENTIFIER: ประเด็นนี้อ้างใช้กฎหมายควบคุมที่ไม่มีหลักฐานผูกไว้ในประเด็นนี้";
+      rejectedClaims.push({
+        issue_id: iss.issue_id,
+        issue_title_th: iss.issue_title_th,
+        statement_before_verification: fullIssueClaimStatement,
+        cited_passage_ids: finalPassageIds,
+        rejection_code: "UNGROUNDED_OR_CONTRADICTED_CLAIM",
+        rejection_reason_th: redactPublicClaimRejectionReasonTh(failReason),
+        rejection_detail_internal: {
+          offending_identifier: structuredAuthCheck.offending_identifier ?? null,
+          offending_sentence_th: structuredAuthCheck.offending_sentence_th ?? null,
+          rule_name: "grounded-llm-verifier:validateStructuredAssertedAndContrastAuthorities",
+          raw_reason_unredacted: failReason,
+        },
+      });
+      continue;
+    }
+
+    const excludedContextInstruments = Array.from(
+      new Set([
+        ...baseExcludedContextInstruments,
+        ...structuredAuthCheck.validatedContrastInstruments,
+      ])
+    );
+
+    // C12 C1 Cross-check: compare legacy authority-surface-auditor regex (without contrast exclusions)
+    // against structured/contrast exclusions so disagreements are logged cleanly in audit_trace.
+    const regexOnlyBindingsForCrossCheck = toVerifiedAuthorityBindings(finalPassageIds);
+    const regexFlaggedWithoutContrast = Array.from(
+      new Set(
+        findUnsupportedAuthoritiesInText(
+          rawIssueTextForAuthority,
+          regexOnlyBindingsForCrossCheck,
+          { excludedContextInstruments: [] }
+        ).map((u) => u.canonicalId)
+      )
+    );
+    let issueDroppedSideSentenceCount = 0;
+
+    // Candidate 6 P0 + C12 C2: Strip incidental unverified authority references in heading/party/comparison
+    // clauses BEFORE claim entailment while keeping essential authority checks strict, and enforce
+    // C12 C2 sentence-level withholding ONLY for side sentences carrying ZERO bound numbers!
     const preCheckBindings = toVerifiedAuthorityBindings([
       ...finalPassageIds,
       ...params.passagePack
         .filter((p) => p.evidence_role === "governing" && p.work_id.startsWith("prov.th.rc."))
         .map((p) => p.passage_id),
     ]);
+    const boundNumberNeedles = buildIssueBoundNumberNeedles(
+      iss,
+      calcCheck.accepted ? calcCheck.verifiedCalc : null,
+      params.factLedger
+    );
+
+    let conclusionForAudit = iss.conclusion_th;
+    let explanationForAudit = iss.application_explanation_th || "";
+    let conclusionBlockedByBoundNumber = false;
+    let explanationBlockedByBoundNumber = false;
+
+    const preConclDrop = dropUnsupportedSideSentencesWithoutBoundNumbers({
+      rawText: conclusionForAudit,
+      verifiedBindings: preCheckBindings,
+      excludedContextInstruments,
+      boundNumberNeedles,
+      allowEmptyResult: false,
+    });
+    if (preConclDrop.blockedByBoundNumber) {
+      conclusionBlockedByBoundNumber = true;
+    } else if (preConclDrop.rescued && preConclDrop.droppedSentences.length > 0) {
+      conclusionForAudit = preConclDrop.cleanedText;
+      for (const ds of preConclDrop.droppedSentences) {
+        droppedSideSentencesLog.push({
+          issue_id: iss.issue_id,
+          dropped_sentence_th: ds.sentence,
+          unsupported_identifiers: ds.unsupportedIds,
+        });
+        droppedSideSentenceCount++;
+        issueDroppedSideSentenceCount++;
+      }
+    }
+
+    if (explanationForAudit) {
+      const preExplDrop = dropUnsupportedSideSentencesWithoutBoundNumbers({
+        rawText: explanationForAudit,
+        verifiedBindings: preCheckBindings,
+        excludedContextInstruments,
+        boundNumberNeedles,
+        allowEmptyResult: false,
+      });
+      if (preExplDrop.blockedByBoundNumber) {
+        explanationBlockedByBoundNumber = true;
+      } else if (preExplDrop.rescued && preExplDrop.droppedSentences.length > 0) {
+        explanationForAudit = preExplDrop.cleanedText;
+        for (const ds of preExplDrop.droppedSentences) {
+          droppedSideSentencesLog.push({
+            issue_id: iss.issue_id,
+            dropped_sentence_th: ds.sentence,
+            unsupported_identifiers: ds.unsupportedIds,
+          });
+          droppedSideSentenceCount++;
+          issueDroppedSideSentenceCount++;
+        }
+      }
+    }
+
     const preCleanTitle =
       sanitizeIncidentalSurfaceText(iss.issue_title_th, preCheckBindings, {
         excludedContextInstruments,
@@ -2672,21 +3217,44 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       sanitizeIncidentalSurfaceText(iss.party_or_scope_th, preCheckBindings, {
         excludedContextInstruments,
       }).cleanedText || redactAuthorityIdentifiersFromPublicDiagnosticTh(iss.party_or_scope_th);
-    const preAuditConcl = auditEssentialIssueSurfaceText(iss.conclusion_th, preCheckBindings, {
-      excludedContextInstruments,
-    });
-    const preAuditExpl = iss.application_explanation_th
-      ? auditEssentialIssueSurfaceText(iss.application_explanation_th, preCheckBindings, {
+    const preAuditConcl = conclusionBlockedByBoundNumber
+      ? {
+          ok: false,
+          cleanedText: conclusionForAudit,
+          unsupportedAuthorities: findUnsupportedAuthoritiesInText(
+            conclusionForAudit,
+            preCheckBindings,
+            { excludedContextInstruments }
+          ).map((u) => u.canonicalId),
+        }
+      : auditEssentialIssueSurfaceText(conclusionForAudit, preCheckBindings, {
           excludedContextInstruments,
-        })
-      : { ok: true, cleanedText: "", unsupportedAuthorities: [] };
+        });
+    const preAuditExpl = !explanationForAudit
+      ? { ok: true, cleanedText: "", unsupportedAuthorities: [] as string[] }
+      : explanationBlockedByBoundNumber
+        ? {
+            ok: false,
+            cleanedText: explanationForAudit,
+            unsupportedAuthorities: findUnsupportedAuthoritiesInText(
+              explanationForAudit,
+              preCheckBindings,
+              { excludedContextInstruments }
+            ).map((u) => u.canonicalId),
+          }
+        : auditEssentialIssueSurfaceText(explanationForAudit, preCheckBindings, {
+            excludedContextInstruments,
+          });
 
-    // Candidate 8: if the conclusion is fully supported but the explanation carries an unsupported authority ONLY
-    // inside an incidental parenthetical / discourse clause, remove that statement and keep the independently
-    // supported analysis (the remaining explanation must still cite a verified statutory section). An operative
-    // explanation that depends entirely on an unsupported authority is NOT rescued (whole text would be stripped).
-    let explanationForAudit = iss.application_explanation_th || "";
-    if (preAuditConcl.ok && explanationForAudit && !preAuditExpl.ok) {
+    // Candidate 8: if the conclusion is fully supported and the explanation's unsupported authority does NOT sit
+    // in a sentence carrying a bound number (C12 C2), remove incidental parenthetical/discourse clauses while
+    // keeping independently supported analysis.
+    if (
+      preAuditConcl.ok &&
+      explanationForAudit &&
+      !preAuditExpl.ok &&
+      !explanationBlockedByBoundNumber
+    ) {
       const san = sanitizeIncidentalSurfaceText(explanationForAudit, preCheckBindings, {
         excludedContextInstruments,
       });
@@ -2807,16 +3375,34 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // for incidental surfaces (`issue_title_th`, `authority_distinction_note_th`, `missing_facts_or_uncertainties_th`,
     // `material_facts_relied_on`), strip any unsupported reference and its dependent clause!
     let strictIssueBindings = toVerifiedAuthorityBindings(finalPassageIds);
-    let strictConclAudit = auditEssentialIssueSurfaceText(
-      iss.conclusion_th,
-      strictIssueBindings,
-      { excludedContextInstruments }
-    );
-    let strictExplAudit = explanationForAudit
-      ? auditEssentialIssueSurfaceText(explanationForAudit, strictIssueBindings, {
+    let strictConclAudit = conclusionBlockedByBoundNumber
+      ? {
+          ok: false,
+          cleanedText: conclusionForAudit,
+          unsupportedAuthorities: findUnsupportedAuthoritiesInText(
+            conclusionForAudit,
+            strictIssueBindings,
+            { excludedContextInstruments }
+          ).map((u) => u.canonicalId),
+        }
+      : auditEssentialIssueSurfaceText(conclusionForAudit, strictIssueBindings, {
           excludedContextInstruments,
-        })
-      : { ok: true, cleanedText: "", unsupportedAuthorities: [] as string[] };
+        });
+    let strictExplAudit = !explanationForAudit
+      ? { ok: true, cleanedText: "", unsupportedAuthorities: [] as string[] }
+      : explanationBlockedByBoundNumber
+        ? {
+            ok: false,
+            cleanedText: explanationForAudit,
+            unsupportedAuthorities: findUnsupportedAuthoritiesInText(
+              explanationForAudit,
+              strictIssueBindings,
+              { excludedContextInstruments }
+            ).map((u) => u.canonicalId),
+          }
+        : auditEssentialIssueSurfaceText(explanationForAudit, strictIssueBindings, {
+            excludedContextInstruments,
+          });
 
     // Candidate 8 (trc.c33cad106d7d9d): before withholding, bind the EXACT governing passage for a cited
     // Revenue Code section/subclause (e.g. `มาตรา 48 (4/1)`) or Revenue Code amending Act that is already in the
@@ -2825,7 +3411,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // kept only if BOTH entailment and the strict audit then pass. Authorities absent from the packet stay unsupported.
     if (entailmentCheck.allow_confident_answer && (!strictConclAudit.ok || !strictExplAudit.ok)) {
       const unsupportedNow = [
-        ...findUnsupportedAuthoritiesInText(iss.conclusion_th, strictIssueBindings, { excludedContextInstruments }),
+        ...findUnsupportedAuthoritiesInText(conclusionForAudit, strictIssueBindings, { excludedContextInstruments }),
         ...findUnsupportedAuthoritiesInText(explanationForAudit, strictIssueBindings, {
           excludedContextInstruments,
         }),
@@ -2864,12 +3450,34 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       if (bindAdds.size > 0) {
         const candidateIds = [...finalPassageIds, ...Array.from(bindAdds)];
         const candidateBindings = toVerifiedAuthorityBindings(candidateIds);
-        const candConcl = auditEssentialIssueSurfaceText(iss.conclusion_th, candidateBindings, {
-          excludedContextInstruments,
-        });
-        const candExpl = explanationForAudit
-          ? auditEssentialIssueSurfaceText(explanationForAudit, candidateBindings, { excludedContextInstruments })
-          : { ok: true, cleanedText: "", unsupportedAuthorities: [] as string[] };
+        const candConcl = conclusionBlockedByBoundNumber
+          ? {
+              ok: false,
+              cleanedText: conclusionForAudit,
+              unsupportedAuthorities: findUnsupportedAuthoritiesInText(
+                conclusionForAudit,
+                candidateBindings,
+                { excludedContextInstruments }
+              ).map((u) => u.canonicalId),
+            }
+          : auditEssentialIssueSurfaceText(conclusionForAudit, candidateBindings, {
+              excludedContextInstruments,
+            });
+        const candExpl = !explanationForAudit
+          ? { ok: true, cleanedText: "", unsupportedAuthorities: [] as string[] }
+          : explanationBlockedByBoundNumber
+            ? {
+                ok: false,
+                cleanedText: explanationForAudit,
+                unsupportedAuthorities: findUnsupportedAuthoritiesInText(
+                  explanationForAudit,
+                  candidateBindings,
+                  { excludedContextInstruments }
+                ).map((u) => u.canonicalId),
+              }
+            : auditEssentialIssueSurfaceText(explanationForAudit, candidateBindings, {
+                excludedContextInstruments,
+              });
         const candEntail = verifyClaimAgainstPassages(
           {
             statement: workingClaimStatement,
@@ -2890,12 +3498,99 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       }
     }
 
+    // C12 C2 post-binding side-sentence drop: if strict audit still rejects only because of a side sentence
+    // carrying ZERO bound numbers against `strictIssueBindings`, drop ONLY that sentence and re-verify!
+    if (
+      (!strictConclAudit.ok || !strictExplAudit.ok) &&
+      !conclusionBlockedByBoundNumber &&
+      !explanationBlockedByBoundNumber
+    ) {
+      let postDroppedAny = false;
+      if (!strictConclAudit.ok) {
+        const postConclDrop = dropUnsupportedSideSentencesWithoutBoundNumbers({
+          rawText: conclusionForAudit,
+          verifiedBindings: strictIssueBindings,
+          excludedContextInstruments,
+          boundNumberNeedles,
+          allowEmptyResult: false,
+        });
+        if (postConclDrop.blockedByBoundNumber) {
+          conclusionBlockedByBoundNumber = true;
+        } else if (postConclDrop.rescued && postConclDrop.droppedSentences.length > 0) {
+          conclusionForAudit = postConclDrop.cleanedText;
+          postDroppedAny = true;
+          for (const ds of postConclDrop.droppedSentences) {
+            droppedSideSentencesLog.push({
+              issue_id: iss.issue_id,
+              dropped_sentence_th: ds.sentence,
+              unsupported_identifiers: ds.unsupportedIds,
+            });
+            droppedSideSentenceCount++;
+            issueDroppedSideSentenceCount++;
+          }
+        }
+      }
+      if (!strictExplAudit.ok && explanationForAudit) {
+        const postExplDrop = dropUnsupportedSideSentencesWithoutBoundNumbers({
+          rawText: explanationForAudit,
+          verifiedBindings: strictIssueBindings,
+          excludedContextInstruments,
+          boundNumberNeedles,
+          allowEmptyResult: false,
+        });
+        if (postExplDrop.blockedByBoundNumber) {
+          explanationBlockedByBoundNumber = true;
+        } else if (postExplDrop.rescued && postExplDrop.droppedSentences.length > 0) {
+          explanationForAudit = postExplDrop.cleanedText;
+          postDroppedAny = true;
+          for (const ds of postExplDrop.droppedSentences) {
+            droppedSideSentencesLog.push({
+              issue_id: iss.issue_id,
+              dropped_sentence_th: ds.sentence,
+              unsupported_identifiers: ds.unsupportedIds,
+            });
+            droppedSideSentenceCount++;
+            issueDroppedSideSentenceCount++;
+          }
+        }
+      }
+      if (postDroppedAny) {
+        strictConclAudit = auditEssentialIssueSurfaceText(conclusionForAudit, strictIssueBindings, {
+          excludedContextInstruments,
+        });
+        strictExplAudit = explanationForAudit
+          ? auditEssentialIssueSurfaceText(explanationForAudit, strictIssueBindings, {
+              excludedContextInstruments,
+            })
+          : { ok: true, cleanedText: "", unsupportedAuthorities: [] as string[] };
+        if (strictConclAudit.ok && strictExplAudit.ok) {
+          const rebuiltStatement = strictExplAudit.cleanedText
+            ? `[${preCleanTitle} — ${preCleanParty}] ${strictConclAudit.cleanedText} (${strictExplAudit.cleanedText})`
+            : `[${preCleanTitle} — ${preCleanParty}] ${strictConclAudit.cleanedText}`;
+          const recheckEntail = verifyClaimAgainstPassages(
+            {
+              statement: rebuiltStatement,
+              supporting_passage_ids: finalPassageIds,
+              verified_calculation_numeric_tokens: trustedTokensArr,
+              excluded_context_instruments: excludedContextInstruments,
+              case_asset_category: activeCaseAssetCategory,
+            },
+            allRawPassages
+          );
+          if (recheckEntail.allow_confident_answer) {
+            workingClaimStatement = rebuiltStatement;
+            entailmentCheck = recheckEntail;
+          }
+        }
+      }
+    }
+
     // Candidate 8: exact-subclause evidence precision. A cited Revenue Code subclause (`มาตรา 48 (4/1)`) must point
     // to the verified passage whose own text contains that subclause; when only sibling units of the same section are
     // attached and the exact governing unit is in the packet, attach it (re-verified; kept only if still supported).
     if (entailmentCheck.allow_confident_answer && strictConclAudit.ok && strictExplAudit.ok) {
       const precisionAdds: string[] = [];
-      for (const a of extractNamedAuthoritiesFromText(`${iss.conclusion_th} ${explanationForAudit}`)) {
+      for (const a of extractNamedAuthoritiesFromText(`${conclusionForAudit} ${explanationForAudit}`)) {
         if (a.kind !== "section") continue;
         const sm = /^มาตรา\s*([0-9]+(?:\/[0-9]+)?)(?:\s+([ก-๙]+))?\s*\(([0-9]{1,2}(?:\/[0-9]+)?)\)$/.exec(a.canonicalId);
         if (!sm) continue;
@@ -2936,12 +3631,39 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     }
 
     if (entailmentCheck.allow_confident_answer && (!strictConclAudit.ok || !strictExplAudit.ok)) {
+      const strictUnsupIds = Array.from(
+        new Set([
+          ...(strictConclAudit.unsupportedAuthorities || []),
+          ...(strictExplAudit.unsupportedAuthorities || []),
+        ])
+      );
+      const firstStrictId = strictUnsupIds[0] || null;
+      const offendingTextSource = !strictConclAudit.ok ? conclusionForAudit : explanationForAudit;
       entailmentCheck = {
         verification_result: "UNSUPPORTED",
         allow_confident_answer: false,
         reason:
           "UNGROUNDED_LEGAL_IDENTIFIER: ระงับการรับรองข้อกล่าวอ้าง เนื่องจากข้อสรุปหรือคำอธิบายอ้างอิงแหล่งกฎหมายที่ไม่มีข้อความหลักฐานและรุ่นกฎหมายที่ตรวจสอบแล้วรองรับในประเด็นนี้",
+        offending_identifier: firstStrictId,
+        offending_sentence_th: extractOffendingSentenceForIdentifier(
+          offendingTextSource,
+          firstStrictId
+        ),
+        rule_name: "authority-surface-auditor:auditEssentialIssueSurfaceText",
       };
+    }
+
+    if (
+      regexFlaggedWithoutContrast.length > 0 ||
+      excludedContextInstruments.length > 0 ||
+      issueDroppedSideSentenceCount > 0
+    ) {
+      authoritySurfaceCrosscheckLog.push({
+        issue_id: iss.issue_id,
+        regex_flagged_without_contrast: regexFlaggedWithoutContrast,
+        structured_contrast_allowed: excludedContextInstruments,
+        dropped_side_sentences_count: issueDroppedSideSentenceCount,
+      });
     }
 
     const sanitizedIssueTitleTh =
@@ -3023,6 +3745,19 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           entailmentCheck.reason ||
             "ข้อความข้อสรุปและการปรับใช้กฎหมายไม่ผ่านเกณฑ์การตรวจสอบความสอดคล้องกับตัวบทที่อ้างอิง"
         ),
+        rejection_detail_internal: {
+          offending_identifier: entailmentCheck.offending_identifier ?? null,
+          offending_sentence_th:
+            entailmentCheck.offending_sentence_th ??
+            extractOffendingSentenceForIdentifier(
+              fullIssueClaimStatement,
+              entailmentCheck.offending_identifier ?? null
+            ),
+          rule_name: entailmentCheck.rule_name ?? "grounded-llm-verifier:entailment",
+          raw_reason_unredacted:
+            entailmentCheck.reason ||
+            "ข้อความข้อสรุปและการปรับใช้กฎหมายไม่ผ่านเกณฑ์การตรวจสอบความสอดคล้องกับตัวบทที่อ้างอิง",
+        },
       });
       continue;
     }
@@ -3080,12 +3815,40 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           }
         : null;
 
+    // C12 C3: When the allocation spans > 1 Royal Decree effective window (e.g. RD 799 + RD 807),
+    // attach each sibling decree's §1–2 and §3 passages as `context_passage_ids` (`support_role: "context"`)
+    // on VAT lot/installment claims without altering `supporting_passage_ids` / `governing_passage_ids`.
+    const finalWorkIdSet = new Set(
+      finalPassageIds.map((pid) => packById.get(pid)?.work_id || "").filter(Boolean)
+    );
+    const issueIsVatSpanned =
+      spannedDecreeContextPassageMap.size > 1 &&
+      Array.from(finalWorkIdSet).some(
+        (wid) =>
+          wid === "prov.th.rc.78" ||
+          wid === "prov.th.rc.78/1" ||
+          wid === "prov.th.rc.80" ||
+          wid.startsWith("subreg.th.rc.royal_decree.")
+      );
+    const contextPassageIds: string[] = [];
+    if (issueIsVatSpanned) {
+      for (const [wid, pids] of spannedDecreeContextPassageMap.entries()) {
+        if (finalWorkIdSet.has(wid)) continue;
+        for (const pid of pids) {
+          if (!finalPassageIds.includes(pid) && !contextPassageIds.includes(pid)) {
+            contextPassageIds.push(pid);
+          }
+        }
+      }
+    }
+
     const claimLedgerItem: ClaimLedgerItem = {
       claim_id: claimId,
       statement: workingClaimStatement,
       claim_type: "qualified_legal_synthesis",
       statement_role: firstRaw?.statement_role || "statutory_text",
       supporting_passage_ids: finalPassageIds,
+      ...(contextPassageIds.length > 0 ? { context_passage_ids: contextPassageIds } : {}),
       applicable_version_id: firstRaw?.version_id || citedPackItems[0].version_id,
       factual_conditions: sanitizedMaterialFacts.slice(0, 5),
       exceptions: sanitizedMissingFacts.slice(0, 5),
@@ -3316,12 +4079,22 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         rejected_claims: rejectedClaims,
         rejected_calculations: rejectedCalculations,
         final_answer_revision_id: null,
+        ...(authoritySurfaceCrosscheckLog.length > 0
+          ? { authority_surface_auditor_crosscheck: authoritySurfaceCrosscheckLog }
+          : {}),
+        ...(droppedSideSentencesLog.length > 0
+          ? { dropped_side_sentences: droppedSideSentencesLog }
+          : {}),
       },
     };
   }
 
-  // Build EvidenceCards ONLY for passages actually cited by verified claims!
-  const usedPassageIdSet = new Set(verifiedIssues.flatMap((v) => v.governing_passage_ids));
+  // Build EvidenceCards for passages cited by verified claims (governing + C3 sibling context passages)
+  const governingUsedPassageIdSet = new Set(verifiedIssues.flatMap((v) => v.governing_passage_ids));
+  const usedPassageIdSet = new Set([
+    ...governingUsedPassageIdSet,
+    ...verifiedIssues.flatMap((v) => v.claim_ledger_item.context_passage_ids || []),
+  ]);
   const usedPackItems = params.passagePack.filter((p) => usedPassageIdSet.has(p.passage_id));
   const evidenceCards: EvidenceCard[] = usedPackItems.map((item) => {
     const rawP = params.rawPassagesById.get(item.passage_id);
@@ -3424,6 +4197,14 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       "เอกสารลำดับรอง คำสั่ง หรือแนววินิจฉัยบางรายการที่กล่าวพาดพิงไม่ได้รวมอยู่ในชุดหลักฐานที่ตรวจสอบแล้ว ระบบจึงตัดเฉพาะข้อความส่วนที่ไม่มีหลักฐานรองรับออกและคงเฉพาะผลวิเคราะห์ตามบทบัญญัติที่ตรวจสอบต้นฉบับแล้ว"
     );
   }
+  if (
+    droppedSideSentenceCount > 0 &&
+    !rawEvidenceGaps.some((g) => /ตัดประโยคเสริม/.test(g))
+  ) {
+    rawEvidenceGaps.push(
+      "หมายเหตุขอบเขตหลักฐาน: ระบบตัดประโยคเสริมที่กล่าวถึงเอกสารนอกชุดหลักฐานออกบางส่วนโดยไม่กระทบข้อสรุป ตัวเลขภาษี หรือวันเกิดความรับผิดที่ตรวจสอบแล้ว"
+    );
+  }
   const evidenceGaps = rawEvidenceGaps
     .map(
       (g) =>
@@ -3487,12 +4268,23 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     factLedger: params.factLedger,
     verifiedIssues,
     usedPassages: usedPackItems,
+    governingPassageIdSet: governingUsedPassageIdSet,
     rejectedClaims,
     rejectedCalculations,
     assumptions,
     clarifications,
     evidenceGaps,
   });
+
+  const allocForStaleCheck = params.factLedger.temporal_facts.vat_portion_allocation_record;
+  const activeLedgerHashForStaleCheck =
+    params.factLedger.ledger_state_hash || computeLedgerStateHash(params.factLedger);
+  const detectedStaleAllocationRecord = Boolean(
+    allocForStaleCheck &&
+      allocForStaleCheck.allocation_status === "RESOLVED" &&
+      (!allocForStaleCheck.ledger_after_hash ||
+        allocForStaleCheck.ledger_after_hash !== activeLedgerHashForStaleCheck)
+  );
 
   return {
     status: finalStatus,
@@ -3502,7 +4294,9 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     evidence_cards: evidenceCards,
     assumptions_th: assumptions,
     clarification_questions_th: clarifications,
-    coverage_warnings_th: coverageWarnings,
+    coverage_warnings_th: detectedStaleAllocationRecord
+      ? [...coverageWarnings, "stale_allocation_record: ระงับการแสดงตารางจัดสรร VAT เนื่องจากแฮชของข้อเท็จจริงไม่ตรงกับรอบปัจจุบัน"]
+      : coverageWarnings,
     rejected_calculations_diagnostic: buildRejectedDiagnostics(),
     audit_trace: {
       schema_version: "reg24.llm_audit_trace.v1",
@@ -3525,6 +4319,112 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       rejected_claims: rejectedClaims,
       rejected_calculations: rejectedCalculations,
       final_answer_revision_id: null,
+      ...(detectedStaleAllocationRecord ? { stale_allocation_record: true } : {}),
+      ...(authoritySurfaceCrosscheckLog.length > 0
+        ? { authority_surface_auditor_crosscheck: authoritySurfaceCrosscheckLog }
+        : {}),
+      ...(droppedSideSentencesLog.length > 0
+        ? { dropped_side_sentences: droppedSideSentencesLog }
+        : {}),
+      ...(params.factLedger.fact_delta_audit
+        ? {
+            fact_delta: params.factLedger.fact_delta_audit.fact_delta,
+            ledger_before_hash: params.factLedger.fact_delta_audit.ledger_before_hash,
+            ledger_after_hash: params.factLedger.fact_delta_audit.ledger_after_hash,
+            delta_disagreement: params.factLedger.fact_delta_audit.delta_disagreement,
+            delta_disagreement_summary:
+              params.factLedger.fact_delta_audit.delta_disagreement_summary,
+            fact_delta_audit: params.factLedger.fact_delta_audit,
+          }
+        : {
+            ledger_after_hash: params.factLedger.ledger_state_hash ?? null,
+          }),
     },
+  };
+}
+
+/**
+ * C12 C0 / Security Boundary: Sanitizes an internal `GroundedLlmAuditTrace` before returning over public HTTP/SSE.
+ * Strictly strips server-internal diagnostics (`rejection_detail_internal`, unredacted `dropped_side_sentences`,
+ * `authority_surface_auditor_crosscheck`, pre-check conclusions, rejected numbers, and unverified authority IDs).
+ */
+export function sanitizePublicLlmAuditTraceForHttp(
+  rawTrace: unknown
+): Record<string, unknown> | undefined {
+  if (!rawTrace || typeof rawTrace !== "object") return undefined;
+  const traceObj = rawTrace as Record<string, unknown>;
+  const redactPublicDiag = (s: unknown): string =>
+    typeof s === "string"
+      ? redactAuthorityIdentifiersFromPublicDiagnosticTh(
+          s
+            .replace(
+              /\(\s*[0-9๐-๙][0-9๐-๙,.\s]*(?:บาท|ล้านบาท|%|เปอร์เซ็นต์|วัน|เดือน|ปี)?\s*\)/g,
+              "(ตัวเลขถูกระงับ)"
+            )
+            .replace(/[0-9๐-๙]{1,3}(?:,[0-9๐-๙]{3})+\s*(?:บาท|ล้านบาท)?/g, "[ตัวเลขถูกระงับ]")
+            .replace(/(?<![0-9๐-๙])[0-9๐-๙]+\s*(?:บาท|ล้านบาท)/g, "[จำนวนเงินถูกระงับ]")
+        )
+      : "";
+  const rawRejClaims = Array.isArray(traceObj.rejected_claims)
+    ? (traceObj.rejected_claims as Array<Record<string, unknown>>)
+    : [];
+  const rawRejCalcs = Array.isArray(traceObj.rejected_calculations)
+    ? (traceObj.rejected_calculations as Array<Record<string, unknown>>)
+    : [];
+  const rawClaimsAfter = Array.isArray(traceObj.claims_after_verification)
+    ? (traceObj.claims_after_verification as Array<Record<string, unknown>>)
+    : [];
+  const verifiedUsedPassageIds = new Set<string>(
+    rawClaimsAfter.flatMap((ca) =>
+      Array.isArray(ca.supporting_passage_ids)
+        ? (ca.supporting_passage_ids as unknown[]).filter(
+            (id): id is string => typeof id === "string"
+          )
+        : []
+    )
+  );
+  const rawSupplied = Array.isArray(traceObj.supplied_passages)
+    ? (traceObj.supplied_passages as Array<Record<string, unknown>>)
+    : [];
+  const droppedSideCount = Array.isArray(traceObj.dropped_side_sentences)
+    ? traceObj.dropped_side_sentences.length
+    : 0;
+  // Exclude server-internal-only fields before spreading
+  const {
+    dropped_side_sentences: _internalDroppedSide,
+    authority_surface_auditor_crosscheck: _internalCrosscheck,
+    ...publicBase
+  } = traceObj;
+  void _internalDroppedSide;
+  void _internalCrosscheck;
+  return {
+    ...publicBase,
+    supplied_passage_count: rawSupplied.length,
+    supplied_passages: rawSupplied.filter(
+      (sp) => typeof sp.passage_id === "string" && verifiedUsedPassageIds.has(sp.passage_id)
+    ),
+    ...(droppedSideCount > 0 ? { dropped_side_sentences_count: droppedSideCount } : {}),
+    // Never leak unverified pre-check draft conclusions, unlinked authorities, rejection_detail_internal, or rejected numbers over HTTP
+    claims_before_verification: Array.isArray(traceObj.claims_before_verification)
+      ? (traceObj.claims_before_verification as Array<Record<string, unknown>>).map((c) => ({
+          issue_id: c.issue_id,
+          issue_title_th: redactPublicDiag(c.issue_title_th),
+          governing_passage_ids: c.governing_passage_ids,
+          has_proposed_calculation: c.has_proposed_calculation,
+        }))
+      : [],
+    rejected_claims: rawRejClaims.map((rc) => ({
+      issue_id: rc.issue_id,
+      issue_title_th: redactPublicDiag(rc.issue_title_th),
+      cited_passage_ids: rc.cited_passage_ids,
+      rejection_code: rc.rejection_code,
+      rejection_reason_th: redactPublicDiag(rc.rejection_reason_th),
+    })),
+    rejected_calculations: rawRejCalcs.map((rc) => ({
+      issue_id: rc.issue_id,
+      issue_title_th: redactPublicDiag(rc.issue_title_th),
+      rejection_code: rc.rejection_code,
+      rejection_reason_th: redactPublicDiag(rc.rejection_reason_th),
+    })),
   };
 }
