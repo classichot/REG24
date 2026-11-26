@@ -2159,7 +2159,12 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     // from the user's prompt as this installment's tax!), while still permitting explicit refutations
     // ("ที่คำนวณว่า 4,200 บาทนั้นไม่ถูกต้อง ... คิดเป็น VAT 2,800 บาท")!
     const preEntailTargetAlloc = resolveIssueTargetAllocation(iss, params.factLedger);
-    const expectedPortionVat = preEntailTargetAlloc?.sameDateBucketVatThb ?? null;
+    const expectedOwnPortionVat =
+      preEntailTargetAlloc?.expectedBaseThb && preEntailTargetAlloc.expectedBaseThb > 0
+        ? Math.round(preEntailTargetAlloc.expectedBaseThb * 0.07 * 100) / 100
+        : null;
+    const expectedBucketVat = preEntailTargetAlloc?.sameDateBucketVatThb ?? null;
+    const expectedPortionVat = expectedOwnPortionVat ?? expectedBucketVat;
     if (
       !isClarificationTurn &&
       preEntailTargetAlloc &&
@@ -2177,11 +2182,18 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       for (const vm of cleanConclForVatAssert.matchAll(vatAssertRe)) {
         const val = Number((vm[1] || "").replace(/,/g, ""));
         if (!Number.isFinite(val) || val <= 0) continue;
-        // Skip base or gross totals (only inspect tax-sized assertions that contradict expectedPortionVat)
+        // Skip base, own-portion gross, bucket gross, own-portion VAT, or same-date multi-lot bucket VAT
+        const ownGross =
+          preEntailTargetAlloc.expectedBaseThb && expectedOwnPortionVat
+            ? Math.round((preEntailTargetAlloc.expectedBaseThb + expectedOwnPortionVat) * 100) / 100
+            : null;
         if (
           preEntailTargetAlloc.expectedBaseThb &&
           Math.abs(val - preEntailTargetAlloc.expectedBaseThb) <= 1
         ) {
+          continue;
+        }
+        if (ownGross && Math.abs(val - ownGross) <= 1) {
           continue;
         }
         if (
@@ -2191,6 +2203,7 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           continue;
         }
         if (Math.abs(val - expectedPortionVat) <= 1) continue;
+        if (expectedBucketVat !== null && Math.abs(val - expectedBucketVat) <= 1) continue;
         const mStart = vm.index ?? 0;
         const mEnd = mStart + vm[0].length;
         const leftWin = cleanConclForVatAssert.slice(Math.max(0, mStart - 45), mStart);
