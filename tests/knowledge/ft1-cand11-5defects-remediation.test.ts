@@ -321,6 +321,7 @@ describe("Formal Test 1 Candidate 11 — Consolidated 5-Defect Remediation Suite
           effective_from: "2026-10-01",
           section_label: "มาตรา ๑",
           physical_page_one_based: 1,
+          mime_type: "application/pdf",
           attachment_bytes_or_text: attText,
           actor: reviewerA,
         });
@@ -951,7 +952,9 @@ describe("Formal Test 1 Candidate 11 — Consolidated 5-Defect Remediation Suite
       expect(reopened.found).toBe(true);
       expect(reopened.answer?.claims).toHaveLength(2);
       expect(
-        reopened.answer?.claims.map((c) => c.bound_calculation?.outputs.computed_tax_thb).sort((a, b) => (a ?? 0) - (b ?? 0))
+        reopened.answer?.claims
+          .map((c) => Number(c.bound_calculation?.outputs.computed_tax_thb ?? 0))
+          .sort((a, b) => a - b)
       ).toEqual([2800, 4200]);
 
       // Scenario B: Genuine label/date conflict (labeled งวดที่ 1 but affirmatively asserts 5 ตุลาคม 2568 as its own tax point!) -> withheld while sibling Inst 2 survives!

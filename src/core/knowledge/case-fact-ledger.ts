@@ -1585,7 +1585,7 @@ export function buildStructuredCaseFactLedger(input: {
               nonOccurringEvents[ni] = {
                 ...nonOccurringEvents[ni],
                 iso_date: newIso,
-                raw_text: newRaw,
+                raw_date: newRaw,
                 source_turn: turnNumber,
               };
             }
