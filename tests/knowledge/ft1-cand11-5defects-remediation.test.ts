@@ -278,6 +278,185 @@ describe("Formal Test 1 Candidate 11 — Consolidated 5-Defect Remediation Suite
         verified_vat_thb: 700,
       });
     });
+
+    it("D3-4: r3 targeted Lot C edit (2 Oct RD 807 -> 30 Sep RD 799) survives verifier & publication when contrasting prior RD 807, while affirmative wrong-version RD 807 stays rejected", async () => {
+      const testActor: Actor = {
+        actor_id: "trial.user.cand11.d3_4@reg24.th",
+        role: "legal_reviewer",
+        tenant_id: "tenant.trial.cand11",
+        authorized_scopes: ["scope.platform.public", "scope.tenant.tenant.trial.cand11"],
+        csrf_verified: true,
+      };
+      const r3Turn3Prompt =
+        "ขอเปลี่ยนข้อเท็จจริงเฉพาะล็อต C มูลค่า 10,000 บาทว่า บริษัทได้รับชำระราคาและออกใบกำกับภาษีสำหรับล็อต C เมื่อวันที่ 30 กันยายน 2569 ส่วนข้อเท็จจริงของล็อต A และล็อต B เหมือนเดิมทั้งหมด ภาระภาษีมูลค่าเพิ่มของแต่ละส่วนเปลี่ยนไปอย่างไร";
+      const r3Draft: GroundedLlmDraftResponse = {
+        answer_status: "ANSWERED",
+        overall_summary_th:
+          "ล็อต A (20,000 บาท) วันที่ 29 กันยายน 2569 ภายใต้ พ.ร.ฎ. 799 ภาษีมูลค่าเพิ่ม 1,400 บาท; ล็อต C (10,000 บาท) เปลี่ยนมาวันที่ 30 กันยายน 2569 ภายใต้ พ.ร.ฎ. 799 ภาษีมูลค่าเพิ่ม 700 บาท; ล็อต B (20,000 บาท) วันที่ 2 ตุลาคม 2569 ภายใต้ พ.ร.ฎ. 807 ภาษีมูลค่าเพิ่ม 1,400 บาท",
+        case_facts_used: [],
+        issues: [
+          {
+            issue_id: "ISSUE_1_LOT_A_2026_09_29",
+            issue_title_th: "ล็อต A (20,000 บาท) — 29 กันยายน 2569",
+            party_or_scope_th: "ล็อต A มูลค่า 20,000 บาท",
+            conclusion_th:
+              "ล็อต A เกิดความรับผิดเมื่อวันที่ 29 กันยายน 2569 ตามมาตรา 78 (1) (ก) ภายใต้ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 อัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 1,400 บาท",
+            material_facts_relied_on: ["ล็อต A มูลค่า 20,000 บาท โอนกรรมสิทธิ์วันที่ 29 กันยายน 2569"],
+            governing_passage_ids: [
+              "psg.aa853373203223",
+              "psg.1b1abb8e7e22df",
+              "psg.rc8.rd799.sec_1_2",
+              "psg.rc8.rd799.sec_3_quoted_rd646_sec_4",
+              "psg.3d0eb5636faa0e",
+            ],
+            application_explanation_th:
+              "ตามมาตรา 78 (1) (ก) และมาตรา 80 แห่งประมวลรัษฎากร ประกอบ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 (ใช้บังคับตั้งแต่วันที่ 1 ตุลาคม 2568) ภาษีมูลค่าเพิ่มรวมภาษีท้องถิ่นร้อยละ 7.0 ของ 20,000 บาท เท่ากับ 1,400 บาท",
+            authority_distinction_note_th: "",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: {
+              is_computable_from_stated_facts: true,
+              formula_description_th: "20,000 × 7.0% = 1,400",
+              tax_base_thb: 20000,
+              exempt_amount_thb: 0,
+              taxable_amount_thb: 20000,
+              rate_pct: 7,
+              computed_tax_thb: 1400,
+              steps_th: ["20,000 × 7.0% = 1,400 บาท"],
+              missing_inputs_th: [],
+            },
+          },
+          {
+            issue_id: "ISSUE_2_LOT_C_2026_09_30",
+            issue_title_th: "ล็อต C (10,000 บาท) — 30 กันยายน 2569",
+            party_or_scope_th: "ล็อต C มูลค่า 10,000 บาท (แก้ไขข้อเท็จจริง)",
+            conclusion_th:
+              "ล็อต C มูลค่า 10,000 บาท เกิดความรับผิดเมื่อวันที่ 30 กันยายน 2569 ตามมาตรา 78 (1) (ข)/(ค) จึงเปลี่ยนจาก พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569 มาอยู่ภายใต้ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 แทน อัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 700 บาท",
+            material_facts_relied_on: ["ล็อต C มูลค่า 10,000 บาท ชำระราคาและออกใบกำกับภาษีวันที่ 30 กันยายน 2569"],
+            governing_passage_ids: [
+              "psg.aa853373203223",
+              "psg.1b1abb8e7e22df",
+              "psg.rc8.rd799.sec_1_2",
+              "psg.rc8.rd799.sec_3_quoted_rd646_sec_4",
+              "psg.3d0eb5636faa0e",
+            ],
+            application_explanation_th:
+              "เมื่อได้รับชำระราคาและออกใบกำกับภาษีสำหรับล็อต C เมื่อวันที่ 30 กันยายน 2569 ซึ่งอยู่ก่อนที่ พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569 จะเริ่มใช้บังคับ (1 ตุลาคม 2569) จึงเปลี่ยนจาก พ.ร.ฎ. (ฉบับที่ 807) มาใช้ พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 (ใช้บังคับตั้งแต่วันที่ 1 ตุลาคม 2568) อัตราร้อยละ 7.0 คิดเป็น 700 บาท",
+            authority_distinction_note_th: "",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: {
+              is_computable_from_stated_facts: true,
+              formula_description_th: "10,000 × 7.0% = 700",
+              tax_base_thb: 10000,
+              exempt_amount_thb: 0,
+              taxable_amount_thb: 10000,
+              rate_pct: 7,
+              computed_tax_thb: 700,
+              steps_th: ["10,000 × 7.0% = 700 บาท"],
+              missing_inputs_th: [],
+            },
+          },
+          {
+            issue_id: "ISSUE_3_LOT_B_2026_10_02",
+            issue_title_th: "ล็อต B (20,000 บาท) — 2 ตุลาคม 2569",
+            party_or_scope_th: "ล็อต B มูลค่า 20,000 บาท",
+            conclusion_th:
+              "ล็อต B มูลค่า 20,000 บาท ยังคงเกิดความรับผิดเมื่อวันที่ 2 ตุลาคม 2569 ตามมาตรา 78 (1) ภายใต้ พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569 อัตราร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7 เป็นร้อยละ 7.0 คิดเป็นภาษีมูลค่าเพิ่ม 1,400 บาท",
+            material_facts_relied_on: ["ล็อต B มูลค่า 20,000 บาท โอนกรรมสิทธิ์และส่งมอบวันที่ 2 ตุลาคม 2569"],
+            governing_passage_ids: [
+              "psg.aa853373203223",
+              "psg.1b1abb8e7e22df",
+              "psg.rc8.rd807.sec_1_2",
+              "psg.rc8.rd807.sec_3_quoted_rd646_sec_4",
+              "psg.3d0eb5636faa0e",
+            ],
+            application_explanation_th:
+              "ตามมาตรา 78 (1) และมาตรา 80 แห่งประมวลรัษฎากร ประกอบ พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569 (ใช้บังคับตั้งแต่วันที่ 1 ตุลาคม 2569) ภาษีมูลค่าเพิ่มรวมภาษีท้องถิ่นร้อยละ 7.0 ของ 20,000 บาท เท่ากับ 1,400 บาท",
+            authority_distinction_note_th: "",
+            missing_facts_or_uncertainties_th: [],
+            proposed_calculation: {
+              is_computable_from_stated_facts: true,
+              formula_description_th: "20,000 × 7.0% = 1,400",
+              tax_base_thb: 20000,
+              exempt_amount_thb: 0,
+              taxable_amount_thb: 20000,
+              rate_pct: 7,
+              computed_tax_thb: 1400,
+              steps_th: ["20,000 × 7.0% = 1,400 บาท"],
+              missing_inputs_th: [],
+            },
+          },
+        ],
+        assumptions_th: [],
+        clarification_questions_th: [],
+        evidence_gaps_th: [],
+      };
+      const r3Res = await queryKnowledge(
+        {
+          question: r3Turn3Prompt,
+          conversation_history: [
+            { role: "user", content: QA_DEF_C10_3_R1 },
+            { role: "user", content: QA_DEF_C10_3_R2 },
+          ],
+          applicable_date: null,
+          release_id: "rel.B01.rc8",
+          answer_generation_mode: "llm_grounded",
+        },
+        testActor,
+        {
+          store,
+          persistAnswerAtomically: false,
+          llmMockInvokerForTesting: async () => r3Draft,
+        }
+      );
+
+      expect(r3Res.status).toBe("ANSWERED");
+      expect(r3Res.traceable_answer?.status).toBe("complete");
+      expect(r3Res.traceable_answer?.claims).toHaveLength(3);
+      expect(
+        r3Res.traceable_answer?.claims
+          .map((c) => Number(c.bound_calculation?.outputs.computed_tax_thb ?? 0))
+          .sort((a, b) => a - b)
+      ).toEqual([700, 1400, 1400]);
+
+      // Negative control: affirmatively citing RD 807 as governing for Lot C on 30 Sep MUST still be rejected!
+      const badR3Draft: GroundedLlmDraftResponse = {
+        ...r3Draft,
+        issues: [
+          r3Draft.issues[0],
+          {
+            ...r3Draft.issues[1],
+            conclusion_th:
+              "ล็อต C มูลค่า 10,000 บาท เกิดความรับผิดวันที่ 30 กันยายน 2569 และต้องใช้ พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569 เสียภาษี 700 บาท",
+            application_explanation_th:
+              "วันที่ 30 กันยายน 2569 ให้อยู่ภายใต้บังคับ พ.ร.ฎ. (ฉบับที่ 807) พ.ศ. 2569 อัตราร้อยละ 7.0 คิดเป็น 700 บาท",
+          },
+          r3Draft.issues[2],
+        ],
+      };
+      const badR3Res = await queryKnowledge(
+        {
+          question: r3Turn3Prompt,
+          conversation_history: [
+            { role: "user", content: QA_DEF_C10_3_R1 },
+            { role: "user", content: QA_DEF_C10_3_R2 },
+          ],
+          applicable_date: null,
+          release_id: "rel.B01.rc8",
+          answer_generation_mode: "llm_grounded",
+        },
+        testActor,
+        {
+          store,
+          persistAnswerAtomically: false,
+          llmMockInvokerForTesting: async () => badR3Draft,
+        }
+      );
+      expect(badR3Res.traceable_answer?.claims).toHaveLength(2);
+      expect(
+        badR3Res.traceable_answer?.claims
+          .map((c) => Number(c.bound_calculation?.outputs.computed_tax_thb ?? 0))
+      ).not.toContain(700);
+    });
   });
 
   // =========================================================================
