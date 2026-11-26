@@ -742,11 +742,7 @@ export function getUnifiedCitationLedgerView(
 export function isActorAuthorizedForScope(actor: Actor, accessScope: string): boolean {
   if (accessScope === "scope.platform.public") return true;
   if (actor.authorized_scopes.includes(accessScope)) return true;
-  if (
-    actor.tenant_id &&
-    actor.tenant_id !== "PUBLIC" &&
-    accessScope === `scope.tenant.${actor.tenant_id}`
-  ) {
+  if (actor.tenant_id && accessScope === `scope.tenant.${actor.tenant_id}`) {
     return true;
   }
   if (actor.actor_id && accessScope === `scope.actor.${actor.actor_id}`) return true;
@@ -4268,12 +4264,22 @@ export function attachTraceableEnvelopeToGroundedAnswer(
     (c) => c.verification_decision === "supported" && c.published
   );
   const publishedClaimIdSet = new Set(publishedSupportedClaims.map((c) => c.claim_id));
-  const substantiveDraftClaims = (grounded.claims || []).filter(
-    (gc) => gc.claim_type !== "abstention_notice"
+  const hasConcludingAnalysisClaim = (grounded.claims || []).some(
+    (gc) =>
+      gc.claim_type === "qualified_legal_synthesis" ||
+      gc.claim_id.includes(".llm.") ||
+      gc.claim_id.includes(".law_application.")
+  );
+  const isSupplementalRawExcerptClaim = (gc: GroundedAnswer["claims"][number]): boolean =>
+    hasConcludingAnalysisClaim &&
+    gc.claim_type === "direct_source_statement" &&
+    (gc.claim_id.includes(".controlling_dep.") || gc.claim_id.includes(".official."));
+  const concludingDraftClaims = (grounded.claims || []).filter(
+    (gc) => gc.claim_type !== "abstention_notice" && !isSupplementalRawExcerptClaim(gc)
   );
   const publicationWithheldDraftClaims =
     builtEnvelope.unresolved_issues.length > 0 &&
-    substantiveDraftClaims.some(
+    concludingDraftClaims.some(
       (gc) =>
         !publishedClaimIdSet.has(gc.claim_id) &&
         !Array.from(publishedClaimIdSet).some((pid) => pid.startsWith(`${gc.claim_id}.p`))
