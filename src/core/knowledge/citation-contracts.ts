@@ -384,6 +384,8 @@ export interface PublishedAtomicClaimDto {
   published: boolean;
   withheld_explanation_th: string | null;
   evidence_references: ClaimEvidenceReferenceDto[];
+  /** Subordinate instruments explicitly mentioned ONLY in an expiry/non-applicability exclusion context (DEF-C10-1). */
+  excluded_context_instruments?: string[];
   /** Server-verified calculation bound strictly to THIS claim and answer revision (never pooled across claims). */
   bound_calculation?: ClaimBoundCalculationRecord | null;
 }

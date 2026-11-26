@@ -10,7 +10,10 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { getVerifiedStatutoryCorpus } from "../data/verified-statutory-loader";
-import { evaluateSubstantiveClaimSupport } from "./answer-verification";
+import {
+  evaluateSubstantiveClaimSupport,
+  extractCanonicalInstrumentNumbers,
+} from "./answer-verification";
 import {
   sanitizeIncidentalSurfaceText,
   type VerifiedAuthorityPassageBinding,
@@ -1159,8 +1162,64 @@ export interface ProposedStructuredClaimInput {
   scope_topic_th?: string;
   human_approved_by?: string | null;
   verified_calculation_numeric_tokens?: string[];
+  /** Subordinate instruments explicitly mentioned ONLY in an expiry/non-applicability exclusion context (DEF-C10-1). */
+  excluded_context_instruments?: string[];
   /** Server-verified calculation bound strictly to THIS claim (never shared with sibling claims). */
   bound_calculation?: ClaimBoundCalculationRecord | null;
+}
+
+const PUBLICATION_EXPLICIT_EXCLUSION_RE =
+  /(?:สิ้นสุด(?:ลง)?|พ้นช่วง(?:เวลา)?|หลังจากช่วง(?:เวลา)?|หลังพ้น|ไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|มิได้ใช้บังคับ|ไม่ครอบคลุม|หมดอายุ|หมดเขต|ครบกำหนด|ไม่นำมาใช้|มิใช่|ไม่ใช่|อยู่นอกช่วง|นอกช่วงเวลา|expired|ended|does\s+not\s+apply|outside\s+the\s+effective)/i;
+
+/**
+ * DEF-C10-1: Preserves upstream verified excluded-context instruments (e.g. a sibling Royal Decree mentioned
+ * ONLY in an explicit expiry/non-applicability contrast clause) and validates any candidate sibling-decree
+ * exclusion mention strictly against authorized candidate passages so wrong-version affirmative citations
+ * stay rejected while valid multi-decree transition explanations survive Generate -> Publish -> Save -> Reopen.
+ */
+function resolveExcludedContextInstrumentsForPublication(params: {
+  claimText: string;
+  citedPassageIds: Set<string>;
+  candidatePassages: EvidencePassageRecord[];
+  viewDocuments: Record<string, OfficialDocumentRecord>;
+  upstreamExcluded?: string[];
+}): string[] {
+  const verified = new Set<string>(params.upstreamExcluded || []);
+  const normClaim = thaiDigitsToArabic(params.claimText || "").replace(/\s+/g, " ");
+  if (!PUBLICATION_EXPLICIT_EXCLUSION_RE.test(normClaim)) {
+    return Array.from(verified);
+  }
+
+  const uncitedCandidateInstruments = new Set<string>();
+  for (const cp of params.candidatePassages) {
+    if (params.citedPassageIds.has(cp.passage_id)) continue;
+    const doc = params.viewDocuments[cp.doc_id];
+    const blob = thaiDigitsToArabic(
+      `${doc?.source_native_id || ""} ${doc?.original_title_th || ""} ${cp.human_pinpoint_th || ""} ${cp.verbatim_text || ""}`
+    ).replace(/\s+/g, " ");
+    for (const inst of extractCanonicalInstrumentNumbers(blob)) {
+      uncitedCandidateInstruments.add(inst);
+    }
+  }
+
+  for (const inst of uncitedCandidateInstruments) {
+    if (verified.has(inst)) continue;
+    const numPart = inst.replace(/^(?:พรฎ\.|ทป\.|ฎีกา\.)/, "");
+    const esc = numPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const mentionRe = new RegExp(`(?:ฉบับที่\\s*${esc}|ท\\.ป\\.\\s*${esc}|ฎีกาที่\\s*${esc})`, "g");
+    const matches = Array.from(normClaim.matchAll(mentionRe));
+    if (matches.length === 0) continue;
+    const allMentionsExplicitlyExcluded = matches.every((m) => {
+      const idx = m.index ?? 0;
+      const win = normClaim.slice(Math.max(0, idx - 180), Math.min(normClaim.length, idx + 200));
+      return PUBLICATION_EXPLICIT_EXCLUSION_RE.test(win);
+    });
+    if (allMentionsExplicitlyExcluded) {
+      verified.add(inst);
+    }
+  }
+
+  return Array.from(verified);
 }
 
 export interface ValidateAndPublishAnswerInput {
@@ -1612,10 +1671,22 @@ export function validateAndBuildTraceableAnswer(
       ])
     );
     const claimOwnCalcTokens = mergedOwnCalcTokens.length > 0 ? mergedOwnCalcTokens : undefined;
+    const resolvedExcludedInstruments =
+      claimDecision === "supported" && validRefsForClaim.length > 0
+        ? resolveExcludedContextInstrumentsForPublication({
+            claimText: prop.text,
+            citedPassageIds: new Set(validRefsForClaim.map((r) => r.evidence_id)),
+            candidatePassages,
+            viewDocuments: view.documents,
+            upstreamExcluded: prop.excluded_context_instruments,
+          })
+        : [];
     if (claimDecision === "supported" && validRefsForClaim.length > 0) {
       const substantiveCheck = evaluateSubstantiveClaimSupport({
         claim_text: prop.text,
         verified_calculation_numeric_tokens: claimOwnCalcTokens,
+        excluded_context_instruments:
+          resolvedExcludedInstruments.length > 0 ? resolvedExcludedInstruments : undefined,
         passages: validRefsForClaim.map((ref) => {
           const psg = view.passages[ref.evidence_id]!;
           const doc = view.documents[ref.doc_id];
@@ -1665,6 +1736,9 @@ export function validateAndBuildTraceableAnswer(
       published: isPublished,
       withheld_explanation_th: isPublished ? null : withholdExplanationTh,
       evidence_references: isPublished ? validRefsForClaim : [],
+      ...(isPublished && resolvedExcludedInstruments.length > 0
+        ? { excluded_context_instruments: resolvedExcludedInstruments }
+        : {}),
       bound_calculation: finalizedBoundCalc,
     });
 
@@ -2053,6 +2127,12 @@ export function commitTraceableAnswerAtomically(
     }
   }
 
+  const allEnvelopeCandidatePassages = Array.from(
+    new Set(links.map((l) => l.evidence_id))
+  )
+    .map((pid) => unified.passages[pid])
+    .filter((p): p is EvidencePassageRecord => Boolean(p));
+
   for (const sc of envelope.claims) {
     if (sc.verification_decision !== "supported") continue;
     const scLinks = links.filter((l) => l.claim_id === sc.claim_id);
@@ -2066,9 +2146,18 @@ export function commitTraceableAnswerAtomically(
     );
     const boundTokensForThisClaimOnly =
       mergedCommitTokens.length > 0 ? mergedCommitTokens : undefined;
+    const commitExcludedInstruments = resolveExcludedContextInstrumentsForPublication({
+      claimText: sc.text,
+      citedPassageIds: new Set(scLinks.map((l) => l.evidence_id)),
+      candidatePassages: allEnvelopeCandidatePassages,
+      viewDocuments: unified.documents,
+      upstreamExcluded: sc.excluded_context_instruments,
+    });
     const substantive = evaluateSubstantiveClaimSupport({
       claim_text: sc.text,
       verified_calculation_numeric_tokens: boundTokensForThisClaimOnly,
+      excluded_context_instruments:
+        commitExcludedInstruments.length > 0 ? commitExcludedInstruments : undefined,
       passages: scLinks.map((l) => {
         const psg = unified.passages[l.evidence_id]!;
         const doc = unified.documents[l.doc_id];
@@ -3679,6 +3768,9 @@ export async function saveOrReviseAnswerServerVerified(
       premise_ids: (rawClm.premise_ids || []).map((pid) => subClaimIdRemap.get(pid) || pid),
       support_groups: Array.from(groupedMap.values()),
       verified_calculation_numeric_tokens: verifiedTokensForThisClaimOnly,
+      ...(rawClm.excluded_context_instruments && rawClm.excluded_context_instruments.length > 0
+        ? { excluded_context_instruments: [...rawClm.excluded_context_instruments] }
+        : {}),
       bound_calculation: remappedTrustedCalcsByClaimId[nextClaimId] ?? null,
     });
   }
@@ -4128,6 +4220,9 @@ export function attachTraceableEnvelopeToGroundedAnswer(
         claim_type: isFactApplication ? "interpretation" : "legal_proposition",
         support_groups: segGroups,
         verified_calculation_numeric_tokens: rawClm.verified_calculation_numeric_tokens,
+        ...(rawClm.excluded_context_instruments && rawClm.excluded_context_instruments.length > 0
+          ? { excluded_context_instruments: [...rawClm.excluded_context_instruments] }
+          : {}),
         bound_calculation: rawClm.bound_calculation
           ? { ...rawClm.bound_calculation, claim_id: atomicClaimId }
           : null,
@@ -4165,14 +4260,32 @@ export function attachTraceableEnvelopeToGroundedAnswer(
   });
 
   // Preserve exact upstream GroundedAnswer outcome (CONDITIONAL -> partial, NEEDS_CLARIFICATION / INSUFFICIENT_EVIDENCE / REVIEW_REQUIRED -> insufficient)
-  // so Save & Reopen never promote a CONDITIONAL/partial answer to ANSWERED/complete!
+  // AND enforce the DEF-C10-1 Single-Published-Record Invariant:
+  // If publication gate withholds ANY verified draft claim, record every withholding reason in `coverage_warnings_th`
+  // and synchronize `grounded` + `grounded_answer_snapshot` to the exact published claim set so the official answer body
+  // and claim panel render from the same published record and never show a withheld claim as a final conclusion!
+  const publishedSupportedClaims = builtEnvelope.claims.filter(
+    (c) => c.verification_decision === "supported" && c.published
+  );
+  const publishedClaimIdSet = new Set(publishedSupportedClaims.map((c) => c.claim_id));
+  const substantiveDraftClaims = (grounded.claims || []).filter(
+    (gc) => gc.claim_type !== "abstention_notice"
+  );
+  const publicationWithheldDraftClaims =
+    builtEnvelope.unresolved_issues.length > 0 &&
+    substantiveDraftClaims.some(
+      (gc) =>
+        !publishedClaimIdSet.has(gc.claim_id) &&
+        !Array.from(publishedClaimIdSet).some((pid) => pid.startsWith(`${gc.claim_id}.p`))
+    );
+
   if (grounded.status === "CONDITIONAL" && builtEnvelope.status === "complete") {
     builtEnvelope.status = "partial";
   } else if (
     (grounded.status === "NEEDS_CLARIFICATION" ||
       grounded.status === "INSUFFICIENT_EVIDENCE" ||
       grounded.status === "REVIEW_REQUIRED") &&
-    builtEnvelope.claims.filter((c) => c.verification_decision === "supported").length === 0
+    publishedSupportedClaims.length === 0
   ) {
     builtEnvelope.status = "insufficient";
     if (grounded.answer && grounded.answer.trim().length > 0) {
@@ -4182,7 +4295,9 @@ export function attachTraceableEnvelopeToGroundedAnswer(
   builtEnvelope.grounded_answer_status =
     builtEnvelope.status === "insufficient" && grounded.status === "ANSWERED"
       ? "INSUFFICIENT_EVIDENCE"
-      : grounded.status;
+      : publicationWithheldDraftClaims && grounded.status === "ANSWERED"
+        ? "CONDITIONAL"
+        : grounded.status;
   if (
     builtEnvelope.status === "insufficient" &&
     grounded.status !== "ANSWERED" &&
@@ -4193,8 +4308,18 @@ export function attachTraceableEnvelopeToGroundedAnswer(
   if (grounded.clarification_questions && grounded.clarification_questions.length > 0) {
     builtEnvelope.clarification_questions_th = [...grounded.clarification_questions];
   }
-  if (grounded.coverage_warnings && grounded.coverage_warnings.length > 0) {
-    builtEnvelope.coverage_warnings_th = [...grounded.coverage_warnings];
+  const mergedCoverageWarnings = Array.from(
+    new Set([
+      ...(grounded.coverage_warnings || []),
+      ...(publicationWithheldDraftClaims
+        ? builtEnvelope.unresolved_issues.map(
+            (u) => `ระงับการเผยแพร่ข้อกล่าวอ้าง (${u.withheld_claim_ids.join(", ")}): ${u.explanation_th}`
+          )
+        : []),
+    ])
+  );
+  if (mergedCoverageWarnings.length > 0) {
+    builtEnvelope.coverage_warnings_th = mergedCoverageWarnings;
   }
   if (
     grounded.rejected_calculations_diagnostic &&
@@ -4207,8 +4332,41 @@ export function attachTraceableEnvelopeToGroundedAnswer(
   if (grounded.execution_provenance) {
     builtEnvelope.execution_provenance = grounded.execution_provenance;
   }
+
+  let groundedForSnapshot: GroundedAnswer = grounded;
+  if (publicationWithheldDraftClaims) {
+    const survivingGroundedClaims = (grounded.claims || []).filter(
+      (gc) =>
+        gc.claim_type === "abstention_notice" ||
+        publishedClaimIdSet.has(gc.claim_id) ||
+        Array.from(publishedClaimIdSet).some((pid) => pid.startsWith(`${gc.claim_id}.p`))
+    );
+    const syncedStatus: GroundedAnswer["status"] =
+      builtEnvelope.grounded_answer_status ||
+      (publishedSupportedClaims.length > 0 ? "CONDITIONAL" : "INSUFFICIENT_EVIDENCE");
+    const withheldSummaryBlock = builtEnvelope.unresolved_issues
+      .map((u) => `- ${u.explanation_th}`)
+      .join("\n");
+    const syncedAnswerBody =
+      publishedSupportedClaims.length > 0
+        ? `${builtEnvelope.rendered_answer_th}\n\n**รายการข้อกล่าวอ้างที่ถูกระงับก่อนเผยแพร่ (${builtEnvelope.unresolved_issues.length} รายการ)**\n${withheldSummaryBlock}`
+        : builtEnvelope.rendered_answer_th;
+
+    grounded.status = syncedStatus;
+    grounded.claims = survivingGroundedClaims;
+    grounded.answer = syncedAnswerBody;
+    grounded.coverage_warnings = mergedCoverageWarnings;
+    groundedForSnapshot = {
+      ...grounded,
+      status: syncedStatus,
+      claims: survivingGroundedClaims,
+      answer: syncedAnswerBody,
+      coverage_warnings: mergedCoverageWarnings,
+    };
+  }
+
   builtEnvelope.grounded_answer_snapshot = sanitizeGroundedAnswerSnapshot(
-    grounded,
+    groundedForSnapshot,
     builtEnvelope.claims
   );
 

@@ -2894,6 +2894,9 @@ export function verifyAndRenderGroundedLlmDraft(params: {
       counterevidence_passage_ids: [],
       verification_result: entailmentCheck.verification_result,
       verified_calculation_numeric_tokens: trustedTokensArr,
+      ...(excludedContextInstruments.length > 0
+        ? { excluded_context_instruments: [...excludedContextInstruments] }
+        : {}),
       bound_calculation: boundCalcRecord,
     };
 

@@ -514,6 +514,8 @@ export interface ClaimLedgerItem {
   counterevidence_passage_ids: string[];
   verification_result: "VERIFIED" | "CONDITIONAL_QUALIFIED" | "BLOCKED_CONTRADICTION" | "UNSUPPORTED";
   verified_calculation_numeric_tokens?: string[];
+  /** Subordinate instruments explicitly mentioned ONLY in an expiry/non-applicability exclusion context (DEF-C10-1). */
+  excluded_context_instruments?: string[];
   /** Server-verified calculation bound strictly to THIS claim (never pooled to sibling claims). */
   bound_calculation?: ClaimBoundCalculationRecord | null;
 }
