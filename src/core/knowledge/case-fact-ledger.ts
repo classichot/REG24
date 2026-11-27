@@ -1065,6 +1065,251 @@ function extractAmountsForTurn(
   }
 }
 
+export type VatServiceUseLocationCategory =
+  | "SERVICE_USE_LOCATION_UNKNOWN"
+  | "SERVICE_USED_MIXED_THAILAND_AND_ABROAD"
+  | "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN"
+  | "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
+  | "SERVICE_USED_IN_THAILAND_DOMESTIC"
+  | "SERVICE_USED_ENTIRELY_ABROAD_EXPORT";
+
+export interface ExtractedServiceUseLocation {
+  category: VatServiceUseLocationCategory;
+  original_text_th: string;
+  stated_overseas_location?: string | null;
+}
+
+const OVERSEAS_LOCATION_TOKEN_SOURCE =
+  "(?:ต่างประเทศ|นอกราชอาณาจักร|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|ฝรั่งเศส|เกาหลีใต้|จีน|ไต้หวัน|อินเดีย|อินโดนีเซีย|ฟิลิปปินส์)|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|abroad|overseas|outside\\s+thailand|japan|singapore|hong\\s+kong|usa|united\\s+states|europe|uk|united\\s+kingdom|australia|malaysia|vietnam|germany|france|south\\s+korea|korea|china|taiwan|india)";
+
+/**
+ * Shared deterministic service place-of-use classifier used identically on initial turns
+ * AND follow-up corrections (`buildStructuredCaseFactLedger` and `applyFactDelta`).
+ *
+ * Strictly records ONLY the location(s) actually stated and leaves any unstated remainder unknown:
+ * - Explicit use in BOTH Thailand and overseas -> `SERVICE_USED_MIXED_THAILAND_AND_ABROAD`
+ * - Partial use in Thailand ONLY (remainder unstated) -> `SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN`
+ * - Partial use in an overseas location ONLY (remainder unstated) -> `SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN`
+ * - Explicitly unknown use location -> `SERVICE_USE_LOCATION_UNKNOWN`
+ * - Entire/unqualified domestic use in Thailand -> `SERVICE_USED_IN_THAILAND_DOMESTIC`
+ * - Entire overseas use -> `SERVICE_USED_ENTIRELY_ABROAD_EXPORT`
+ */
+export function extractServiceUseLocationFromText(
+  rawText: string
+): ExtractedServiceUseLocation | null {
+  const norm = thaiDigitsToArabic(rawText || "").replace(/\s+/g, " ").trim();
+  if (!norm) return null;
+
+  const normWithoutNegatedDomesticUse = norm
+    .replace(
+      /(?:ไม่(?:มี|ได้)?การ?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย)(?:\s*เลย)?|no\s+use\s+in\s+thailand|not\s+used\s+in\s+thailand)/gi,
+      " "
+    )
+    .replace(
+      /(?:ไม่(?:มี|ได้)?นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?มาใช้(?:งาน)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย))/gi,
+      " "
+    );
+
+  const normWithoutNegatedOverseasUse = norm
+    .replace(
+      new RegExp(
+        `(?:ไม่(?:มี|ได้)?การ?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|no\\s+use\\s+(?:abroad|overseas|outside\\s+thailand)|not\\s+used\\s+(?:abroad|overseas|outside\\s+thailand))`,
+        "gi"
+      ),
+      " "
+    );
+
+  // 1. Explicit use in BOTH Thailand AND an overseas location (mixed use).
+  //    Anchored strictly on service-USE verbs so "performed in Thailand" + "used partly in Japan"
+  //    or "client in Singapore" + "used partly in Thailand" NEVER misclassifies as mixed!
+  const explicitBothLocationsRe = new RegExp(
+    `(?:(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?(?:กลับ)?มา(?:ให้[^\\n.?]{0,25})?ใช้(?:งาน)?)[^\\n.?]{0,40}(?:ทั้ง(?:บางส่วน)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)\\s*และ(?:บางส่วน)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|ร่วมกันทั้ง(?:สาขา|สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)\\s*และ(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนที่เหลือ|ส่วนหนึ่ง)[^\\n.?]{0,25}(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สำนักงาน|ที่สาขา)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนที่เหลือ|ส่วนหนึ่ง)[^\\n.?]{0,25}ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย))|(?:บางส่วน|ส่วนหนึ่ง)[^\\n.?]{0,20}ใช้(?:บริการ|งาน)?[^\\n.?]{0,15}ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนหนึ่ง|ส่วนที่เหลือ)[^\\n.?]{0,20}ใช้(?:บริการ|งาน)?[^\\n.?]{0,15}(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:บางส่วน|ส่วนหนึ่ง)[^\\n.?]{0,20}ใช้(?:บริการ|งาน)?[^\\n.?]{0,15}(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนหนึ่ง|ส่วนที่เหลือ)[^\\n.?]{0,20}ใช้(?:บริการ|งาน)?[^\\n.?]{0,15}ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)|\\bused\\s+(?:both\\s+in\\s+thailand\\s+and\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:partly|partially)\\s+in\\s+thailand\\s+and\\s+(?:(?:partly|partially|the\\s+rest|the\\s+remainder)\\s+)?(?:used\\s+)?(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:partly|partially)\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:(?:partly|partially|the\\s+rest|the\\s+remainder)\\s+)?(?:used\\s+)?in\\s+thailand)\\b|\\b(?:partly|partially)\\s+used\\s+in\\s+thailand\\s+and\\s+(?:partly|partially)\\s+(?:used\\s+)?(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\b(?:partly|partially)\\s+used\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:partly|partially)\\s+(?:used\\s+)?in\\s+thailand\\b)`,
+    "i"
+  );
+  if (
+    explicitBothLocationsRe.test(normWithoutNegatedDomesticUse) &&
+    explicitBothLocationsRe.test(normWithoutNegatedOverseasUse)
+  ) {
+    return {
+      category: "SERVICE_USED_MIXED_THAILAND_AND_ABROAD",
+      original_text_th:
+        "มีการใช้บริการทั้งในประเทศไทยและในต่างประเทศ (Mixed Use — ต้องแยกสัดส่วนหรือมูลค่าค่าบริการตามสถานที่ที่มีการใช้บริการ)",
+      stated_overseas_location: null,
+    };
+  }
+
+  // 2. Partial use in Thailand ONLY (remainder location NOT stated)
+  const partialThailandUseRe =
+    /(?:(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?(?:กลับ)?มา(?:ให้[^\n.?]{0,25})?ใช้(?:งาน)?)[^\n.?]{0,30}(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย|กรุงเทพ(?:มหานคร)?)|(?:บางส่วน|ส่วนหนึ่ง)(?:ของ(?:ผล)?บริการ)?(?:ถูก)?(?:นำ(?:กลับ)?มา)?ใช้(?:บริการ|งาน)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย|กรุงเทพ(?:มหานคร)?)|\b(?:(?:partly|partially)\s+used\s+in\s+thailand|used\s+(?:partly|partially|in\s+part)\s+in\s+thailand|partial\s+use\s+in\s+thailand|part\s+of\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used\s+in\s+thailand)\b)/i;
+
+  // 3. Partial use in a stated overseas location ONLY (remainder location NOT stated)
+  const partialOverseasUseRe = new RegExp(
+    `(?:(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?ไปใช้(?:งาน)?)[^\\n.?]{0,30}(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สำนักงาน|ที่สาขา)?(?:ใน|ที่)?\\s*(${OVERSEAS_LOCATION_TOKEN_SOURCE})|(?:บางส่วน|ส่วนหนึ่ง)(?:ของ(?:ผล)?บริการ)?(?:ถูก)?(?:นำไป)?ใช้(?:บริการ|งาน)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน|ที่)?\\s*(${OVERSEAS_LOCATION_TOKEN_SOURCE})|\\b(?:(?:partly|partially)\\s+used\\s+(?:in\\s+)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|used\\s+(?:partly|partially|in\\s+part)\\s+(?:in\\s+)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|partial\\s+use\\s+(?:in\\s+)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|part\\s+of\\s+(?:the\\s+)?service\\s+(?:is|was|will\\s+be)\\s+used\\s+(?:in\\s+)?(${OVERSEAS_LOCATION_TOKEN_SOURCE}))\\b)`,
+    "i"
+  );
+
+  const hasPartialThailand = partialThailandUseRe.test(normWithoutNegatedDomesticUse);
+  const partialOverseasMatch = partialOverseasUseRe.exec(normWithoutNegatedOverseasUse);
+  const hasPartialOverseas = Boolean(partialOverseasMatch);
+
+  if (hasPartialThailand && hasPartialOverseas) {
+    return {
+      category: "SERVICE_USED_MIXED_THAILAND_AND_ABROAD",
+      original_text_th:
+        "มีการใช้บริการทั้งในประเทศไทยและในต่างประเทศ (Mixed Use — ต้องแยกสัดส่วนหรือมูลค่าค่าบริการตามสถานที่ที่มีการใช้บริการ)",
+      stated_overseas_location: null,
+    };
+  }
+  if (hasPartialThailand) {
+    return {
+      category: "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN",
+      original_text_th:
+        "มีการใช้บริการบางส่วนในประเทศไทย ส่วนที่เหลือยังไม่ระบุสถานที่ที่มีการใช้บริการ (Remainder Unknown)",
+      stated_overseas_location: null,
+    };
+  }
+  if (hasPartialOverseas && partialOverseasMatch) {
+    const statedPlaceRaw = (
+      partialOverseasMatch[1] ||
+      partialOverseasMatch[2] ||
+      partialOverseasMatch[3] ||
+      partialOverseasMatch[4] ||
+      partialOverseasMatch[5] ||
+      partialOverseasMatch[6] ||
+      "ต่างประเทศ"
+    ).trim();
+    const placeDisplayTh = /^(?:ต่างประเทศ|นอกราชอาณาจักร|abroad|overseas|outside\s+thailand)$/i.test(
+      statedPlaceRaw
+    )
+      ? "ต่างประเทศ"
+      : /^[a-z]/i.test(statedPlaceRaw)
+        ? `ต่างประเทศ (${statedPlaceRaw})`
+        : statedPlaceRaw;
+    return {
+      category: "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN",
+      original_text_th: `มีการใช้บริการบางส่วนใน${placeDisplayTh} ส่วนที่เหลือยังไม่ระบุสถานที่ที่มีการใช้บริการ (Remainder Unknown)`,
+      stated_overseas_location: statedPlaceRaw,
+    };
+  }
+
+  // 4. Explicitly unknown place of use
+  const hasUnknownServiceUseCue =
+    /(?:ไม่ทราบว่า[^\n.?]{0,50}(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|ซอฟต์แวร์|งาน)[^\n.?]{0,30}ใช้)[^\n.?]{0,40}(?:ที่ใด|ในประเทศไทยหรือ|ในไทยหรือ|หรือไม่)|ยังไม่ทราบ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:บริการ|งาน)|ไม่ระบุ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:บริการ|งาน)|unknown\s+where\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used|unclear\s+whether\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used\s+in\s+thailand)/i.test(
+      norm
+    );
+  if (hasUnknownServiceUseCue) {
+    return {
+      category: "SERVICE_USE_LOCATION_UNKNOWN",
+      original_text_th:
+        "ยังไม่ทราบสถานที่ที่มีการใช้บริการ (ต้องยืนยันว่าใช้ในประเทศไทยหรือต่างประเทศ)",
+      stated_overseas_location: null,
+    };
+  }
+
+  // 5. Entire/unqualified domestic use in Thailand
+  const hasDomesticServiceUseCue =
+    /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|กรุงเทพ(?:มหานคร)?)|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?(?:กลับ)?มาใช้(?:งาน)?(?:ทั้งหมด)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|กรุงเทพ(?:มหานคร)?)|ใช้(?:งาน)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ใช้ที่สาขากรุงเทพฯ|\bused\s+(?:entirely\s+|wholly\s+|exclusively\s+)?in\s+thailand\b|\bservice\s+(?:is|was)\s+used\s+in\s+thailand\b|\bdomestic\s+use\s+in\s+thailand\b)/i.test(
+      normWithoutNegatedDomesticUse
+    ) ||
+    (/(?:ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย)|ให้บริการ[^\n.?]{0,40}ในประเทศไทย)/.test(
+      normWithoutNegatedDomesticUse
+    ) &&
+      !/(?:ต่างประเทศ|นอกราชอาณาจักร|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|abroad|overseas|foreign)/i.test(
+        normWithoutNegatedDomesticUse
+      ));
+
+  // 6. Entire overseas use (export service)
+  const hasOverseasServiceUseCue =
+    /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ต่างประเทศ|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|ฝรั่งเศส|เกาหลีใต้|จีน|ไต้หวัน|อินเดีย)|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|นอกราชอาณาจักร)|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?ไปใช้(?:งาน)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+)|นอกราชอาณาจักร)|ใช้(?:งาน)?(?:ทั้งหมด)?ในต่างประเทศ|ใช้ในต่างประเทศทั้งหมด|\bused\s+(?:entirely|wholly|exclusively)\s+(?:abroad|overseas|outside\s+thailand|in\s+(?:singapore|japan|hong\s+kong|usa|united\s+states|europe|uk|australia))\b)/i.test(
+      normWithoutNegatedOverseasUse
+    );
+
+  // Explicit affirmative use in BOTH Thailand AND overseas in separate clauses -> Mixed use!
+  if (hasDomesticServiceUseCue && hasOverseasServiceUseCue) {
+    return {
+      category: "SERVICE_USED_MIXED_THAILAND_AND_ABROAD",
+      original_text_th:
+        "มีการใช้บริการทั้งในประเทศไทยและในต่างประเทศ (Mixed Use — ต้องแยกสัดส่วนหรือมูลค่าค่าบริการตามสถานที่ที่มีการใช้บริการ)",
+      stated_overseas_location: null,
+    };
+  }
+
+  if (hasDomesticServiceUseCue) {
+    const m = normWithoutNegatedDomesticUse.match(
+      /(ใช้ที่สาขากรุงเทพฯ[^\n,.?]{0,30}|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?(?:กลับ)?มาใช้(?:งาน)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|used\s+(?:entirely\s+|wholly\s+)?in\s+thailand|ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย))/i
+    );
+    return {
+      category: "SERVICE_USED_IN_THAILAND_DOMESTIC",
+      original_text_th: m ? m[1].trim() : "ใช้บริการในประเทศไทย",
+      stated_overseas_location: null,
+    };
+  }
+
+  if (hasOverseasServiceUseCue) {
+    const m = normWithoutNegatedOverseasUse.match(
+      /(ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|นอกราชอาณาจักร)|นำ(?:ผล(?:ของ)?บริการ)?ไปใช้(?:งาน)?(?:ทั้งหมด)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+)|นอกราชอาณาจักร)|ใช้ในต่างประเทศทั้งหมด|used\s+(?:entirely|wholly|exclusively)\s+(?:abroad|overseas|outside\s+thailand|in\s+(?:singapore|japan|hong\s+kong|usa|united\s+states|europe|uk|australia)))/i
+    );
+    return {
+      category: "SERVICE_USED_ENTIRELY_ABROAD_EXPORT",
+      original_text_th: m ? m[1].trim() : "ใช้บริการทั้งหมดในต่างประเทศ",
+      stated_overseas_location: null,
+    };
+  }
+
+  return null;
+}
+
+export function isPartialMixedOrUnknownServiceUseCategory(
+  category: string | null | undefined
+): boolean {
+  return (
+    category === "SERVICE_USE_LOCATION_UNKNOWN" ||
+    category === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD" ||
+    category === "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN" ||
+    category === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
+  );
+}
+
+export function buildUnknownServiceUseFactNoteTh(
+  category: string,
+  originalTextTh?: string
+): string | null {
+  if (category === "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN") {
+    return "ยังไม่ทราบสถานที่ที่มีการใช้บริการในส่วนที่เหลือ (ระบุเฉพาะการใช้บริการบางส่วนในประเทศไทย) และยังไม่ระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกตามสถานที่ใช้งาน";
+  }
+  if (category === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN") {
+    return `ยังไม่ทราบสถานที่ที่มีการใช้บริการในส่วนที่เหลือ (${originalTextTh || "ระบุเฉพาะการใช้บริการบางส่วนในต่างประเทศ"}) และยังไม่ระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกตามสถานที่ใช้งาน`;
+  }
+  if (category === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD") {
+    return "มีการใช้บริการทั้งในประเทศไทยและในต่างประเทศ ยังไม่ระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกได้ตามสถานที่ใช้งาน";
+  }
+  if (category === "SERVICE_USE_LOCATION_UNKNOWN") {
+    return "ยังไม่ทราบสถานที่ที่มีการใช้บริการ (ในประเทศไทยหรือต่างประเทศ)";
+  }
+  return null;
+}
+
+export function hasExplicitServiceUseFeeSplit(ledger: StructuredCaseFactLedger): boolean {
+  const activePlace = ledger.material_facts.find(
+    (f) => f.fact_key === "vat_place_of_use"
+  )?.normalized_category;
+  if (activePlace !== "SERVICE_USED_MIXED_THAILAND_AND_ABROAD") return false;
+  const fullUserText = thaiDigitsToArabic(ledger.user_turns.map((t) => t.raw_text).join("\n"));
+  // Explicit percentage split summing to <=100% (e.g. "40% in Thailand and 60% in Japan")
+  const pctMatches = Array.from(fullUserText.matchAll(/(?:ร้อยละ\s*([0-9]{1,2}(?:\.[0-9]+)?)|([0-9]{1,2}(?:\.[0-9]+)?)\s*%)/g))
+    .map((m) => Number(m[1] || m[2]))
+    .filter((n) => Number.isFinite(n) && n > 0 && n < 100 && n !== 7 && n !== 6.3 && n !== 10);
+  if (pctMatches.length >= 2) return true;
+  // Explicit per-location monetary split (2+ distinct positive baht amounts smaller than total fee alongside location cues)
+  const moneyMatches = Array.from(
+    fullUserText.matchAll(/([0-9]{1,3}(?:,[0-9]{3})+|[0-9]{4,})\s*(?:บาท|thb|baht)/gi)
+  )
+    .map((m) => Number(m[1].replace(/,/g, "")))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  const distinctMoney = Array.from(new Set(moneyMatches));
+  return distinctMoney.length >= 2 && /(?:แยก(?:เป็น|ค่าบริการ|มูลค่า)|ส่วนที่(?:ใช้)?ใน|split|allocat)/i.test(fullUserText);
+}
+
 export function buildStructuredCaseFactLedger(input: {
   question: string;
   applicableDate?: string | null;
@@ -1542,73 +1787,29 @@ export function buildStructuredCaseFactLedger(input: {
       });
     }
 
-    // Service place-of-use extraction (4-state: UNKNOWN, MIXED_PARTIAL, THAILAND_DOMESTIC, ENTIRELY_ABROAD).
-    // Strictly derives from where the service is USED (never silently collapsing mixed/unknown use and never
-    // routing from a foreign customer's address when domestic use in Thailand is stated!).
-    const hasUnknownServiceUseCue =
-      /(?:ไม่ทราบว่า[^\n.?]{0,50}(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|ซอฟต์แวร์|งาน)[^\n.?]{0,30}ใช้)[^\n.?]{0,40}(?:ที่ใด|ในประเทศไทยหรือ|ในไทยหรือ|หรือไม่)|ยังไม่ทราบ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:บริการ|งาน)|ไม่ระบุ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:บริการ|งาน)|unknown\s+where\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used|unclear\s+whether\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used\s+in\s+thailand)/i.test(
-        norm
-      );
-    const hasMixedOrPartialServiceUseCue =
-      /(?:(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?(?:กลับ)?มา(?:ให้[^\n.?]{0,25})?ใช้(?:งาน)?)[^\n.?]{0,55}(?:บางส่วน(?:ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย))?|ทั้งใน(?:ประเทศไทย|ไทย|ราชอาณาจักร)\s*และ(?:บางส่วน)?(?:ใน)?(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐ)|ร่วมกันทั้ง(?:สาขา|สำนักงาน)?ใน(?:ประเทศไทย|ไทย)\s*และ(?:ใน)?(?:ต่างประเทศ|ประเทศ[ก-๙]+))|(?:partly|partially)\s+used\s+in\s+thailand|used\s+(?:partly|partially)\s+in\s+thailand|used\s+both\s+in\s+thailand\s+and\s+(?:abroad|overseas|outside\s+thailand))/i.test(
-        norm
-      );
-    const normWithoutNegatedDomesticUse = norm
-      .replace(/(?:ไม่(?:มี|ได้)?การ?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย)(?:\s*เลย)?|no\s+use\s+in\s+thailand|not\s+used\s+in\s+thailand)/gi, " ")
-      .replace(/(?:ไม่(?:มี|ได้)?นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?มาใช้(?:งาน)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย))/gi, " ");
-    const hasDomesticServiceUseCue =
-      /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|กรุงเทพ(?:มหานคร)?)|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?(?:กลับ)?มาใช้(?:งาน)?(?:ทั้งหมด)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|กรุงเทพ(?:มหานคร)?)|ใช้(?:งาน)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ใช้ที่สาขากรุงเทพฯ|\bused\s+(?:entirely\s+|wholly\s+|exclusively\s+)?in\s+thailand\b|\bservice\s+(?:is|was)\s+used\s+in\s+thailand\b|\bdomestic\s+use\s+in\s+thailand\b)/i.test(
-        normWithoutNegatedDomesticUse
-      ) ||
-      (/(?:ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย)|ให้บริการ[^\n.?]{0,40}ในประเทศไทย)/.test(
-        normWithoutNegatedDomesticUse
-      ) &&
-        !/(?:ต่างประเทศ|นอกราชอาณาจักร|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|abroad|overseas|foreign)/i.test(
-          normWithoutNegatedDomesticUse
-        ));
-    const hasOverseasServiceUseCue =
-      /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ต่างประเทศ|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|ฝรั่งเศส|เกาหลีใต้|จีน|ไต้หวัน|อินเดีย)|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|นอกราชอาณาจักร)|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?ไปใช้(?:งาน)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+)|นอกราชอาณาจักร)|ใช้(?:งาน)?(?:ทั้งหมด)?ในต่างประเทศ|ใช้ในต่างประเทศทั้งหมด|\bused\s+(?:entirely|wholly|exclusively)\s+(?:abroad|overseas|outside\s+thailand|in\s+(?:singapore|japan|hong\s+kong|usa|united\s+states|europe|uk|australia))\b)/i.test(
-        norm
-      );
-
-    if (hasUnknownServiceUseCue) {
+    // Service place-of-use extraction via the shared 6-state classifier:
+    // strictly records ONLY the stated location(s), leaves unstated remainders unknown,
+    // keeps explicit use in both locations as MIXED, and never routes from foreign customer address.
+    const extractedPlace = extractServiceUseLocationFromText(norm);
+    if (extractedPlace) {
       upsertFact(factsMap, overrides, {
         fact_key: "vat_place_of_use",
         label_th: "สถานที่ที่มีการใช้บริการ",
-        original_text_th: "ยังไม่ทราบสถานที่ที่มีการใช้บริการ (ต้องยืนยันว่าใช้ในประเทศไทยหรือต่างประเทศ)",
-        normalized_category: "SERVICE_USE_LOCATION_UNKNOWN",
+        original_text_th: extractedPlace.original_text_th,
+        normalized_category: extractedPlace.category,
         source_turn: turnNumber,
       });
-    } else if (hasMixedOrPartialServiceUseCue) {
-      upsertFact(factsMap, overrides, {
-        fact_key: "vat_place_of_use",
-        label_th: "สถานที่ที่มีการใช้บริการ",
-        original_text_th: "มีการใช้บริการบางส่วนในประเทศไทยและบางส่วนในต่างประเทศ (Mixed/Partial Use)",
-        normalized_category: "SERVICE_USED_MIXED_THAILAND_AND_ABROAD",
-        source_turn: turnNumber,
-      });
-    } else if (hasDomesticServiceUseCue) {
-      const m = normWithoutNegatedDomesticUse.match(
-        /(ใช้ที่สาขากรุงเทพฯ[^\n,.?]{0,30}|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?(?:กลับ)?มาใช้(?:งาน)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|used\s+(?:entirely\s+|wholly\s+)?in\s+thailand|ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย))/i
+      // Replace any prior place-of-use unknown note cleanly so follow-up overrides stay in sync.
+      for (const note of Array.from(unknownFacts)) {
+        if (/สถานที่ที่มีการใช้บริการ/.test(note)) unknownFacts.delete(note);
+      }
+      const unknownNote = buildUnknownServiceUseFactNoteTh(
+        extractedPlace.category,
+        extractedPlace.original_text_th
       );
-      upsertFact(factsMap, overrides, {
-        fact_key: "vat_place_of_use",
-        label_th: "สถานที่ที่มีการใช้บริการ",
-        original_text_th: m ? m[1].trim() : "ใช้บริการในประเทศไทย",
-        normalized_category: "SERVICE_USED_IN_THAILAND_DOMESTIC",
-        source_turn: turnNumber,
-      });
-    } else if (hasOverseasServiceUseCue) {
-      const m = norm.match(
-        /(ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|นอกราชอาณาจักร)|นำ(?:ผล(?:ของ)?บริการ)?ไปใช้(?:งาน)?(?:ทั้งหมด)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+)|นอกราชอาณาจักร)|ใช้ในต่างประเทศทั้งหมด|used\s+(?:entirely|wholly|exclusively)\s+(?:abroad|overseas|outside\s+thailand))/i
-      );
-      upsertFact(factsMap, overrides, {
-        fact_key: "vat_place_of_use",
-        label_th: "สถานที่ที่มีการใช้บริการ",
-        original_text_th: m ? m[1].trim() : "ใช้บริการทั้งหมดในต่างประเทศ",
-        normalized_category: "SERVICE_USED_ENTIRELY_ABROAD_EXPORT",
-        source_turn: turnNumber,
-      });
+      if (unknownNote) {
+        unknownFacts.add(unknownNote);
+      }
     }
 
     if (/ผู้ประกอบการจดทะเบียน\s*(?:VAT|ภาษีมูลค่าเพิ่ม)/i.test(norm)) {
@@ -3620,7 +3821,7 @@ export function applyFactDelta(
     } else if (ch.op === "set_service_use_location" && ch.service_use_location) {
       const locCategoryMap: Record<
         NonNullable<typeof ch.service_use_location>,
-        { category: string; textTh: string }
+        { category: VatServiceUseLocationCategory; textTh: string }
       > = {
         THAILAND_DOMESTIC: {
           category: "SERVICE_USED_IN_THAILAND_DOMESTIC",
@@ -3630,16 +3831,54 @@ export function applyFactDelta(
           category: "SERVICE_USED_ENTIRELY_ABROAD_EXPORT",
           textTh: "ใช้บริการทั้งหมดในต่างประเทศ (แก้ไขข้อเท็จจริงสถานที่ใช้งาน)",
         },
+        MIXED_THAILAND_AND_ABROAD: {
+          category: "SERVICE_USED_MIXED_THAILAND_AND_ABROAD",
+          textTh:
+            "มีการใช้บริการทั้งในประเทศไทยและในต่างประเทศ (Mixed Use — ต้องแยกสัดส่วนหรือมูลค่าค่าบริการตามสถานที่ที่มีการใช้บริการ)",
+        },
         MIXED_PARTIAL: {
           category: "SERVICE_USED_MIXED_THAILAND_AND_ABROAD",
-          textTh: "ใช้บริการบางส่วนในประเทศไทยและบางส่วนในต่างประเทศ (Mixed/Partial Use)",
+          textTh:
+            "มีการใช้บริการทั้งในประเทศไทยและในต่างประเทศ (Mixed Use — ต้องแยกสัดส่วนหรือมูลค่าค่าบริการตามสถานที่ที่มีการใช้บริการ)",
+        },
+        PARTIALLY_THAILAND_REMAINDER_UNKNOWN: {
+          category: "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN",
+          textTh:
+            "มีการใช้บริการบางส่วนในประเทศไทย ส่วนที่เหลือยังไม่ระบุสถานที่ที่มีการใช้บริการ (Remainder Unknown)",
+        },
+        PARTIALLY_ABROAD_REMAINDER_UNKNOWN: {
+          category: "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN",
+          textTh:
+            "มีการใช้บริการบางส่วนในต่างประเทศ ส่วนที่เหลือยังไม่ระบุสถานที่ที่มีการใช้บริการ (Remainder Unknown)",
         },
         UNKNOWN: {
           category: "SERVICE_USE_LOCATION_UNKNOWN",
-          textTh: "ยังไม่ทราบสถานที่ที่มีการใช้บริการ",
+          textTh: "ยังไม่ทราบสถานที่ที่มีการใช้บริการ (ต้องยืนยันว่าใช้ในประเทศไทยหรือต่างประเทศ)",
         },
       };
-      const mapped = locCategoryMap[ch.service_use_location];
+      // Enforce the EXACT SAME shared rule on follow-up corrections as on initial turns:
+      // if the verbatim turn/span only states partial use in one location (e.g. "used partly in Japan"
+      // or "used partly in Thailand"), NEVER collapse it into "used in Thailand and overseas"!
+      const textClassified = extractServiceUseLocationFromText(
+        ch.source_span || opts?.userTurnText || ""
+      );
+      const rawMapped = locCategoryMap[ch.service_use_location];
+      const useDeterministicPartialOverride =
+        textClassified &&
+        (textClassified.category === "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN" ||
+          textClassified.category === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN") &&
+        (rawMapped.category === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD" ||
+          rawMapped.category === textClassified.category);
+      const resolvedCategory: VatServiceUseLocationCategory = useDeterministicPartialOverride
+        ? textClassified.category
+        : rawMapped.category;
+      const resolvedTextTh = useDeterministicPartialOverride
+        ? textClassified.original_text_th
+        : resolvedCategory === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN" &&
+            textClassified?.category === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
+          ? textClassified.original_text_th
+          : ch.source_span || rawMapped.textTh;
+
       const existingLocFact = clonedMaterialFacts.find((f) => f.fact_key === "vat_place_of_use");
       const prevText = existingLocFact?.original_text_th || "ไม่ระบุ";
       if (existingLocFact) {
@@ -3648,15 +3887,15 @@ export function applyFactDelta(
           previous_category: existingLocFact.normalized_category,
           previous_turn: existingLocFact.source_turn,
         };
-        existingLocFact.original_text_th = ch.source_span || mapped.textTh;
-        existingLocFact.normalized_category = mapped.category;
+        existingLocFact.original_text_th = resolvedTextTh;
+        existingLocFact.normalized_category = resolvedCategory;
         existingLocFact.source_turn = nextTurnNumber;
       } else {
         clonedMaterialFacts.push({
           fact_key: "vat_place_of_use",
           label_th: "สถานที่ที่มีการใช้บริการ",
-          original_text_th: ch.source_span || mapped.textTh,
-          normalized_category: mapped.category,
+          original_text_th: resolvedTextTh,
+          normalized_category: resolvedCategory,
           source_turn: nextTurnNumber,
         });
       }
@@ -3664,7 +3903,7 @@ export function applyFactDelta(
         fact_key: "fact_delta:set_service_use_location",
         from_text_th: prevText,
         from_turn: Math.max(1, nextTurnNumber - 1),
-        to_text_th: `${mapped.category} (${ch.source_span || mapped.textTh})`,
+        to_text_th: `${resolvedCategory} (${resolvedTextTh})`,
         to_turn: nextTurnNumber,
       });
     }
@@ -3889,6 +4128,22 @@ export function applyFactDelta(
     }
   }
 
+  const activePlaceFactAfterDelta = clonedMaterialFacts.find(
+    (f) => f.fact_key === "vat_place_of_use"
+  );
+  const syncedUnknownFacts = (priorLedger.explicitly_unknown_facts_th || []).filter(
+    (u) => !/สถานที่ที่มีการใช้บริการ/.test(u)
+  );
+  if (activePlaceFactAfterDelta) {
+    const unknownPlaceNote = buildUnknownServiceUseFactNoteTh(
+      activePlaceFactAfterDelta.normalized_category,
+      activePlaceFactAfterDelta.original_text_th
+    );
+    if (unknownPlaceNote && !syncedUnknownFacts.includes(unknownPlaceNote)) {
+      syncedUnknownFacts.push(unknownPlaceNote);
+    }
+  }
+
   const nextLedger: StructuredCaseFactLedger = {
     ...priorLedger,
     turn_count: clonedUserTurns.length,
@@ -3896,6 +4151,7 @@ export function applyFactDelta(
     user_turns: clonedUserTurns,
     material_facts: clonedMaterialFacts,
     overrides: clonedOverrides,
+    explicitly_unknown_facts_th: syncedUnknownFacts,
     temporal_facts: {
       ...priorLedger.temporal_facts,
       transaction_or_event_dates: workingEvents,

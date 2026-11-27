@@ -19,7 +19,11 @@
  */
 
 import { GoogleGenAI } from "@google/genai";
-import type { StructuredCaseFactLedger } from "./case-fact-ledger";
+import {
+  hasExplicitServiceUseFeeSplit,
+  isPartialMixedOrUnknownServiceUseCategory,
+  type StructuredCaseFactLedger,
+} from "./case-fact-ledger";
 import {
   isNavigationOrBoilerplatePassageText,
   resolveVerifiedOfficialUrlForDoc,
@@ -935,6 +939,27 @@ export function buildGroundedLlmUserPrompt(params: {
         `สำหรับธุรกรรมขายสินค้าที่มีความไม่ชัดเจนเรื่องขอบเขตหรือความซ้ำซ้อนของการกระทำก่อนส่งมอบ (vat_portion_allocation_record.allocation_status = '${vatAlloc.allocation_status}'): ห้ามเดาว่าเหตุการณ์ครอบคลุมสินค้าส่วนใดหรือคำนวณตัวเลขภาษีสมมติ ให้ตั้ง answer_status = 'CONDITIONAL', ตั้ง proposed_calculation = null และระบุคำถามขอข้อมูลเพิ่มเติมใน clarification_questions_th อย่างชัดเจน: ${vatAlloc.ambiguity_question_th}`
       );
     }
+  }
+  const activeVatPlaceFact = params.factLedger.material_facts.find(
+    (f) => f.fact_key === "vat_place_of_use"
+  );
+  if (
+    activeVatPlaceFact &&
+    isPartialMixedOrUnknownServiceUseCategory(activeVatPlaceFact.normalized_category) &&
+    !hasExplicitServiceUseFeeSplit(params.factLedger)
+  ) {
+    const cat = activeVatPlaceFact.normalized_category;
+    const placeRuleNote =
+      cat === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
+        ? `ข้อเท็จจริงระบุเฉพาะว่าใช้บริการบางส่วนในต่างประเทศ (${activeVatPlaceFact.original_text_th}) โดยไม่ทราบสถานที่ที่มีการใช้บริการในส่วนที่เหลือ ห้ามสมมติว่าส่วนที่เหลือใช้ในประเทศไทยหรือใช้ในต่างประเทศทั้งหมด`
+        : cat === "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN"
+          ? "ข้อเท็จจริงระบุเฉพาะว่าใช้บริการบางส่วนในประเทศไทย โดยไม่ทราบสถานที่ที่มีการใช้บริการในส่วนที่เหลือ ห้ามสมมติว่าส่วนที่เหลือใช้ในต่างประเทศหรือใช้ในประเทศไทยทั้งหมด"
+          : cat === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD"
+            ? "ข้อเท็จจริงระบุว่ามีการใช้บริการทั้งในประเทศไทยและในต่างประเทศ (Mixed Use) แต่ยังไม่ระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกได้ตามสถานที่ใช้งาน"
+            : "ยังไม่ทราบสถานที่ที่มีการใช้บริการ (ในประเทศไทยหรือต่างประเทศ)";
+    packGroundingReminders.push(
+      `สำหรับสถานที่ที่มีการใช้บริการ (${cat}): ${placeRuleNote} ห้ามคำนวณภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือร้อยละ 7 ครอบคลุมค่าบริการทั้งจำนวน ให้ตั้ง proposed_calculation = null, ตั้ง answer_status = 'NEEDS_CLARIFICATION' (หรือ 'CONDITIONAL' ที่ระบุเงื่อนไขและขอข้อมูลเพิ่มอย่างชัดเจน), อธิบายหลักเกณฑ์เปรียบเทียบตามมาตรา 80/1 (2) ประกอบประกาศอธิบดีฯ VAT (ฉบับที่ 105) กับมาตรา 80 และพระราชกฤษฎีกาที่ใช้บังคับตามวันเกิดความรับผิด และต้องถามขอข้อมูลสถานที่ที่มีการใช้บริการในส่วนที่เหลือและ/หรือสัดส่วนมูลค่าค่าบริการที่แยกได้ใน clarification_questions_th`
+    );
   }
   const payload = {
     active_user_question: params.question,

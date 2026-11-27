@@ -35,6 +35,8 @@ import {
 import { recordSection47RestrictedDiagnostic } from "./s47-restricted-diagnostics";
 import {
   computeLedgerStateHash,
+  hasExplicitServiceUseFeeSplit,
+  isPartialMixedOrUnknownServiceUseCategory,
   type StructuredCaseFactLedger,
 } from "./case-fact-ledger";
 import type { FactDelta, FactDeltaAuditRecord } from "./fact-delta";
@@ -1872,17 +1874,20 @@ function verifyProposedCalculation(params: {
     }
     if (
       isVatIssueWithPlaceOfUse &&
-      (activePlaceOfUse === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD" ||
-        activePlaceOfUse === "SERVICE_USE_LOCATION_UNKNOWN") &&
-      calc.is_computable_from_stated_facts &&
+      isPartialMixedOrUnknownServiceUseCategory(activePlaceOfUse) &&
       calc.computed_tax_thb !== null
     ) {
-      const issueTextForCond = `${params.issue.issue_title_th} ${params.issue.conclusion_th}`;
-      const explicitlyScopedConditionalBranch =
-        /(?:กรณี(?:ที่)?ใช้(?:บริการ)?ใน(?:ประเทศไทย|ต่างประเทศ)|เฉพาะส่วนที่(?:ใช้)?ใน|แยก(?:คำนวณ)?ตามส่วน|หากใช้(?:บริการ)?(?:ทั้งหมด)?ใน)/.test(
-          issueTextForCond
-        );
-      if (!explicitlyScopedConditionalBranch) {
+      const hasSplit = hasExplicitServiceUseFeeSplit(params.factLedger);
+      const statedTotalFeeFact = params.factLedger.material_facts.find(
+        (f) => f.fact_key === "service_or_sale_consideration_thb" || f.fact_key === "stated_asset_value_thb"
+      );
+      const statedTotalMatch = statedTotalFeeFact?.normalized_category.match(/STATED_VALUE_THB_(\d+)/);
+      const statedTotalThb = statedTotalMatch ? Number(statedTotalMatch[1]) : null;
+      const appliesToFullFee =
+        statedTotalThb !== null &&
+        calc.tax_base_thb !== null &&
+        Math.abs(calc.tax_base_thb - statedTotalThb) <= 1;
+      if (!hasSplit || appliesToFullFee) {
         return {
           accepted: false,
           verifiedCalc: null,
@@ -1899,7 +1904,11 @@ function verifyProposedCalculation(params: {
             },
             rejection_code: "MISSING_REQUIRED_FACT_INPUT",
             rejection_reason_th:
-              "สถานที่ที่มีการใช้บริการยังไม่ชัดเจนหรือใช้ทั้งในประเทศไทยและต่างประเทศโดยไม่ระบุสัดส่วนที่แยกได้ จึงไม่อาจสรุปคำนวณภาษีมูลค่าเพิ่มอัตราเดียวครอบคลุมทั้งจำนวนโดยไม่แยกเงื่อนไข [field:vat_place_of_use]",
+              activePlaceOfUse === "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN"
+                ? "ข้อเท็จจริงระบุเพียงการใช้บริการบางส่วนในประเทศไทยโดยไม่ทราบสถานที่ใช้งานส่วนที่เหลือและไม่มีการแยกมูลค่าค่าบริการ จึงไม่อาจคำนวณภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือร้อยละ 7 ครอบคลุมค่าบริการทั้งจำนวนได้ [field:vat_place_of_use]"
+                : activePlaceOfUse === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
+                  ? "ข้อเท็จจริงระบุเพียงการใช้บริการบางส่วนในต่างประเทศโดยไม่ทราบสถานที่ใช้งานส่วนที่เหลือและไม่มีการแยกมูลค่าค่าบริการ จึงไม่อาจคำนวณภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือร้อยละ 7 ครอบคลุมค่าบริการทั้งจำนวนได้ [field:vat_place_of_use]"
+                  : "สถานที่ที่มีการใช้บริการยังไม่ชัดเจนหรือมีการใช้บริการทั้งในประเทศไทยและในต่างประเทศโดยไม่ระบุสัดส่วน/มูลค่าค่าบริการที่แยกได้ จึงไม่อาจคำนวณภาษีมูลค่าเพิ่มอัตราร้อยละ 0 หรือร้อยละ 7 ครอบคลุมค่าบริการทั้งจำนวนได้ [field:vat_place_of_use]",
           },
         };
       }
@@ -4347,6 +4356,60 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         },
       };
     }
+
+    const activePlaceZeroIssue =
+      params.factLedger.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+        ?.normalized_category || null;
+    if (
+      isPartialMixedOrUnknownServiceUseCategory(activePlaceZeroIssue) &&
+      !hasExplicitServiceUseFeeSplit(params.factLedger)
+    ) {
+      const placeClarifyQ =
+        activePlaceZeroIssue === "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN"
+          ? "กรุณาระบุว่าส่วนที่เหลือของบริการมีการใช้บริการในประเทศไทยหรือในต่างประเทศ และระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกได้ตามสถานที่ที่มีการใช้บริการ (เพื่อยืนยันภาระภาษีมูลค่าเพิ่มและไม่นำอัตราร้อยละ 0 หรือร้อยละ 7 ไปคำนวณครอบคลุมค่าบริการทั้งจำนวน)"
+          : activePlaceZeroIssue === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
+            ? "กรุณาระบุว่าส่วนที่เหลือของบริการมีการใช้บริการในประเทศไทยหรือในต่างประเทศ และระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกได้ตามสถานที่ที่มีการใช้บริการ (เพื่อยืนยันสิทธิอัตราร้อยละ 0 หรือภาระอัตราร้อยละ 7 โดยไม่คำนวณครอบคลุมค่าบริการทั้งจำนวน)"
+            : activePlaceZeroIssue === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD"
+              ? "กรุณาระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกได้ระหว่างส่วนที่ใช้บริการในประเทศไทยและส่วนที่ใช้บริการในต่างประเทศ (เพื่อคำนวณภาษีมูลค่าเพิ่มแยกตามส่วนที่เกี่ยวข้องโดยไม่คำนวณอัตราเดียวครอบคลุมทั้งจำนวน)"
+              : "กรุณาระบุสถานที่ที่มีการใช้บริการทั้งหมดหรือแยกสัดส่วนระหว่างในประเทศไทยและต่างประเทศ เพื่อยืนยันอัตราภาษีมูลค่าเพิ่มที่ถูกต้อง";
+      const clarifyQs = cleanZeroIssueClarifications.some((q) =>
+        /(?:สถานที่|ส่วนที่เหลือ|สัดส่วน|แยก(?:มูลค่า|ค่าบริการ|ส่วน)|ประเทศไทยหรือต่างประเทศ|where|remainder|split)/i.test(
+          q
+        )
+      )
+        ? cleanZeroIssueClarifications
+        : [...cleanZeroIssueClarifications, placeClarifyQ];
+      return {
+        status: "NEEDS_CLARIFICATION",
+        rendered_answer_th: `ต้องการข้อมูลเพิ่มเติมเรื่องสถานที่ที่มีการใช้บริการและสัดส่วนค่าบริการก่อนสรุปอัตราหรือคำนวณภาษีมูลค่าเพิ่ม — ${placeClarifyQ}`,
+        verified_issues: [],
+        claims: [],
+        evidence_cards: [],
+        assumptions_th: cleanZeroIssueAssumptions,
+        clarification_questions_th: clarifyQs,
+        coverage_warnings_th: rejectedCalculations.map(
+          (rc) =>
+            `ระงับการคำนวณ (${rc.issue_id}): ${redactRejectedCalculationNumbers(rc.rejection_reason_th, rc.proposed_values)} [${rc.rejection_code}]`
+        ),
+        rejected_calculations_diagnostic: buildRejectedDiagnostics(),
+        audit_trace: {
+          schema_version: "reg24.llm_audit_trace.v1",
+          generation_mode: "llm_grounded",
+          staging_flag_active: params.stagingFlagActive,
+          template_fallback_used: false,
+          input_fact_ledger: params.factLedger,
+          supplied_passages: suppliedPassagesAudit,
+          consumed_passage_ids: consumedPassageIds,
+          consumed_passage_versions: consumedPassageVersions,
+          provider_invocation: params.invocationAudit,
+          claims_before_verification: claimsBefore,
+          claims_after_verification: [],
+          rejected_claims: rejectedClaims,
+          rejected_calculations: rejectedCalculations,
+          final_answer_revision_id: null,
+        },
+      };
+    }
     const reasonsSummary = rejectedClaims
       .map(
         (r) =>
@@ -4482,6 +4545,30 @@ export function verifyAndRenderGroundedLlmDraft(params: {
   if (unknownEarlyCoverageReasonTh && clarifications.length === 0) {
     clarifications.push(unknownEarlyCoverageReasonTh);
   }
+  const activePlaceOfUseForClarify =
+    params.factLedger.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+      ?.normalized_category || null;
+  const needsServiceUseLocationOrSplitClarification =
+    isPartialMixedOrUnknownServiceUseCategory(activePlaceOfUseForClarify) &&
+    !hasExplicitServiceUseFeeSplit(params.factLedger);
+  if (needsServiceUseLocationOrSplitClarification) {
+    const hasRelevantLocationOrSplitQuestion = clarifications.some((q) =>
+      /(?:สถานที่|ส่วนที่เหลือ|สัดส่วน|แยก(?:มูลค่า|ค่าบริการ|ส่วน)|ประเทศไทยหรือต่างประเทศ|where|remainder|split)/i.test(
+        q
+      )
+    );
+    if (!hasRelevantLocationOrSplitQuestion) {
+      clarifications.push(
+        activePlaceOfUseForClarify === "SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN"
+          ? "กรุณาระบุว่าส่วนที่เหลือของบริการมีการใช้บริการในประเทศไทยหรือในต่างประเทศ และระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกได้ตามสถานที่ที่มีการใช้บริการ (เพื่อยืนยันภาระภาษีมูลค่าเพิ่มและป้องกันการนำอัตราร้อยละ 0 หรือร้อยละ 7 ไปคำนวณครอบคลุมค่าบริการทั้งจำนวน)"
+          : activePlaceOfUseForClarify === "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
+            ? "กรุณาระบุว่าส่วนที่เหลือของบริการมีการใช้บริการในประเทศไทยหรือในต่างประเทศ และระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกได้ตามสถานที่ที่มีการใช้บริการ (เพื่อยืนยันสิทธิอัตราร้อยละ 0 หรือภาระอัตราร้อยละ 7 โดยไม่คำนวณครอบคลุมค่าบริการทั้งจำนวน)"
+            : activePlaceOfUseForClarify === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD"
+              ? "กรุณาระบุสัดส่วนหรือมูลค่าค่าบริการที่แยกได้ระหว่างส่วนที่ใช้บริการในประเทศไทยและส่วนที่ใช้บริการในต่างประเทศ (เพื่อคำนวณภาษีมูลค่าเพิ่มแยกตามส่วนที่เกี่ยวข้องโดยไม่คำนวณอัตราเดียวครอบคลุมทั้งจำนวน)"
+              : "กรุณาระบุสถานที่ที่มีการใช้บริการทั้งหมดหรือแยกสัดส่วนระหว่างในประเทศไทยและต่างประเทศ เพื่อยืนยันอัตราภาษีมูลค่าเพิ่มที่ถูกต้อง"
+      );
+    }
+  }
   const rawEvidenceGaps = [...(params.draft.evidence_gaps_th || [])];
   const usesRd646Governing =
     Boolean(params.specialConstraints?.rd646_original_sec4_limitation) ||
@@ -4561,7 +4648,8 @@ export function verifyAndRenderGroundedLlmDraft(params: {
     }
     if (
       clarifications.length > 0 &&
-      params.factLedger.temporal_facts.controlling_tax_point.is_ambiguous &&
+      (params.factLedger.temporal_facts.controlling_tax_point.is_ambiguous ||
+        needsServiceUseLocationOrSplitClarification) &&
       finalStatus === "ANSWERED"
     ) {
       finalStatus = "NEEDS_CLARIFICATION";

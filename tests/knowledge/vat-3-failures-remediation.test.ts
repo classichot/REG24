@@ -830,4 +830,356 @@ describe("REG24 Batch 1 — Three VAT Failure Paths (Independent Synthetic Repro
     expect(unknownPlace).not.toBe("SERVICE_USED_IN_THAILAND_DOMESTIC");
     expect(unknownPlace).not.toBe("SERVICE_USED_ENTIRELY_ABROAD_EXPORT");
   });
+
+  // =========================================================================
+  // Partial-use precision controls: P1, P2, P3, P4, and R4
+  // =========================================================================
+  it("P1 (Initial partial overseas only — 'used partly in Japan' / 'ใช้บริการบางส่วนในประเทศญี่ปุ่น'): records ONLY stated overseas location, leaves remainder unknown (NEVER mixed Thailand+overseas), blocks full-fee 0%/7%, and asks for remaining location & fee split", async () => {
+    const enPrompt =
+      "A Thai VAT-registered company performs software consulting in Thailand for a Japanese client. The service is used partly in Japan. Service fee is 100,000 THB, paid and tax-invoiced on 20 October 2026. What VAT applies?";
+    const thPrompt =
+      "บริษัท สยามโค้ด จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการที่ปรึกษาซอฟต์แวร์แก่ลูกค้าในประเทศญี่ปุ่น โดยลูกค้าใช้บริการบางส่วนในประเทศญี่ปุ่น ค่าบริการ 100,000 บาท รับชำระและออกใบกำกับภาษีวันที่ 20 ตุลาคม 2569 ต้องเสียภาษีมูลค่าเพิ่มอัตราใดและเป็นเงินเท่าใด";
+
+    for (const prompt of [enPrompt, thPrompt]) {
+      const ledger = buildStructuredCaseFactLedger({ question: prompt, applicableDate: null });
+      const place = ledger.material_facts.find((f) => f.fact_key === "vat_place_of_use");
+      expect(place?.normalized_category).toBe("SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN");
+      expect(place?.normalized_category).not.toBe("SERVICE_USED_MIXED_THAILAND_AND_ABROAD");
+      expect(place?.original_text_th).not.toMatch(/ในประเทศไทย/);
+      expect(place?.original_text_th).toMatch(/ส่วนที่เหลือยังไม่ระบุ|Remainder Unknown/);
+      expect(
+        ledger.explicitly_unknown_facts_th.some((u) => /ส่วนที่เหลือ/.test(u))
+      ).toBe(true);
+    }
+
+    // End-to-end verifier check: attempting to apply 0% (or 7%) to the FULL 100,000 THB fee MUST be blocked
+    // and result in clarification asking for remaining location / fee split (never unqualified ANSWERED)!
+    let packP1: AssembledPacketItem[] = [];
+    const resP1 = await queryKnowledge(
+      {
+        question: thPrompt,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      {
+        store,
+        onRealAppEvidenceAssembly: (ev) => {
+          packP1 = ev.actual_model_packet;
+        },
+        llmMockInvokerForTesting: async () => ({
+          answer_status: "ANSWERED",
+          overall_summary_th: "ใช้บริการบางส่วนในประเทศญี่ปุ่น",
+          case_facts_used: [
+            {
+              fact_label_th: "สถานที่ที่มีการใช้บริการ",
+              original_fact_th: "ใช้บริการบางส่วนในประเทศญี่ปุ่น ส่วนที่เหลือยังไม่ระบุ",
+              source_turn: 1,
+              legal_significance_th: "ต้องทราบสถานที่ใช้งานส่วนที่เหลือและสัดส่วนค่าบริการ",
+            },
+          ],
+          issues: [
+            {
+              issue_id: "iss.p1_partial_japan",
+              issue_title_th: "อัตรา VAT กรณีใช้บริการบางส่วนในประเทศญี่ปุ่น (ส่วนที่เหลือยังไม่ระบุ)",
+              party_or_scope_th: "บริษัท สยามโค้ด จำกัด",
+              conclusion_th:
+                "เฉพาะส่วนที่ใช้บริการในต่างประเทศเข้าหลักเกณฑ์อัตราร้อยละ 0 ตามมาตรา 80/1 (2) ประกอบประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105) ส่วนการใช้บริการในราชอาณาจักรต้องเสียภาษีมูลค่าเพิ่มตามมาตรา 80 ประกอบพระราชกฤษฎีกา (ฉบับที่ 807) ทั้งนี้ ยังไม่ทราบสถานที่ใช้งานส่วนที่เหลือและสัดส่วนค่าบริการ",
+              application_explanation_th:
+                "ความรับผิดเกิดขึ้นวันที่ 20 ตุลาคม 2569 ตามมาตรา 78/1 แต่ยังไม่ทราบสถานที่ที่มีการใช้บริการในส่วนที่เหลือและมูลค่าที่แยกได้",
+              authority_distinction_note_th: "แยกหลักเกณฑ์ระหว่างมาตรา 80/1 (2) และมาตรา 80",
+              governing_passage_ids: [
+                packP1.find((p) => p.work_id === "prov.th.rc.80/1")!.passage_id,
+                packP1.find((p) => p.work_id === "subreg.th.rd.dg_vat.105")!.passage_id,
+                packP1.find((p) => p.work_id === "prov.th.rc.80")!.passage_id,
+                packP1.find((p) => p.work_id === "subreg.th.rc.royal_decree.807")!.passage_id,
+              ],
+              asserted_authorities: [
+                { work_id: "prov.th.rc.80/1", section: "มาตรา 80/1 (2)" },
+                { work_id: "subreg.th.rd.dg_vat.105", section: "ข้อ 2" },
+                { work_id: "prov.th.rc.80", section: "มาตรา 80" },
+                { work_id: "subreg.th.rc.royal_decree.807", section: "มาตรา 4" },
+              ],
+              contrast_mentions: [],
+              material_facts_relied_on: ["ใช้บริการบางส่วนในประเทศญี่ปุ่น", "วันที่ 20 ตุลาคม 2569"],
+              missing_facts_or_uncertainties_th: ["ยังไม่ทราบสถานที่ใช้งานส่วนที่เหลือและสัดส่วนค่าบริการ"],
+              // Deliberately attempt to apply 0% to the FULL 100,000 THB fee — verifier MUST reject!
+              proposed_calculation: {
+                formula_description_th: "100,000 × 0% = 0 บาท",
+                tax_base_thb: 100000,
+                exempt_amount_thb: 0,
+                taxable_amount_thb: 100000,
+                rate_pct: 0,
+                computed_tax_thb: 0,
+                is_computable_from_stated_facts: true,
+                missing_inputs_th: [],
+                steps_th: ["100,000 × 0% = 0 บาท"],
+              },
+            },
+          ],
+          assumptions_th: [],
+          clarification_questions_th: [],
+          evidence_gaps_th: [],
+        }),
+      }
+    );
+    expect(resP1.status).not.toBe("ANSWERED");
+    const p1Rej = (resP1.llm_audit_trace?.rejected_calculations || []) as Array<{
+      rejection_code?: string;
+    }>;
+    expect(p1Rej.length).toBeGreaterThanOrEqual(1);
+    expect(p1Rej[0]?.rejection_code).toBe("MISSING_REQUIRED_FACT_INPUT");
+    expect(
+      (resP1.clarification_questions || []).some((q) => /ส่วนที่เหลือ|สัดส่วน|สถานที่/.test(q))
+    ).toBe(true);
+  });
+
+  it("P2 (Initial partial Thailand only — 'used partly in Thailand' / 'ใช้บริการบางส่วนในประเทศไทย'): records ONLY Thailand, leaves remainder unknown (NEVER mixed Thailand+overseas), blocks full-fee 7%/0%, and asks for remaining location & fee split", async () => {
+    const enPrompt =
+      "A Thai VAT-registered company provides cloud engineering to a client in Singapore. The service is used partly in Thailand. Fee is 100,000 THB, paid and invoiced on 20 October 2026. What VAT applies?";
+    const thPrompt =
+      "บริษัท สยามคลาวด์ จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการออกแบบระบบแก่ลูกค้าในประเทศสิงคโปร์ โดยลูกค้าใช้บริการบางส่วนในประเทศไทย ค่าบริการ 100,000 บาท รับชำระและออกใบกำกับภาษีวันที่ 20 ตุลาคม 2569 ต้องเสียภาษีมูลค่าเพิ่มอัตราใดและเป็นเงินเท่าใด";
+
+    for (const prompt of [enPrompt, thPrompt]) {
+      const ledger = buildStructuredCaseFactLedger({ question: prompt, applicableDate: null });
+      const place = ledger.material_facts.find((f) => f.fact_key === "vat_place_of_use");
+      expect(place?.normalized_category).toBe("SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN");
+      expect(place?.normalized_category).not.toBe("SERVICE_USED_MIXED_THAILAND_AND_ABROAD");
+      expect(place?.original_text_th).not.toMatch(/ต่างประเทศ/);
+      expect(place?.original_text_th).toMatch(/ส่วนที่เหลือยังไม่ระบุ|Remainder Unknown/);
+    }
+
+    // Attempting to apply 7% to the FULL 100,000 THB fee MUST be blocked!
+    let packP2: AssembledPacketItem[] = [];
+    const resP2 = await queryKnowledge(
+      {
+        question: thPrompt,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      {
+        store,
+        onRealAppEvidenceAssembly: (ev) => {
+          packP2 = ev.actual_model_packet;
+        },
+        llmMockInvokerForTesting: async () => ({
+          answer_status: "ANSWERED",
+          overall_summary_th: "ใช้บริการบางส่วนในประเทศไทย",
+          case_facts_used: [
+            {
+              fact_label_th: "สถานที่ที่มีการใช้บริการ",
+              original_fact_th: "ใช้บริการบางส่วนในประเทศไทย ส่วนที่เหลือยังไม่ระบุ",
+              source_turn: 1,
+              legal_significance_th: "ต้องทราบสถานที่ใช้งานส่วนที่เหลือและสัดส่วนค่าบริการ",
+            },
+          ],
+          issues: [
+            {
+              issue_id: "iss.p2_partial_thailand",
+              issue_title_th: "อัตรา VAT กรณีใช้บริการบางส่วนในประเทศไทย (ส่วนที่เหลือยังไม่ระบุ)",
+              party_or_scope_th: "บริษัท สยามคลาวด์ จำกัด",
+              conclusion_th:
+                "เฉพาะส่วนที่ใช้บริการในประเทศไทยต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 7 (ร้อยละ 6.3 รวมภาษีท้องถิ่น) ตามมาตรา 80 ประกอบพระราชกฤษฎีกา (ฉบับที่ 807) ส่วนที่เหลือต้องตรวจสอบสถานที่ที่มีการใช้บริการและสัดส่วนมูลค่าที่แยกได้ก่อน",
+              application_explanation_th:
+                "ความรับผิดเกิดขึ้นวันที่ 20 ตุลาคม 2569 ตามมาตรา 78/1 แต่ยังไม่ทราบสถานที่ที่มีการใช้บริการในส่วนที่เหลือและมูลค่าที่แยกได้",
+              authority_distinction_note_th: "แยกหลักเกณฑ์ระหว่างมาตรา 80 และมาตรา 80/1 (2)",
+              governing_passage_ids: [
+                packP2.find((p) => p.work_id === "prov.th.rc.80")!.passage_id,
+                packP2.find((p) => p.work_id === "subreg.th.rc.royal_decree.807")!.passage_id,
+                packP2.find((p) => p.work_id === "prov.th.rc.78/1")!.passage_id,
+                ...(packP2.find((p) => p.work_id.includes("local_tax"))
+                  ? [packP2.find((p) => p.work_id.includes("local_tax"))!.passage_id]
+                  : []),
+              ],
+              asserted_authorities: [
+                { work_id: "prov.th.rc.80", section: "มาตรา 80" },
+                { work_id: "subreg.th.rc.royal_decree.807", section: "มาตรา 4" },
+                { work_id: "prov.th.rc.78/1", section: "มาตรา 78/1" },
+              ],
+              contrast_mentions: [],
+              material_facts_relied_on: ["ใช้บริการบางส่วนในประเทศไทย", "วันที่ 20 ตุลาคม 2569"],
+              missing_facts_or_uncertainties_th: ["ยังไม่ทราบสถานที่ใช้งานส่วนที่เหลือและสัดส่วนค่าบริการ"],
+              // Deliberately attempt to apply 7% to the FULL 100,000 THB fee — verifier MUST reject!
+              proposed_calculation: {
+                formula_description_th: "100,000 × 7% = 7,000 บาท",
+                tax_base_thb: 100000,
+                exempt_amount_thb: 0,
+                taxable_amount_thb: 100000,
+                rate_pct: 7,
+                computed_tax_thb: 7000,
+                is_computable_from_stated_facts: true,
+                missing_inputs_th: [],
+                steps_th: ["100,000 × 7% = 7,000 บาท"],
+              },
+            },
+          ],
+          assumptions_th: [],
+          clarification_questions_th: [],
+          evidence_gaps_th: [],
+        }),
+      }
+    );
+    expect(resP2.status).not.toBe("ANSWERED");
+    const p2Rej = (resP2.llm_audit_trace?.rejected_calculations || []) as Array<{
+      rejection_code?: string;
+    }>;
+    expect(p2Rej.length).toBeGreaterThanOrEqual(1);
+    expect(p2Rej[0]?.rejection_code).toBe("MISSING_REQUIRED_FACT_INPUT");
+    expect(
+      (resP2.clarification_questions || []).some((q) => /ส่วนที่เหลือ|สัดส่วน|สถานที่/.test(q))
+    ).toBe(true);
+  });
+
+  it("P3 (Explicit use in BOTH Thailand and overseas): remains classified as SERVICE_USED_MIXED_THAILAND_AND_ABROAD and asks for fee split without applying 0%/7% to full fee", () => {
+    const thMixed =
+      "บริษัทไทยจดทะเบียน VAT ให้บริการออกแบบระบบแก่ลูกค้าในสิงคโปร์ โดยลูกค้าใช้บริการบางส่วนในประเทศไทยและบางส่วนในสิงคโปร์ ค่าบริการ 100,000 บาท รับชำระและออกใบกำกับภาษีวันที่ 20 ตุลาคม 2569";
+    const enMixed =
+      "A Thai VAT-registered company provides IT consulting to a Japanese client. The service is used partly in Thailand and partly in Japan. Total fee 100,000 THB on 20 October 2026.";
+
+    for (const q of [thMixed, enMixed]) {
+      const ledger = buildStructuredCaseFactLedger({ question: q, applicableDate: null });
+      const place = ledger.material_facts.find((f) => f.fact_key === "vat_place_of_use");
+      expect(place?.normalized_category).toBe("SERVICE_USED_MIXED_THAILAND_AND_ABROAD");
+      expect(ledger.explicitly_unknown_facts_th.some((u) => /สัดส่วน|มูลค่า/.test(u))).toBe(true);
+    }
+  });
+
+  it("P4 (Follow-up corrections use the EXACT same partial-use rule): correcting to 'used partly in Japan' or 'used partly in Thailand' records only the stated location with remainder unknown, preserves existing tax date, and overrides stale legacy MIXED_PARTIAL delta", () => {
+    const turn1Overseas =
+      "บริษัท สยามโค้ด จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่ม ให้บริการพัฒนาซอฟต์แวร์แก่ลูกค้าในประเทศญี่ปุ่น โดยใช้บริการทั้งหมดในประเทศญี่ปุ่น ค่าบริการ 100,000 บาท รับชำระและออกใบกำกับภาษีเมื่อวันที่ 20 ตุลาคม 2569";
+    const ledgerT1 = buildStructuredCaseFactLedger({ question: turn1Overseas, applicableDate: null });
+    expect(ledgerT1.temporal_facts.controlling_tax_point.iso_date).toBe("2026-10-20");
+
+    // 1. Regex multi-turn follow-up -> partial Japan only
+    const turn2PartialJapan =
+      "ขอแก้ไขข้อเท็จจริงว่า บริการดังกล่าวใช้บริการบางส่วนในประเทศญี่ปุ่น ส่วนวันที่รับชำระและข้อเท็จจริงอื่นคงเดิม";
+    const ledgerT2Japan = buildStructuredCaseFactLedger({
+      question: turn2PartialJapan,
+      applicableDate: null,
+      conversationHistory: [{ role: "user", content: turn1Overseas }],
+    });
+    expect(
+      ledgerT2Japan.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+        ?.normalized_category
+    ).toBe("SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN");
+    expect(ledgerT2Japan.temporal_facts.controlling_tax_point.iso_date).toBe("2026-10-20");
+
+    // 2. Regex multi-turn follow-up -> partial Thailand only
+    const turn2PartialThailand =
+      "Correction: the service was used partly in Thailand. Keep the payment date and fee unchanged.";
+    const ledgerT2Thai = buildStructuredCaseFactLedger({
+      question: turn2PartialThailand,
+      applicableDate: null,
+      conversationHistory: [{ role: "user", content: turn1Overseas }],
+    });
+    expect(
+      ledgerT2Thai.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+        ?.normalized_category
+    ).toBe("SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN");
+    expect(ledgerT2Thai.temporal_facts.controlling_tax_point.iso_date).toBe("2026-10-20");
+
+    // 3. Structured FactDelta (`applyFactDelta`) deterministically guards even if a model emits MIXED_PARTIAL on "used partly in Japan"
+    const deltaPartialJapan = applyFactDelta(
+      ledgerT1,
+      {
+        is_correction: true,
+        confidence: "high",
+        unchanged_scope: "all_other_facts",
+        changes: [
+          {
+            op: "set_service_use_location",
+            event_type: null,
+            lots: [],
+            lots_mode: "only",
+            from_date: null,
+            to_date: null,
+            amount_thb: null,
+            service_use_location: "MIXED_PARTIAL",
+            source_span: "used partly in Japan",
+          },
+        ],
+      },
+      {
+        userTurnText: "Correction: the service was used partly in Japan. Keep the date unchanged.",
+        applicableDate: null,
+      }
+    );
+    const deltaPlaceJapan = deltaPartialJapan.material_facts.find(
+      (f) => f.fact_key === "vat_place_of_use"
+    );
+    expect(deltaPlaceJapan?.normalized_category).toBe(
+      "SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
+    );
+    expect(deltaPlaceJapan?.original_text_th).not.toMatch(/ในประเทศไทย/);
+    expect(deltaPartialJapan.temporal_facts.controlling_tax_point.iso_date).toBe("2026-10-20");
+    expect(computeLedgerStateHash(deltaPartialJapan)).not.toBe(computeLedgerStateHash(ledgerT1));
+
+    // 4. Structured FactDelta (`applyFactDelta`) on explicit mixed follow-up -> stays SERVICE_USED_MIXED_THAILAND_AND_ABROAD
+    const deltaMixed = applyFactDelta(
+      ledgerT1,
+      {
+        is_correction: true,
+        confidence: "high",
+        unchanged_scope: "all_other_facts",
+        changes: [
+          {
+            op: "set_service_use_location",
+            event_type: null,
+            lots: [],
+            lots_mode: "only",
+            from_date: null,
+            to_date: null,
+            amount_thb: null,
+            service_use_location: "MIXED_THAILAND_AND_ABROAD",
+            source_span: "used partly in Thailand and partly in Japan",
+          },
+        ],
+      },
+      {
+        userTurnText:
+          "Correction: the service was used partly in Thailand and partly in Japan. Keep the date unchanged.",
+        applicableDate: null,
+      }
+    );
+    expect(
+      deltaMixed.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+        ?.normalized_category
+    ).toBe("SERVICE_USED_MIXED_THAILAND_AND_ABROAD");
+    expect(deltaMixed.temporal_facts.controlling_tax_point.iso_date).toBe("2026-10-20");
+  });
+
+  it("R4 (Regression control): complete single-location domestic (100% Thailand) and export (100% overseas) stay cleanly classified with zero false-positive partial/unknown downgrade, while unknown location stays SERVICE_USE_LOCATION_UNKNOWN", () => {
+    const fullDomestic = buildStructuredCaseFactLedger({
+      question:
+        "บริษัทไทยจดทะเบียน VAT ให้บริการที่ปรึกษาแก่ลูกค้าในประเทศญี่ปุ่น โดยลูกค้านำผลบริการมาใช้ทั้งหมดในประเทศไทย ค่าบริการ 100,000 บาท รับชำระและออกใบกำกับภาษีวันที่ 20 ตุลาคม 2569",
+      applicableDate: null,
+    });
+    expect(
+      fullDomestic.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+        ?.normalized_category
+    ).toBe("SERVICE_USED_IN_THAILAND_DOMESTIC");
+
+    const fullOverseas = buildStructuredCaseFactLedger({
+      question:
+        "บริษัทไทยจดทะเบียน VAT ให้บริการพัฒนาซอฟต์แวร์แก่ลูกค้าในประเทศญี่ปุ่น โดยใช้บริการทั้งหมดในประเทศญี่ปุ่นและไม่มีการใช้ในประเทศไทยเลย ค่าบริการ 100,000 บาท รับชำระและออกใบกำกับภาษีวันที่ 20 ตุลาคม 2569",
+      applicableDate: null,
+    });
+    expect(
+      fullOverseas.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+        ?.normalized_category
+    ).toBe("SERVICE_USED_ENTIRELY_ABROAD_EXPORT");
+
+    const unknownUse = buildStructuredCaseFactLedger({
+      question:
+        "A Thai VAT-registered company provides IT services to a Singapore client. It is unknown where the service is used. Fee 100,000 THB on 20 October 2026.",
+      applicableDate: null,
+    });
+    expect(
+      unknownUse.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+        ?.normalized_category
+    ).toBe("SERVICE_USE_LOCATION_UNKNOWN");
+  });
 });

@@ -43,7 +43,10 @@ export type FactDeltaEventType =
 export type FactDeltaServiceUseLocation =
   | "THAILAND_DOMESTIC"
   | "ENTIRELY_ABROAD"
+  | "MIXED_THAILAND_AND_ABROAD"
   | "MIXED_PARTIAL"
+  | "PARTIALLY_THAILAND_REMAINDER_UNKNOWN"
+  | "PARTIALLY_ABROAD_REMAINDER_UNKNOWN"
   | "UNKNOWN"
   | null;
 
@@ -166,7 +169,15 @@ export const FACT_DELTA_JSON_SCHEMA = {
           amount_thb: { type: "number" },
           service_use_location: {
             type: "string",
-            enum: ["THAILAND_DOMESTIC", "ENTIRELY_ABROAD", "MIXED_PARTIAL", "UNKNOWN", "NONE"],
+            enum: [
+              "THAILAND_DOMESTIC",
+              "ENTIRELY_ABROAD",
+              "MIXED_THAILAND_AND_ABROAD",
+              "PARTIALLY_THAILAND_REMAINDER_UNKNOWN",
+              "PARTIALLY_ABROAD_REMAINDER_UNKNOWN",
+              "UNKNOWN",
+              "NONE",
+            ],
           },
           source_span: { type: "string" },
         },
@@ -201,7 +212,10 @@ const VALID_EVENT_TYPES = new Set<Exclude<FactDeltaEventType, null>>([
 const VALID_SERVICE_USE_LOCATIONS = new Set<Exclude<FactDeltaServiceUseLocation, null>>([
   "THAILAND_DOMESTIC",
   "ENTIRELY_ABROAD",
+  "MIXED_THAILAND_AND_ABROAD",
   "MIXED_PARTIAL",
+  "PARTIALLY_THAILAND_REMAINDER_UNKNOWN",
+  "PARTIALLY_ABROAD_REMAINDER_UNKNOWN",
   "UNKNOWN",
 ]);
 
@@ -427,7 +441,7 @@ export function validateFactDelta(
     }
     if (ch.op === "set_service_use_location" && !ch.service_use_location) {
       reasons.push(
-        `changes[${i}]: set_service_use_location requires a valid service_use_location (THAILAND_DOMESTIC | ENTIRELY_ABROAD | MIXED_PARTIAL | UNKNOWN).`
+        `changes[${i}]: set_service_use_location requires a valid service_use_location (THAILAND_DOMESTIC | ENTIRELY_ABROAD | MIXED_THAILAND_AND_ABROAD | PARTIALLY_THAILAND_REMAINDER_UNKNOWN | PARTIALLY_ABROAD_REMAINDER_UNKNOWN | UNKNOWN).`
       );
       continue;
     }
@@ -539,7 +553,14 @@ STRICT RULES:
    - "shift_date": Use when moving events from from_date to to_date. Example: "เหตุการณ์ทั้งหมดที่เดิมเกิดขึ้นเมื่อวันที่ 1 ตุลาคม 2569 ให้เปลี่ยนเป็นเกิดขึ้นเมื่อวันที่ 2 ตุลาคม 2569 แทน" -> op="shift_date", event_type="NONE", lots=[], lots_mode="only", from_date="2026-10-01", to_date="2026-10-02", unchanged_scope="all_other_facts".
    - "remove_event": Use when a turn states an earlier event did NOT happen or is cancelled.
    - "set_amount": Use ONLY when the user explicitly changes the baht price/value of a lot or the total transaction. Do NOT emit set_amount when the user merely restates an existing lot's unchanged value (e.g. "เฉพาะล็อต C มูลค่า 10,000 บาท").
-   - "set_service_use_location": Use when the user changes WHERE a service is used (e.g., overseas -> Thailand domestic, Thailand -> entirely abroad, mixed/partial use in Thailand and abroad, or unknown). Set service_use_location to "THAILAND_DOMESTIC", "ENTIRELY_ABROAD", "MIXED_PARTIAL", or "UNKNOWN", event_type="NONE", lots=[], lots_mode="only", and leave unchanged tax dates untouched. Never infer domestic/overseas from the customer's address alone when the user specifies where the service is actually used.
+   - "set_service_use_location": Use when the user changes WHERE a service is used. Choose strictly what is stated:
+     * "THAILAND_DOMESTIC": entire/unqualified use in Thailand.
+     * "ENTIRELY_ABROAD": entire use abroad/overseas (no domestic use).
+     * "MIXED_THAILAND_AND_ABROAD": ONLY when the user explicitly states use in BOTH Thailand AND abroad/overseas.
+     * "PARTIALLY_THAILAND_REMAINDER_UNKNOWN": when the user states partial use in Thailand ONLY without stating where the rest is used (e.g. "used partly in Thailand", "ใช้บริการบางส่วนในประเทศไทย").
+     * "PARTIALLY_ABROAD_REMAINDER_UNKNOWN": when the user states partial use in a foreign country/abroad ONLY without stating where the rest is used (e.g. "used partly in Japan", "ใช้บริการบางส่วนในประเทศญี่ปุ่น").
+     * "UNKNOWN": when place of use is stated as unknown/unclear.
+     Set event_type="NONE", lots=[], lots_mode="only", and leave unchanged tax dates untouched. Never infer domestic/overseas from the customer's address alone or invent the unstated remainder's location.
 6. No-op follow-ups: If NEW_USER_TURN_TEXT only asks to summarize, repeat, or explain without changing any fact (e.g. "สรุปให้อีกครั้ง"), emit is_correction=false, confidence="high", changes=[], unchanged_scope="all_other_facts".`;
 
 export function buildFactDeltaUserPrompt(

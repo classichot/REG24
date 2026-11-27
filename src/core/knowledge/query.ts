@@ -13,6 +13,7 @@ import {
   applyFactDelta,
   buildStructuredCaseFactLedger,
   computeLedgerStateHash,
+  isPartialMixedOrUnknownServiceUseCategory,
   VAT_RATE_VERIFIED_COVERAGE_START_ISO,
   type StructuredCaseFactLedger,
 } from "./case-fact-ledger";
@@ -1941,8 +1942,7 @@ async function executeCoreKnowledgeQuery(
       const isActiveOverseasServiceUse =
         activeVatPlaceOfUse === "SERVICE_USED_ENTIRELY_ABROAD_EXPORT";
       const isActiveMixedOrUnknownServiceUse =
-        activeVatPlaceOfUse === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD" ||
-        activeVatPlaceOfUse === "SERVICE_USE_LOCATION_UNKNOWN";
+        isPartialMixedOrUnknownServiceUseCategory(activeVatPlaceOfUse);
       const isThaiProviderService =
         factLedger.material_facts.some(
           (f) => f.fact_key === "vat_transaction_type" && f.normalized_category === "VAT_PROVISION_OF_SERVICE"
