@@ -1172,6 +1172,19 @@ describe("REG24 Batch 1 — Three VAT Failure Paths (Independent Synthetic Repro
         ?.normalized_category
     ).toBe("SERVICE_USED_ENTIRELY_ABROAD_EXPORT");
 
+    // Negated domestic-use phrasings ("ไม่มีส่วนใดใช้ในประเทศไทยเลย", "ไม่มีส่วนใดใช้ในประเทศไทย", "no part of the service is used in Thailand")
+    // MUST NEVER trigger MIXED use!
+    for (const exportVariant of [
+      "บริษัท อันดามันซอฟต์ จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่มในประเทศไทย ให้บริการออกแบบและพัฒนาซอฟต์แวร์จากประเทศไทยแก่บริษัทผู้ว่าจ้างในประเทศญี่ปุ่น โดยส่งมอบและลูกค้าใช้บริการทั้งหมดในประเทศญี่ปุ่น ไม่มีส่วนใดใช้ในประเทศไทยเลย ค่าบริการ 150,000 บาท ออกใบกำกับภาษีและได้รับชำระค่าบริการเมื่อวันที่ 12 ตุลาคม 2569",
+      "บริษัท บูรพาคลาวด์ จำกัด ผู้ประกอบการจดทะเบียนภาษีมูลค่าเพิ่มในประเทศไทย ให้บริการวิเคราะห์ข้อมูลแก่ลูกค้าในประเทศสิงคโปร์ โดยลูกค้าใช้บริการทั้งหมดในประเทศสิงคโปร์ ไม่มีส่วนใดใช้ในประเทศไทย ค่าบริการ 100,000 บาท ออกใบกำกับภาษีและได้รับชำระค่าบริการเมื่อวันที่ 18 ตุลาคม 2569",
+      "A Thai VAT-registered company provides software engineering to a client in Japan, used entirely in Japan and no part of the service is used in Thailand. Fee 150,000 THB on 12 October 2026.",
+    ]) {
+      const l = buildStructuredCaseFactLedger({ question: exportVariant, applicableDate: null });
+      expect(
+        l.material_facts.find((f) => f.fact_key === "vat_place_of_use")?.normalized_category
+      ).toBe("SERVICE_USED_ENTIRELY_ABROAD_EXPORT");
+    }
+
     const unknownUse = buildStructuredCaseFactLedger({
       question:
         "A Thai VAT-registered company provides IT services to a Singapore client. It is unknown where the service is used. Fee 100,000 THB on 20 October 2026.",

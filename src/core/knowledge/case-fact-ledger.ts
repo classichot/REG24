@@ -1100,24 +1100,18 @@ export function extractServiceUseLocationFromText(
   const norm = thaiDigitsToArabic(rawText || "").replace(/\s+/g, " ").trim();
   if (!norm) return null;
 
-  const normWithoutNegatedDomesticUse = norm
-    .replace(
-      /(?:ไม่(?:มี|ได้)?การ?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย)(?:\s*เลย)?|no\s+use\s+in\s+thailand|not\s+used\s+in\s+thailand)/gi,
-      " "
-    )
-    .replace(
-      /(?:ไม่(?:มี|ได้)?นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?มาใช้(?:งาน)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย))/gi,
-      " "
-    );
+  const normWithoutNegatedDomesticUse = norm.replace(
+    /(?:ไม่(?:มี|ได้)?(?:ส่วนใด(?:ของ(?:ผล)?บริการ)?(?:ที่)?|การ|ใดๆ)?(?:ถูก)?(?:นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?(?:เข้า)?มา)?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย|กรุงเทพ(?:มหานคร)?)(?:\s*เลย)?|มิได้(?:นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?(?:เข้า)?มา)?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย)|ปราศจากการใช้(?:บริการ|งาน)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย)|\b(?:no|zero|without\s+any)\s+(?:domestic\s+)?use\s+in\s+thailand\b|\b(?:no\s+part|none)(?:\s+of\s+(?:the\s+)?service)?\s+(?:is|was|will\s+be)?\s*used\s+in\s+thailand\b|\bnot\s+(?:being\s+)?used\s+(?:at\s+all\s+)?in\s+thailand(?:\s+at\s+all)?\b)/gi,
+    " "
+  );
 
-  const normWithoutNegatedOverseasUse = norm
-    .replace(
-      new RegExp(
-        `(?:ไม่(?:มี|ได้)?การ?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|no\\s+use\\s+(?:abroad|overseas|outside\\s+thailand)|not\\s+used\\s+(?:abroad|overseas|outside\\s+thailand))`,
-        "gi"
-      ),
-      " "
-    );
+  const normWithoutNegatedOverseasUse = norm.replace(
+    new RegExp(
+      `(?:ไม่(?:มี|ได้)?(?:ส่วนใด(?:ของ(?:ผล)?บริการ)?(?:ที่)?|การ|ใดๆ)?(?:ถูก)?(?:นำ(?:ผล(?:ของ)?บริการ)?ไป)?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}(?:\\s*เลย)?|มิได้(?:นำ(?:ผล(?:ของ)?บริการ)?ไป)?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|\\b(?:no|zero|without\\s+any)\\s+use\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\b(?:no\\s+part|none)(?:\\s+of\\s+(?:the\\s+)?service)?\\s+(?:is|was|will\\s+be)?\\s*used\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\bnot\\s+(?:being\\s+)?used\\s+(?:at\\s+all\\s+)?(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}(?:\\s+at\\s+all)?\\b)`,
+      "gi"
+    ),
+    " "
+  );
 
   // 1. Explicit use in BOTH Thailand AND an overseas location (mixed use).
   //    Anchored strictly on service-USE verbs so "performed in Thailand" + "used partly in Japan"
