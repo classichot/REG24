@@ -1705,12 +1705,18 @@ async function executeCoreKnowledgeQuery(
         const ledgerAfterHash = computeLedgerStateHash(candidateLedger);
 
         const summarizeAlloc = (l: StructuredCaseFactLedger): string => {
+          const place =
+            l.material_facts.find((f) => f.fact_key === "vat_place_of_use")?.normalized_category ||
+            "";
+          const placeSuffix = place ? `|use:${place}` : "";
           const rec = l.temporal_facts.vat_portion_allocation_record;
-          if (!rec) return `ctrl:${l.temporal_facts.controlling_tax_point.iso_date || "null"}`;
-          return rec.lot_allocations
-            .map((a) => `${a.lot_id}=${a.controlling_tax_point_iso}:${a.decree_window}:${a.taxable_base_thb}`)
-            .sort()
-            .join("|");
+          if (!rec) return `ctrl:${l.temporal_facts.controlling_tax_point.iso_date || "null"}${placeSuffix}`;
+          return (
+            rec.lot_allocations
+              .map((a) => `${a.lot_id}=${a.controlling_tax_point_iso}:${a.decree_window}:${a.taxable_base_thb}`)
+              .sort()
+              .join("|") + placeSuffix
+          );
         };
         const deltaSig = summarizeAlloc(candidateLedger);
         const regexSig = summarizeAlloc(regexFactLedger);
@@ -1927,14 +1933,40 @@ async function executeCoreKnowledgeQuery(
       factLedger.material_facts.some((f) => f.fact_key === "vat_transaction_type")
     ) {
       const ctrlDate = factLedger.temporal_facts.controlling_tax_point.iso_date;
+      const activeVatPlaceOfUse =
+        factLedger.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+          ?.normalized_category || null;
+      const isActiveDomesticServiceUse =
+        activeVatPlaceOfUse === "SERVICE_USED_IN_THAILAND_DOMESTIC";
+      const isActiveOverseasServiceUse =
+        activeVatPlaceOfUse === "SERVICE_USED_ENTIRELY_ABROAD_EXPORT";
+      const isActiveMixedOrUnknownServiceUse =
+        activeVatPlaceOfUse === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD" ||
+        activeVatPlaceOfUse === "SERVICE_USE_LOCATION_UNKNOWN";
+      const isThaiProviderService =
+        factLedger.material_facts.some(
+          (f) => f.fact_key === "vat_transaction_type" && f.normalized_category === "VAT_PROVISION_OF_SERVICE"
+        ) &&
+        factLedger.material_facts.some(
+          (f) => f.fact_key === "vat_registrant_status" && f.normalized_category === "THAI_VAT_REGISTERED_OPERATOR"
+        );
+
       const analyzerRoutedExportOnly =
         issueAnalysis.controllingWorkIds.includes("prov.th.rc.80/1") &&
         !issueAnalysis.controllingWorkIds.includes("prov.th.rc.80");
-      const asksExportOrZeroRate =
+      const rawTextMentionsExportOrZeroRate =
         analyzerRoutedExportOnly ||
         /ส่งออก|อัตราร้อยละ\s*0|ร้อยละ\s*0|อัตราศูนย์|นำไป(?:ใช้|ก่อสร้าง|ดำเนินการ)[^\n]{0,25}(?:ในต่างประเทศ|นอกราชอาณาจักร)|ใช้บริการในต่างประเทศ|นอกราชอาณาจักร|มาตรา\s*80\/1/i.test(
           mergedUserBlob
         );
+      // Route strictly from the ACTIVE service-use location when established in the fact ledger —
+      // NEVER let superseded overseas conversation text or a foreign customer's address force the export path
+      // after a domestic-use correction, and NEVER let stale domestic wording override a Thailand->overseas correction!
+      const asksExportOrZeroRate = isActiveDomesticServiceUse
+        ? false
+        : isActiveOverseasServiceUse
+          ? true
+          : rawTextMentionsExportOrZeroRate;
       const asksExempt = /ยกเว้นภาษีมูลค่าเพิ่ม|มาตรา\s*81|พืชผลทางการเกษตร|หนังสือพิมพ์|ตำราเรียน|สถานพยาบาล/i.test(
         mergedUserBlob
       );
@@ -1942,13 +1974,18 @@ async function executeCoreKnowledgeQuery(
         mergedUserBlob
       );
       const asksCrossBorderInbound =
+        !isActiveDomesticServiceUse &&
+        !isActiveOverseasServiceUse &&
+        !isThaiProviderService &&
         /ภ\.พ\.36|มาตรา\s*83\/6|มาตรา\s*77\/2|ผู้ประกอบการ.*ต่างประเทศ|ชำระค่าบริการไปต่างประเทศ/i.test(
           mergedUserBlob
         );
 
       const vatCoreWorkIds: string[] = [];
       const historicalContextWorkIds = new Set<string>();
+      const nonGoverningContrastWorkIds = new Set<string>();
       const isExplicitSec80_1Lookup =
+        !isActiveDomesticServiceUse &&
         /มาตรา\s*80\/1(?:\s*\([0-9ก-ฮ]+\))?/.test(mergedUserBlob) &&
         !/(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.|ร้อยละ\s*7|7%|มาตรา\s*80(?![/0-9]))/.test(mergedUserBlob);
       const isIncidentalVatInWhtOnly =
@@ -1961,8 +1998,11 @@ async function executeCoreKnowledgeQuery(
       const isDomesticVatRateQuery =
         !isIncidentalVatInWhtOnly &&
         !isExplicitSec80_1Lookup &&
-        ((!asksExportOrZeroRate && !asksExempt && !asksMixedUse && !asksCrossBorderInbound) ||
-          explicitlyAsksDomesticRate);
+        (isActiveDomesticServiceUse ||
+          isActiveMixedOrUnknownServiceUse ||
+          (!isActiveOverseasServiceUse &&
+            ((!asksExportOrZeroRate && !asksExempt && !asksMixedUse && !asksCrossBorderInbound) ||
+              explicitlyAsksDomesticRate)));
 
       // Genuinely missing historical VAT reduction decrees (< 2017-10-01 or 2018-10-01..2023-09-30 between RD 646 and RD 780) -> Clean abstention!
       if (
@@ -2022,8 +2062,25 @@ async function executeCoreKnowledgeQuery(
         };
       }
 
-      if (asksExportOrZeroRate) {
-        vatCoreWorkIds.push("prov.th.rc.80/1", "subreg.th.rd.dg_vat.105", "prov.th.rc.77/2");
+      if (asksExportOrZeroRate || isActiveMixedOrUnknownServiceUse) {
+        vatCoreWorkIds.push("prov.th.rc.80/1", "subreg.th.rd.dg_vat.105", "prov.th.rc.77/2", "prov.th.rc.78/1");
+      } else if (
+        isActiveDomesticServiceUse &&
+        (rawTextMentionsExportOrZeroRate ||
+          factLedger.overrides.some((o) => o.fact_key.includes("vat_place_of_use") || o.fact_key.includes("set_service_use_location")))
+      ) {
+        // After an Overseas -> Thailand domestic-use correction, export provisions (§80/1, DG VAT 105)
+        // may be included ONLY as non-governing contrast to explain why zero-rating does NOT apply —
+        // NEVER as governing support!
+        vatCoreWorkIds.push("prov.th.rc.77/2", "prov.th.rc.80/1", "subreg.th.rd.dg_vat.105");
+        nonGoverningContrastWorkIds.add("prov.th.rc.80/1");
+        nonGoverningContrastWorkIds.add("subreg.th.rd.dg_vat.105");
+      }
+      if (isActiveOverseasServiceUse) {
+        nonGoverningContrastWorkIds.add("subreg.th.rc.royal_decree.780");
+        nonGoverningContrastWorkIds.add("subreg.th.rc.royal_decree.790");
+        nonGoverningContrastWorkIds.add("subreg.th.rc.royal_decree.799");
+        nonGoverningContrastWorkIds.add("subreg.th.rc.royal_decree.807");
       }
       if (asksExempt) {
         vatCoreWorkIds.push("prov.th.rc.81");
@@ -2070,7 +2127,7 @@ async function executeCoreKnowledgeQuery(
         // 2018-10-01..2023-09-30 and < 2017-10-01 NEVER add consolidated RD 646 as governing!
       };
       if (isDomesticVatRateQuery) {
-        vatCoreWorkIds.push("prov.th.rc.80", "prov.th.rc.78", "prov.th.rc.78/1", "subreg.th.rd.vat_local_tax_guide");
+        vatCoreWorkIds.push("prov.th.rc.77/2", "prov.th.rc.80", "prov.th.rc.78", "prov.th.rc.78/1", "subreg.th.rd.vat_local_tax_guide");
         if (isSplitPaymentForVat) {
           for (const sp of splitPointsForVat) {
             addDecreeForIso(sp.iso_date);
@@ -2132,6 +2189,8 @@ async function executeCoreKnowledgeQuery(
       }
       (candidatePassages as Passage[] & { __historicalWorkIds?: Set<string> }).__historicalWorkIds =
         historicalContextWorkIds;
+      (candidatePassages as Passage[] & { __nonGoverningContrastWorkIds?: Set<string> }).__nonGoverningContrastWorkIds =
+        nonGoverningContrastWorkIds;
       (candidatePassages as Passage[] & { __excludeDomesticVatDecrees?: boolean }).__excludeDomesticVatDecrees =
         !isDomesticVatRateQuery;
       (candidatePassages as Passage[] & { __skipBackfillForVatDateClarification?: boolean }).__skipBackfillForVatDateClarification =
@@ -2181,6 +2240,9 @@ async function executeCoreKnowledgeQuery(
     const historicalContextWorkIds =
       (candidatePassages as Passage[] & { __historicalWorkIds?: Set<string> })
         .__historicalWorkIds || new Set<string>();
+    const nonGoverningContrastWorkIds =
+      (candidatePassages as Passage[] & { __nonGoverningContrastWorkIds?: Set<string> })
+        .__nonGoverningContrastWorkIds || new Set<string>();
     const passagePack = buildGroundedPassagePack({
       passages: candidatePassages,
       state: freshState,
@@ -2189,6 +2251,7 @@ async function executeCoreKnowledgeQuery(
       maxPassages: 32,
       explicitWorkIds: explicitRulingWorkIds,
       historicalContextWorkIds,
+      nonGoverningContrastWorkIds,
       splitPaymentTaxPointDates: splitPaymentDatesForPack,
     });
 

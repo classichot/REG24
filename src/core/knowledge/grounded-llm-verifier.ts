@@ -1803,14 +1803,143 @@ function verifyProposedCalculation(params: {
 
   // Rate grounding check against cited passages
   if (calc.rate_pct !== null) {
+    const activePlaceOfUse =
+      params.factLedger.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+        ?.normalized_category || null;
+    const isVatIssueWithPlaceOfUse =
+      isVatCalcIssue ||
+      params.citedItems.some(
+        (p) =>
+          p.work_id === "prov.th.rc.80/1" ||
+          p.work_id === "subreg.th.rd.dg_vat.105" ||
+          p.work_id === "prov.th.rc.81" ||
+          p.work_id === "prov.th.rc.77/2"
+      );
+    // Guard 1: If active service-use location is DOMESTIC THAILAND (e.g., after an Overseas -> Thailand correction),
+    // NEVER accept a stale 0% export-service calculation!
+    if (
+      isVatIssueWithPlaceOfUse &&
+      calc.rate_pct === 0 &&
+      activePlaceOfUse === "SERVICE_USED_IN_THAILAND_DOMESTIC"
+    ) {
+      return {
+        accepted: false,
+        verifiedCalc: null,
+        verifiedNumericTokens: [],
+        rejection: {
+          issue_id: params.issue.issue_id,
+          issue_title_th: params.issue.issue_title_th,
+          proposed_values: {
+            tax_base_thb: calc.tax_base_thb,
+            exempt_amount_thb: calc.exempt_amount_thb,
+            taxable_amount_thb: calc.taxable_amount_thb,
+            rate_pct: calc.rate_pct,
+            computed_tax_thb: calc.computed_tax_thb,
+          },
+          rejection_code: "UNGROUNDED_RATE_OR_RULE",
+          rejection_reason_th:
+            "ข้อเท็จจริงล่าสุดระบุว่ามีการใช้บริการในประเทศไทย จึงไม่เข้าเงื่อนไขอัตราร้อยละ 0 สำหรับการส่งออกบริการตามมาตรา 80/1 (2)",
+        },
+      };
+    }
+    // Guard 1b: If active service-use location is ENTIRELY ABROAD (e.g., after a Thailand -> Overseas correction),
+    // NEVER accept a stale 7% domestic calculation! And if use is MIXED or UNKNOWN, NEVER silently compute
+    // an unqualified single-rate 0% or 7% VAT figure covering the whole service!
+    if (
+      isVatIssueWithPlaceOfUse &&
+      (calc.rate_pct === 7 || calc.rate_pct === 6.3 || calc.rate_pct === 10) &&
+      activePlaceOfUse === "SERVICE_USED_ENTIRELY_ABROAD_EXPORT"
+    ) {
+      return {
+        accepted: false,
+        verifiedCalc: null,
+        verifiedNumericTokens: [],
+        rejection: {
+          issue_id: params.issue.issue_id,
+          issue_title_th: params.issue.issue_title_th,
+          proposed_values: {
+            tax_base_thb: calc.tax_base_thb,
+            exempt_amount_thb: calc.exempt_amount_thb,
+            taxable_amount_thb: calc.taxable_amount_thb,
+            rate_pct: calc.rate_pct,
+            computed_tax_thb: calc.computed_tax_thb,
+          },
+          rejection_code: "UNGROUNDED_RATE_OR_RULE",
+          rejection_reason_th:
+            "ข้อเท็จจริงล่าสุดระบุว่ามีการใช้บริการทั้งหมดในต่างประเทศ จึงไม่ใช้อัตราภาษีมูลค่าเพิ่มในประเทศร้อยละ 7",
+        },
+      };
+    }
+    if (
+      isVatIssueWithPlaceOfUse &&
+      (activePlaceOfUse === "SERVICE_USED_MIXED_THAILAND_AND_ABROAD" ||
+        activePlaceOfUse === "SERVICE_USE_LOCATION_UNKNOWN") &&
+      calc.is_computable_from_stated_facts &&
+      calc.computed_tax_thb !== null
+    ) {
+      const issueTextForCond = `${params.issue.issue_title_th} ${params.issue.conclusion_th}`;
+      const explicitlyScopedConditionalBranch =
+        /(?:กรณี(?:ที่)?ใช้(?:บริการ)?ใน(?:ประเทศไทย|ต่างประเทศ)|เฉพาะส่วนที่(?:ใช้)?ใน|แยก(?:คำนวณ)?ตามส่วน|หากใช้(?:บริการ)?(?:ทั้งหมด)?ใน)/.test(
+          issueTextForCond
+        );
+      if (!explicitlyScopedConditionalBranch) {
+        return {
+          accepted: false,
+          verifiedCalc: null,
+          verifiedNumericTokens: [],
+          rejection: {
+            issue_id: params.issue.issue_id,
+            issue_title_th: params.issue.issue_title_th,
+            proposed_values: {
+              tax_base_thb: calc.tax_base_thb,
+              exempt_amount_thb: calc.exempt_amount_thb,
+              taxable_amount_thb: calc.taxable_amount_thb,
+              rate_pct: calc.rate_pct,
+              computed_tax_thb: calc.computed_tax_thb,
+            },
+            rejection_code: "MISSING_REQUIRED_FACT_INPUT",
+            rejection_reason_th:
+              "สถานที่ที่มีการใช้บริการยังไม่ชัดเจนหรือใช้ทั้งในประเทศไทยและต่างประเทศโดยไม่ระบุสัดส่วนที่แยกได้ จึงไม่อาจสรุปคำนวณภาษีมูลค่าเพิ่มอัตราเดียวครอบคลุมทั้งจำนวนโดยไม่แยกเงื่อนไข [field:vat_place_of_use]",
+          },
+        };
+      }
+    }
+    // Guard 2: Zero-rated (0%) is IN VAT (§80/1) — NEVER convert VAT-exempt (§81) or out-of-scope into 0%!
+    const citesOnlyVatExemptWithoutZeroRate =
+      calc.rate_pct === 0 &&
+      params.citedItems.some((p) => p.work_id === "prov.th.rc.81") &&
+      !params.citedItems.some((p) => p.work_id === "prov.th.rc.80/1");
+    if (citesOnlyVatExemptWithoutZeroRate) {
+      return {
+        accepted: false,
+        verifiedCalc: null,
+        verifiedNumericTokens: [],
+        rejection: {
+          issue_id: params.issue.issue_id,
+          issue_title_th: params.issue.issue_title_th,
+          proposed_values: {
+            tax_base_thb: calc.tax_base_thb,
+            exempt_amount_thb: calc.exempt_amount_thb,
+            taxable_amount_thb: calc.taxable_amount_thb,
+            rate_pct: calc.rate_pct,
+            computed_tax_thb: calc.computed_tax_thb,
+          },
+          rejection_code: "UNGROUNDED_RATE_OR_RULE",
+          rejection_reason_th:
+            "กิจการที่ได้รับยกเว้นภาษีมูลค่าเพิ่มตามมาตรา 81 ไม่ใช่อัตราภาษีมูลค่าเพิ่มร้อยละ 0 ตามมาตรา 80/1",
+        },
+      };
+    }
+
     const citedBlob = thaiDigitsToArabic(params.citedItems.map((p) => p.verbatim_text).join(" "));
     const rateStr = String(calc.rate_pct);
     const rateGrounded =
-      citedBlob.includes(rateStr) ||
+      (calc.rate_pct === 0 && isVatIssueWithPlaceOfUse
+        ? /ร้อยละ\s*0|0%|อัตรา\s*0/.test(citedBlob)
+        : citedBlob.includes(rateStr)) ||
       (calc.rate_pct === 5 && /ร้อยละ\s*(?:5|ห้า)|5%/.test(citedBlob)) ||
       (calc.rate_pct === 1 && /ร้อยละ\s*(?:1|หนึ่ง)|1%/.test(citedBlob)) ||
       (calc.rate_pct === 7 && /6\.3|หกจุดสาม|ร้อยละ\s*7|7%/.test(citedBlob)) ||
-      (calc.rate_pct === 0 && /ร้อยละ\s*0|0%|อัตรา\s*0/.test(citedBlob)) ||
       (calc.rate_pct === 3.3 && /ร้อยละ\s*(?:3|สาม)|3\.0|3\.3/.test(citedBlob)) ||
       (calc.rate_pct === 0.5 && /0\.5|ศูนย์จุดห้า|หนึ่งบาท|1\s*บาท\s*ต่อ\s*200/.test(citedBlob));
     if (!rateGrounded) {

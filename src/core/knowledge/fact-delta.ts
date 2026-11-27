@@ -29,13 +29,22 @@ export type FactDeltaOp =
   | "remove_event"
   | "reassign_lots"
   | "shift_date"
-  | "set_amount";
+  | "set_amount"
+  | "set_service_use_location";
 
 export type FactDeltaEventType =
   | "OWNERSHIP_TRANSFER"
   | "DELIVERY"
   | "PAYMENT"
   | "INVOICE"
+  | "SERVICE_USE"
+  | null;
+
+export type FactDeltaServiceUseLocation =
+  | "THAILAND_DOMESTIC"
+  | "ENTIRELY_ABROAD"
+  | "MIXED_PARTIAL"
+  | "UNKNOWN"
   | null;
 
 export type FactDeltaLotsMode = "only" | "add" | "remove";
@@ -48,6 +57,7 @@ export interface FactDeltaChange {
   from_date: string | null;
   to_date: string | null;
   amount_thb: number | null;
+  service_use_location?: FactDeltaServiceUseLocation;
   source_span: string;
 }
 
@@ -130,11 +140,18 @@ export const FACT_DELTA_JSON_SCHEMA = {
         properties: {
           op: {
             type: "string",
-            enum: ["set_event", "remove_event", "reassign_lots", "shift_date", "set_amount"],
+            enum: [
+              "set_event",
+              "remove_event",
+              "reassign_lots",
+              "shift_date",
+              "set_amount",
+              "set_service_use_location",
+            ],
           },
           event_type: {
             type: "string",
-            enum: ["OWNERSHIP_TRANSFER", "DELIVERY", "PAYMENT", "INVOICE", "NONE"],
+            enum: ["OWNERSHIP_TRANSFER", "DELIVERY", "PAYMENT", "INVOICE", "SERVICE_USE", "NONE"],
           },
           lots: {
             type: "array",
@@ -147,6 +164,10 @@ export const FACT_DELTA_JSON_SCHEMA = {
           from_date: { type: "string" },
           to_date: { type: "string" },
           amount_thb: { type: "number" },
+          service_use_location: {
+            type: "string",
+            enum: ["THAILAND_DOMESTIC", "ENTIRELY_ABROAD", "MIXED_PARTIAL", "UNKNOWN", "NONE"],
+          },
           source_span: { type: "string" },
         },
         required: ["op", "lots", "lots_mode", "source_span"],
@@ -166,6 +187,7 @@ const VALID_OPS = new Set<FactDeltaOp>([
   "reassign_lots",
   "shift_date",
   "set_amount",
+  "set_service_use_location",
 ]);
 
 const VALID_EVENT_TYPES = new Set<Exclude<FactDeltaEventType, null>>([
@@ -173,7 +195,25 @@ const VALID_EVENT_TYPES = new Set<Exclude<FactDeltaEventType, null>>([
   "DELIVERY",
   "PAYMENT",
   "INVOICE",
+  "SERVICE_USE",
 ]);
+
+const VALID_SERVICE_USE_LOCATIONS = new Set<Exclude<FactDeltaServiceUseLocation, null>>([
+  "THAILAND_DOMESTIC",
+  "ENTIRELY_ABROAD",
+  "MIXED_PARTIAL",
+  "UNKNOWN",
+]);
+
+function normalizeOptionalServiceUseLocation(v: unknown): FactDeltaServiceUseLocation {
+  if (typeof v !== "string") return null;
+  const up = v.trim().toUpperCase();
+  if (!up || up === "NULL" || up === "NONE") return null;
+  if (VALID_SERVICE_USE_LOCATIONS.has(up as Exclude<FactDeltaServiceUseLocation, null>)) {
+    return up as Exclude<FactDeltaServiceUseLocation, null>;
+  }
+  return null;
+}
 
 const VALID_LOTS_MODES = new Set<FactDeltaLotsMode>(["only", "add", "remove"]);
 
@@ -243,6 +283,7 @@ function normalizeRawFactDelta(raw: unknown): FactDelta | null {
       from_date: normalizeOptionalStringDate(c.from_date),
       to_date: normalizeOptionalStringDate(c.to_date),
       amount_thb: amountRaw,
+      service_use_location: normalizeOptionalServiceUseLocation(c.service_use_location),
       source_span: typeof c.source_span === "string" ? c.source_span : "",
     });
   }
@@ -384,6 +425,12 @@ export function validateFactDelta(
       reasons.push(`changes[${i}]: set_amount requires a positive amount_thb.`);
       continue;
     }
+    if (ch.op === "set_service_use_location" && !ch.service_use_location) {
+      reasons.push(
+        `changes[${i}]: set_service_use_location requires a valid service_use_location (THAILAND_DOMESTIC | ENTIRELY_ABROAD | MIXED_PARTIAL | UNKNOWN).`
+      );
+      continue;
+    }
 
     // Rule 5: amount reconciliation against declared lot values
     if (ch.amount_thb !== null) {
@@ -459,14 +506,18 @@ export function shouldRunStructuredFactDelta(priorLedger: StructuredCaseFactLedg
       e.event_type === "OWNERSHIP_TRANSFER" ||
       e.event_type === "DELIVERY" ||
       e.event_type === "PAYMENT" ||
-      e.event_type === "INVOICE"
+      e.event_type === "INVOICE" ||
+      e.event_type === "SERVICE_USE"
+  );
+  const hasVatPlaceOfUse = priorLedger.material_facts.some(
+    (f) => f.fact_key === "vat_place_of_use"
   );
   const isVatMatter =
     priorLedger.material_facts.some(
       (f) => f.fact_key === "vat_transaction_type" || f.fact_key === "vat_registrant_status"
     ) ||
     priorLedger.user_turns.some((t) => /ภาษีมูลค่าเพิ่ม|\bVAT\b/i.test(t.raw_text));
-  return isVatMatter && vatEvents.length > 0;
+  return isVatMatter && (vatEvents.length > 0 || hasVatPlaceOfUse);
 }
 
 const FACT_DELTA_SYSTEM_INSTRUCTION = `You are REG24's deterministic Fact-Delta Extractor for Thai/English/mixed VAT follow-up turns.
@@ -488,6 +539,7 @@ STRICT RULES:
    - "shift_date": Use when moving events from from_date to to_date. Example: "เหตุการณ์ทั้งหมดที่เดิมเกิดขึ้นเมื่อวันที่ 1 ตุลาคม 2569 ให้เปลี่ยนเป็นเกิดขึ้นเมื่อวันที่ 2 ตุลาคม 2569 แทน" -> op="shift_date", event_type="NONE", lots=[], lots_mode="only", from_date="2026-10-01", to_date="2026-10-02", unchanged_scope="all_other_facts".
    - "remove_event": Use when a turn states an earlier event did NOT happen or is cancelled.
    - "set_amount": Use ONLY when the user explicitly changes the baht price/value of a lot or the total transaction. Do NOT emit set_amount when the user merely restates an existing lot's unchanged value (e.g. "เฉพาะล็อต C มูลค่า 10,000 บาท").
+   - "set_service_use_location": Use when the user changes WHERE a service is used (e.g., overseas -> Thailand domestic, Thailand -> entirely abroad, mixed/partial use in Thailand and abroad, or unknown). Set service_use_location to "THAILAND_DOMESTIC", "ENTIRELY_ABROAD", "MIXED_PARTIAL", or "UNKNOWN", event_type="NONE", lots=[], lots_mode="only", and leave unchanged tax dates untouched. Never infer domestic/overseas from the customer's address alone when the user specifies where the service is actually used.
 6. No-op follow-ups: If NEW_USER_TURN_TEXT only asks to summarize, repeat, or explain without changing any fact (e.g. "สรุปให้อีกครั้ง"), emit is_correction=false, confidence="high", changes=[], unchanged_scope="all_other_facts".`;
 
 export function buildFactDeltaUserPrompt(
@@ -523,9 +575,16 @@ export function buildFactDeltaUserPrompt(
       .map((e) => ({ event_type: e.event_type, iso_date: e.iso_date }));
   }
 
+  const priorPlaceOfUse =
+    priorLedger.material_facts.find((f) => f.fact_key === "vat_place_of_use")
+      ?.normalized_category || "UNSPECIFIED";
+
   return [
     "DECLARED_GOODS_LOTS:",
     JSON.stringify(declaredLots, null, 2),
+    "",
+    "PRIOR_SERVICE_USE_LOCATION:",
+    priorPlaceOfUse,
     "",
     "PRIOR_LEDGER_EVENTS:",
     JSON.stringify(activeEvents, null, 2),

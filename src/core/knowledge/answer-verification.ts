@@ -282,23 +282,53 @@ function extractMaterialQuantitativeTokens(normText: string): Array<{
   kind: "rate" | "unit" | "money";
   val: string;
   unitTh: string;
+  role: "operative" | "negated_comparison";
 }> {
-  const out: Array<{ kind: "rate" | "unit" | "money"; val: string; unitTh: string }> = [];
+  const out: Array<{
+    kind: "rate" | "unit" | "money";
+    val: string;
+    unitTh: string;
+    role: "operative" | "negated_comparison";
+  }> = [];
   const seen = new Set<string>();
-  const add = (kind: "rate" | "unit" | "money", val: string, unitTh: string) => {
-    const key = `${kind}:${val}:${unitTh}`;
+  const add = (
+    kind: "rate" | "unit" | "money",
+    val: string,
+    unitTh: string,
+    role: "operative" | "negated_comparison" = "operative"
+  ) => {
+    const key = `${kind}:${val}:${unitTh}:${role}`;
     if (!seen.has(key)) {
       seen.add(key);
-      out.push({ kind, val, unitTh });
+      out.push({ kind, val, unitTh, role });
     }
+  };
+
+  // Detect explicit negated/rejected alternative rate comparisons (e.g. "ไม่ใช่ร้อยละ 7", "not 7%",
+  // "instead of 7%", "แทนที่จะเสียร้อยละ 7") so a supported operative rate (e.g. 0% under §80/1(2))
+  // is not withheld merely for contrasting an inapplicable rate, while ALL operative rates & derived
+  // monetary amounts remain strictly grounded.
+  const isNegatedComparisonRatePrefix = (matchIndex: number | undefined): boolean => {
+    if (matchIndex === undefined) return false;
+    const prefix = normText.slice(Math.max(0, matchIndex - 52), matchIndex);
+    return (
+      /(?:ไม่ใช่|มิใช่|ไม่ได้เสีย|ไม่ต้องเสีย|ไม่เสีย|ไม่เก็บ|ไม่ถูก(?:จัด)?เก็บ|ไม่ได้อยู่(?:ในบังคับ)?|ไม่อยู่(?:ในบังคับ)?|ไม่ได้ใช้|ไม่ใช้|ไม่เข้าเกณฑ์|ไม่เข้าเงื่อนไข|ไม่เข้าลักษณะ|ไม่เข้าข่าย|ไม่ได้รับสิทธิ|ไม่ได้สิทธิ|แทนที่จะเสีย|แทนที่จะใช้|แทนอัตรา|แทนการเสีย|ต่างจาก(?:อัตรา)?|มิได้เสีย|มิได้เก็บ)[^,.;()]{0,36}$/.test(
+        prefix
+      ) ||
+      /\b(?:not|instead\s+of|rather\s+than|unlike|as\s+opposed\s+to|no\s+longer\s+at|does\s+not\s+qualify\s+for|not\s+eligible\s+for|ineligible\s+for)\s+(?:the\s+)?(?:standard\s+|normal\s+|domestic\s+|ordinary\s+|regular\s+|zero[- ]rated\s+)?(?:(?:vat|tax|ภาษีมูลค่าเพิ่ม)\s+)?(?:rate\s+of\s+|at\s+)?$/i.test(
+        prefix
+      )
+    );
   };
 
   // 1. Tax rates & percentages (`ร้อยละ 0`, `ร้อยละ 20`, `7%`, `15 percent`)
   for (const m of normText.matchAll(/(?:ร้อยละ|อัตรา(?:ภาษี)?(?:ร้อยละ)?)\s*([0-9]+(?:\.[0-9]+)?)/g)) {
-    add("rate", m[1], "%");
+    const role = isNegatedComparisonRatePrefix(m.index) ? "negated_comparison" : "operative";
+    add("rate", m[1], "%", role);
   }
   for (const m of normText.matchAll(/\b([0-9]+(?:\.[0-9]+)?)\s*(?:%|เปอร์เซ็นต์|percent)\b/g)) {
-    add("rate", m[1], "%");
+    const role = isNegatedComparisonRatePrefix(m.index) ? "negated_comparison" : "operative";
+    add("rate", m[1], "%", role);
   }
 
   // 2. Deadlines, durations, promoter/person counts, multipliers, and monetary caps
@@ -976,7 +1006,24 @@ export function evaluateSubstantiveClaimSupport(params: {
     claimSections.length > 0 ||
     claimInstruments.length > 0 ||
     claimRulings.length > 0 ||
-    claimQuantities.some((qt) => isQuantityGroundedInPassage(qt));
+    claimQuantities.some((qt) => qt.role === "operative" && isQuantityGroundedInPassage(qt));
+
+  // Track operative rates that are strictly grounded in the cited passages or verified calculation
+  // so negated alternative comparisons (e.g. "0% (not 7%)") are only permitted alongside a grounded operative rate!
+  const groundedOperativeRates = new Set<string>();
+  for (const qTok of claimQuantities) {
+    if (qTok.kind !== "rate" || qTok.role !== "operative") continue;
+    const rawQVal = qTok.val.replace(/,/g, "");
+    const numericCanonicalQVal = Number.isFinite(Number(rawQVal)) ? String(Number(rawQVal)) : rawQVal;
+    const groundedInPassage = isQuantityGroundedInPassage(qTok);
+    const groundedViaVerifiedCalc =
+      verifiedCalcSet.size > 0 &&
+      passageDirectlyGroundsAtLeastOneStatuteOrNumber &&
+      (verifiedCalcSet.has(rawQVal) || verifiedCalcSet.has(numericCanonicalQVal));
+    if (groundedInPassage || groundedViaVerifiedCalc) {
+      groundedOperativeRates.add(numericCanonicalQVal);
+    }
+  }
 
   for (const qTok of claimQuantities) {
     const groundedInPassage = isQuantityGroundedInPassage(qTok);
@@ -986,6 +1033,19 @@ export function evaluateSubstantiveClaimSupport(params: {
       verifiedCalcSet.size > 0 &&
       passageDirectlyGroundsAtLeastOneStatuteOrNumber &&
       (verifiedCalcSet.has(rawQVal) || verifiedCalcSet.has(numericCanonicalQVal));
+
+    // A negated alternative rate comparison (e.g. "0% (ไม่ใช่ร้อยละ 7)" / "0% (not 7%)") MUST NOT be
+    // treated as an operative rate being charged when an operative rate IS strictly grounded in the claim.
+    if (
+      !groundedInPassage &&
+      !groundedViaVerifiedCalc &&
+      qTok.kind === "rate" &&
+      qTok.role === "negated_comparison" &&
+      groundedOperativeRates.size > 0 &&
+      !groundedOperativeRates.has(numericCanonicalQVal)
+    ) {
+      continue;
+    }
 
     if (!groundedInPassage && !groundedViaVerifiedCalc) {
       return {
@@ -1064,7 +1124,12 @@ export function evaluateSubstantiveClaimSupport(params: {
       (srcGroup.docId === "work.th.rd.gk_0702_3889_2022_0d0a6d5b" &&
         (/0702\/3889/.test(normClaim) || (/สินสมรส/.test(normClaim) && /42\s*\(26\)/.test(normClaim)))) ||
       (srcGroup.docId === "subreg.th.rc.royal_decree.646" &&
-        (claimInstruments.includes("พรฎ.646") || /646/.test(normClaim)));
+        (claimInstruments.includes("พรฎ.646") || /646/.test(normClaim))) ||
+      (/^subreg\.th\.rd\.dg_vat\.([0-9]+)$/.test(srcGroup.docId) &&
+        new RegExp(
+          `(?:ประกาศอธิบดี|อธิบดี|ภาษีมูลค่าเพิ่ม)[^\\n]{0,70}(?:ฉบับที่\\s*|no\\.?\\s*)${srcGroup.docId.split(".").pop()}(?![0-9])`,
+          "i"
+        ).test(normClaimWithHeader));
     const groundsExplicitClaimIdentifier =
       docIdGroundsClaimSection ||
       docIdGroundsInstrumentOrSchedule ||

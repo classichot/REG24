@@ -321,6 +321,7 @@ export function buildGroundedPassagePack(params: {
   maxPassages?: number;
   explicitWorkIds?: Set<string>;
   historicalContextWorkIds?: Set<string>;
+  nonGoverningContrastWorkIds?: Set<string>;
   splitPaymentTaxPointDates?: string[];
 }): GroundedPassagePackItem[] {
   const maxPassages = params.maxPassages ?? 28;
@@ -436,10 +437,14 @@ export function buildGroundedPassagePack(params: {
     // `historicalContextWorkIds` to override an earlier portion's active `governing` authority!
     const isHistoricalOnlyForAllTaxPoints =
       Boolean(params.historicalContextWorkIds?.has(p.work_id)) && !isInWindowForAnyTaxPoint;
+    const isExplicitNonGoverningContrast = Boolean(
+      params.nonGoverningContrastWorkIds?.has(p.work_id)
+    );
     const isSupersededOrHistory =
       isConsolidatedHistoricalVatExcluded ||
       temporalHint === "OUT_OF_WINDOW" ||
       isHistoricalOnlyForAllTaxPoints ||
+      isExplicitNonGoverningContrast ||
       (supersededOrAmendedHistoricalWorkIds.has(p.work_id) && !isInWindowForAnyTaxPoint);
 
     let evidenceRole: GroundedEvidenceRole;

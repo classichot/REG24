@@ -824,7 +824,25 @@ function extractDatesWithEventKinds(
         }
       }
 
-      if (/(?:ใช้บริการ|เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|used\s+the\s+service)/i.test(verbCheckClause)) {
+      // Require positive evidence tying THIS date to a service-use event — NEVER fabricate a `SERVICE_USE`
+      // date from an undated place-of-use clause (e.g. "ซึ่งใช้บริการทั้งหมดในประเทศไทย โดยออกใบกำกับภาษีและได้รับชำระค่าบริการเมื่อวันที่ 30 กันยายน 2569").
+      const serviceUseCheckClause = verbCheckClause
+        .replace(
+          /(?:ซึ่ง|โดย|ที่|และ)?\s*(?:ลูกค้า|ผู้รับบริการ|ผู้ว่าจ้าง|บริษัท)?\s*(?:ได้)?(?:มีการ)?ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|บางส่วน|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ประเทศไทย|ราชอาณาจักร|ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|กรุงเทพ(?:มหานคร)?)|นอกราชอาณาจักร)(?:\s*(?:ทั้งหมด|เพียงอย่างเดียว|บางส่วน))?(?!\s*(?:เมื่อ|ใน|ตั้งแต่)?วันที่)/gi,
+          " "
+        )
+        .replace(
+          /\b(?:which\s+is\s+|that\s+is\s+)?(?:service\s+is\s+)?used\s+(?:entirely\s+|wholly\s+|exclusively\s+|partly\s+|partially\s+)?(?:in\s+thailand|abroad|overseas|outside\s+thailand|in\s+[a-z]+)(?!\s+on\b)/gi,
+          " "
+        );
+      const hasExplicitDatedServiceUseVerb =
+        /(?:เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|ใช้บริการ(?:จริง|ครั้งแรก)?\s*(?:เมื่อ|ใน|ตั้งแต่)?\s*วันที่|began\s+using\s+the\s+service|started\s+using\s+the\s+service|service\s+(?:was\s+)?(?:used|performed|completed)\s+on)/i.test(
+          serviceUseCheckClause
+        ) ||
+        (!isPaymentVerb &&
+          !isInvoiceIssuance &&
+          /(?:ใช้บริการ|used\s+the\s+service)/i.test(serviceUseCheckClause));
+      if (hasExplicitDatedServiceUseVerb) {
         matchedKinds.push("SERVICE_USE");
       }
       if (/รอบระยะเวลาบัญชี|รอบบัญชี/.test(ctx)) {
@@ -1524,8 +1542,55 @@ export function buildStructuredCaseFactLedger(input: {
       });
     }
 
-    if (/(?:ใช้บริการ(?:นั้น)?(?:ทั้งหมด)?ในประเทศไทย|ใช้ที่สาขากรุงเทพฯ|ใช้ในประเทศไทย|ใช้บริการทั้งหมดในราชอาณาจักร|ลูกค้าในกรุงเทพมหานคร|ลูกค้าในประเทศไทย)/.test(norm)) {
-      const m = norm.match(/(ใช้ที่สาขากรุงเทพฯ[^\n,.?]{0,30}|ใช้บริการ(?:นั้น)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย))/);
+    // Service place-of-use extraction (4-state: UNKNOWN, MIXED_PARTIAL, THAILAND_DOMESTIC, ENTIRELY_ABROAD).
+    // Strictly derives from where the service is USED (never silently collapsing mixed/unknown use and never
+    // routing from a foreign customer's address when domestic use in Thailand is stated!).
+    const hasUnknownServiceUseCue =
+      /(?:ไม่ทราบว่า[^\n.?]{0,50}(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|ซอฟต์แวร์|งาน)[^\n.?]{0,30}ใช้)[^\n.?]{0,40}(?:ที่ใด|ในประเทศไทยหรือ|ในไทยหรือ|หรือไม่)|ยังไม่ทราบ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:บริการ|งาน)|ไม่ระบุ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:บริการ|งาน)|unknown\s+where\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used|unclear\s+whether\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used\s+in\s+thailand)/i.test(
+        norm
+      );
+    const hasMixedOrPartialServiceUseCue =
+      /(?:(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?(?:กลับ)?มา(?:ให้[^\n.?]{0,25})?ใช้(?:งาน)?)[^\n.?]{0,55}(?:บางส่วน(?:ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย))?|ทั้งใน(?:ประเทศไทย|ไทย|ราชอาณาจักร)\s*และ(?:บางส่วน)?(?:ใน)?(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐ)|ร่วมกันทั้ง(?:สาขา|สำนักงาน)?ใน(?:ประเทศไทย|ไทย)\s*และ(?:ใน)?(?:ต่างประเทศ|ประเทศ[ก-๙]+))|(?:partly|partially)\s+used\s+in\s+thailand|used\s+(?:partly|partially)\s+in\s+thailand|used\s+both\s+in\s+thailand\s+and\s+(?:abroad|overseas|outside\s+thailand))/i.test(
+        norm
+      );
+    const normWithoutNegatedDomesticUse = norm
+      .replace(/(?:ไม่(?:มี|ได้)?การ?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย)(?:\s*เลย)?|no\s+use\s+in\s+thailand|not\s+used\s+in\s+thailand)/gi, " ")
+      .replace(/(?:ไม่(?:มี|ได้)?นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?มาใช้(?:งาน)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย))/gi, " ");
+    const hasDomesticServiceUseCue =
+      /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|กรุงเทพ(?:มหานคร)?)|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?(?:กลับ)?มาใช้(?:งาน)?(?:ทั้งหมด)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|กรุงเทพ(?:มหานคร)?)|ใช้(?:งาน)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ใช้ที่สาขากรุงเทพฯ|\bused\s+(?:entirely\s+|wholly\s+|exclusively\s+)?in\s+thailand\b|\bservice\s+(?:is|was)\s+used\s+in\s+thailand\b|\bdomestic\s+use\s+in\s+thailand\b)/i.test(
+        normWithoutNegatedDomesticUse
+      ) ||
+      (/(?:ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย)|ให้บริการ[^\n.?]{0,40}ในประเทศไทย)/.test(
+        normWithoutNegatedDomesticUse
+      ) &&
+        !/(?:ต่างประเทศ|นอกราชอาณาจักร|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|abroad|overseas|foreign)/i.test(
+          normWithoutNegatedDomesticUse
+        ));
+    const hasOverseasServiceUseCue =
+      /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ต่างประเทศ|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|ฝรั่งเศส|เกาหลีใต้|จีน|ไต้หวัน|อินเดีย)|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|นอกราชอาณาจักร)|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?ไปใช้(?:งาน)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+)|นอกราชอาณาจักร)|ใช้(?:งาน)?(?:ทั้งหมด)?ในต่างประเทศ|ใช้ในต่างประเทศทั้งหมด|\bused\s+(?:entirely|wholly|exclusively)\s+(?:abroad|overseas|outside\s+thailand|in\s+(?:singapore|japan|hong\s+kong|usa|united\s+states|europe|uk|australia))\b)/i.test(
+        norm
+      );
+
+    if (hasUnknownServiceUseCue) {
+      upsertFact(factsMap, overrides, {
+        fact_key: "vat_place_of_use",
+        label_th: "สถานที่ที่มีการใช้บริการ",
+        original_text_th: "ยังไม่ทราบสถานที่ที่มีการใช้บริการ (ต้องยืนยันว่าใช้ในประเทศไทยหรือต่างประเทศ)",
+        normalized_category: "SERVICE_USE_LOCATION_UNKNOWN",
+        source_turn: turnNumber,
+      });
+    } else if (hasMixedOrPartialServiceUseCue) {
+      upsertFact(factsMap, overrides, {
+        fact_key: "vat_place_of_use",
+        label_th: "สถานที่ที่มีการใช้บริการ",
+        original_text_th: "มีการใช้บริการบางส่วนในประเทศไทยและบางส่วนในต่างประเทศ (Mixed/Partial Use)",
+        normalized_category: "SERVICE_USED_MIXED_THAILAND_AND_ABROAD",
+        source_turn: turnNumber,
+      });
+    } else if (hasDomesticServiceUseCue) {
+      const m = normWithoutNegatedDomesticUse.match(
+        /(ใช้ที่สาขากรุงเทพฯ[^\n,.?]{0,30}|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?(?:กลับ)?มาใช้(?:งาน)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|used\s+(?:entirely\s+|wholly\s+)?in\s+thailand|ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย))/i
+      );
       upsertFact(factsMap, overrides, {
         fact_key: "vat_place_of_use",
         label_th: "สถานที่ที่มีการใช้บริการ",
@@ -1533,8 +1598,10 @@ export function buildStructuredCaseFactLedger(input: {
         normalized_category: "SERVICE_USED_IN_THAILAND_DOMESTIC",
         source_turn: turnNumber,
       });
-    } else if (/(?:ใช้บริการ(?:นั้น)?(?:ทั้งหมด)?(?:ที่สำนักงาน)?ใน(?:ต่างประเทศ|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|ใช้ในต่างประเทศทั้งหมด)/.test(norm)) {
-      const m = norm.match(/(ใช้บริการ(?:นั้น)?(?:ทั้งหมด)?(?:ที่สำนักงาน)?ใน[^\n,.?]{0,30}|ใช้ในต่างประเทศทั้งหมด)/);
+    } else if (hasOverseasServiceUseCue) {
+      const m = norm.match(
+        /(ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|นอกราชอาณาจักร)|นำ(?:ผล(?:ของ)?บริการ)?ไปใช้(?:งาน)?(?:ทั้งหมด)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+)|นอกราชอาณาจักร)|ใช้ในต่างประเทศทั้งหมด|used\s+(?:entirely|wholly|exclusively)\s+(?:abroad|overseas|outside\s+thailand))/i
+      );
       upsertFact(factsMap, overrides, {
         fact_key: "vat_place_of_use",
         label_th: "สถานที่ที่มีการใช้บริการ",
@@ -1653,6 +1720,42 @@ export function buildStructuredCaseFactLedger(input: {
       declaredLots: activeDeclaredLots,
       nonOccurringOut: nonOccurringEvents,
     });
+    // On a follow-up correction turn that replaces targeted PAYMENT/INVOICE event date(s) without repeating
+    // the old date (e.g. "ขอแก้ไขข้อเท็จจริงว่า การออกใบกำกับภาษีและการได้รับชำระค่าบริการเปลี่ยนเป็นวันที่ 1 ตุลาคม 2569 แทน"),
+    // replace ONLY those targeted prior event types on a single-event non-lot/non-installment transaction,
+    // preserving genuinely dated earlier SERVICE_USE events and unrelated installments!
+    const isSingleTurnTargetedEventReplacement =
+      turnNumber >= 2 &&
+      !appliedDateShiftThisTurn &&
+      activeDeclaredLots.length < 2 &&
+      turnDates.length > 0 &&
+      /(?:ขอแก้|แก้ไข|เปลี่ยนเป็น|เลื่อนเป็น|แทน(?:ที่)?|correction|instead|changed\s+to|moved\s+to)/i.test(
+        thaiDigitsToArabic(cleaned)
+      );
+    if (isSingleTurnTargetedEventReplacement) {
+      const replacedTypes = new Set(
+        turnDates
+          .filter((e) => e.event_type === "PAYMENT" || e.event_type === "INVOICE")
+          .map((e) => e.event_type)
+      );
+      if (replacedTypes.size > 0) {
+        const distinctPriorPayDates = new Set(
+          allTemporalEvents
+            .filter((e) => e.event_type === "PAYMENT" && e.source_turn < turnNumber)
+            .map((e) => e.iso_date)
+        );
+        // Only auto-replace when not a multi-installment schedule (preserving unrelated installments!)
+        if (distinctPriorPayDates.size <= 1) {
+          for (let ei = allTemporalEvents.length - 1; ei >= 0; ei--) {
+            const prevEv = allTemporalEvents[ei];
+            if (prevEv.source_turn < turnNumber && replacedTypes.has(prevEv.event_type)) {
+              allTemporalEvents.splice(ei, 1);
+            }
+          }
+          latestTurnWasDateShiftOverride = true;
+        }
+      }
+    }
     allTemporalEvents.push(...turnDates);
 
     // 8. Explicitly stated unknown facts
@@ -3026,7 +3129,7 @@ export function computeLedgerStateHash(ledger: StructuredCaseFactLedger): string
     : null;
 
   const valueFacts = ledger.material_facts
-    .filter((f) => /_thb$/i.test(f.fact_key))
+    .filter((f) => /_thb$/i.test(f.fact_key) || f.fact_key === "vat_place_of_use")
     .map((f) => ({ k: f.fact_key, c: f.normalized_category }))
     .sort((a, b) => a.k.localeCompare(b.k));
 
@@ -3262,10 +3365,20 @@ export function applyFactDelta(
       const effectiveLots = targetLots.length > 0 ? targetLots : [...allDeclaredIds];
 
       // If `from_date` is set and differs from `targetDate`, detach `effectiveLots` from `from_date` first.
-      if (ch.from_date && ch.from_date !== targetDate) {
+      // For non-lot single-transaction updates where `from_date` is omitted (null), replace the prior single
+      // event of the same `event_type` (preserving genuinely dated earlier SERVICE_USE and unrelated installments!).
+      const shouldReplacePriorSingleNonLotEvent =
+        !ch.from_date &&
+        allDeclaredIds.length === 0 &&
+        !priorLedger.temporal_facts.controlling_tax_point.is_split_payment_multi_tax_point &&
+        workingEvents.filter((ev) => ev.event_type === ch.event_type && ev.iso_date !== targetDate).length === 1;
+      if ((ch.from_date && ch.from_date !== targetDate) || shouldReplacePriorSingleNonLotEvent) {
         const strippedFrom: PreservedTemporalEvent[] = [];
         for (const ev of workingEvents) {
-          if (ev.event_type === ch.event_type && ev.iso_date === ch.from_date) {
+          const matchesFrom = ch.from_date
+            ? ev.event_type === ch.event_type && ev.iso_date === ch.from_date
+            : ev.event_type === ch.event_type && ev.iso_date !== targetDate;
+          if (matchesFrom) {
             const baseLots =
               ev.covered_lot_ids && ev.covered_lot_ids.length > 0
                 ? ev.covered_lot_ids
@@ -3504,6 +3617,56 @@ export function applyFactDelta(
           to_turn: nextTurnNumber,
         });
       }
+    } else if (ch.op === "set_service_use_location" && ch.service_use_location) {
+      const locCategoryMap: Record<
+        NonNullable<typeof ch.service_use_location>,
+        { category: string; textTh: string }
+      > = {
+        THAILAND_DOMESTIC: {
+          category: "SERVICE_USED_IN_THAILAND_DOMESTIC",
+          textTh: "ใช้บริการในประเทศไทย (แก้ไขข้อเท็จจริงสถานที่ใช้งาน)",
+        },
+        ENTIRELY_ABROAD: {
+          category: "SERVICE_USED_ENTIRELY_ABROAD_EXPORT",
+          textTh: "ใช้บริการทั้งหมดในต่างประเทศ (แก้ไขข้อเท็จจริงสถานที่ใช้งาน)",
+        },
+        MIXED_PARTIAL: {
+          category: "SERVICE_USED_MIXED_THAILAND_AND_ABROAD",
+          textTh: "ใช้บริการบางส่วนในประเทศไทยและบางส่วนในต่างประเทศ (Mixed/Partial Use)",
+        },
+        UNKNOWN: {
+          category: "SERVICE_USE_LOCATION_UNKNOWN",
+          textTh: "ยังไม่ทราบสถานที่ที่มีการใช้บริการ",
+        },
+      };
+      const mapped = locCategoryMap[ch.service_use_location];
+      const existingLocFact = clonedMaterialFacts.find((f) => f.fact_key === "vat_place_of_use");
+      const prevText = existingLocFact?.original_text_th || "ไม่ระบุ";
+      if (existingLocFact) {
+        existingLocFact.overridden_from = {
+          previous_text_th: existingLocFact.original_text_th,
+          previous_category: existingLocFact.normalized_category,
+          previous_turn: existingLocFact.source_turn,
+        };
+        existingLocFact.original_text_th = ch.source_span || mapped.textTh;
+        existingLocFact.normalized_category = mapped.category;
+        existingLocFact.source_turn = nextTurnNumber;
+      } else {
+        clonedMaterialFacts.push({
+          fact_key: "vat_place_of_use",
+          label_th: "สถานที่ที่มีการใช้บริการ",
+          original_text_th: ch.source_span || mapped.textTh,
+          normalized_category: mapped.category,
+          source_turn: nextTurnNumber,
+        });
+      }
+      clonedOverrides.push({
+        fact_key: "fact_delta:set_service_use_location",
+        from_text_th: prevText,
+        from_turn: Math.max(1, nextTurnNumber - 1),
+        to_text_th: `${mapped.category} (${ch.source_span || mapped.textTh})`,
+        to_turn: nextTurnNumber,
+      });
     }
   }
 
