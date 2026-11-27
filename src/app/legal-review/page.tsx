@@ -103,6 +103,8 @@ export default function LegalTeamReviewStudioPage() {
   const [attTitleTh, setAttTitleTh] = useState<string>("");
   const [attOriginUrl, setAttOriginUrl] = useState<string>("");
   const [attGazetteRef, setAttGazetteRef] = useState<string>("");
+  const [attEnactmentDate, setAttEnactmentDate] = useState<string>("");
+  const [attPublicationDate, setAttPublicationDate] = useState<string>("");
   const [attEffectiveFrom, setAttEffectiveFrom] = useState<string>("");
   const [attSectionLabel, setAttSectionLabel] = useState<string>("");
   const [attPageNum, setAttPageNum] = useState<string>("1");
@@ -627,8 +629,9 @@ export default function LegalTeamReviewStudioPage() {
           original_title_th: attTitleTh,
           official_origin_url: attOriginUrl || null,
           royal_gazette_ref: attGazetteRef || null,
+          enactment_date: attEnactmentDate || null,
+          publication_date: attPublicationDate || null,
           effective_from: attEffectiveFrom || null,
-          publication_date: attEffectiveFrom || null,
           section_label: attSectionLabel || null,
           physical_page_one_based: attPageNum ? Number(attPageNum) : 1,
           attachment_text: attText,
@@ -1601,6 +1604,30 @@ export default function LegalTeamReviewStudioPage() {
                       value={attOriginUrl}
                       onChange={(e) => setAttOriginUrl(e.target.value)}
                       placeholder="URL ต้นฉบับทางการ (ratchakitcha.soc.go.th / rd.go.th)"
+                      style={{
+                        background: "#111827",
+                        color: "#f3f4f6",
+                        border: "1px solid #374151",
+                        padding: "6px 8px",
+                        fontSize: "12px",
+                      }}
+                    />
+                    <input
+                      value={attEnactmentDate}
+                      onChange={(e) => setAttEnactmentDate(e.target.value)}
+                      placeholder="วันที่ให้ไว้/ลงนาม (YYYY-MM-DD)"
+                      style={{
+                        background: "#111827",
+                        color: "#f3f4f6",
+                        border: "1px solid #374151",
+                        padding: "6px 8px",
+                        fontSize: "12px",
+                      }}
+                    />
+                    <input
+                      value={attPublicationDate}
+                      onChange={(e) => setAttPublicationDate(e.target.value)}
+                      placeholder="วันที่ประกาศราชกิจจาฯ (YYYY-MM-DD)"
                       style={{
                         background: "#111827",
                         color: "#f3f4f6",

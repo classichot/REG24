@@ -626,7 +626,7 @@ cases:
 
   - id: "ISO-X-ATTACHMENT"
     category: "c10_regression"
-    source: "C11 06 (DEF-C10-5 SF-C11-5A ISO-X r1/r2)"
+    source: "C11 06 (DEF-C10-5 SF-C11-5A ISO-X r1/r2) — verified against official RD 807 PDF (dc807.pdf#page=1)"
     turns:
       - turn_id: "r1_attach"
         turn_mode: "fresh"
@@ -635,16 +635,20 @@ cases:
           source_native_id: "พระราชกฤษฎีกา (ฉบับที่ 807) พ.ศ. 2569 มาตรา 1-2 (C12 ISO-X Attachment)"
           original_title_th: "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569"
           official_origin_url: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc807.pdf"
+          official_artifact_sha256: "a4e0c55a2324397af4079317d2a5138fa075fcd87eb9348771742ed7ad6dab70"
+          royal_gazette_ref: "ราชกิจจานุเบกษา เล่ม ๑๔๓ ตอนที่ ๕๐ ก หน้า ๒๐–๒๒ วันที่ ๒๓ สิงหาคม ๒๕๖๙"
           issuer_id: "reg.th.rd"
-          publication_date: "2026-08-20"
+          enactment_date: "2026-08-20"
+          publication_date: "2026-08-23"
           effective_from: "2026-10-01"
           section_label: "มาตรา ๑"
           physical_page_one_based: 1
-          verbatim_text: "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ ๘๐๗) พ.ศ. ๒๕๖๙ ให้ไว้ ณ วันที่ ๑๗ สิงหาคม พ.ศ. ๒๕๖๙ มาตรา ๑ พระราชกฤษฎีกานี้เรียกว่า \"พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ ๘๐๗) พ.ศ. ๒๕๖๙\" มาตรา ๒ พระราชกฤษฎีกานี้ให้ใช้บังคับตั้งแต่วันที่ ๑ ตุลาคม พ.ศ. ๒๕๖๙ เป็นต้นไป"
+          printed_page_label: "หน้า ๒๐"
+          verbatim_text: "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ ๘๐๗) พ.ศ. ๒๕๖๙ ให้ไว้ ณ วันที่ ๒๐ สิงหาคม พ.ศ. ๒๕๖๙ เป็นปีที่ ๑๑ ในรัชกาลปัจจุบัน มาตรา ๑ พระราชกฤษฎีกานี้เรียกว่า “พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ ๘๐๗) พ.ศ. ๒๕๖๙” มาตรา ๒ พระราชกฤษฎีกานี้ให้ใช้บังคับตั้งแต่วันที่ ๑ ตุลาคม พ.ศ. ๒๕๖๙ เป็นต้นไป"
         expected:
           status_in: ["ANSWERED", "CONDITIONAL"]
           min_claims: 1
-          must_contain_regex: ["807", "17 สิงหาคม"]
+          must_contain_regex: ["807", "20 สิงหาคม|๒๐ สิงหาคม"]
       - turn_id: "r2_attach_followup"
         turn_mode: "same"
         prompt: "ขอตรวจสอบเพิ่มเติมจากเอกสารแนบเดิมว่า ตามมาตรา ๒ พระราชกฤษฎีกาฉบับนี้ให้ใช้บังคับตั้งแต่วันที่ใด"

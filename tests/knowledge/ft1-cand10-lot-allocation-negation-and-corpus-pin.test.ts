@@ -678,6 +678,20 @@ describe("Formal Test 1 Candidate 10 — Lot-Aware VAT Allocation, Negated Bound
       printed_page_label: "๓",
       attachment_bytes_or_text:
         "ราชกิจจานุเบกษา เล่ม 140 ตอนที่ 77 ก พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการยกเว้นรัษฎากร (ฉบับที่ 779) พ.ศ. 2566 มาตรา 4 ให้ยกเว้นภาษีเงินได้สำหรับเงินบริจาคให้แก่สถานศึกษาผ่านระบบอิเล็กทรอนิกส์",
+      trusted_publisher_copy: {
+        official_url: "https://ratchakitcha.soc.go.th/documents/rd-779-2566.pdf",
+        publication_date: "2023-12-27",
+        effective_from: "2024-01-01",
+        effective_to: "2026-12-31",
+        pages: [
+          {
+            physical_page_one_based: 3,
+            printed_page_label: "๓",
+            page_text_verbatim:
+              "ราชกิจจานุเบกษา เล่ม 140 ตอนที่ 77 ก พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการยกเว้นรัษฎากร (ฉบับที่ 779) พ.ศ. 2566 มาตรา 4 ให้ยกเว้นภาษีเงินได้สำหรับเงินบริจาคให้แก่สถานศึกษาผ่านระบบอิเล็กทรอนิกส์",
+          },
+        ],
+      },
       actor: TEST_ACTOR_A,
     });
 

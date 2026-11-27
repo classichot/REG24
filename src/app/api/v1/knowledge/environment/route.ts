@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sha256Bytes } from "../../../../../core/knowledge/identity";
 import {
   computeBatchTraceabilityInventoryCounts,
   hydratePostgresSourcesIntoStore,
@@ -60,6 +61,40 @@ export async function GET(req: Request) {
       ? runTokenizerParityProbe(store, activeReleaseId)
       : undefined;
     const dbActive = Boolean(resolveActiveCitationDbTransport());
+    const dbIsolationMeta = (() => {
+      const rawUrl = (
+        process.env.DATABASE_URL ||
+        process.env.POSTGRES_URL ||
+        process.env.NEON_DATABASE_URL ||
+        ""
+      ).trim();
+      if (!rawUrl) {
+        return {
+          configured: false,
+          endpoint_host: null,
+          database_name: null,
+          endpoint_fingerprint_sha256: null,
+        };
+      }
+      try {
+        const parsed = new URL(rawUrl);
+        const endpointHost = parsed.hostname.toLowerCase();
+        const dbName = parsed.pathname.replace(/^\/+/, "") || "neondb";
+        return {
+          configured: true,
+          endpoint_host: endpointHost,
+          database_name: dbName,
+          endpoint_fingerprint_sha256: sha256Bytes(`${endpointHost}/${dbName}`),
+        };
+      } catch {
+        return {
+          configured: true,
+          endpoint_host: null,
+          database_name: null,
+          endpoint_fingerprint_sha256: null,
+        };
+      }
+    })();
     const groundedEnabled = isDefaultGroundedLlmStagingEnabled();
     const authenticatedReviewer = await inspectAuthenticatedReviewerReadOnly(req);
     const llmConfig = resolveConfiguredProviderAndModel();
@@ -105,6 +140,7 @@ export async function GET(req: Request) {
           invite_only_trial_gate_enabled: process.env.REG24_TRIAL_INVITE_ONLY === "1",
           shared_neon_postgres_connected: dbActive,
           neon_project_id_configured: Boolean(process.env.NEON_PROJECT_ID),
+          database_isolation: dbIsolationMeta,
           pinned_release_enforced: Boolean(pinnedEnvRelease || state.active_release_id),
         },
         data_version: {

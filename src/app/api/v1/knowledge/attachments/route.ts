@@ -9,7 +9,9 @@ import {
   knowledgeApiErrorResponse,
   resolveServerActor,
 } from "../../../../../core/knowledge/http-auth";
-import { onboardVerifiedOfficialAttachment } from "../../../../../core/knowledge/source-onboarding";
+import {
+  onboardVerifiedOfficialAttachmentAsync,
+} from "../../../../../core/knowledge/source-onboarding";
 import { isStrictSingleReleasePreviewMode } from "../../../../../core/knowledge/projections";
 import { getDefaultKnowledgeStore } from "../../../../../core/knowledge/store";
 import { enforceTrialAccessAndRateLimit } from "../../../../../core/knowledge/trial-gate";
@@ -26,12 +28,14 @@ export async function POST(req: Request) {
       original_title_th?: string;
       official_origin_url?: string | null;
       royal_gazette_ref?: string | null;
+      enactment_date?: string | null;
       publication_date?: string | null;
       effective_from?: string | null;
       effective_to?: string | null;
       applicability_rule_th?: string | null;
       mime_type?: string;
       attachment_text?: string;
+      expected_artifact_sha256?: string | null;
       section_label?: string | null;
       paragraph_label?: string | null;
       physical_page_one_based?: number | null;
@@ -71,7 +75,7 @@ export async function POST(req: Request) {
         );
       }
     }
-    const onboarded = onboardVerifiedOfficialAttachment(store, {
+    const onboarded = await onboardVerifiedOfficialAttachmentAsync(store, {
       release_id: requestedRelease || pinnedActiveRelease,
       issuer_id: body.issuer_id || "reg.th.soc_ratchakitcha",
       source_family: body.source_family || "gazette_enactment",
@@ -79,12 +83,14 @@ export async function POST(req: Request) {
       original_title_th: body.original_title_th,
       official_origin_url: body.official_origin_url ?? null,
       royal_gazette_ref: body.royal_gazette_ref ?? null,
+      enactment_date: body.enactment_date ?? null,
       publication_date: body.publication_date ?? null,
       effective_from: body.effective_from ?? null,
       effective_to: body.effective_to ?? null,
       applicability_rule_th: body.applicability_rule_th ?? null,
       mime_type: body.mime_type || "application/pdf",
       attachment_bytes_or_text: body.attachment_text,
+      expected_artifact_sha256: body.expected_artifact_sha256 ?? null,
       section_label: body.section_label ?? null,
       paragraph_label: body.paragraph_label ?? null,
       physical_page_one_based: body.physical_page_one_based ?? null,
@@ -92,6 +98,24 @@ export async function POST(req: Request) {
       passage_excerpt_th: body.passage_excerpt_th ?? null,
       actor,
     });
+
+    if (!onboarded.verified || !onboarded.doc.eligible_for_citation) {
+      const reasons = onboarded.trusted_source_verification.mismatch_reasons;
+      return NextResponse.json(
+        {
+          ok: false,
+          verified: false,
+          eligible_for_citation: false,
+          doc_id: onboarded.doc.doc_id,
+          error: `UNVERIFIED_ATTACHMENT_TRUSTED_SOURCE_422: ${
+            reasons.join(" | ") ||
+            "Attachment could not be verified against a trusted publisher copy or reviewed canonical record; excluded from governing evidence."
+          }`,
+          trusted_source_verification: onboarded.trusted_source_verification,
+        },
+        { status: 422 }
+      );
+    }
 
     const pgPersisted = await persistCitationSourceBundleToPostgres({
       doc: onboarded.doc,
@@ -143,18 +167,29 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
+      verified: true,
       doc_id: onboarded.doc.doc_id,
       version_id: onboarded.version.version_id,
       passage_id: onboarded.passages[0]?.passage_id || null,
       official_url: onboarded.location.exact_official_url,
+      enactment_date:
+        typeof onboarded.version.source_metadata?.enactment_date === "string"
+          ? onboarded.version.source_metadata.enactment_date
+          : null,
+      publication_date: onboarded.version.publication_date,
       effective_from: onboarded.version.effective_from,
       effective_to: onboarded.version.effective_to,
+      official_artifact_sha256:
+        typeof onboarded.version.source_metadata?.official_artifact_sha256 === "string"
+          ? onboarded.version.source_metadata.official_artifact_sha256
+          : null,
       human_pinpoint_th: onboarded.passages[0]?.human_pinpoint_th || "",
       verification_checks: {
         origin_verified: true,
         applicable_version_verified: true,
         section_or_page_verified: true,
       },
+      trusted_source_verification: onboarded.trusted_source_verification,
     });
   } catch (err) {
     return knowledgeApiErrorResponse(err);

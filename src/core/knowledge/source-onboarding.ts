@@ -1544,6 +1544,62 @@ export function submitThaiScanOcrReviewCorrection(
   );
 }
 
+export interface TrustedPublisherCopyPage {
+  physical_page_one_based: number;
+  printed_page_label?: string | null;
+  page_text_verbatim: string;
+}
+
+export interface TrustedPublisherCopySnapshot {
+  official_url: string;
+  artifact_sha256?: string | null;
+  pages?: TrustedPublisherCopyPage[];
+  full_text_verbatim?: string | null;
+  enactment_date?: string | null;
+  publication_date?: string | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  royal_gazette_ref?: string | null;
+  source_label?: string;
+}
+
+export type TrustedPublisherFetcher = (params: {
+  official_url: string;
+  issuer_id: string;
+  source_family: OfficialSourceFamily;
+  permitted_hosts: string[];
+}) => Promise<TrustedPublisherCopySnapshot | null>;
+
+let customTrustedPublisherFetcherForTesting: TrustedPublisherFetcher | null = null;
+
+export function setTrustedPublisherFetcherForTesting(
+  fetcher: TrustedPublisherFetcher | null
+): void {
+  customTrustedPublisherFetcherForTesting = fetcher;
+}
+
+export function getTrustedPublisherFetcherForTesting(): TrustedPublisherFetcher | null {
+  return customTrustedPublisherFetcherForTesting;
+}
+
+export interface TrustedSourceVerificationOutcome {
+  verified: boolean;
+  reference_kind: "reviewed_canonical_record" | "trusted_publisher_copy" | "none";
+  matched_canonical_work_id: string | null;
+  matched_canonical_version_id: string | null;
+  matched_artifact_sha256: string | null;
+  excerpt_verified: boolean;
+  locator_verified: boolean;
+  version_verified: boolean;
+  checksum_verified: boolean;
+  mismatch_reasons: string[];
+}
+
+export type OnboardOfficialAttachmentResult = OnboardOfficialSourceResult & {
+  verified: boolean;
+  trusted_source_verification: TrustedSourceVerificationOutcome;
+};
+
 export interface OfficialLawAttachmentInput {
   batch_id?: BatchId;
   release_id?: string;
@@ -1553,37 +1609,730 @@ export interface OfficialLawAttachmentInput {
   original_title_th: string;
   official_origin_url?: string | null;
   royal_gazette_ref?: string | null;
+  enactment_date?: string | null;
   publication_date?: string | null;
   effective_from: string | null;
   effective_to?: string | null;
   applicability_rule_th?: string | null;
   mime_type: string;
   attachment_bytes_or_text: Buffer | Uint8Array | string;
+  expected_artifact_sha256?: string | null;
   section_label?: string | null;
   paragraph_label?: string | null;
   physical_page_one_based?: number | null;
   printed_page_label?: string | null;
   passage_excerpt_th?: string | null;
+  /**
+   * Server-side verified publisher copy snapshot (e.g., fetched from an allowlisted official publisher host).
+   * MUST NEVER be populated from untrusted client HTTP payloads.
+   */
+  trusted_publisher_copy?: TrustedPublisherCopySnapshot | null;
   actor: Actor;
 }
 
+const THAI_MONTH_TO_NUM: Record<string, string> = {
+  มกราคม: "01",
+  "ม.ค.": "01",
+  กุมภาพันธ์: "02",
+  "ก.พ.": "02",
+  มีนาคม: "03",
+  "มี.ค.": "03",
+  เมษายน: "04",
+  "เม.ย.": "04",
+  พฤษภาคม: "05",
+  "พ.ค.": "05",
+  มิถุนายน: "06",
+  "มิ.ย.": "06",
+  กรกฎาคม: "07",
+  "ก.ค.": "07",
+  สิงหาคม: "08",
+  "ส.ค.": "08",
+  กันยายน: "09",
+  "ก.ย.": "09",
+  ตุลาคม: "10",
+  "ต.ค.": "10",
+  พฤศจิกายน: "11",
+  "พ.ย.": "11",
+  ธันวาคม: "12",
+  "ธ.ค.": "12",
+};
+
+function cleanAttachmentIsoDate(d: string | null | undefined): string | null {
+  if (!d || !d.trim()) return null;
+  const t = thaiDigitsToArabic(d.trim());
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
+    const yr = Number(t.slice(0, 4));
+    return yr >= 2400 ? `${yr - 543}${t.slice(4)}` : t;
+  }
+  return null;
+}
+
+function normalizeUrlForCanonicalMatch(url: string | null | undefined): string {
+  if (!url) return "";
+  try {
+    const parsed = new URL(url.trim());
+    parsed.hash = "";
+    const pathname = parsed.pathname.replace(/\/+$/, "");
+    return `${parsed.hostname.toLowerCase()}${pathname}${parsed.search}`.toLowerCase();
+  } catch {
+    return url.trim().replace(/#.*$/, "").replace(/\/+$/, "").toLowerCase();
+  }
+}
+
+function normalizeThaiForVerbatimMatch(text: string): string {
+  return thaiDigitsToArabic(text)
+    .replace(/[“”‘’"'\u200B-\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function normalizePrintedPageNumber(label: string | null | undefined): string {
+  if (!label) return "";
+  return thaiDigitsToArabic(label)
+    .replace(/หน้า|page|p\.?/gi, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+function extractThaiDatesInText(text: string): Array<{ raw: string; iso: string }> {
+  const norm = thaiDigitsToArabic(text).replace(/\s+/g, " ");
+  const out: Array<{ raw: string; iso: string }> = [];
+  const monthPat = Object.keys(THAI_MONTH_TO_NUM)
+    .map((m) => m.replace(/\./g, "\\."))
+    .join("|");
+  const rx = new RegExp(
+    `(\\d{1,2})\\s*(${monthPat})\\s*(?:พ\\.ศ\\.\\s*)?(\\d{4})`,
+    "g"
+  );
+  let m: RegExpExecArray | null;
+  while ((m = rx.exec(norm)) !== null) {
+    const day = Number(m[1]);
+    const mm = THAI_MONTH_TO_NUM[m[2]];
+    let yr = Number(m[3]);
+    if (!mm || day < 1 || day > 31) continue;
+    if (yr >= 2400) yr -= 543;
+    const iso = `${yr}-${mm}-${String(day).padStart(2, "0")}`;
+    out.push({ raw: m[0], iso });
+  }
+  return out;
+}
+
+function extractEnactmentDateIsoFromText(text: string): string | null {
+  const norm = thaiDigitsToArabic(text).replace(/\s+/g, " ");
+  const m = norm.match(/ให้ไว้\s*ณ\s*วันที่\s*([^มาตรา\n]{6,45})/);
+  if (!m) return null;
+  const dates = extractThaiDatesInText(m[1]);
+  return dates[0]?.iso || null;
+}
+
+function splitSubstantiveLegalSegments(text: string): string[] {
+  const withBreaks = thaiDigitsToArabic(text)
+    .replace(/\r\n?/g, "\n")
+    .replace(/(?=ให้ไว้\s*ณ\s*วันที่)/g, "\n")
+    .replace(/(?=มาตรา\s*\d+)/g, "\n")
+    .replace(/(?=ข้อ\s*\d+)/g, "\n")
+    .replace(/(?=หมายเหตุ\s*:?-?)/g, "\n");
+  return withBreaks
+    .split("\n")
+    .map((s) => s.trim())
+    .filter((s) => normalizeThaiForVerbatimMatch(s).length >= 6);
+}
+
+interface ResolvedTrustedReference {
+  reference_kind: "reviewed_canonical_record" | "trusted_publisher_copy";
+  matched_canonical_work_id: string | null;
+  matched_canonical_version_id: string | null;
+  official_url: string;
+  artifact_sha256: string | null;
+  pages: TrustedPublisherCopyPage[];
+  full_text_verbatim: string;
+  enactment_date: string | null;
+  publication_date: string | null;
+  effective_from: string | null;
+  effective_to: string | null;
+}
+
+function findReviewedCanonicalReferenceForAttachment(
+  store: DurableKnowledgeStore,
+  input: OfficialLawAttachmentInput,
+  effectiveOriginUrl: string
+): ResolvedTrustedReference | null {
+  const state = store.getState();
+  const targetUrlNorm = normalizeUrlForCanonicalMatch(effectiveOriginUrl);
+
+  // 1. Match canonical artifacts / passages by exact normalized official URL first
+  const matchingArtifactIds = new Set<string>();
+  const matchedWorkIds = new Set<string>();
+  if (targetUrlNorm) {
+    for (const art of Object.values(state.artifacts)) {
+      if (art.authenticity_status === "user_supplied_unverified") continue;
+      if (normalizeUrlForCanonicalMatch(art.origin_uri) === targetUrlNorm) {
+        matchingArtifactIds.add(art.artifact_id);
+      }
+    }
+    for (const psg of Object.values(state.passages)) {
+      if (
+        normalizeUrlForCanonicalMatch(psg.real_locator?.origin_uri) === targetUrlNorm ||
+        (psg.real_locator?.artifact_id && matchingArtifactIds.has(psg.real_locator.artifact_id))
+      ) {
+        matchedWorkIds.add(psg.work_id);
+      }
+    }
+    for (const ver of Object.values(state.versions)) {
+      if (ver.temporal_evidence_ids.some((aid) => matchingArtifactIds.has(aid))) {
+        matchedWorkIds.add(ver.work_id);
+      }
+    }
+  }
+
+  // 2. Fallback: match reviewed canonical work by exact normalized official title / identifier
+  if (matchedWorkIds.size === 0) {
+    const titleNorm = normalizeThaiForVerbatimMatch(input.original_title_th);
+    const nativeNorm = normalizeThaiForVerbatimMatch(input.source_native_id);
+    for (const w of Object.values(state.works)) {
+      const workKeys = [
+        w.title_th,
+        ...(w.aliases || []),
+        ...(w.official_identifiers || []).map((id) => id.normalized),
+        ...(w.official_identifiers || []).map((id) => id.raw),
+      ]
+        .map(normalizeThaiForVerbatimMatch)
+        .filter((k) => k.length >= 12);
+      if (workKeys.some((k) => k === titleNorm || k === nativeNorm)) {
+        matchedWorkIds.add(w.work_id);
+      }
+    }
+  }
+
+  if (matchedWorkIds.size > 0) {
+    const workId = Array.from(matchedWorkIds)[0];
+    const workVersions = Object.values(state.versions).filter((v) => v.work_id === workId);
+    if (workVersions.length > 0) {
+      const supersededIds = new Set<string>();
+      for (const v of workVersions) {
+        for (const sid of v.supersedes_version_ids || []) {
+          supersededIds.add(sid);
+        }
+      }
+      const activeVersions = workVersions.filter((v) => !supersededIds.has(v.version_id));
+      const candidates = activeVersions.length > 0 ? activeVersions : workVersions;
+      const requestedEff = cleanAttachmentIsoDate(input.effective_from);
+
+      const chosenVer = [...candidates].sort((a, b) => {
+        const aArtMatch = a.temporal_evidence_ids.some((id) => matchingArtifactIds.has(id)) ? 1 : 0;
+        const bArtMatch = b.temporal_evidence_ids.some((id) => matchingArtifactIds.has(id)) ? 1 : 0;
+        if (aArtMatch !== bArtMatch) return bArtMatch - aArtMatch;
+        const aEff = a.commencement_date || a.legal_applicability?.[0]?.valid_from || null;
+        const bEff = b.commencement_date || b.legal_applicability?.[0]?.valid_from || null;
+        if (requestedEff) {
+          const aEffMatch = aEff === requestedEff ? 1 : 0;
+          const bEffMatch = bEff === requestedEff ? 1 : 0;
+          if (aEffMatch !== bEffMatch) return bEffMatch - aEffMatch;
+        }
+        return (b.known_from || "").localeCompare(a.known_from || "");
+      })[0];
+
+      const verPassages = Object.values(state.passages).filter(
+        (p) => p.work_id === workId && p.version_id === chosenVer.version_id
+      );
+      const pageMap = new Map<number, { printed: string | null; texts: string[] }>();
+      for (const p of verPassages) {
+        if (typeof p.real_locator?.physical_page_index === "number") {
+          const pageOneBased = p.real_locator.physical_page_index + 1;
+          const entry = pageMap.get(pageOneBased) || {
+            printed: p.real_locator.printed_page_label || null,
+            texts: [],
+          };
+          if (!entry.printed && p.real_locator.printed_page_label) {
+            entry.printed = p.real_locator.printed_page_label;
+          }
+          entry.texts.push(p.exact_text);
+          pageMap.set(pageOneBased, entry);
+        }
+      }
+      const pages: TrustedPublisherCopyPage[] = Array.from(pageMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([pageNo, entry]) => ({
+          physical_page_one_based: pageNo,
+          printed_page_label: entry.printed,
+          page_text_verbatim: entry.texts.join("\n"),
+        }));
+      const fullText = verPassages.map((p) => p.exact_text).join("\n\n");
+
+      const matchedArtifact =
+        chosenVer.temporal_evidence_ids
+          .map((id) => state.artifacts[id])
+          .find((a) => Boolean(a) && (matchingArtifactIds.size === 0 || matchingArtifactIds.has(a.artifact_id))) ||
+        chosenVer.temporal_evidence_ids.map((id) => state.artifacts[id]).find(Boolean) ||
+        verPassages
+          .map((p) => (p.real_locator?.artifact_id ? state.artifacts[p.real_locator.artifact_id] : undefined))
+          .find(Boolean) ||
+        null;
+
+      const canonicalEnactmentDate =
+        cleanAttachmentIsoDate(chosenVer.enactment_date) ||
+        extractEnactmentDateIsoFromText(chosenVer.raw_date_text || "") ||
+        extractEnactmentDateIsoFromText(fullText);
+      const canonicalPubDate = cleanAttachmentIsoDate(chosenVer.publication_date);
+      const canonicalEffFrom = cleanAttachmentIsoDate(
+        chosenVer.commencement_date || chosenVer.legal_applicability?.[0]?.valid_from || null
+      );
+      const canonicalEffTo = cleanAttachmentIsoDate(
+        chosenVer.legal_applicability?.[0]?.valid_to || null
+      );
+
+      if (fullText.trim().length > 0) {
+        return {
+          reference_kind: "reviewed_canonical_record",
+          matched_canonical_work_id: workId,
+          matched_canonical_version_id: chosenVer.version_id,
+          official_url: matchedArtifact?.origin_uri || effectiveOriginUrl,
+          artifact_sha256: matchedArtifact?.actual_bytes_sha256 || null,
+          pages,
+          full_text_verbatim: fullText,
+          enactment_date: canonicalEnactmentDate,
+          publication_date: canonicalPubDate,
+          effective_from: canonicalEffFrom,
+          effective_to: canonicalEffTo,
+        };
+      }
+    }
+  }
+
+  // 3. Also check already-verified full_record entries in citation_ledger (never unverified user attachments!)
+  const ledger = readProtectedStoreSidecar(store) || state.citation_ledger;
+  if (ledger && targetUrlNorm) {
+    const matchedLoc = Object.values(ledger.locations).find(
+      (loc) =>
+        loc.is_active_primary &&
+        loc.identity_match_result === "VERIFIED_MATCH" &&
+        normalizeUrlForCanonicalMatch(loc.exact_official_url) === targetUrlNorm
+    );
+    if (matchedLoc) {
+      const doc = ledger.documents[matchedLoc.doc_id];
+      if (doc && doc.eligible_for_citation && doc.record_type === "full_record") {
+        const ver =
+          (matchedLoc.version_id ? ledger.versions[matchedLoc.version_id] : undefined) ||
+          Object.values(ledger.versions).find((v) => v.doc_id === doc.doc_id);
+        if (ver) {
+          const ext = Object.values(ledger.extraction_revisions).find(
+            (e) => e.version_id === ver.version_id
+          );
+          const psgs = Object.values(ledger.passages).filter(
+            (p) => p.version_id === ver.version_id && p.eligible_for_publication
+          );
+          const fullText =
+            ext?.raw_transcription || psgs.map((p) => p.verbatim_text).join("\n\n");
+          const pages: TrustedPublisherCopyPage[] =
+            ext?.page_mapping?.map((pm) => ({
+              physical_page_one_based: pm.physical_page_one_based,
+              printed_page_label: pm.printed_page_label,
+              page_text_verbatim: pm.page_text_verbatim,
+            })) || [];
+          if (fullText.trim().length > 0) {
+            return {
+              reference_kind: "reviewed_canonical_record",
+              matched_canonical_work_id: doc.canonical_work_id || doc.doc_id,
+              matched_canonical_version_id: ver.canonical_version_id || ver.version_id,
+              official_url: matchedLoc.exact_official_url,
+              artifact_sha256: ver.artifact_sha256 || null,
+              pages,
+              full_text_verbatim: fullText,
+              enactment_date:
+                cleanAttachmentIsoDate(
+                  typeof ver.source_metadata?.enactment_date === "string"
+                    ? ver.source_metadata.enactment_date
+                    : null
+                ) || extractEnactmentDateIsoFromText(fullText),
+              publication_date: cleanAttachmentIsoDate(ver.publication_date),
+              effective_from: cleanAttachmentIsoDate(ver.effective_from),
+              effective_to: cleanAttachmentIsoDate(ver.effective_to),
+            };
+          }
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+function verifyAttachmentAgainstTrustedReference(params: {
+  store: DurableKnowledgeStore;
+  input: OfficialLawAttachmentInput;
+  rawText: string;
+  targetExcerpt: string;
+  effectiveOriginUrl: string;
+  pub: OfficialPublisherRegistryEntry;
+  verifiedEnactmentDate: string | null;
+  verifiedPubDate: string | null;
+  verifiedEffectiveFrom: string | null;
+  verifiedEffectiveTo: string | null;
+}): {
+  outcome: TrustedSourceVerificationOutcome;
+  resolvedRef: ResolvedTrustedReference | null;
+} {
+  const {
+    store,
+    input,
+    rawText,
+    targetExcerpt,
+    effectiveOriginUrl,
+    pub,
+    verifiedEnactmentDate,
+    verifiedPubDate,
+    verifiedEffectiveFrom,
+    verifiedEffectiveTo,
+  } = params;
+
+  let ref: ResolvedTrustedReference | null = findReviewedCanonicalReferenceForAttachment(
+    store,
+    input,
+    effectiveOriginUrl
+  );
+
+  if (!ref && input.trusted_publisher_copy) {
+    const snap = input.trusted_publisher_copy;
+    let snapHostOk = false;
+    try {
+      const snapUrl = new URL(snap.official_url);
+      snapHostOk =
+        snapUrl.protocol === "https:" &&
+        pub.permitted_hosts.some((h) => h.toLowerCase() === snapUrl.hostname.toLowerCase());
+    } catch {
+      snapHostOk = false;
+    }
+    const snapFullText =
+      (snap.full_text_verbatim || "").trim() ||
+      (snap.pages || []).map((p) => p.page_text_verbatim).join("\n\n").trim();
+    if (snapHostOk && snapFullText.length >= 20) {
+      ref = {
+        reference_kind: "trusted_publisher_copy",
+        matched_canonical_work_id: null,
+        matched_canonical_version_id: null,
+        official_url: snap.official_url,
+        artifact_sha256: snap.artifact_sha256 || null,
+        pages: snap.pages || [],
+        full_text_verbatim: snapFullText,
+        enactment_date:
+          cleanAttachmentIsoDate(snap.enactment_date) ||
+          extractEnactmentDateIsoFromText(snapFullText),
+        publication_date: cleanAttachmentIsoDate(snap.publication_date),
+        effective_from: cleanAttachmentIsoDate(snap.effective_from),
+        effective_to: cleanAttachmentIsoDate(snap.effective_to),
+      };
+    }
+  }
+
+  if (!ref) {
+    return {
+      resolvedRef: null,
+      outcome: {
+        verified: false,
+        reference_kind: "none",
+        matched_canonical_work_id: null,
+        matched_canonical_version_id: null,
+        matched_artifact_sha256: null,
+        excerpt_verified: false,
+        locator_verified: false,
+        version_verified: false,
+        checksum_verified: false,
+        mismatch_reasons: [
+          "NO_TRUSTED_PUBLISHER_OR_CANONICAL_RECORD_FOUND: Could not confirm attachment against a trusted publisher copy or an already-reviewed canonical record.",
+        ],
+      },
+    };
+  }
+
+  const mismatchReasons: string[] = [];
+
+  // 1. Verify excerpt & full uploaded wording against trusted reference text
+  const refFullCompact = normalizeThaiForVerbatimMatch(ref.full_text_verbatim);
+  const segmentsToCheck = splitSubstantiveLegalSegments(targetExcerpt);
+  const fullUploadSegments =
+    targetExcerpt.trim() === rawText.trim()
+      ? segmentsToCheck
+      : splitSubstantiveLegalSegments(rawText);
+  const allSegments = Array.from(new Set([...segmentsToCheck, ...fullUploadSegments]));
+
+  let excerptOk = allSegments.length > 0;
+  for (const seg of allSegments) {
+    const segCompact = normalizeThaiForVerbatimMatch(seg);
+    if (segCompact.length >= 6 && !refFullCompact.includes(segCompact)) {
+      excerptOk = false;
+      mismatchReasons.push(
+        `EXCERPT_TEXT_MISMATCH: Uploaded segment '${seg.slice(0, 80)}' does not match the trusted ${ref.reference_kind} text.`
+      );
+    }
+  }
+
+  // Also explicitly verify every Thai date phrase appearing in the uploaded text appears in the trusted reference!
+  const refDatesIso = new Set(extractThaiDatesInText(ref.full_text_verbatim).map((d) => d.iso));
+  for (const dt of extractThaiDatesInText(rawText)) {
+    if (!refDatesIso.has(dt.iso)) {
+      excerptOk = false;
+      mismatchReasons.push(
+        `EXCERPT_DATE_MISMATCH: Date '${dt.raw}' (${dt.iso}) in uploaded excerpt is absent from the trusted ${ref.reference_kind}.`
+      );
+    }
+  }
+
+  // 2. Verify locator (section_label, physical_page_one_based, printed_page_label) against trusted reference
+  let locatorOk = true;
+  const hasSection = Boolean(input.section_label && input.section_label.trim().length >= 2);
+  const hasPage =
+    typeof input.physical_page_one_based === "number" && input.physical_page_one_based >= 1;
+
+  if (hasSection) {
+    const secCompact = normalizeThaiForVerbatimMatch(input.section_label!);
+    if (!refFullCompact.includes(secCompact)) {
+      locatorOk = false;
+      mismatchReasons.push(
+        `LOCATOR_SECTION_MISMATCH: Section '${input.section_label}' was not found in the trusted ${ref.reference_kind}.`
+      );
+    }
+  }
+
+  if (hasPage && ref.pages.length > 0) {
+    const matchedPage = ref.pages.find(
+      (p) => p.physical_page_one_based === input.physical_page_one_based
+    );
+    if (!matchedPage) {
+      locatorOk = false;
+      mismatchReasons.push(
+        `LOCATOR_PAGE_MISMATCH: Physical page ${input.physical_page_one_based} does not exist in the trusted ${ref.reference_kind}.`
+      );
+    } else {
+      const pageCompact = normalizeThaiForVerbatimMatch(matchedPage.page_text_verbatim);
+      if (hasSection) {
+        const secCompact = normalizeThaiForVerbatimMatch(input.section_label!);
+        if (!pageCompact.includes(secCompact)) {
+          locatorOk = false;
+          mismatchReasons.push(
+            `LOCATOR_SECTION_PAGE_MISMATCH: Section '${input.section_label}' is not on physical page ${input.physical_page_one_based} of the trusted ${ref.reference_kind}.`
+          );
+        }
+      }
+      for (const seg of segmentsToCheck) {
+        const segCompact = normalizeThaiForVerbatimMatch(seg);
+        if (segCompact.length >= 6 && !pageCompact.includes(segCompact)) {
+          locatorOk = false;
+          mismatchReasons.push(
+            `LOCATOR_EXCERPT_PAGE_MISMATCH: Excerpt segment '${seg.slice(0, 60)}' is not on physical page ${input.physical_page_one_based} of the trusted ${ref.reference_kind}.`
+          );
+        }
+      }
+      if (input.printed_page_label && matchedPage.printed_page_label) {
+        const expPrinted = normalizePrintedPageNumber(input.printed_page_label);
+        const refPrinted = normalizePrintedPageNumber(matchedPage.printed_page_label);
+        if (expPrinted && refPrinted && expPrinted !== refPrinted) {
+          locatorOk = false;
+          mismatchReasons.push(
+            `LOCATOR_PRINTED_PAGE_MISMATCH: Printed page '${input.printed_page_label}' does not match trusted '${matchedPage.printed_page_label}'.`
+          );
+        }
+      }
+    }
+  }
+
+  // 3. Verify applicable version & separated dates (signed/enactment, published, effective_from, effective_to)
+  let versionOk = true;
+  if (verifiedPubDate && ref.publication_date && verifiedPubDate !== ref.publication_date) {
+    versionOk = false;
+    const conflatedHint =
+      ref.enactment_date && verifiedPubDate === ref.enactment_date
+        ? " (supplied publication_date matches enactment/signing date instead of official publication_date)"
+        : ref.effective_from && verifiedPubDate === ref.effective_from
+          ? " (supplied publication_date matches effective_from instead of official publication_date)"
+          : "";
+    mismatchReasons.push(
+      `VERSION_PUBLICATION_DATE_MISMATCH: Supplied publication_date '${verifiedPubDate}' does not match trusted '${ref.publication_date}'${conflatedHint}.`
+    );
+  }
+  if (verifiedEffectiveFrom && ref.effective_from && verifiedEffectiveFrom !== ref.effective_from) {
+    versionOk = false;
+    mismatchReasons.push(
+      `VERSION_EFFECTIVE_FROM_MISMATCH: Supplied effective_from '${verifiedEffectiveFrom}' does not match trusted '${ref.effective_from}'.`
+    );
+  }
+  if (verifiedEffectiveTo && ref.effective_to && verifiedEffectiveTo !== ref.effective_to) {
+    versionOk = false;
+    mismatchReasons.push(
+      `VERSION_EFFECTIVE_TO_MISMATCH: Supplied effective_to '${verifiedEffectiveTo}' does not match trusted '${ref.effective_to}'.`
+    );
+  }
+  if (verifiedEnactmentDate && ref.enactment_date && verifiedEnactmentDate !== ref.enactment_date) {
+    versionOk = false;
+    mismatchReasons.push(
+      `VERSION_ENACTMENT_DATE_MISMATCH: Supplied enactment_date '${verifiedEnactmentDate}' does not match trusted '${ref.enactment_date}'.`
+    );
+  }
+  const uploadedEnactmentIso = extractEnactmentDateIsoFromText(rawText);
+  if (verifiedEnactmentDate && uploadedEnactmentIso && verifiedEnactmentDate !== uploadedEnactmentIso) {
+    versionOk = false;
+    mismatchReasons.push(
+      `VERSION_ENACTMENT_TEXT_MISMATCH: Supplied enactment_date '${verifiedEnactmentDate}' contradicts text signing date '${uploadedEnactmentIso}'.`
+    );
+  }
+
+  // 4. Verify optional official artifact checksum when provided
+  let checksumOk = true;
+  const expectedSha = (input.expected_artifact_sha256 || "").trim().toLowerCase();
+  if (expectedSha) {
+    if (!ref.artifact_sha256) {
+      checksumOk = false;
+      mismatchReasons.push(
+        "ARTIFACT_CHECKSUM_UNVERIFIABLE: expected_artifact_sha256 was provided, but trusted reference has no recorded artifact_sha256."
+      );
+    } else if (ref.artifact_sha256.toLowerCase() !== expectedSha) {
+      checksumOk = false;
+      mismatchReasons.push(
+        `ARTIFACT_CHECKSUM_MISMATCH: Supplied SHA-256 '${expectedSha}' does not match trusted '${ref.artifact_sha256}'.`
+      );
+    }
+  }
+
+  const allOk = excerptOk && locatorOk && versionOk && checksumOk && mismatchReasons.length === 0;
+  return {
+    resolvedRef: ref,
+    outcome: {
+      verified: allOk,
+      reference_kind: ref.reference_kind,
+      matched_canonical_work_id: ref.matched_canonical_work_id,
+      matched_canonical_version_id: ref.matched_canonical_version_id,
+      matched_artifact_sha256: ref.artifact_sha256,
+      excerpt_verified: excerptOk,
+      locator_verified: locatorOk,
+      version_verified: versionOk,
+      checksum_verified: checksumOk,
+      mismatch_reasons: mismatchReasons,
+    },
+  };
+}
+
+export function isHistoricalSupersededOrUnverifiedReason(
+  reason: string | null | undefined
+): "superseded_historical" | "unverified_historical" | null {
+  if (!reason) return null;
+  if (reason.startsWith("HISTORICAL_SUPERSEDED:")) return "superseded_historical";
+  if (reason.startsWith("HISTORICAL_UNVERIFIED_PRESERVED:")) return "unverified_historical";
+  return null;
+}
+
 /**
- * Material Issue 1 Enhancement:
+ * Non-destructively marks an existing historical attachment as superseded or unverified so that:
+ *   1. It is immediately excluded from governing evidence on all new queries (`eligible_for_citation = false`).
+ *   2. All previously saved answer revisions, claims, evidence links, and audit events stay 100% intact.
+ *   3. Authorized reviewers reopening historical revisions can still inspect the historical record and
+ *      preserved audit trail, with the evidence explicitly labeled as superseded/NOT currently verified.
+ */
+export function markHistoricalAttachmentSupersededOrUnverified(
+  store: DurableKnowledgeStore,
+  params: {
+    doc_id: string;
+    actor: Actor;
+    reason: string;
+    status?: "superseded_historical" | "unverified_historical";
+    superseded_by_doc_id?: string | null;
+  }
+): {
+  doc: OfficialDocumentRecord;
+  affected_passage_ids: string[];
+  audit_event: TraceabilityAuditEventRecord;
+} {
+  const status = params.status || "superseded_historical";
+  const prefix =
+    status === "superseded_historical"
+      ? "HISTORICAL_SUPERSEDED"
+      : "HISTORICAL_UNVERIFIED_PRESERVED";
+  const fullReason = `${prefix}: ${params.reason}${
+    params.superseded_by_doc_id ? ` [superseded_by=${params.superseded_by_doc_id}]` : ""
+  }`;
+
+  return runOnboardingLedgerMutation(
+    store,
+    "MARK_HISTORICAL_ATTACHMENT_SUPERSEDED",
+    params.actor.actor_id,
+    (ledger) => {
+      const existingDoc = ledger.documents[params.doc_id];
+      if (!existingDoc) {
+        throw new Error(`ATTACHMENT_NOT_FOUND_404: Document '${params.doc_id}' not found in ledger.`);
+      }
+      const prevEligible = existingDoc.eligible_for_citation;
+      const prevReason = existingDoc.ineligible_reason;
+
+      const updatedDoc: OfficialDocumentRecord = {
+        ...existingDoc,
+        eligible_for_citation: false,
+        ineligible_reason: fullReason,
+      };
+      ledger.documents[params.doc_id] = updatedDoc;
+
+      const affectedPassageIds: string[] = [];
+      for (const psg of Object.values(ledger.passages)) {
+        if (psg.doc_id !== params.doc_id) continue;
+        ledger.passages[psg.passage_id] = {
+          ...psg,
+          eligible_for_publication: false,
+          locator_replay_status: "QUARANTINED",
+          quarantine_reason: fullReason,
+        };
+        affectedPassageIds.push(psg.passage_id);
+      }
+
+      const versionIds = Object.values(ledger.versions)
+        .filter((v) => v.doc_id === params.doc_id)
+        .map((v) => v.version_id);
+
+      const auditEvent = appendCitationAuditEvent(ledger, {
+        actor_or_service: params.actor.actor_id,
+        event_type: "OFFICIAL_ATTACHMENT_SUPERSEDED",
+        affected_ids: [params.doc_id, ...versionIds, ...affectedPassageIds],
+        before_status: {
+          eligible_for_citation: prevEligible,
+          ineligible_reason: prevReason,
+        },
+        after_status: {
+          eligible_for_citation: false,
+          historical_evidence_status: status,
+          ineligible_reason: fullReason,
+          superseded_by_doc_id: params.superseded_by_doc_id || null,
+        },
+        reason: params.reason,
+        correlation_id: params.doc_id,
+      });
+
+      return {
+        doc: updatedDoc,
+        affected_passage_ids: affectedPassageIds,
+        audit_event: auditEvent,
+      };
+    }
+  );
+}
+
+/**
+ * Material Issue 1 Enhancement + ISO-X Trusted-Source Verification:
  * "An official law or regulation provided as an attachment is acceptable evidence, provided its
- * origin, applicable version, and relevant section or page can be verified."
+ * origin, applicable version, and relevant section or page can be verified against a trusted
+ * publisher copy or an already-reviewed canonical record."
  *
- * Strictly verifies all 3 mandatory conditions before admitting an attachment as eligible evidence:
- *   1. Origin: Registered official publisher + permitted official URL or Royal Gazette volume/issue
- *      header verified inside the attachment content + matching document identifier/title.
- *   2. Applicable Version: Explicit `effective_from` or `publication_date` (ISO YYYY-MM-DD or Thai Buddhist date),
- *      never guessed from upload time.
- *   3. Relevant Section or Page: Explicit `section_label` or 1-based `physical_page_one_based` / `printed_page_label`
- *      that replays deterministically against the attachment content (`replayPassageLocatorAgainstExtraction`).
+ * Strictly verifies:
+ *   1. Origin: Registered official publisher + permitted official URL or Royal Gazette header.
+ *   2. Applicable Version: Explicit separate `enactment_date`, `publication_date`, `effective_from`,
+ *      and `effective_to` (never guessed from upload time or conflated across date types).
+ *   3. Relevant Section or Page: Explicit `section_label` or 1-based `physical_page_one_based`
+ *      that replays deterministically against the uploaded text.
+ *   4. Trusted-Source Confirmation (Server-Side): Excerpt, locator, applicable version/dates, and
+ *      optional artifact SHA-256 MUST match an already-reviewed canonical record in the store OR a
+ *      server-verified trusted publisher copy. If the server cannot confirm the match, the attachment
+ *      is left UNVERIFIED (`eligible_for_citation: false`, `eligible_for_publication: false`) and
+ *      strictly excluded from governing evidence.
  */
 export function onboardVerifiedOfficialAttachment(
   store: DurableKnowledgeStore,
   input: OfficialLawAttachmentInput
-): OnboardOfficialSourceResult {
+): OnboardOfficialAttachmentResult {
   const pub = REVIEWED_OFFICIAL_PUBLISHER_REGISTRY[input.issuer_id];
   if (!pub || !pub.active || !pub.source_families.includes(input.source_family)) {
     throw new Error(
@@ -1637,24 +2386,17 @@ export function onboardVerifiedOfficialAttachment(
   }
 
   // 2. Verify Applicable Version (explicit effective_from or publication_date required — never inferred from upload date!)
-  const cleanIso = (d: string | null | undefined): string | null => {
-    if (!d || !d.trim()) return null;
-    const t = thaiDigitsToArabic(d.trim());
-    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) {
-      const yr = Number(t.slice(0, 4));
-      return yr >= 2400 ? `${yr - 543}${t.slice(4)}` : t;
-    }
-    return null;
-  };
-  const verifiedEffectiveFrom = cleanIso(input.effective_from);
-  const verifiedPubDate = cleanIso(input.publication_date);
+  const verifiedEffectiveFrom = cleanAttachmentIsoDate(input.effective_from);
+  const verifiedPubDate = cleanAttachmentIsoDate(input.publication_date);
+  const verifiedEffectiveTo = cleanAttachmentIsoDate(input.effective_to);
+  const verifiedEnactmentDate = cleanAttachmentIsoDate(input.enactment_date);
   if (!verifiedEffectiveFrom && !verifiedPubDate) {
     throw new Error(
       "UNVERIFIED_ATTACHMENT_VERSION_422: Applicable version cannot be verified — attachment must establish an explicit effective_from or publication_date (YYYY-MM-DD)."
     );
   }
 
-  // 3. Verify Relevant Section or Page Locator
+  // 3. Verify Relevant Section or Page Locator against the uploaded text
   const hasSection = Boolean(input.section_label && input.section_label.trim().length >= 3);
   const hasPage =
     typeof input.physical_page_one_based === "number" && input.physical_page_one_based >= 1;
@@ -1681,9 +2423,26 @@ export function onboardVerifiedOfficialAttachment(
     );
   }
 
+  // 4. Server-side verification against a reviewed canonical record OR trusted publisher copy (fail-closed!)
+  const { outcome: trustedVerification, resolvedRef } = verifyAttachmentAgainstTrustedReference({
+    store,
+    input,
+    rawText,
+    targetExcerpt,
+    effectiveOriginUrl,
+    pub,
+    verifiedEnactmentDate,
+    verifiedPubDate,
+    verifiedEffectiveFrom,
+    verifiedEffectiveTo,
+  });
+
   const pageNum = hasPage ? input.physical_page_one_based! : 1;
+  const matchedRefPage = resolvedRef?.pages.find((p) => p.physical_page_one_based === pageNum);
   const printedLbl =
-    input.printed_page_label || arabicDigitsToThai(String(pageNum));
+    input.printed_page_label ||
+    matchedRefPage?.printed_page_label ||
+    arabicDigitsToThai(String(pageNum));
 
   const scopedAttachmentAccessScope = input.actor.tenant_id
     ? `scope.tenant.${input.actor.tenant_id}`
@@ -1704,7 +2463,7 @@ export function onboardVerifiedOfficialAttachment(
     captured_bytes: input.attachment_bytes_or_text,
     publication_date: verifiedPubDate,
     effective_from: verifiedEffectiveFrom || verifiedPubDate,
-    effective_to: cleanIso(input.effective_to),
+    effective_to: verifiedEffectiveTo,
     applicability_rules_th: input.applicability_rule_th ? [input.applicability_rule_th] : [],
     pinpoint_metadata: {
       provision_label: input.section_label || null,
@@ -1744,11 +2503,165 @@ export function onboardVerifiedOfficialAttachment(
     actor_id: input.actor.actor_id,
   });
 
-  if (!res.doc.eligible_for_citation || !res.passages[0]?.eligible_for_publication) {
+  // Record separated date/checksum/verification metadata and fail-closed quarantine if unverified!
+  const effectiveEnactmentDate =
+    verifiedEnactmentDate ||
+    (trustedVerification.verified ? resolvedRef?.enactment_date || null : null) ||
+    extractEnactmentDateIsoFromText(rawText);
+
+  const finalized = runOnboardingLedgerMutation(
+    store,
+    trustedVerification.verified
+      ? "FINALIZE_VERIFIED_OFFICIAL_ATTACHMENT"
+      : "QUARANTINE_UNVERIFIED_OFFICIAL_ATTACHMENT",
+    input.actor.actor_id,
+    (ledger) => {
+      const storedVer = ledger.versions[res.version.version_id];
+      if (storedVer) {
+        ledger.versions[res.version.version_id] = {
+          ...storedVer,
+          canonical_version_id:
+            trustedVerification.verified && trustedVerification.matched_canonical_version_id
+              ? trustedVerification.matched_canonical_version_id
+              : storedVer.canonical_version_id,
+          source_metadata: {
+            ...storedVer.source_metadata,
+            enactment_date: effectiveEnactmentDate,
+            publication_date: verifiedPubDate,
+            effective_from: verifiedEffectiveFrom || verifiedPubDate,
+            effective_to: verifiedEffectiveTo,
+            official_artifact_sha256:
+              trustedVerification.matched_artifact_sha256 ||
+              (input.expected_artifact_sha256 ? input.expected_artifact_sha256.trim().toLowerCase() : null),
+            trusted_source_verification: trustedVerification,
+          },
+        };
+      }
+
+      if (!trustedVerification.verified) {
+        const unverifiedReason = `UNVERIFIED_TRUSTED_SOURCE_MISMATCH: ${trustedVerification.mismatch_reasons.join(" | ")}`;
+        const storedDoc = ledger.documents[res.doc.doc_id];
+        if (storedDoc) {
+          ledger.documents[res.doc.doc_id] = {
+            ...storedDoc,
+            eligible_for_citation: false,
+            ineligible_reason: unverifiedReason,
+          };
+        }
+        const storedLoc = ledger.locations[res.location.location_id];
+        if (storedLoc) {
+          ledger.locations[res.location.location_id] = {
+            ...storedLoc,
+            identity_match_result:
+              trustedVerification.reference_kind === "none"
+                ? "PENDING_VERIFICATION"
+                : "FAILED_UNRELATED_DOCUMENT",
+            link_health: "quarantined_identity_failure",
+            failure_reason: unverifiedReason,
+          };
+        }
+        for (const p of res.passages) {
+          const storedPsg = ledger.passages[p.passage_id];
+          if (storedPsg) {
+            ledger.passages[p.passage_id] = {
+              ...storedPsg,
+              eligible_for_publication: false,
+              locator_replay_status: "QUARANTINED",
+              quarantine_reason: unverifiedReason,
+            };
+          }
+        }
+        appendCitationAuditEvent(ledger, {
+          actor_or_service: input.actor.actor_id,
+          event_type: "OFFICIAL_ATTACHMENT_REJECTED",
+          affected_ids: [
+            res.doc.doc_id,
+            res.version.version_id,
+            ...res.passages.map((p) => p.passage_id),
+          ],
+          before_status: null,
+          after_status: {
+            eligible_for_citation: false,
+            verified: false,
+            reference_kind: trustedVerification.reference_kind,
+            mismatch_reasons: trustedVerification.mismatch_reasons,
+          },
+          reason: unverifiedReason,
+          correlation_id: res.doc.doc_id,
+        });
+      }
+
+      return {
+        doc: ledger.documents[res.doc.doc_id] || res.doc,
+        version: ledger.versions[res.version.version_id] || res.version,
+        location: ledger.locations[res.location.location_id] || res.location,
+        passages: res.passages.map((p) => ledger.passages[p.passage_id] || p),
+      };
+    }
+  );
+
+  if (
+    trustedVerification.verified &&
+    (!finalized.doc.eligible_for_citation || !finalized.passages[0]?.eligible_for_publication)
+  ) {
     throw new Error(
-      `UNVERIFIED_ATTACHMENT_REJECTED_422: Attachment failed identity or locator replay verification (${res.doc.ineligible_reason || res.passages[0]?.quarantine_reason || "ineligible"}).`
+      `UNVERIFIED_ATTACHMENT_REJECTED_422: Attachment failed identity or locator replay verification (${finalized.doc.ineligible_reason || finalized.passages[0]?.quarantine_reason || "ineligible"}).`
     );
   }
 
-  return res;
+  return {
+    ...res,
+    doc: finalized.doc,
+    version: finalized.version,
+    location: finalized.location,
+    passages: finalized.passages,
+    verified: trustedVerification.verified,
+    trusted_source_verification: trustedVerification,
+  };
+}
+
+/**
+ * Async server-side wrapper used by HTTP handlers: checks already-reviewed canonical records first,
+ * and if none exists, queries the configured server-side trusted publisher fetcher (strictly restricted
+ * to allowlisted HTTPS official publisher hosts) before delegating to `onboardVerifiedOfficialAttachment`.
+ * Never trusts client-supplied publisher snapshots.
+ */
+export async function onboardVerifiedOfficialAttachmentAsync(
+  store: DurableKnowledgeStore,
+  input: OfficialLawAttachmentInput
+): Promise<OnboardOfficialAttachmentResult> {
+  const effectiveOriginUrl = (input.official_origin_url || "").trim();
+  const pub = REVIEWED_OFFICIAL_PUBLISHER_REGISTRY[input.issuer_id];
+
+  let resolvedPublisherCopy = input.trusted_publisher_copy || null;
+  if (!resolvedPublisherCopy && pub && effectiveOriginUrl) {
+    const canonicalRef = findReviewedCanonicalReferenceForAttachment(
+      store,
+      input,
+      effectiveOriginUrl
+    );
+    if (!canonicalRef && customTrustedPublisherFetcherForTesting) {
+      try {
+        const parsed = new URL(effectiveOriginUrl);
+        const hostOk =
+          parsed.protocol === "https:" &&
+          pub.permitted_hosts.some((h) => h.toLowerCase() === parsed.hostname.toLowerCase());
+        if (hostOk) {
+          resolvedPublisherCopy = await customTrustedPublisherFetcherForTesting({
+            official_url: effectiveOriginUrl,
+            issuer_id: input.issuer_id,
+            source_family: input.source_family,
+            permitted_hosts: [...pub.permitted_hosts],
+          });
+        }
+      } catch {
+        resolvedPublisherCopy = null;
+      }
+    }
+  }
+
+  return onboardVerifiedOfficialAttachment(store, {
+    ...input,
+    trusted_publisher_copy: resolvedPublisherCopy,
+  });
 }

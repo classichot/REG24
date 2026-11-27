@@ -35,6 +35,7 @@ import { queryKnowledge } from "../../src/core/knowledge/query";
 import {
   clearProtectedStoreSidecarForTesting,
   onboardOfficialSourceDocument,
+  setTrustedPublisherFetcherForTesting,
 } from "../../src/core/knowledge/source-onboarding";
 import {
   DurableKnowledgeStore,
@@ -491,6 +492,7 @@ describe("Batch 1 Material Readiness Gates: Protection, Historical Accuracy Acro
     delete process.env.REG24_USE_B01_RC2_PREVIEW_STORE;
     setDefaultKnowledgeStoreForTesting(null);
     clearProtectedStoreSidecarForTesting();
+    setTrustedPublisherFetcherForTesting(null);
     setCustomCitationDbTransportForTesting(null);
     delete process.env.REG24_ADMIN_ROLE_SECRET;
     for (const d of tempDirs) {
@@ -817,6 +819,22 @@ describe("Batch 1 Material Readiness Gates: Protection, Historical Accuracy Acro
     expect(badSectionRes.status).toBe(422);
 
     // 4. Accepts valid official law attachment and cites it with `verified_attachment_authority`!
+    setTrustedPublisherFetcherForTesting(async ({ official_url }) =>
+      official_url === "https://ratchakitcha.soc.go.th/documents/rd-779-2566.pdf"
+        ? {
+            official_url,
+            publication_date: "2023-08-17",
+            effective_from: "2023-08-18",
+            pages: [
+              {
+                physical_page_one_based: 3,
+                printed_page_label: "๓",
+                page_text_verbatim: validAttachmentText,
+              },
+            ],
+          }
+        : null
+    );
     const okRes = await attachmentsPost(
       new Request("http://localhost/api/v1/knowledge/attachments", {
         method: "POST",
@@ -1043,6 +1061,24 @@ describe("Batch 1 Material Readiness Gates: Protection, Historical Accuracy Acro
     const { dir: dirA, store: storeA } = cloneCanonicalStoreToTemp("reg24-depA-");
     tempDirs.push(dirA);
 
+    const rd780Text =
+      "ราชกิจจานุเบกษา พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร (ฉบับที่ 780) พ.ศ. 2566 มาตรา 5 ให้ยกเว้นภาษีมูลค่าเพิ่มสำหรับการโอนสินทรัพย์ดิจิทัลเพื่อการลงทุนตามหลักเกณฑ์ที่ประกาศกำหนด";
+    setTrustedPublisherFetcherForTesting(async ({ official_url }) =>
+      official_url === "https://ratchakitcha.soc.go.th/documents/rd-780-2566.pdf"
+        ? {
+            official_url,
+            publication_date: "2023-09-01",
+            effective_from: "2023-09-02",
+            pages: [
+              {
+                physical_page_one_based: 2,
+                printed_page_label: "๒",
+                page_text_verbatim: rd780Text,
+              },
+            ],
+          }
+        : null
+    );
     const attRes = await attachmentsPost(
       new Request("http://deployment-a.vercel.app/api/v1/knowledge/attachments", {
         method: "POST",
@@ -1061,8 +1097,7 @@ describe("Batch 1 Material Readiness Gates: Protection, Historical Accuracy Acro
           section_label: "มาตรา 5",
           physical_page_one_based: 2,
           printed_page_label: "๒",
-          attachment_text:
-            "ราชกิจจานุเบกษา พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร (ฉบับที่ 780) พ.ศ. 2566 มาตรา 5 ให้ยกเว้นภาษีมูลค่าเพิ่มสำหรับการโอนสินทรัพย์ดิจิทัลเพื่อการลงทุนตามหลักเกณฑ์ที่ประกาศกำหนด",
+          attachment_text: rd780Text,
         }),
       })
     );

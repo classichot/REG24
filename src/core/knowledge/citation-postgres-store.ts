@@ -13,7 +13,10 @@
  */
 
 import { sha256Bytes } from "./identity";
-import { REVIEWED_OFFICIAL_PUBLISHER_REGISTRY } from "./source-onboarding";
+import {
+  isHistoricalSupersededOrUnverifiedReason,
+  REVIEWED_OFFICIAL_PUBLISHER_REGISTRY,
+} from "./source-onboarding";
 import type { Actor } from "./contracts";
 import type {
   AnswerRevisionHistoryEntryDto,
@@ -1420,6 +1423,8 @@ export async function loadSavedAnswerFromPostgres(
     access_conditions_th: string | null;
     eligible_for_citation?: boolean;
     eligible_for_publication?: boolean;
+    ineligible_reason?: string | null;
+    quarantine_reason?: string | null;
     effective_from: string | null;
     publication_date: string | null;
     link_health: ClaimEvidenceReferenceDto["link_health"];
@@ -1434,6 +1439,7 @@ export async function loadSavedAnswerFromPostgres(
             p.verbatim_text, d.original_title_th,
             d.issuer_id, d.source_family, d.record_type, d.access_permission, d.access_conditions_th,
             d.eligible_for_citation, p.eligible_for_publication,
+            d.ineligible_reason, p.quarantine_reason,
             v.effective_from::text AS effective_from, v.publication_date::text AS publication_date,
             COALESCE(loc.link_health, 'unchecked_live') AS link_health,
             loc.last_successful_verified_at::text AS last_successful_verified_at
@@ -1450,18 +1456,23 @@ export async function loadSavedAnswerFromPostgres(
     [row.answer_revision_id]
   );
 
-  // Enforce caller access scope and live eligibility/revocation on restricted passages (`T10`, `DEF-C10-5`)
-  // Consistent with server-verified matter/tenant scope authorization in `isActorAuthorizedForScope`
+  // Enforce caller access scope and live eligibility/revocation on restricted passages (`T10`, `DEF-C10-5`, `ISO-X`)
+  // Non-destructively superseded/unverified historical attachments remain inspectable ONLY by authorized reviewers
+  // with explicit non-verified status; generic revocation/ineligibility and unauthorized tenants still return 404.
   for (const lk of linksRes.rows) {
-    if (lk.eligible_for_citation === false || lk.eligible_for_publication === false) {
-      return { found: false, forbidden_restricted: true };
-    }
     const isAuthorizedForLinkScope =
       lk.access_scope === "scope.platform.public" ||
       actor.authorized_scopes.includes(lk.access_scope) ||
       (Boolean(actor.tenant_id) && lk.access_scope === `scope.tenant.${actor.tenant_id}`) ||
       (Boolean(actor.actor_id) && lk.access_scope === `scope.actor.${actor.actor_id}`);
     if (!isAuthorizedForLinkScope) {
+      return { found: false, forbidden_restricted: true };
+    }
+    const histKind =
+      lk.record_type === "verified_official_attachment"
+        ? isHistoricalSupersededOrUnverifiedReason(lk.ineligible_reason || lk.quarantine_reason)
+        : null;
+    if (!histKind && (lk.eligible_for_citation === false || lk.eligible_for_publication === false)) {
       return { found: false, forbidden_restricted: true };
     }
   }
@@ -1491,11 +1502,27 @@ export async function loadSavedAnswerFromPostgres(
     revenue_department_ruling: "หนังสือตอบข้อหารือกรมสรรพากร",
   };
 
+  const historicalEvidenceWarnings: string[] = [];
+  const seenHistoricalDocs = new Set<string>();
+  const citedDocIds = new Set<string>();
+
   const claimsOut: PublishedAtomicClaimDto[] = claimsRes.rows.map((c) => {
     const refs = linksRes.rows
       .filter((l) => l.claim_id === c.claim_id)
       .map((l): ClaimEvidenceReferenceDto => {
         const pub = REVIEWED_OFFICIAL_PUBLISHER_REGISTRY[l.issuer_id];
+        citedDocIds.add(l.doc_id);
+        const histKind =
+          l.record_type === "verified_official_attachment"
+            ? isHistoricalSupersededOrUnverifiedReason(l.ineligible_reason || l.quarantine_reason)
+            : null;
+        const histNotice = histKind
+          ? `หลักฐานแนบทางประวัติศาสตร์ (${l.doc_id}) ถูกแทนที่หรือไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน — บันทึกเดิมและประวัติการตรวจสอบ (Audit Trail) ยังคงเก็บรักษาไว้ครบถ้วน แต่หลักฐานนี้ถูกกันออกจากคำตอบใหม่ (${l.ineligible_reason || l.quarantine_reason || ""})`
+          : null;
+        if (histNotice && !seenHistoricalDocs.has(l.doc_id)) {
+          seenHistoricalDocs.add(l.doc_id);
+          historicalEvidenceWarnings.push(histNotice);
+        }
         return {
           link_id: l.link_id,
           evidence_id: l.passage_id,
@@ -1503,7 +1530,9 @@ export async function loadSavedAnswerFromPostgres(
           version_id: l.version_id,
           extraction_revision_id: l.extraction_revision_id,
           support_role: l.support_role,
-          support_role_label_th: roleLabels[l.support_role] || l.support_role,
+          support_role_label_th: histKind
+            ? "หลักฐานอ้างอิงทางประวัติศาสตร์ (ไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน)"
+            : roleLabels[l.support_role] || l.support_role,
           required_group: l.required_group,
           citation_label_th: l.citation_label_th,
           original_title_th: l.original_title_th,
@@ -1512,8 +1541,9 @@ export async function loadSavedAnswerFromPostgres(
           source_family: l.source_family,
           source_family_label_th: familyLabels[l.source_family] || l.source_family,
           record_type: l.record_type,
-          record_type_label_th:
-            l.record_type === "verified_official_attachment"
+          record_type_label_th: histKind
+            ? "เอกสารแนบทางประวัติศาสตร์ (ถูกแทนที่/ไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน)"
+            : l.record_type === "verified_official_attachment"
               ? "เอกสารกฎหมายทางการที่แนบและยืนยันต้นฉบับแล้ว"
               : "เอกสารฉบับเต็มทางการ",
           date_relied_on: row.as_of_date_raw || l.effective_from || l.publication_date,
@@ -1534,7 +1564,10 @@ export async function loadSavedAnswerFromPostgres(
             printed_page_end: l.printed_page_end,
             anchors: Array.isArray(l.anchors) ? l.anchors : [],
           },
-          verification_status: "supported",
+          verification_status: histKind ? "needs_review" : "supported",
+          currently_verified: !histKind,
+          historical_evidence_status: histKind || "currently_verified",
+          historical_evidence_notice_th: histNotice,
           link_health: l.link_health,
           link_health_notice_th:
             l.link_health === "temporarily_offline"
@@ -1561,8 +1594,9 @@ export async function loadSavedAnswerFromPostgres(
     };
   });
 
-  // Fetch audit trail for this answer's revisions
+  // Fetch audit trail for this answer's revisions and any cited attachment documents
   const revIds = revisionHistory.map((r) => r.answer_revision);
+  const auditCorrelationIds = Array.from(new Set([...revIds, ...Array.from(citedDocIds)]));
   const auditRes = await db<{
     audit_id: string;
     actor_or_service: string;
@@ -1579,7 +1613,7 @@ export async function loadSavedAnswerFromPostgres(
      FROM citation_audit_event
      WHERE correlation_id = ANY($1::text[])
      ORDER BY recorded_at ASC`,
-    [revIds]
+    [auditCorrelationIds]
   );
 
   const rawProvObj =
@@ -1688,9 +1722,15 @@ export async function loadSavedAnswerFromPostgres(
     clarification_questions_th: Array.isArray(extMeta?.clarification_questions_th)
       ? extMeta!.clarification_questions_th
       : [],
-    coverage_warnings_th: Array.isArray(extMeta?.coverage_warnings_th)
-      ? extMeta!.coverage_warnings_th
-      : [],
+    coverage_warnings_th: Array.from(
+      new Set([
+        ...(Array.isArray(extMeta?.coverage_warnings_th) ? extMeta!.coverage_warnings_th : []),
+        ...historicalEvidenceWarnings,
+      ])
+    ),
+    ...(historicalEvidenceWarnings.length > 0
+      ? { historical_evidence_warnings_th: historicalEvidenceWarnings }
+      : {}),
     rejected_calculations_diagnostic: Array.isArray(extMeta?.rejected_calculations_diagnostic)
       ? extMeta!.rejected_calculations_diagnostic
       : [],

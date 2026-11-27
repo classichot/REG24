@@ -496,7 +496,8 @@ describe("Formal Test 1 Candidate 11 — Consolidated 5-Defect Remediation Suite
           original_title_th:
             "พระราชกฤษฎีกา ออกตามความในประมวลรัษฎากร ว่าด้วยการลดอัตราภาษีมูลค่าเพิ่ม (ฉบับที่ 807) พ.ศ. 2569",
           official_origin_url: "https://www.rd.go.th/fileadmin/user_upload/kormor/newlaw/dc807.pdf",
-          publication_date: "2026-08-20",
+          enactment_date: "2026-08-20",
+          publication_date: "2026-08-23",
           effective_from: "2026-10-01",
           section_label: "มาตรา ๑",
           physical_page_one_based: 1,

@@ -37,6 +37,7 @@ import {
   createEmptyCitationLedger,
   ensureCitationLedgerInState,
   formatHumanPinpointTh,
+  isHistoricalSupersededOrUnverifiedReason,
   normalizeThaiSearchTextOnly,
   REVIEWED_OFFICIAL_PUBLISHER_REGISTRY,
 } from "./source-onboarding";
@@ -5187,10 +5188,17 @@ export function resolveTraceableEvidenceById(
   }
 
   // Authorization & withdrawal/revocation enforcement (T10, DEF-C10-5)
+  // Distinguish non-destructively superseded/unverified historical attachments (which remain inspectable
+  // read-only by authorized reviewers with explicit non-verified status) from withdrawn/revoked records!
+  const historicalSupersededKind =
+    doc.record_type === "verified_official_attachment"
+      ? isHistoricalSupersededOrUnverifiedReason(doc.ineligible_reason || psg.quarantine_reason)
+      : null;
   const isWithdrawn =
     Boolean(state.withdrawals[psg.doc_id]?.active) ||
     Boolean(state.withdrawals[psg.version_id]?.active) ||
     (doc.record_type === "verified_official_attachment" &&
+      !historicalSupersededKind &&
       (!doc.eligible_for_citation || !psg.eligible_for_publication));
   const isAuthorized = isActorAuthorizedForScope(actor, psg.access_scope);
 
@@ -5318,7 +5326,9 @@ export function resolveTraceableEvidenceById(
       source_family: doc.source_family,
       source_family_label_th: SOURCE_FAMILY_LABELS_TH[doc.source_family],
       record_type: doc.record_type,
-      record_type_label_th: RECORD_TYPE_LABELS_TH[doc.record_type],
+      record_type_label_th: historicalSupersededKind
+        ? "เอกสารแนบทางประวัติศาสตร์ (ถูกแทนที่/ไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน)"
+        : RECORD_TYPE_LABELS_TH[doc.record_type],
       original_title_th: doc.original_title_th,
       source_native_id: doc.source_native_id,
       publication_date: ver.publication_date,
@@ -5353,7 +5363,12 @@ export function resolveTraceableEvidenceById(
         access_permission: doc.access_permission,
         access_conditions_th: doc.access_conditions_th,
       },
-      verification_status: psg.eligible_for_publication ? "VERIFIED" : "QUARANTINED",
+      verification_status: psg.eligible_for_publication && !historicalSupersededKind ? "VERIFIED" : "QUARANTINED",
+      currently_verified: !historicalSupersededKind && doc.eligible_for_citation && psg.eligible_for_publication,
+      historical_evidence_status: historicalSupersededKind || "currently_verified",
+      historical_evidence_notice_th: historicalSupersededKind
+        ? `เอกสารแนบทางประวัติศาสตร์ (${doc.doc_id}) ถูกทำเครื่องหมายว่าถูกแทนที่หรือไม่ผ่านการยืนยันในปัจจุบัน จึงเก็บรักษาไว้เฉพาะเพื่อการตรวจสอบย้อนหลัง (Audit) และไม่ใช้เป็นหลักฐานอ้างอิงในคำตอบใหม่ (${doc.ineligible_reason || psg.quarantine_reason || ""})`
+        : null,
       resolver_url: `/api/v1/knowledge/evidence/${encodeURIComponent(psg.passage_id)}`,
     },
   };
@@ -5499,6 +5514,7 @@ export function reopenSavedTraceableAnswer(
   conversation_id?: string | null;
   conversation_turns?: ConversationTurnInput[];
   question_text?: string;
+  audit_events?: import("./citation-contracts").TraceabilityAuditEventRecord[];
   error_th?: string;
 } {
   const view = getUnifiedCitationLedgerView(store);
@@ -5548,8 +5564,11 @@ export function reopenSavedTraceableAnswer(
     }
   }
 
-  // Refresh live link_health status & detect if newer versions have been ingested since this answer was saved (T04, T06)
+  // Refresh live link_health status, historical superseded status, & detect if newer versions have been ingested since this answer was saved (T04, T06, ISO-X)
   const updateNotices: NewerMaterialUpdateNoticeDto[] = [];
+  const historicalEvidenceWarnings: string[] = [];
+  const seenHistoricalWarningDocs = new Set<string>();
+  const citedDocIds = new Set<string>();
   const seenVersionChecks = new Set<string>();
 
   const refreshedClaims: PublishedAtomicClaimDto[] = matched.claims.map((clm) => ({
@@ -5561,6 +5580,19 @@ export function reopenSavedTraceableAnswer(
       const psg = view.passages[ref.evidence_id];
       const loc = selectBestOfficialLocation(view.locations, ref.doc_id, ref.version_id, ref.official_url);
       const pub = doc ? view.publishers[doc.issuer_id] : undefined;
+      citedDocIds.add(ref.doc_id);
+
+      const histKind =
+        doc?.record_type === "verified_official_attachment"
+          ? isHistoricalSupersededOrUnverifiedReason(doc.ineligible_reason || psg?.quarantine_reason)
+          : null;
+      const histNotice = histKind
+        ? `หลักฐานแนบทางประวัติศาสตร์ (${ref.doc_id}) ถูกแทนที่หรือไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน — บันทึกเดิมและประวัติการตรวจสอบ (Audit Trail) ยังคงเก็บรักษาไว้ครบถ้วน แต่หลักฐานนี้ถูกกันออกจากคำตอบใหม่ (${doc?.ineligible_reason || psg?.quarantine_reason || ""})`
+        : null;
+      if (histNotice && !seenHistoricalWarningDocs.has(ref.doc_id)) {
+        seenHistoricalWarningDocs.add(ref.doc_id);
+        historicalEvidenceWarnings.push(histNotice);
+      }
 
       if (ver && !seenVersionChecks.has(ver.version_id)) {
         seenVersionChecks.add(ver.version_id);
@@ -5589,7 +5621,21 @@ export function reopenSavedTraceableAnswer(
         }
       }
 
-      if (!loc || !psg) return ref;
+      if (!loc || !psg) {
+        return histKind
+          ? {
+              ...ref,
+              verification_status: "needs_review",
+              currently_verified: false,
+              historical_evidence_status: histKind,
+              historical_evidence_notice_th: histNotice,
+              record_type_label_th:
+                "เอกสารแนบทางประวัติศาสตร์ (ถูกแทนที่/ไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน)",
+              support_role_label_th:
+                "หลักฐานอ้างอิงทางประวัติศาสตร์ (ไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน)",
+            }
+          : ref;
+      }
       return {
         ...ref,
         original_title_th: doc?.original_title_th || ref.original_title_th,
@@ -5599,6 +5645,22 @@ export function reopenSavedTraceableAnswer(
         link_health: loc.link_health,
         link_health_notice_th: formatOfficialLinkStatusNoticeTh(loc),
         last_successful_verification_at: loc.last_successful_verified_at,
+        ...(histKind
+          ? {
+              verification_status: "needs_review" as const,
+              currently_verified: false,
+              historical_evidence_status: histKind,
+              historical_evidence_notice_th: histNotice,
+              record_type_label_th:
+                "เอกสารแนบทางประวัติศาสตร์ (ถูกแทนที่/ไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน)",
+              support_role_label_th:
+                "หลักฐานอ้างอิงทางประวัติศาสตร์ (ไม่ถือเป็นหลักฐานที่ยืนยันแล้วในปัจจุบัน)",
+            }
+          : {
+              currently_verified: true,
+              historical_evidence_status: "currently_verified" as const,
+              historical_evidence_notice_th: null,
+            }),
       };
     }),
   }));
@@ -5651,6 +5713,17 @@ export function reopenSavedTraceableAnswer(
     });
   }
 
+  const mergedCoverageWarnings = Array.from(
+    new Set([...(matched.coverage_warnings_th || []), ...historicalEvidenceWarnings])
+  );
+  const relevantRevIds = new Set(allRevsForAnswer.map((r) => r.answer_revision));
+  const localAuditEvents = (view.audit_events || []).filter(
+    (ev) =>
+      relevantRevIds.has(ev.correlation_id) ||
+      citedDocIds.has(ev.correlation_id) ||
+      ev.affected_ids.some((id) => relevantRevIds.has(id) || citedDocIds.has(id))
+  );
+
   const reopenedLocalEnvelope: TraceableAnswerEnvelope = {
     ...matched,
     conversation_id: resolvedLocalConvId,
@@ -5659,11 +5732,21 @@ export function reopenSavedTraceableAnswer(
     revision_reason: matched.revision_reason || "Initial verified publication",
     revision_history: revisionHistory,
     claims: refreshedClaims,
+    coverage_warnings_th: mergedCoverageWarnings,
+    ...(historicalEvidenceWarnings.length > 0
+      ? { historical_evidence_warnings_th: historicalEvidenceWarnings }
+      : {}),
     update_notices: updateNotices,
   };
   const rehydratedLocalGrounded: GroundedAnswer | null = matched.grounded_answer_snapshot
     ? {
         ...matched.grounded_answer_snapshot,
+        coverage_warnings: Array.from(
+          new Set([
+            ...(matched.grounded_answer_snapshot.coverage_warnings || []),
+            ...historicalEvidenceWarnings,
+          ])
+        ),
         traceable_answer: reopenedLocalEnvelope,
       }
     : null;
@@ -5676,6 +5759,7 @@ export function reopenSavedTraceableAnswer(
     conversation_turns: localTurns,
     grounded_answer: rehydratedLocalGrounded,
     answer: reopenedLocalEnvelope,
+    audit_events: localAuditEvents,
   };
 }
 
@@ -6629,9 +6713,10 @@ export function tryAnswerFromOnboardedCitationSources(
     return null;
   }
 
-  // Filter authorized documents for this caller (RET-01, T10, and tenant/actor attachment isolation)
-  const authorizedDocs = directDocs.filter((d) =>
-    isActorAuthorizedForScope(params.actor, d.access_scope)
+  // Filter authorized AND verified-eligible documents for this caller (RET-01, T10, ISO-X, and tenant/actor attachment isolation)
+  // Unverified or superseded attachments (`eligible_for_citation === false`) MUST NEVER enter governing evidence!
+  const authorizedDocs = directDocs.filter(
+    (d) => d.eligible_for_citation !== false && isActorAuthorizedForScope(params.actor, d.access_scope)
   );
 
   const generatedAt = new Date().toISOString();
@@ -6980,7 +7065,10 @@ export function tryAnswerFromOnboardedCitationSources(
     }
     if (!ver) continue;
     const psgs = Object.values(rawLedger.passages).filter(
-      (p) => p.doc_id === doc.doc_id && p.version_id === ver.version_id
+      (p) =>
+        p.doc_id === doc.doc_id &&
+        p.version_id === ver.version_id &&
+        p.eligible_for_publication !== false
     );
     for (const p of psgs) {
       candidatePassageIds.add(p.passage_id);

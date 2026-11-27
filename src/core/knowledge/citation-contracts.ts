@@ -351,6 +351,12 @@ export interface ClaimEvidenceReferenceDto {
   verbatim_excerpt_th?: string;
   /** Original official title of the source document preserved across Save and exact Reopen. */
   original_title_th?: string;
+  /** False when a preserved historical attachment has been superseded or marked unverified. */
+  currently_verified?: boolean;
+  /** Distinguishes currently verified evidence from superseded/unverified historical attachments preserved for audit review. */
+  historical_evidence_status?: "currently_verified" | "superseded_historical" | "unverified_historical";
+  /** Thai reviewer notice displayed when historical cited evidence is no longer currently verified. */
+  historical_evidence_notice_th?: string | null;
 }
 
 export interface ClaimBoundCalculationRecord {
@@ -471,6 +477,7 @@ export interface TraceableAnswerEnvelope {
   assumptions: string[];
   clarification_questions_th?: string[];
   coverage_warnings_th?: string[];
+  historical_evidence_warnings_th?: string[];
   rejected_calculations_diagnostic?: RejectedCalculationDiagnosticDto[];
   claims: PublishedAtomicClaimDto[];
   unresolved_issues: UnresolvedIssueDto[];
@@ -559,6 +566,9 @@ export interface ResolvedPinnedEvidenceResponse {
       access_conditions_th: string | null;
     };
     verification_status: "VERIFIED" | "QUARANTINED";
+    currently_verified?: boolean;
+    historical_evidence_status?: "currently_verified" | "superseded_historical" | "unverified_historical";
+    historical_evidence_notice_th?: string | null;
     resolver_url: string;
   };
 }
@@ -571,6 +581,7 @@ export interface TraceabilityAuditEventRecord {
     | "SOURCE_CAPTURED"
     | "OFFICIAL_ATTACHMENT_VERIFIED"
     | "OFFICIAL_ATTACHMENT_REJECTED"
+    | "OFFICIAL_ATTACHMENT_SUPERSEDED"
     | "IDENTITY_VERIFIED"
     | "IDENTITY_QUARANTINED"
     | "OCR_AMBIGUITY_QUARANTINED"

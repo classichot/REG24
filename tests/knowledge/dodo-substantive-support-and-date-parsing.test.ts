@@ -27,6 +27,7 @@ import { queryKnowledge } from "../../src/core/knowledge/query";
 import {
   clearProtectedStoreSidecarForTesting,
   onboardOfficialSourceDocument,
+  setTrustedPublisherFetcherForTesting,
 } from "../../src/core/knowledge/source-onboarding";
 import {
   DurableKnowledgeStore,
@@ -88,6 +89,7 @@ describe("Dodo Retest Regression Suite — Substantive Claim Support & Year/Mont
     delete process.env.REG24_USE_B01_RC2_PREVIEW_STORE;
     setDefaultKnowledgeStoreForTesting(null);
     clearProtectedStoreSidecarForTesting();
+    setTrustedPublisherFetcherForTesting(null);
     for (const d of tempDirs) {
       try {
         fs.rmSync(d, { recursive: true, force: true });
@@ -371,6 +373,22 @@ describe("Dodo Retest Regression Suite — Substantive Claim Support & Year/Mont
     // 4. Verified official law attachment remains acceptable evidence when it substantively supports the claim, AND fails if attached to an unrelated claim!
     const attText =
       "ราชกิจจานุเบกษา เล่ม ๑๔๐ ตอนที่ ๔๙ ก พระราชกฤษฎีกาออกตามความในประมวลรัษฎากร ว่าด้วยการยกเว้นรัษฎากร (ฉบับที่ 779) พ.ศ. 2566 มาตรา 4 ให้ยกเว้นภาษีเงินได้นิติบุคคลเป็นจำนวนร้อยละหนึ่งร้อยของรายจ่ายเพื่อการลงทุนในระบบอัตโนมัติ ตั้งแต่วันที่ 1 มกราคม พ.ศ. 2566 ถึงวันที่ 31 ธันวาคม พ.ศ. 2568";
+    setTrustedPublisherFetcherForTesting(async ({ official_url }) =>
+      official_url === "https://ratchakitcha.soc.go.th/documents/rd-779-2566.pdf"
+        ? {
+            official_url,
+            publication_date: "2023-08-17",
+            effective_from: "2023-08-18",
+            pages: [
+              {
+                physical_page_one_based: 3,
+                printed_page_label: "๓",
+                page_text_verbatim: attText,
+              },
+            ],
+          }
+        : null
+    );
     const attRes = await attachmentsPost(
       new Request("http://localhost/api/v1/knowledge/attachments", {
         method: "POST",
