@@ -777,4 +777,361 @@ describe("REG24 Batch 1 — Four Open VAT Defects from 4137d63 (Independent Synt
     ).toBe(false);
     expect(lh2.temporal_facts.controlling_tax_point.iso_date).toBe("2026-10-01");
   });
+
+  // =========================================================================
+  // VAT4 Citation-Verifier Cycle (trc.29f982dcb5daaf C2 r1 + H1 Issue 2)
+  // Covers all 3 outcomes:
+  //   1. Valid citation supports claim (incl. DG VAT 105 ข้อ 3 same-work 0% rate)
+  //   2. Negated contrast ('ไม่ต้องเสีย...ตามมาตรา 80 หรือ พ.ร.ฎ. 807') & incidental
+  //      non-numeric side citation do NOT suppress an independently supported 0% claim
+  //   3. Genuinely unsupported affirmative / fabricated citations stay STRICTLY BLOCKED
+  // =========================================================================
+  it("VAT4-C2-VERIFIER: negated RD 807 / §80 contrast ('ไม่ต้องเสีย...') and same-work DG VAT 105 ข้อ 3 documentary claim survive Generate -> Save -> Reopen, incidental out-of-corpus item is dropped without suppressing 0%, while affirmative or fabricated unsupported citations stay strictly blocked", async () => {
+    const c2Prompt =
+      "บริษัทในไทยให้บริการออกแบบกราฟิกแก่ลูกค้าในประเทศญี่ปุ่น โดยลูกค้าใช้ผลของบริการทั้งหมดที่สำนักงานในโตเกียว ค่าบริการ 100,000 บาท ชำระค่าบริการและออกใบกำกับภาษีวันที่ 20 ตุลาคม 2569 ต้องเสียภาษีมูลค่าเพิ่มกี่เปอร์เซ็นต์ เป็นเงินกี่บาท";
+
+    // Outcome 2A (Exact trc.29f982dcb5daaf C2 r1 failure shape):
+    // Gemini declares RD 807 & §80 as contrast_mentions (not_applicable) and writes
+    // "...และไม่ต้องเสียภาษีมูลค่าเพิ่มในอัตราปกติตามมาตรา 80 หรือพระราชกฤษฎีกา (ฉบับที่ 807) พ.ศ. 2569"
+    // in the SAME sentence as bound numbers (100,000 / 0 บาท). Must publish ANSWERED with §80/1(2) + 105 + 181 intact!
+    let c2Pack: AssembledPacketItem[] = [];
+    const resC2 = await queryKnowledge(
+      {
+        question: c2Prompt,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        mode: "standard",
+        conversation_id: "conv.vat4.c2.verifier.negated",
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      {
+        store,
+        onRealAppEvidenceAssembly: (cap) => {
+          c2Pack = cap.actual_model_packet;
+        },
+        llmMockInvokerForTesting: async () => {
+          const p77 = c2Pack.find((p) => p.work_id === "prov.th.rc.77/2")!;
+          const p78_1 = c2Pack.find((p) => p.work_id === "prov.th.rc.78/1")!;
+          const p80_1 = c2Pack.find((p) => p.work_id === "prov.th.rc.80/1")!;
+          const p105All = c2Pack.filter((p) => p.work_id === "subreg.th.rd.dg_vat.105");
+          const p181All = c2Pack.filter((p) => p.work_id === "subreg.th.rd.dg_vat.181");
+          const cited = [
+            p77.passage_id,
+            p78_1.passage_id,
+            p80_1.passage_id,
+            ...p105All.slice(0, 3).map((p) => p.passage_id),
+            ...p181All.slice(0, 2).map((p) => p.passage_id),
+          ];
+          const draft: GroundedLlmDraftResponse = {
+            answer_status: "ANSWERED",
+            overall_summary_th: "ให้บริการออกแบบกราฟิกจากไทยโดยใช้ผลของบริการทั้งหมดที่สำนักงานในโตเกียว เสีย VAT 0%",
+            case_facts_used: [
+              {
+                fact_label_th: "สถานที่ที่มีการใช้บริการ",
+                original_fact_th: "ลูกค้าใช้ผลของบริการทั้งหมดที่สำนักงานในโตเกียว",
+                source_turn: 1,
+                legal_significance_th: "เข้าหลักเกณฑ์การส่งออกบริการตามมาตรา 80/1 (2)",
+              },
+            ],
+            issues: [
+              {
+                issue_id: "issue_1_c2_export_zero",
+                issue_title_th: "อัตราภาษีมูลค่าเพิ่มและจำนวนภาษีมูลค่าเพิ่มสำหรับการให้บริการออกแบบกราฟิกที่ใช้ผลของบริการทั้งหมดในต่างประเทศ",
+                party_or_scope_th: "บริษัทผู้ให้บริการในประเทศไทย",
+                conclusion_th:
+                  "บริษัทต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 0 คิดเป็นเงิน 0 บาท จากมูลค่าค่าบริการ 100,000 บาท โดยความรับผิดในการเสียภาษีมูลค่าเพิ่มเกิดขึ้นในวันที่ 20 ตุลาคม 2569",
+                application_explanation_th:
+                  "1. ขอบเขตภาษีมูลค่าเพิ่มและจุดความรับผิด: การให้บริการออกแบบกราฟิกในประเทศไทยอยู่ในบังคับตามประมวลรัษฎากร มาตรา 77/2 และเมื่อชำระค่าบริการพร้อมออกใบกำกับภาษีวันที่ 20 ตุลาคม 2569 ความรับผิดจึงเกิดขึ้นวันที่ 20 ตุลาคม 2569 ตามมาตรา 78/1 (1) 2. สิทธิใช้อัตราร้อยละ 0: ตามมาตรา 80/1 (2) ประกอบประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105) ข้อ 2 (1) ซึ่งแก้ไขเพิ่มเติมโดยประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 181) กำหนดให้การให้บริการที่กระทำในราชอาณาจักรแก่ผู้รับบริการในต่างประเทศและใช้ผลของบริการทั้งหมดที่สำนักงานในโตเกียวได้รับสิทธิเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 0 คิดเป็นเงิน 0 บาท จากฐานค่าบริการ 100,000 บาท และไม่ต้องเสียภาษีมูลค่าเพิ่มในอัตราปกติตามมาตรา 80 หรือพระราชกฤษฎีกา (ฉบับที่ 807) พ.ศ. 2569",
+                authority_distinction_note_th:
+                  "อ้างอิงมาตรา 77/2, มาตรา 78/1 (1), มาตรา 80/1 (2) ประกอบประกาศอธิบดีฯ VAT (ฉบับที่ 105) และ (ฉบับที่ 181) ส่วนมาตรา 80 และพระราชกฤษฎีกา (ฉบับที่ 807) พ.ศ. 2569 กล่าวถึงเฉพาะเพื่อยืนยันว่าไม่นำมาใช้บังคับกับกรณีนี้",
+                governing_passage_ids: cited,
+                asserted_authorities: [
+                  { work_id: "prov.th.rc.77/2", section: "มาตรา 77/2" },
+                  { work_id: "prov.th.rc.78/1", section: "มาตรา 78/1 (1)" },
+                  { work_id: "prov.th.rc.80/1", section: "มาตรา 80/1 (2)" },
+                  { work_id: "subreg.th.rd.dg_vat.105", section: "ข้อ 2 (1)" },
+                  { work_id: "subreg.th.rd.dg_vat.181", section: "ข้อ 1" },
+                ],
+                contrast_mentions: [
+                  { work_id: "prov.th.rc.80", role: "not_applicable" },
+                  { work_id: "subreg.th.rc.royal_decree.807", role: "not_applicable" },
+                ],
+                material_facts_relied_on: ["ใช้ผลของบริการทั้งหมดที่สำนักงานในโตเกียว", "ค่าบริการ 100,000 บาท"],
+                missing_facts_or_uncertainties_th: [],
+                proposed_calculation: {
+                  formula_description_th: "100,000 × 0% = 0 บาท",
+                  tax_base_thb: 100000,
+                  exempt_amount_thb: 0,
+                  taxable_amount_thb: 100000,
+                  rate_pct: 0,
+                  computed_tax_thb: 0,
+                  is_computable_from_stated_facts: true,
+                  missing_inputs_th: [],
+                  steps_th: ["100,000 × 0% = 0 บาท"],
+                },
+              },
+              // Outcome 1 (Exact H1 Issue 2 failure shape):
+              // Documentary proof issue citing ONLY DG VAT 105 ข้อ 3 (`psg.ce5947ca68bf26`) while mentioning อัตราร้อยละ 0
+              // defined in sibling unit of the EXACT SAME WORK `subreg.th.rd.dg_vat.105` in the packet!
+              {
+                issue_id: "issue_2_dg105_clause3_doc_proof",
+                issue_title_th: "หลักฐานการรับชำระราคาที่กฎหมายกำหนดเพื่อรองรับสิทธิใช้อัตราร้อยละ 0",
+                party_or_scope_th: "บริษัทผู้ให้บริการในประเทศไทย",
+                conclusion_th:
+                  "บริษัทต้องจัดเก็บหลักฐานแสดงการชำระราคาค่าบริการตามใบแจ้งหนี้ (Invoice) ในนามของผู้ประกอบการจดทะเบียนตามประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105) ข้อ 3",
+                application_explanation_th:
+                  "เพื่อให้การใช้สิทธิเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 0 สมบูรณ์ตามกฎหมาย ข้อ 3 ของประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105) กำหนดให้ผู้ประกอบการจดทะเบียนต้องมีหลักฐานแสดงการชำระราคาค่าบริการตามใบแจ้งหนี้ (Invoice) ในนามของผู้ประกอบการจดทะเบียน",
+                authority_distinction_note_th: "ประกาศอธิบดีฯ VAT (ฉบับที่ 105) ข้อ 3",
+                governing_passage_ids: [
+                  c2Pack.find(
+                    (p) =>
+                      p.work_id === "subreg.th.rd.dg_vat.105" &&
+                      /ข้อ\s*[3๓]|Invoice/i.test(store.getState().passages[p.passage_id]?.exact_text || "")
+                  )!.passage_id,
+                ],
+                asserted_authorities: [{ work_id: "subreg.th.rd.dg_vat.105", section: "ข้อ 3" }],
+                contrast_mentions: [],
+                material_facts_relied_on: ["ออกใบกำกับภาษีและชำระราคาวันที่ 20 ตุลาคม 2569"],
+                missing_facts_or_uncertainties_th: [],
+                proposed_calculation: {
+                  formula_description_th: "ไม่มีการคำนวณภาษีเพิ่มเติม",
+                  tax_base_thb: null,
+                  exempt_amount_thb: null,
+                  taxable_amount_thb: null,
+                  rate_pct: null,
+                  computed_tax_thb: null,
+                  is_computable_from_stated_facts: false,
+                  missing_inputs_th: [],
+                  steps_th: [],
+                },
+              },
+            ],
+            assumptions_th: [],
+            clarification_questions_th: [],
+            evidence_gaps_th: [],
+          };
+          return draft;
+        },
+      }
+    );
+
+    expect(resC2.status).toBe("ANSWERED");
+    expect(resC2.claims.length).toBe(2);
+    expect(resC2.answer).toContain("80/1");
+    expect(resC2.answer).toContain("105");
+    expect(resC2.answer).toContain("181");
+    expect(resC2.evidence.some((e) => e.work_id === "prov.th.rc.80/1")).toBe(true);
+    expect(resC2.evidence.some((e) => e.work_id === "subreg.th.rd.dg_vat.105")).toBe(true);
+    expect(resC2.evidence.some((e) => e.work_id === "subreg.th.rd.dg_vat.181")).toBe(true);
+
+    // Must survive Save -> exact Reopen cleanly!
+    const savedC2 = await cte.saveOrReviseAnswerServerVerified(store, {
+      submitted_envelope: resC2.traceable_answer!,
+      question_text: c2Prompt,
+      revision_reason: "VAT4-C2-VERIFIER save",
+      actor: QA_ACTOR,
+      grounded_answer_snapshot: resC2,
+    });
+    const reopenedC2 = cte.reopenSavedTraceableAnswer(store, savedC2.answer_revision, QA_ACTOR);
+    expect(reopenedC2.found).toBe(true);
+    expect(reopenedC2.answer?.status).toBe("complete");
+    expect(reopenedC2.answer?.rendered_answer_th).toContain("80/1");
+    expect(reopenedC2.answer?.rendered_answer_th).toContain("181");
+
+    // Outcome 2B (Incidental unsupported out-of-corpus order in a separate non-bound-number numbered item):
+    // Must drop ONLY the unsupported side citation (never publishing ป.104/2544) while preserving the supported 0% claim!
+    const resIncidental = await queryKnowledge(
+      {
+        question: c2Prompt,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        mode: "standard",
+        conversation_id: "conv.vat4.c2.verifier.incidental",
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      {
+        store,
+        llmMockInvokerForTesting: async () => {
+          const p77 = c2Pack.find((p) => p.work_id === "prov.th.rc.77/2")!;
+          const p78_1 = c2Pack.find((p) => p.work_id === "prov.th.rc.78/1")!;
+          const p80_1 = c2Pack.find((p) => p.work_id === "prov.th.rc.80/1")!;
+          const p105 = c2Pack.find(
+            (p) =>
+              p.work_id === "subreg.th.rd.dg_vat.105" &&
+              /ข้อ\s*[2๒]/.test(store.getState().passages[p.passage_id]?.exact_text || "")
+          )!;
+          const p181 = c2Pack.find((p) => p.work_id === "subreg.th.rd.dg_vat.181")!;
+          return {
+            answer_status: "ANSWERED",
+            overall_summary_th: "ส่งออกบริการใช้ในโตเกียว เสีย VAT 0%",
+            case_facts_used: [],
+            issues: [
+              {
+                issue_id: "issue_1_incidental_order",
+                issue_title_th: "อัตราภาษีมูลค่าเพิ่มสำหรับการส่งออกบริการ",
+                party_or_scope_th: "บริษัทผู้ให้บริการในประเทศไทย",
+                conclusion_th:
+                  "ต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 0 คิดเป็นเงิน 0 บาท จากฐานค่าบริการ 100,000 บาท ตามมาตรา 80/1 (2) ประกอบประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105) และ (ฉบับที่ 181)",
+                application_explanation_th:
+                  "1. การให้บริการออกแบบกราฟิกที่กระทำในราชอาณาจักรและใช้ผลของบริการทั้งหมดที่สำนักงานในโตเกียวได้รับสิทธิอัตราร้อยละ 0 คิดเป็นเงิน 0 บาท จากฐานค่าบริการ 100,000 บาท ตามมาตรา 77/2 มาตรา 78/1 (1) มาตรา 80/1 (2) และประกาศอธิบดีฯ VAT (ฉบับที่ 105) แก้ไขเพิ่มเติมโดย (ฉบับที่ 181) 2. ทั้งนี้ในทางปฏิบัติอาจเทียบเคียงแนวทางตามคำสั่งกรมสรรพากร ที่ ป.104/2544 เพื่อประกอบการพิจารณาเพิ่มเติม",
+                authority_distinction_note_th: "มาตรา 80/1 (2) และประกาศอธิบดีฯ 105/181",
+                governing_passage_ids: [p77.passage_id, p78_1.passage_id, p80_1.passage_id, p105.passage_id, p181.passage_id],
+                asserted_authorities: [
+                  { work_id: "prov.th.rc.80/1", section: "มาตรา 80/1 (2)" },
+                  { work_id: "subreg.th.rd.dg_vat.105", section: "ข้อ 2" },
+                  { work_id: "subreg.th.rd.dg_vat.181", section: "ข้อ 1" },
+                ],
+                contrast_mentions: [],
+                material_facts_relied_on: ["ใช้ผลของบริการทั้งหมดที่สำนักงานในโตเกียว"],
+                missing_facts_or_uncertainties_th: [],
+                proposed_calculation: {
+                  formula_description_th: "100,000 × 0% = 0 บาท",
+                  tax_base_thb: 100000,
+                  exempt_amount_thb: 0,
+                  taxable_amount_thb: 100000,
+                  rate_pct: 0,
+                  computed_tax_thb: 0,
+                  is_computable_from_stated_facts: true,
+                  missing_inputs_th: [],
+                  steps_th: ["100,000 × 0% = 0 บาท"],
+                },
+              },
+            ],
+            assumptions_th: [],
+            clarification_questions_th: [],
+            evidence_gaps_th: [],
+          };
+        },
+      }
+    );
+    expect(resIncidental.claims.length).toBe(1);
+    expect(resIncidental.answer).toContain("80/1");
+    expect(resIncidental.answer).not.toContain("ป.104/2544");
+
+    // Outcome 3A (Genuinely unsupported affirmative Royal Decree citation): MUST STAY STRICTLY BLOCKED!
+    const resAffirmativeBadDecree = await queryKnowledge(
+      {
+        question: c2Prompt,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        mode: "standard",
+        conversation_id: "conv.vat4.c2.verifier.bad_decree",
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      {
+        store,
+        llmMockInvokerForTesting: async () => {
+          const p80_1 = c2Pack.find((p) => p.work_id === "prov.th.rc.80/1")!;
+          const p105 = c2Pack.find(
+            (p) =>
+              p.work_id === "subreg.th.rd.dg_vat.105" &&
+              /ข้อ\s*[2๒]/.test(store.getState().passages[p.passage_id]?.exact_text || "")
+          )!;
+          return {
+            answer_status: "ANSWERED",
+            overall_summary_th: "อ้างอิง พ.ร.ฎ. ฉบับที่ 790 โดยตรง",
+            case_facts_used: [],
+            issues: [
+              {
+                issue_id: "issue_bad_affirmative_decree",
+                issue_title_th: "อัตราภาษีมูลค่าเพิ่ม",
+                party_or_scope_th: "บริษัทผู้ให้บริการ",
+                conclusion_th:
+                  "ต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 0 คิดเป็นเงิน 0 บาท จากฐาน 100,000 บาท โดยอยู่ภายใต้บังคับของพระราชกฤษฎีกา (ฉบับที่ 790) พ.ศ. 2567",
+                application_explanation_th:
+                  "เสียภาษีมูลค่าเพิ่มตามพระราชกฤษฎีกา (ฉบับที่ 790) พ.ศ. 2567 และมาตรา 80/1 (2) คิดเป็น 0 บาท จาก 100,000 บาท",
+                authority_distinction_note_th: "",
+                governing_passage_ids: [p80_1.passage_id, p105.passage_id],
+                asserted_authorities: [{ work_id: "prov.th.rc.80/1", section: "มาตรา 80/1 (2)" }],
+                contrast_mentions: [{ work_id: "subreg.th.rc.royal_decree.790", role: "not_applicable" }],
+                material_facts_relied_on: [],
+                missing_facts_or_uncertainties_th: [],
+                proposed_calculation: {
+                  formula_description_th: "100,000 × 0% = 0 บาท",
+                  tax_base_thb: 100000,
+                  exempt_amount_thb: 0,
+                  taxable_amount_thb: 100000,
+                  rate_pct: 0,
+                  computed_tax_thb: 0,
+                  is_computable_from_stated_facts: true,
+                  missing_inputs_th: [],
+                  steps_th: ["100,000 × 0% = 0 บาท"],
+                },
+              },
+            ],
+            assumptions_th: [],
+            clarification_questions_th: [],
+            evidence_gaps_th: [],
+          };
+        },
+      }
+    );
+    expect(resAffirmativeBadDecree.claims.length).toBe(0);
+    expect(resAffirmativeBadDecree.status).toBe("REVIEW_REQUIRED");
+
+    // Outcome 3B (Fabricated out-of-corpus order carrying bound numbers): MUST STAY STRICTLY BLOCKED!
+    const resFabricatedOrder = await queryKnowledge(
+      {
+        question: c2Prompt,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        mode: "standard",
+        conversation_id: "conv.vat4.c2.verifier.bad_order",
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      {
+        store,
+        llmMockInvokerForTesting: async () => {
+          const p80_1 = c2Pack.find((p) => p.work_id === "prov.th.rc.80/1")!;
+          const p105 = c2Pack.find(
+            (p) =>
+              p.work_id === "subreg.th.rd.dg_vat.105" &&
+              /ข้อ\s*[2๒]/.test(store.getState().passages[p.passage_id]?.exact_text || "")
+          )!;
+          return {
+            answer_status: "ANSWERED",
+            overall_summary_th: "อ้างคำสั่งที่ไม่อยู่ในคลัง",
+            case_facts_used: [],
+            issues: [
+              {
+                issue_id: "issue_bad_order",
+                issue_title_th: "อัตราภาษีมูลค่าเพิ่ม",
+                party_or_scope_th: "บริษัทผู้ให้บริการ",
+                conclusion_th:
+                  "ต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 0 คิดเป็นเงิน 0 บาท จากฐาน 100,000 บาท ตามคำสั่งกรมสรรพากร ที่ ป.999/2569 และมาตรา 80/1 (2)",
+                application_explanation_th:
+                  "ตามคำสั่งกรมสรรพากร ที่ ป.999/2569 คิดเป็นภาษี 0 บาท จาก 100,000 บาท",
+                authority_distinction_note_th: "",
+                governing_passage_ids: [p80_1.passage_id, p105.passage_id],
+                asserted_authorities: [{ work_id: "prov.th.rc.80/1", section: "มาตรา 80/1 (2)" }],
+                contrast_mentions: [],
+                material_facts_relied_on: [],
+                missing_facts_or_uncertainties_th: [],
+                proposed_calculation: {
+                  formula_description_th: "100,000 × 0% = 0 บาท",
+                  tax_base_thb: 100000,
+                  exempt_amount_thb: 0,
+                  taxable_amount_thb: 100000,
+                  rate_pct: 0,
+                  computed_tax_thb: 0,
+                  is_computable_from_stated_facts: true,
+                  missing_inputs_th: [],
+                  steps_th: ["100,000 × 0% = 0 บาท"],
+                },
+              },
+            ],
+            assumptions_th: [],
+            clarification_questions_th: [],
+            evidence_gaps_th: [],
+          };
+        },
+      }
+    );
+    expect(resFabricatedOrder.claims.length).toBe(0);
+    expect(resFabricatedOrder.status).toBe("REVIEW_REQUIRED");
+  });
 });

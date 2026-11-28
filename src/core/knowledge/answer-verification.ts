@@ -561,7 +561,10 @@ export function evaluateSubstantiveClaimSupport(params: {
       new RegExp(`(?:มาตรา|ข้อ)\\s*${bareSecNum.replace("/", "\\/")}(?![0-9/])`).test(
         combinedNormWithMeta
       );
-    if (!secPresent) {
+    const excludedSecSet = new Set(params.excluded_context_instruments || []);
+    const secIsValidatedContrast =
+      excludedSecSet.has(sec) || excludedSecSet.has(`มาตรา ${bareSecNum}`);
+    if (!secPresent && !secIsValidatedContrast) {
       return {
         supported: false,
         reason_code: "UNGROUNDED_LEGAL_IDENTIFIER",

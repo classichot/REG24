@@ -367,6 +367,10 @@ export function isNamedAuthoritySupportedByPassages(
     }
 
     case "dg_notification": {
+      const excludedDgSet = new Set(opts?.excludedContextInstruments || []);
+      if (excludedDgSet.has(auth.canonicalId)) {
+        return true;
+      }
       const num = auth.canonicalId.slice("ปอ.".length);
       if (
         nonOutOfWindow.some(
@@ -438,6 +442,11 @@ export function isNamedAuthoritySupportedByPassages(
     }
 
     case "section": {
+      const excludedSecSet = new Set(opts?.excludedContextInstruments || []);
+      const secBareParent = auth.canonicalId.replace(/\s*\([^)]+\)\s*$/, "").trim();
+      if (excludedSecSet.has(auth.canonicalId) || excludedSecSet.has(secBareParent)) {
+        return true;
+      }
       const combinedNorm = normalizeCompactForSectionLookup(
         nonOutOfWindow
           .map(

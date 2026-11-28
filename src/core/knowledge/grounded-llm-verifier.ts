@@ -403,10 +403,10 @@ function checkCaseFactPreservation(
 }
 
 const EXPLICIT_EXCLUSION_RE =
-  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|มิได้ใช้บังคับ|ยังไม่ถึง(?:กำหนด|วัน)|ไม่ใช้(?:บังคับ)?(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|มิใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ไม่ใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ไม่ถูกต้อง|ไม่ตรง(?:กับ)?|ผิดพลาด|คลาดเคลื่อน|ข้อเสนอที่|ตามที่(?:ถาม|เสนอ|คำนวณ|ระบุ)|หากคำนวณ|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่(?:ใน|ภายใต้)|ยังไม่ตกอยู่(?:ใน|ภายใต้)|ไม่อยู่ภายใต้|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|ยังไม่อยู่ในบังคับ|ไม่อยู่ในบังคับ|ไม่ได้อยู่ในบังคับ|มิได้อยู่ในบังคับ|สิ้นสุด(?:การบังคับใช้|ช่วง(?:เวลา|ความรับผิด)?|ผล(?:การ)?ใช้บังคับ|ระยะเวลา|กำหนด|ในวันที่|เมื่อวันที่|ลง)|หมดอายุ|หมดระยะเวลา|พ้นช่วง(?:เวลา)?|พ้นระยะ(?:เวลา)?|หลัง(?:จาก)?ช่วง(?:เวลา)?|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ครอบคลุม(?:ความรับผิด)?ถึง(?:เพียง)?วันที่|ใช้บังคับถึง(?:เพียง)?วันที่|ยังไม่ครอบคลุม|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|เปลี่ยน[^.;\n]{0,45}จาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|เปลี่ยนมาอยู่ภายใต้|ย้ายจาก|เลื่อน(?:มา|จาก)|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ต่างจาก|แยกจาก|ไม่เข้าเกณฑ์|ไม่เข้าข่าย|ไม่เข้าลักษณะ|เปรียบเทียบ(?:กับ)?|เทียบกับ|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|OUT_OF_WINDOW|moved\s+from|instead\s+of|rather\s+than|not\s+applicable|does\s+not\s+apply|superseded|replaced\s+by|expired|outside\s+the\s+effective|compared\s+(?:to|with)|previously\s+under|\b(?:incorrect|wrong|erroneous)\b)/i;
+  /(?:ไม่ใช้บังคับ|ยังไม่ใช้บังคับ|ไม่ได้ใช้บังคับ|มิได้ใช้บังคับ|ยังไม่ถึง(?:กำหนด|วัน)|ไม่ใช้(?:บังคับ)?(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|มิใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ไม่ใช่(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)|ไม่ต้องเสีย|มิต้องเสีย|ไม่ต้องชำระ|มิต้องชำระ|ไม่ใช่อัตรา|มิใช่อัตรา|ไม่ได้ใช้อัตรา|ไม่นำมาปรับใช้|ไม่นำมาใช้บังคับ|กล่าวถึงเฉพาะเพื่อยืนยันว่าไม่|ไม่ถูกต้อง|ไม่ตรง(?:กับ)?|ผิดพลาด|คลาดเคลื่อน|ข้อเสนอที่|ตามที่(?:ถาม|เสนอ|คำนวณ|ระบุ)|หากคำนวณ|ยังไม่เริ่มใช้บังคับ|ยังไม่มีผลใช้บังคับ|ไม่ต้องนำ|ไม่นำ|ไม่มีความรับผิด(?:เกิดขึ้น)?ภายใต้|ไม่เกิดความรับผิดภายใต้|ไม่ตกอยู่(?:ใน|ภายใต้)|ยังไม่ตกอยู่(?:ใน|ภายใต้)|ไม่อยู่ภายใต้|ไม่ได้อยู่ภายใต้|มิได้อยู่ภายใต้|ยังไม่อยู่ในบังคับ|ไม่อยู่ในบังคับ|ไม่ได้อยู่ในบังคับ|มิได้อยู่ในบังคับ|สิ้นสุด(?:การบังคับใช้|ช่วง(?:เวลา|ความรับผิด)?|ผล(?:การ)?ใช้บังคับ|ระยะเวลา|กำหนด|ในวันที่|เมื่อวันที่|ลง)|หมดอายุ|หมดระยะเวลา|พ้นช่วง(?:เวลา)?|พ้นระยะ(?:เวลา)?|หลัง(?:จาก)?ช่วง(?:เวลา)?|พ้นกำหนด|อยู่นอกช่วง|ไม่อยู่ในช่วง|ครอบคลุม(?:ความรับผิด)?ถึง(?:เพียง)?วันที่|ใช้บังคับถึง(?:เพียง)?วันที่|ยังไม่ครอบคลุม|ไม่ครอบคลุม|มิได้ครอบคลุม|ไม่ได้รับการครอบคลุม|ไม่รวมถึง|ไม่สามารถนำมาใช้|ไม่อาจนำ|ห้ามนำ|มิใช่ฉบับที่ใช้บังคับ|ไม่ใช่ฉบับที่ใช้บังคับ|ไม่มีผลใช้บังคับ|เปลี่ยน[^.;\n]{0,45}จาก|เปลี่ยนมาเป็น|เปลี่ยนมาใช้|เปลี่ยนมาอยู่ภายใต้|ย้ายจาก|เลื่อน(?:มา|จาก)|แทน(?:ที่)?(?:เดิม|จะใช้|พ\.ร\.ฎ\.|พระราชกฤษฎีกา)|เดิม(?:เคย)?(?:อยู่ภายใต้|ตกอยู่ภายใต้|ใช้(?:บังคับ)?(?:ตาม)?)|ต่างจาก|แยกจาก|ไม่เข้าเกณฑ์|ไม่เข้าข่าย|ไม่เข้าลักษณะ|เปรียบเทียบ(?:กับ)?|เทียบกับ|ก่อน(?:ที่)?(?:พ\.ร\.ฎ\.|พระราชกฤษฎีกา)[^\n]{0,50}(?:ใช้บังคับ|มีผล|จะเริ่ม)|OUT_OF_WINDOW|moved\s+from|instead\s+of|rather\s+than|not\s+applicable|not\s+subject\s+to|no\s+(?:vat|tax)\s+(?:payable\s+)?under|does\s+not\s+apply|superseded|replaced\s+by|expired|outside\s+the\s+effective|compared\s+(?:to|with)|previously\s+under|\b(?:incorrect|wrong|erroneous)\b)/i;
 
 const BROAD_STRUCTURED_CONTRAST_CUE_RE =
-  /(?:ยังไม่|ไม่ใช้|ไม่ได้|มิใช่|ไม่ใช่|มิได้|ไม่ถูกต้อง|ไม่ตรง|ผิดพลาด|คลาดเคลื่อน|หากคำนวณ|ข้อเสนอ|สิ้นสุด|หมดอายุ|หมดระยะ|พ้น|ก่อน|หลัง|เปลี่ยน|ย้าย|แทน|เดิม|ต่าง|แยก|เทียบ|นอกช่วง|ไม่อยู่|ไม่ตกอยู่|ไม่ครอบคลุม|ไม่เข้า|\b(?:not|no|never|incorrect|wrong|erroneous|supersed\w*|expir\w*|instead|rather|compar\w*|prior|before|after|outside|previously)\b)/i;
+  /(?:ยังไม่|ไม่ใช้|ไม่ได้|มิใช่|ไม่ใช่|มิได้|ไม่ต้อง|มิต้อง|ไม่ถูกต้อง|ไม่ตรง|ผิดพลาด|คลาดเคลื่อน|หากคำนวณ|ข้อเสนอ|สิ้นสุด|หมดอายุ|หมดระยะ|พ้น|ก่อน|หลัง|เปลี่ยน|ย้าย|แทน|เดิม|ต่าง|แยก|เทียบ|นอกช่วง|ไม่อยู่|ไม่ตกอยู่|ไม่ครอบคลุม|ไม่เข้า|\b(?:not|no|never|incorrect|wrong|erroneous|supersed\w*|expir\w*|instead|rather|compar\w*|prior|before|after|outside|previously)\b)/i;
 
 function workIdToCanonicalInstrumentId(workId: string): string | null {
   const w = (workId || "").trim();
@@ -414,6 +414,8 @@ function workIdToCanonicalInstrumentId(workId: string): string | null {
   if (rdM) return `พรฎ.${rdM[1]}`;
   const mrM = /^subreg\.th\.rc\.min_reg\.([0-9]+)$/.exec(w);
   if (mrM) return `กฎกระทรวง.${mrM[1]}`;
+  const dgM = /^subreg\.th\.rd\.dg_[a-z_]+\.([0-9]+)$/.exec(w);
+  if (dgM) return `ปอ.${dgM[1]}`;
   const tpM = /^subreg\.th\.rd\.order_tp\.([0-9]+)_([0-9]+)$/.exec(w);
   if (tpM) return `ทป.${tpM[1]}/${tpM[2]}`;
   const pM = /^subreg\.th\.rd\.order_p\.([0-9]+)_([0-9]+)$/.exec(w);
@@ -434,7 +436,7 @@ function splitTextIntoAuditSentences(rawText: string): string[] {
 
   const parts = protectedStr
     .split(
-      /(?:\n+|(?<=[.!?。;])\s+|(?=\s+(?:ทั้งนี้|อนึ่ง|นอกจากนี้|อีกทั้ง|อย่างไรก็ตาม|อย่างไรก็ดี|หมายเหตุ:?)\s+))/u
+      /(?:\n+|(?<=[.!?。;])\s+|\s+(?=[0-9]+\.\s+)|(?=\s+(?:ทั้งนี้|อนึ่ง|นอกจากนี้|อีกทั้ง|อย่างไรก็ตาม|อย่างไรก็ดี|หมายเหตุ:?)\s+))/u
     )
     .map((s) => s.replace(/\uE000/g, ".").replace(/\uE001/g, ".").trim())
     .filter(Boolean);
@@ -549,21 +551,21 @@ function validateStructuredAssertedAndContrastAuthorities(params: {
       validatedContrastInstruments.push(canonId);
       continue;
     }
-    const numPart = canonId.replace(/^(?:พรฎ\.|ทป\.|ฎีกา\.)/, "");
+    const numPart = canonId.replace(/^(?:พรฎ\.|ทป\.|ฎีกา\.|ปอ\.|มาตรา\s*)/, "");
     const esc = numPart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const mentionRegexSrc = canonId.startsWith("มาตรา ")
+      ? `มาตรา\\s*${esc}(?![0-9/])`
+      : canonId.startsWith("ปอ.")
+        ? `ประกาศอธิบดี[^0-9\\n]{0,70}ฉบับที่\\s*${esc}(?![0-9])`
+        : `(?:ฉบับที่\\s*${esc}|(?:พ\\.ร\\.ฎ\\.|พระราชกฤษฎีกา)\\s*\\(?\\s*${esc}\\s*\\)?(?![0-9/])|ท\\.ป\\.\\s*${esc}|ฎีกาที่\\s*${esc})`;
     const mentionMatches = Array.from(
-      normClaimForContrast.matchAll(
-        new RegExp(
-          `(?:ฉบับที่\\s*${esc}|(?:พ\\.ร\\.ฎ\\.|พระราชกฤษฎีกา)\\s*\\(?\\s*${esc}\\s*\\)?(?![0-9/])|ท\\.ป\\.\\s*${esc}|ฎีกาที่\\s*${esc})`,
-          "g"
-        )
-      )
+      normClaimForContrast.matchAll(new RegExp(mentionRegexSrc, "g"))
     );
     if (
       mentionMatches.length > 0 &&
       mentionMatches.every((m) => {
         const idx = m.index ?? 0;
-        const leftImmediate = normClaimForContrast.slice(Math.max(0, idx - 65), idx);
+        const leftImmediate = normClaimForContrast.slice(Math.max(0, idx - 105), idx);
         const rightImmediate = normClaimForContrast.slice(
           idx + m[0].length,
           Math.min(normClaimForContrast.length, idx + m[0].length + 75)
@@ -576,7 +578,7 @@ function validateStructuredAssertedAndContrastAuthorities(params: {
           /(?:อยู่ภายใต้บังคับ(?:ของ)?|เสียภาษี(?:มูลค่าเพิ่ม)?ตาม|คำนวณ(?:ภาษี)?ตาม|ลดอัตรา(?:ภาษี)?ตาม)\s*(?:พระราชกฤษฎีกา|พ\.ร\.ฎ\.)?[^.;()]{0,35}$/i.test(
             leftImmediate
           ) &&
-          !/(?:ไม่|ยังไม่|มิได้|ไม่ได้|มิใช่|ไม่ใช่|เปลี่ยน|ย้าย|แทน|เดิม|หากคำนวณ|ข้อเสนอ|ตามที่(?:ถาม|เสนอ|คำนวณ))/i.test(
+          !/(?:ไม่|ยังไม่|มิได้|ไม่ได้|มิใช่|ไม่ใช่|ไม่ต้อง|มิต้อง|เปลี่ยน|ย้าย|แทน|เดิม|หากคำนวณ|ข้อเสนอ|ตามที่(?:ถาม|เสนอ|คำนวณ))/i.test(
             leftImmediate
           ) &&
           !/(?:ไม่ถูกต้อง|ไม่ตรง|ผิดพลาด|คลาดเคลื่อน|ไม่เป็นจริง|\b(?:incorrect|wrong)\b)/i.test(
@@ -3612,6 +3614,46 @@ export function verifyAndRenderGroundedLlmDraft(params: {
           },
           allRawPassages
         );
+      }
+    }
+
+    // Same-work sibling governing passage binding for statutory-rate numeric cross-references
+    // (e.g., DG VAT Notification No. 105 ข้อ 3 documentary-proof clause referencing "ตามข้อ 2" where
+    //  "อัตราร้อยละ 0" is stated in sibling governing units of the EXACT SAME cited work `subreg.th.rd.dg_vat.105`
+    //  already present in `params.passagePack`). Never adds unrelated works; kept ONLY if re-verification passes!
+    if (
+      !entailmentCheck.allow_confident_answer &&
+      /UNGROUNDED_NUMERIC_ASSERTION/.test(entailmentCheck.reason || "")
+    ) {
+      const alreadyBoundWorkIds = new Set(
+        finalPassageIds
+          .map((pid) => packById.get(pid)?.work_id)
+          .filter((w): w is string => Boolean(w))
+      );
+      const sameWorkSiblingAdds = params.passagePack
+        .filter(
+          (p) =>
+            p.evidence_role === "governing" &&
+            alreadyBoundWorkIds.has(p.work_id) &&
+            !finalPassageIds.includes(p.passage_id)
+        )
+        .map((p) => p.passage_id);
+      if (sameWorkSiblingAdds.length > 0) {
+        const candidateIds = [...finalPassageIds, ...sameWorkSiblingAdds];
+        const candEntail = verifyClaimAgainstPassages(
+          {
+            statement: workingClaimStatement,
+            supporting_passage_ids: candidateIds,
+            verified_calculation_numeric_tokens: trustedTokensArr,
+            excluded_context_instruments: excludedContextInstruments,
+            case_asset_category: activeCaseAssetCategory,
+          },
+          allRawPassages
+        );
+        if (candEntail.allow_confident_answer) {
+          finalPassageIds = candidateIds;
+          entailmentCheck = candEntail;
+        }
       }
     }
 
