@@ -8,6 +8,7 @@ import {
   computeLedgerStateHash,
 } from "../../src/core/knowledge/case-fact-ledger";
 import { queryKnowledge, type RealAppEvidenceAssemblyCapture } from "../../src/core/knowledge/query";
+import type { GroundedLlmDraftResponse } from "../../src/core/knowledge/grounded-llm-drafter";
 import * as cte from "../../src/core/knowledge/claim-traceability-engine";
 import { DurableKnowledgeStore, setDefaultKnowledgeStoreForTesting } from "../../src/core/knowledge/store";
 import type { Actor } from "../../src/core/knowledge/contracts";
@@ -444,5 +445,336 @@ describe("REG24 Batch 1 — Four Open VAT Defects from 4137d63 (Independent Synt
         (e) => e.event_type === "INVOICE" && e.iso_date === "2026-11-05"
       )
     ).toBe(true);
+  });
+
+  // =========================================================================
+  // VAT4-H4 Exact Hosted Repro (trc.57a0c5943b1b67) & Handover-Alone Guards
+  // =========================================================================
+  it("VAT4-D2C (Exact hosted VAT4-H4 r1->r2 + handover-alone & both clause orders): records SERVICE_USE, PAYMENT, INVOICE as 3 separate 30 Sep events in r1, preserves SERVICE_USE=30 Sep & RD 799 (7%, 7,000) in r2 with r1 unchanged, and never treats handover alone as actual service use", async () => {
+    const h4R1 =
+      "บริษัทในไทยให้บริการซ่อมบำรุงระบบแก่ลูกค้าในประเทศไทย ค่าบริการ 100,000 บาท ลูกค้าใช้ผลของบริการจริงเมื่อวันที่ 30 กันยายน 2569 และชำระค่าบริการพร้อมออกใบกำกับภาษีในวันที่ 30 กันยายน 2569 ต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละเท่าใด เป็นเงินเท่าใด และอ้างอิงพระราชกฤษฎีกาฉบับใด";
+    const h4R2 =
+      "แก้ไขข้อเท็จจริงเฉพาะวันชำระค่าบริการและวันออกใบกำกับภาษีเป็นวันที่ 1 ตุลาคม 2569 ส่วนวันใช้ผลของบริการจริงยังคงเป็นวันที่ 30 กันยายน 2569 เหมือนเดิม คำตอบและพระราชกฤษฎีกาที่ใช้อ้างอิงเปลี่ยนหรือไม่";
+
+    // 1. Ledger r1: MUST record SERVICE_USE, PAYMENT, and INVOICE as 3 separate events on 2026-09-30
+    const l1 = buildStructuredCaseFactLedger({ question: h4R1, applicableDate: null });
+    const l1Sep30 = l1.temporal_facts.transaction_or_event_dates.filter(
+      (e) => e.iso_date === "2026-09-30"
+    );
+    const l1Sep30Types = new Set(l1Sep30.map((e) => e.event_type));
+    expect(l1Sep30Types.has("SERVICE_USE")).toBe(true);
+    expect(l1Sep30Types.has("PAYMENT")).toBe(true);
+    expect(l1Sep30Types.has("INVOICE")).toBe(true);
+    expect(l1.temporal_facts.controlling_tax_point.iso_date).toBe("2026-09-30");
+
+    // Reversed clause order in r1 (payment+invoice first, then actual use) MUST also emit all 3 separate events
+    const h4R1Reversed =
+      "บริษัทในไทยให้บริการซ่อมบำรุงระบบแก่ลูกค้าในประเทศไทย ค่าบริการ 100,000 บาท ลูกค้าชำระค่าบริการพร้อมออกใบกำกับภาษีในวันที่ 30 กันยายน 2569 และลูกค้าใช้ผลของบริการจริงเมื่อวันที่ 30 กันยายน 2569";
+    const l1Rev = buildStructuredCaseFactLedger({ question: h4R1Reversed, applicableDate: null });
+    const l1RevTypes = new Set(
+      l1Rev.temporal_facts.transaction_or_event_dates
+        .filter((e) => e.iso_date === "2026-09-30")
+        .map((e) => e.event_type)
+    );
+    expect(l1RevTypes.has("SERVICE_USE")).toBe(true);
+    expect(l1RevTypes.has("PAYMENT")).toBe(true);
+    expect(l1RevTypes.has("INVOICE")).toBe(true);
+
+    // 2a. Ledger r2 (deterministic path): moves ONLY PAYMENT & INVOICE to 2026-10-01, leaves SERVICE_USE on 2026-09-30
+    const l2Det = buildStructuredCaseFactLedger({
+      question: h4R2,
+      applicableDate: null,
+      conversationHistory: [{ role: "user", content: h4R1 }],
+    });
+    const evsDet = l2Det.temporal_facts.transaction_or_event_dates;
+    expect(evsDet.some((e) => e.event_type === "SERVICE_USE" && e.iso_date === "2026-09-30")).toBe(true);
+    expect(evsDet.some((e) => e.event_type === "PAYMENT" && e.iso_date === "2026-09-30")).toBe(false);
+    expect(evsDet.some((e) => e.event_type === "INVOICE" && e.iso_date === "2026-09-30")).toBe(false);
+    expect(evsDet.some((e) => e.event_type === "PAYMENT" && e.iso_date === "2026-10-01")).toBe(true);
+    expect(evsDet.some((e) => e.event_type === "INVOICE" && e.iso_date === "2026-10-01")).toBe(true);
+    expect(l2Det.temporal_facts.controlling_tax_point.iso_date).toBe("2026-09-30");
+
+    // 2b. Ledger r2 (structured FactDelta shift_date path — exact hosted path):
+    const l2Delta = applyFactDelta(
+      l1,
+      {
+        is_correction: true,
+        confidence: "high",
+        unchanged_scope: "all_other_facts",
+        changes: [
+          {
+            op: "shift_date",
+            event_type: "PAYMENT",
+            lots: [],
+            lots_mode: "only",
+            from_date: "2026-09-30",
+            to_date: "2026-10-01",
+            amount_thb: null,
+            service_use_location: null,
+            source_span: "แก้ไขข้อเท็จจริงเฉพาะวันชำระค่าบริการและวันออกใบกำกับภาษีเป็นวันที่ 1 ตุลาคม 2569",
+          },
+          {
+            op: "shift_date",
+            event_type: "INVOICE",
+            lots: [],
+            lots_mode: "only",
+            from_date: "2026-09-30",
+            to_date: "2026-10-01",
+            amount_thb: null,
+            service_use_location: null,
+            source_span: "แก้ไขข้อเท็จจริงเฉพาะวันชำระค่าบริการและวันออกใบกำกับภาษีเป็นวันที่ 1 ตุลาคม 2569",
+          },
+        ],
+      },
+      { userTurnText: h4R2, applicableDate: null }
+    );
+    const evsDelta = l2Delta.temporal_facts.transaction_or_event_dates;
+    expect(evsDelta.some((e) => e.event_type === "SERVICE_USE" && e.iso_date === "2026-09-30")).toBe(true);
+    expect(evsDelta.some((e) => e.event_type === "PAYMENT" && e.iso_date === "2026-09-30")).toBe(false);
+    expect(evsDelta.some((e) => e.event_type === "INVOICE" && e.iso_date === "2026-09-30")).toBe(false);
+    expect(evsDelta.some((e) => e.event_type === "PAYMENT" && e.iso_date === "2026-10-01")).toBe(true);
+    expect(evsDelta.some((e) => e.event_type === "INVOICE" && e.iso_date === "2026-10-01")).toBe(true);
+    expect(l2Delta.temporal_facts.controlling_tax_point.iso_date).toBe("2026-09-30");
+
+    // 3. End-to-end queryKnowledge -> Save -> Reopen for r1 & r2 (RD 799, 7%, 7,000 THB, r1 unchanged!)
+    const convId = "conv.vat4.d2c.h4.exact";
+    let packR1: AssembledPacketItem[] = [];
+    const resR1 = await queryKnowledge(
+      {
+        question: h4R1,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        mode: "standard",
+        conversation_id: convId,
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      {
+        store,
+        onRealAppEvidenceAssembly: (cap) => {
+          packR1 = cap.actual_model_packet;
+        },
+        llmMockInvokerForTesting: async () => {
+          const p77 = packR1.find((p) => p.work_id === "prov.th.rc.77/2")!;
+          const p78_1 = packR1.find((p) => p.work_id === "prov.th.rc.78/1")!;
+          const p80 = packR1.find((p) => p.work_id === "prov.th.rc.80")!;
+          const p799 = packR1.find((p) => p.work_id === "subreg.th.rc.royal_decree.799")!;
+          const pLocal = packR1.find((p) => p.work_id === "subreg.th.rd.vat_local_tax_guide");
+          const cited = [
+            p77.passage_id,
+            p78_1.passage_id,
+            p80.passage_id,
+            p799.passage_id,
+            ...(pLocal ? [pLocal.passage_id] : []),
+          ];
+          const draft: GroundedLlmDraftResponse = {
+            answer_status: "ANSWERED",
+            overall_summary_th: "ให้บริการซ่อมบำรุงระบบในไทย ใช้บริการ ชำระเงิน และออกใบกำกับภาษีวันที่ 30 กันยายน 2569",
+            case_facts_used: [
+              {
+                fact_label_th: "วันเกิดความรับผิดทางภาษี",
+                original_fact_th: "ลูกค้าใช้ผลของบริการจริง ชำระเงิน และออกใบกำกับภาษีวันที่ 30 กันยายน 2569",
+                source_turn: 1,
+                legal_significance_th: "วันเกิดความรับผิดคือ 30 กันยายน 2569 ตามมาตรา 78/1 (1) ใช้ พ.ร.ฎ. (ฉบับที่ 799)",
+              },
+            ],
+            issues: [
+              {
+                issue_id: "issue_1_vat_r1",
+                issue_title_th: "อัตราภาษีมูลค่าเพิ่มและ พ.ร.ฎ. ที่ใช้บังคับ ณ วันที่ 30 กันยายน 2569",
+                party_or_scope_th: "บริษัทในไทยผู้ให้บริการซ่อมบำรุงระบบ",
+                conclusion_th:
+                  "ต้องเสียภาษีมูลค่าเพิ่มในอัตราร้อยละ 7.0 (ภาษีมูลค่าเพิ่มร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7) คิดเป็นภาษีมูลค่าเพิ่ม 7,000 บาท ตามพระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568",
+                application_explanation_th:
+                  "การให้บริการในราชอาณาจักรอยู่ในบังคับตามมาตรา 77/2 และความรับผิดเกิดขึ้นวันที่ 30 กันยายน 2569 ตามมาตรา 78/1 (1) จึงใช้อัตราภาษีมูลค่าเพิ่มที่ลดลงตามมาตรา 80 และพระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 ซึ่งคำนวณจากฐาน 100,000 บาท คิดเป็นภาษีมูลค่าเพิ่ม 7,000 บาท",
+                authority_distinction_note_th:
+                  "พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 ใช้บังคับถึงวันที่ 30 กันยายน 2569",
+                governing_passage_ids: cited,
+                asserted_authorities: [
+                  { work_id: "prov.th.rc.77/2", section: "มาตรา 77/2" },
+                  { work_id: "prov.th.rc.78/1", section: "มาตรา 78/1 (1)" },
+                  { work_id: "prov.th.rc.80", section: "มาตรา 80" },
+                  { work_id: "subreg.th.rc.royal_decree.799", section: "มาตรา 4" },
+                ],
+                contrast_mentions: [],
+                material_facts_relied_on: [
+                  "ค่าบริการ 100,000 บาท",
+                  "ลูกค้าใช้ผลของบริการจริงวันที่ 30 กันยายน 2569",
+                ],
+                missing_facts_or_uncertainties_th: [],
+                proposed_calculation: {
+                  formula_description_th: "100,000 บาท × ร้อยละ 7.0 = 7,000 บาท",
+                  tax_base_thb: 100000,
+                  exempt_amount_thb: 0,
+                  taxable_amount_thb: 100000,
+                  rate_pct: 7,
+                  computed_tax_thb: 7000,
+                  is_computable_from_stated_facts: true,
+                  missing_inputs_th: [],
+                  steps_th: ["100,000 × 7.0% = 7,000 บาท"],
+                },
+              },
+            ],
+            assumptions_th: [],
+            clarification_questions_th: [],
+            evidence_gaps_th: [],
+          };
+          return draft;
+        },
+      }
+    );
+    expect(resR1.status).toBe("ANSWERED");
+    expect(resR1.answer).toContain("799");
+    expect(resR1.answer).toContain("7,000");
+
+    const savedR1 = await cte.saveOrReviseAnswerServerVerified(store, {
+      submitted_envelope: resR1.traceable_answer!,
+      question_text: h4R1,
+      revision_reason: "VAT4-D2C r1",
+      actor: QA_ACTOR,
+      grounded_answer_snapshot: resR1,
+    });
+
+    let packR2: AssembledPacketItem[] = [];
+    const resR2 = await queryKnowledge(
+      {
+        question: h4R2,
+        applicable_date: null,
+        release_id: "rel.B01.rc8",
+        mode: "standard",
+        conversation_id: convId,
+        conversation_history: [
+          { role: "user", content: h4R1, conversation_id: convId },
+          {
+            role: "assistant",
+            content: resR1.answer,
+            saved_answer_id: savedR1.answer_id,
+            saved_answer_revision: savedR1.answer_revision,
+            conversation_id: convId,
+          },
+        ],
+        answer_generation_mode: "llm_grounded",
+      },
+      QA_ACTOR,
+      {
+        store,
+        onRealAppEvidenceAssembly: (cap) => {
+          packR2 = cap.actual_model_packet;
+        },
+        llmMockInvokerForTesting: async () => {
+          const p77 = packR2.find((p) => p.work_id === "prov.th.rc.77/2")!;
+          const p78_1 = packR2.find((p) => p.work_id === "prov.th.rc.78/1")!;
+          const p80 = packR2.find((p) => p.work_id === "prov.th.rc.80")!;
+          const p799 = packR2.find((p) => p.work_id === "subreg.th.rc.royal_decree.799")!;
+          const pLocal = packR2.find((p) => p.work_id === "subreg.th.rd.vat_local_tax_guide");
+          const cited = [
+            p77.passage_id,
+            p78_1.passage_id,
+            p80.passage_id,
+            p799.passage_id,
+            ...(pLocal ? [pLocal.passage_id] : []),
+          ];
+          const draft: GroundedLlmDraftResponse = {
+            answer_status: "ANSWERED",
+            overall_summary_th: "วันใช้ผลของบริการจริงยังคงเป็น 30 กันยายน 2569 ซึ่งเกิดก่อนวันชำระและใบกำกับ 1 ตุลาคม 2569",
+            case_facts_used: [
+              {
+                fact_label_th: "วันใช้ผลของบริการจริง",
+                original_fact_th: "ลูกค้าใช้ผลของบริการจริงวันที่ 30 กันยายน 2569 (ย้ายเฉพาะชำระและใบกำกับเป็น 1 ต.ค. 2569)",
+                source_turn: 2,
+                legal_significance_th: "วันใช้บริการจริงที่เกิดก่อนยังคงเป็นจุดเกิดความรับผิดตามมาตรา 78/1 (1) (ข)",
+              },
+            ],
+            issues: [
+              {
+                issue_id: "issue_1_vat_r2",
+                issue_title_th: "อัตราภาษีมูลค่าเพิ่มและ พ.ร.ฎ. ที่ใช้บังคับเมื่อย้ายเฉพาะวันชำระและใบกำกับเป็น 1 ต.ค. 2569",
+                party_or_scope_th: "บริษัทในไทยผู้ให้บริการซ่อมบำรุงระบบ",
+                conclusion_th:
+                  "คำตอบและพระราชกฤษฎีกาที่ใช้อ้างอิงไม่เปลี่ยน ยังคงเสียภาษีมูลค่าเพิ่มอัตราร้อยละ 7.0 (ภาษีมูลค่าเพิ่มร้อยละ 6.3 รวมภาษีท้องถิ่นร้อยละ 0.7) คิดเป็นเงิน 7,000 บาท ตามพระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568",
+                application_explanation_th:
+                  "แม้แก้ไขวันชำระค่าบริการและวันออกใบกำกับภาษีเป็นวันที่ 1 ตุลาคม 2569 แต่วันที่ลูกค้าใช้ผลของบริการจริงยังคงเป็นวันที่ 30 กันยายน 2569 ซึ่งเกิดก่อนตามมาตรา 78/1 (1) (ข) ความรับผิดจึงยังคงเกิดขึ้นวันที่ 30 กันยายน 2569 ภายใต้มาตรา 77/2 มาตรา 80 และพระราชกฤษฎีกา (ฉบับที่ 799) พ.ศ. 2568 คำนวณภาษีมูลค่าเพิ่ม 7,000 บาท จากฐาน 100,000 บาท",
+                authority_distinction_note_th:
+                  "พ.ร.ฎ. (ฉบับที่ 799) พ.ศ. 2568 ยังคงใช้บังคับเพราะวันเกิดความรับผิดยังคงเป็น 30 กันยายน 2569",
+                governing_passage_ids: cited,
+                asserted_authorities: [
+                  { work_id: "prov.th.rc.77/2", section: "มาตรา 77/2" },
+                  { work_id: "prov.th.rc.78/1", section: "มาตรา 78/1 (1) (ข)" },
+                  { work_id: "prov.th.rc.80", section: "มาตรา 80" },
+                  { work_id: "subreg.th.rc.royal_decree.799", section: "มาตรา 4" },
+                ],
+                contrast_mentions: [],
+                material_facts_relied_on: [
+                  "ลูกค้าใช้ผลของบริการจริงวันที่ 30 กันยายน 2569",
+                  "ย้ายวันชำระและออกใบกำกับภาษีเป็นวันที่ 1 ตุลาคม 2569",
+                  "ค่าบริการ 100,000 บาท",
+                ],
+                missing_facts_or_uncertainties_th: [],
+                proposed_calculation: {
+                  formula_description_th: "100,000 บาท × ร้อยละ 7.0 = 7,000 บาท",
+                  tax_base_thb: 100000,
+                  exempt_amount_thb: 0,
+                  taxable_amount_thb: 100000,
+                  rate_pct: 7,
+                  computed_tax_thb: 7000,
+                  is_computable_from_stated_facts: true,
+                  missing_inputs_th: [],
+                  steps_th: ["100,000 × 7.0% = 7,000 บาท"],
+                },
+              },
+            ],
+            assumptions_th: [],
+            clarification_questions_th: [],
+            evidence_gaps_th: [],
+          };
+          return draft;
+        },
+      }
+    );
+    expect(resR2.status).toBe("ANSWERED");
+    expect(resR2.answer).toContain("799");
+    expect(resR2.answer).toContain("7,000");
+    expect(packR2.some((p) => p.work_id === "subreg.th.rc.royal_decree.799")).toBe(true);
+
+    const savedR2 = await cte.saveOrReviseAnswerServerVerified(store, {
+      submitted_envelope: resR2.traceable_answer!,
+      question_text: h4R2,
+      parent_answer_revision: savedR1.answer_revision,
+      revision_reason: "VAT4-D2C r2",
+      actor: QA_ACTOR,
+      grounded_answer_snapshot: resR2,
+      query_persistence_context: {
+        prior_saved_answer_revision: savedR1.answer_revision,
+        conversation_history: [{ role: "user", content: h4R1 }],
+      },
+    });
+    const reopenR1 = cte.reopenSavedTraceableAnswer(store, savedR1.answer_revision, QA_ACTOR);
+    const reopenR2 = cte.reopenSavedTraceableAnswer(store, savedR2.answer_revision, QA_ACTOR);
+    expect(reopenR1.found).toBe(true);
+    expect(reopenR2.found).toBe(true);
+    expect(reopenR1.answer?.rendered_answer_th).toBe(savedR1.rendered_answer_th);
+    expect(reopenR2.answer?.rendered_answer_th).toContain("799");
+    expect(reopenR2.answer?.rendered_answer_th).toContain("7,000");
+
+    // 4. Handover alone MUST NOT become SERVICE_USE (or goods DELIVERY) in EITHER clause order!
+    const handoverOrder1 =
+      "บริษัทในไทยให้บริการออกแบบระบบแก่ลูกค้าในประเทศไทย ส่งมอบบริการและส่งมอบงานเมื่อวันที่ 30 กันยายน 2569 และชำระค่าบริการพร้อมออกใบกำกับภาษีในวันที่ 1 ตุลาคม 2569";
+    const lh1 = buildStructuredCaseFactLedger({ question: handoverOrder1, applicableDate: null });
+    expect(
+      lh1.temporal_facts.transaction_or_event_dates.some(
+        (e) => (e.event_type === "SERVICE_USE" || e.event_type === "DELIVERY") && e.iso_date === "2026-09-30"
+      )
+    ).toBe(false);
+    expect(lh1.temporal_facts.controlling_tax_point.iso_date).toBe("2026-10-01");
+
+    const handoverOrder2 =
+      "บริษัทในไทยให้บริการออกแบบระบบแก่ลูกค้าในประเทศไทย ลูกค้าชำระค่าบริการพร้อมออกใบกำกับภาษีในวันที่ 1 ตุลาคม 2569 โดยบริษัทให้บริการเสร็จและส่งมอบบริการเมื่อวันที่ 30 กันยายน 2569";
+    const lh2 = buildStructuredCaseFactLedger({ question: handoverOrder2, applicableDate: null });
+    expect(
+      lh2.temporal_facts.transaction_or_event_dates.some(
+        (e) => (e.event_type === "SERVICE_USE" || e.event_type === "DELIVERY") && e.iso_date === "2026-09-30"
+      )
+    ).toBe(false);
+    expect(lh2.temporal_facts.controlling_tax_point.iso_date).toBe("2026-10-01");
   });
 });

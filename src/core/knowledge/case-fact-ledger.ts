@@ -220,7 +220,7 @@ function extractLocalClauseBeforeDate(norm: string, dateStartIdx: number): strin
   const rawWindow = norm
     .slice(Math.max(0, dateStartIdx - 90), dateStartIdx)
     // Strip negated/comparative pre-clauses like "โดยไม่มีการใช้บริการก่อนออกใบกำกับภาษีหรือรับชำระเงิน"
-    .replace(/(?:โดย)?ไม่(?:มีการ|ได้)?(?:ใช้บริการ|ออกใบกำกับภาษี|รับชำระเงิน)[^,.]{0,45}?(?=\s+(?:บริษัท|ลูกค้า|ผู้|ต่อมา|แต่)|$)/gi, " ");
+    .replace(/(?:โดย)?ไม่(?:มีการ|ได้)?(?:ใช้(?:ผล(?:ของ)?)?บริการ|ออกใบกำกับภาษี|รับชำระเงิน)[^,.]{0,45}?(?=\s+(?:บริษัท|ลูกค้า|ผู้|ต่อมา|แต่)|$)/gi, " ");
   // Trim at the most recent clause boundary (NEVER cut on a thousands-separator comma like 40,000!)
   const boundaryRe =
     /(?:ต่อมา|และ(?:ชำระ|รับชำระ|ได้รับชำระ|จ่าย|ออก)|and\s+(?:receives?|paid|pays?)|[.;]|,(?!\d)|แต่(?:ลูกค้า|ผู้ซื้อ|ผู้รับ)|(?:บริษัท|ลูกค้า|ผู้ให้บริการ|ผู้ประกอบการ|ผู้ซื้อ|ผู้รับบริการ)(?=\s*(?:ออกใบกำกับ|ชำระ|รับชำระ|จ่าย|ได้รับชำระ)))/gi;
@@ -554,7 +554,7 @@ function extractDatesWithEventKinds(
             /^(?:ส่วน|สำหรับ|กรณี)\s*(?:สินค้า\s*)?(?:ล็อต|ล๊อต|ชุดที่|ชุด|รายการที่|รายการ)\s*[A-Z0-9ก-ฮ]+/.test(
               betweenPrevCutAndActor
             ) &&
-            !/(?:แบ่งเป็น|มูลค่า|ราคา|บาท|โอนกรรมสิทธิ์|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|ใช้บริการ|ไม่มี|ไม่ได้|มิได้)/.test(
+            !/(?:แบ่งเป็น|มูลค่า|ราคา|บาท|โอนกรรมสิทธิ์|ส่งมอบ|รับชำระ|ชำระ|ออกใบกำกับ|ใช้(?:ผล(?:ของ)?)?บริการ|ไม่มี|ไม่ได้|มิได้)/.test(
               betweenPrevCutAndActor
             );
           if (isTopicIntroducerOnly) {
@@ -644,7 +644,7 @@ function extractDatesWithEventKinds(
     // "ไม่มีการโอนกรรมสิทธิ์ รับชำระเงิน หรือออกใบกำกับภาษีใดๆ"), terminating cleanly after the final
     // `หรือ`/`และ <verb>` item so a subsequent positive clause (`ออกใบกำกับภาษีวันที่ 20 กันยายน 2568`) is never eaten!
     const negVerbAtom =
-      "(?:ใช้บริการ(?:ก่อน(?:ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?))?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)";
+      "(?:ใช้(?:ผล(?:ของ)?)?บริการ(?:ก่อน(?:ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?))?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)";
     const coClauseCleaned = rawCoClause.replace(
       new RegExp(
         `(?:โดย)?(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|ยังไม่|มีแผน(?:ที่จะ|จะ)?|วางแผน(?:ที่จะ|จะ)?|กำหนด(?:การ)?(?:ไว้)?(?:ว่า)?จะ|เลื่อน(?:การ|วัน)?)\\s*(?:มีการ)?${negVerbAtom}(?:(?:\\s*,?\\s*${negVerbAtom})*\\s*(?:หรือ|และ)\\s*${negVerbAtom})?(?:\\s*ใดๆ)?(?:\\s*ก่อน(?:หน้า)?(?:นั้น)?)?`,
@@ -654,7 +654,7 @@ function extractDatesWithEventKinds(
     );
     if (
       suppressOwnershipTransfer &&
-      !/(?:จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv)/i.test(
+      !/(?:จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|ชำระเงิน|ชำระค่า|จ่ายเงิน|โอนเงิน|ออกใบกำกับ|ใช้(?:ผล(?:ของ)?)?บริการ|นำผล(?:ของ)?บริการ(?:ไป|มา)ใช้|ใช้ผล(?:ของ)?งาน|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bused\s+the\s+service)/i.test(
         `${coClauseCleaned} ${postSameDayClause}`
       )
     ) {
@@ -677,7 +677,7 @@ function extractDatesWithEventKinds(
       );
     const coClauseForPreVerb = stripStatusRegistrationPhrases(coClauseCleaned);
     const hasPreDateVerb =
-      /(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน|ออกใบกำกับ|ใช้บริการ|งวดแรก|งวดที่\s*[0-9]+|งวดที่(?:หนึ่ง|สอง|สาม|สี่)|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle|\binstallment)/i.test(
+      /(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่า|ชำระงวด|ชำระส่วนที่เหลือ|ชำระบางส่วน|ชำระ(?:เมื่อ|วันที่|ในวันที่|ราคา)|จ่ายเงิน|จ่ายงวด|โอนเงิน|ออกใบกำกับ|ใช้(?:ผล(?:ของ)?)?บริการ|นำผล(?:ของ)?บริการ(?:ไป|มา)ใช้|ใช้ผล(?:ของ)?งาน|งวดแรก|งวดที่\s*[0-9]+|งวดที่(?:หนึ่ง|สอง|สาม|สี่)|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle|\binstallment|\bused\s+the\s+service)/i.test(
         coClauseForPreVerb
       );
     const postQualHasLotAssignment =
@@ -714,9 +714,9 @@ function extractDatesWithEventKinds(
     // If the entire effective clause is purely negated after stripping coordinated negations (e.g. "วันที่ 1 ต.ค. ยังไม่มีการรับชำระเงินหรือออกใบกำกับภาษี"), skip!
     if (
       (hasPreDateNegationCue || hasPostDateNegationCue) &&
-      !/(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่า|ชำระงวด|จ่ายเงิน|จ่ายงวด|โอนเงิน|ออกใบกำกับ|ใช้บริการ|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle)/i.test(
+      !/(?:โอนกรรมสิทธิ์|จดทะเบียน|ส่งมอบ|ส่งของ|ส่งสินค้า|ได้รับชำระ|รับชำระ|รับเงิน|แบ่งชำระ|แบ่งจ่าย|ชำระเงิน|ชำระค่า|ชำระงวด|จ่ายเงิน|จ่ายงวด|โอนเงิน|ออกใบกำกับ|ใช้(?:ผล(?:ของ)?)?บริการ|นำผล(?:ของ)?บริการ(?:ไป|มา)ใช้|ใช้ผล(?:ของ)?งาน|\bdeliver|\binvoic|\bpaid|\bpayment|\breceiv|\bownership|\btitle|\bused\s+the\s+service)/i.test(
         effectiveClause.replace(
-          /(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|ยังไม่)\s*(?:มีการ)?(?:ใช้บริการ|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)(?:(?:\s*(?:,|หรือ|และ)?\s*(?:โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?|ใช้บริการ|ใดๆ))*)/gi,
+          /(?:ยังไม่มีการ|ไม่มีการ|ยังไม่ได้|ยังมิได้|ไม่ได้|มิได้|ไม่เคย|ยังไม่)\s*(?:มีการ)?(?:ใช้(?:ผล(?:ของ)?)?บริการ|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?)(?:(?:\s*(?:,|หรือ|และ)?\s*(?:โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|ส่งมอบ(?:สินค้า)?|ออกใบกำกับ(?:ภาษี)?|รับชำระ(?:เงิน|ราคา)?|ชำระ(?:เงิน|ราคา)?|ใช้(?:ผล(?:ของ)?)?บริการ|ใดๆ))*)/gi,
           " "
         )
       )
@@ -761,7 +761,7 @@ function extractDatesWithEventKinds(
       // so an early event described as occurring "before delivery/payment" never emits the comparator event on this date!
       const verbCheckClause = subClauseRaw
         .replace(
-          /(?:ก่อน|หลัง(?:จาก)?|แทนการ)\s*(?:การ|วัน)?(?:ส่งมอบ(?:สินค้า|ของ|บริการ)?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|รับชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ออกใบกำกับ(?:ภาษี)?|ใช้บริการ)/gi,
+          /(?:ก่อน|หลัง(?:จาก)?|แทนการ)\s*(?:การ|วัน)?(?:ส่งมอบ(?:สินค้า|ของ|บริการ)?|โอนกรรมสิทธิ์(?:ในสินค้า|สินค้า)?|รับชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ชำระ(?:เงิน|ราคา|ค่าบริการ|ค่าสินค้า)?|ออกใบกำกับ(?:ภาษี)?|ใช้(?:ผล(?:ของ)?)?บริการ)/gi,
           " "
         )
         .replace(
@@ -848,8 +848,10 @@ function extractDatesWithEventKinds(
           /\b(?:which\s+is\s+|that\s+is\s+)?(?:service\s+is\s+)?used\s+(?:entirely\s+|wholly\s+|exclusively\s+|partly\s+|partially\s+)?(?:in\s+thailand|abroad|overseas|outside\s+thailand|at\s+(?:the\s+)?[a-z\s]{2,25}(?:office|branch)|in\s+[a-z]+)(?!\s+on\b)/gi,
           " "
         );
+      // Require positive evidence of ACTUAL service use tied to THIS date — handover/completion alone
+      // ("ส่งมอบบริการ", "ส่งมอบงาน", "ให้บริการเสร็จ", "service performed/completed") is NOT actual service use under §78/1(1)!
       const hasExplicitDatedServiceUseVerb =
-        /(?:เริ่มใช้(?:ผล(?:ของ)?)?บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|ใช้(?:ผล(?:ของ)?)?บริการ(?:จริง|ครั้งแรก)?\s*(?:เมื่อ|ใน|ตั้งแต่)?\s*วันที่|นำผล(?:ของ)?บริการ(?:ไป|มา)ใช้(?:จริง)?\s*(?:เมื่อ|ใน|ตั้งแต่)?\s*วันที่|began\s+using\s+the\s+service|started\s+using\s+the\s+service|service\s+(?:output\s+)?(?:was\s+)?(?:used|performed|completed)\s+on)/i.test(
+        /(?:เริ่มใช้(?:ผล(?:ของ)?)?บริการ|ใช้(?:ผล(?:ของ)?)?บริการ(?:จริง|ครั้งแรก)?\s*(?:เมื่อ|ใน|ตั้งแต่|ยังคงเป็น|เป็น|ตรงกับ)?\s*วันที่|นำผล(?:ของ)?บริการ(?:ไป|มา)ใช้(?:จริง)?\s*(?:เมื่อ|ใน|ตั้งแต่|ยังคงเป็น|เป็น|ตรงกับ)?\s*วันที่|began\s+using\s+the\s+service|started\s+using\s+the\s+service|service\s+(?:output\s+)?(?:was\s+)?used\s+on)/i.test(
           serviceUseCheckClause
         ) ||
         (!isPaymentVerb &&
@@ -3154,13 +3156,16 @@ export function buildStructuredCaseFactLedger(input: {
       : latestTurnNonQuestionDates.length > 0
         ? latestTurnNonQuestionDates
         : nonQuestionDates;
-    const taxPointCandidates = activeServiceEvents.filter(
+    const statutoryServiceEvents = activeServiceEvents.filter(
       (e) =>
         e.event_type === "PAYMENT" ||
         e.event_type === "INVOICE" ||
-        e.event_type === "SERVICE_USE" ||
-        e.event_type === "STATED_TRANSACTION_DATE"
+        e.event_type === "SERVICE_USE"
     );
+    const taxPointCandidates =
+      statutoryServiceEvents.length > 0
+        ? statutoryServiceEvents
+        : activeServiceEvents.filter((e) => e.event_type === "STATED_TRANSACTION_DATE");
     if (taxPointCandidates.length > 0) {
       const sorted = [...taxPointCandidates].sort((a, b) => a.iso_date.localeCompare(b.iso_date));
       const earliest = sorted[0];
