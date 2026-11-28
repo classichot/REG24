@@ -684,13 +684,18 @@ function extractDatesWithEventKinds(
       declaredLots.length >= 2 &&
       extractLotReferencesFromClause(coClauseForPreVerb, declaredLots).coveredLotIds.length === 0 &&
       extractLotReferencesFromClause(postQualifier, declaredLots).coveredLotIds.length > 0;
+    const postDeliveryIsUndatedOrNonGoods =
+      /(?:ไม่(?:ได้)?ระบุวัน(?:ที่)?ส่งมอบ|โดยไม่ระบุวัน(?:ที่)?ส่งมอบ|ส่งมอบ(?:ซอฟต์แวร์|งาน|รายงาน|เอกสาร|ไฟล์|ผลงาน|ผล(?:ของ)?บริการ)|ส่งมอบ[^\n.;,]{0,30}(?:ทางออนไลน์|ทางอีเมล|ออนไลน์|อีเมล)|undated\s+delivery|delivery\s+date\s+(?:is\s+)?(?:not\s+stated|unknown|unspecified))/i.test(
+        postSameDayClause
+      );
     const includePostSameDay =
       (!hasPreDateVerb && postSameDayClause.length > 0) ||
       postQualHasLotAssignment ||
       /(?:ในวันเดียวกัน|วันเดียวกันนั้น|พร้อมกันในวันนั้น|on\s+the\s+same\s+day)/i.test(postSameDayClause) ||
-      /^(?:พร้อม(?:กับ|ทั้ง)?|และพร้อมกันนั้น)\s*(?:โอนกรรมสิทธิ์|ส่งมอบ|ส่งของ|รับชำระ|ชำระ|ออกใบกำกับ)/.test(
-        postSameDayClause
-      );
+      (!postDeliveryIsUndatedOrNonGoods &&
+        /^(?:พร้อม(?:กับ|ทั้ง)?|และพร้อมกันนั้น)\s*(?:โอนกรรมสิทธิ์|ส่งมอบ(?:สินค้า|ของ)|ส่งของ|รับชำระ|ชำระ|ออกใบกำกับ)/.test(
+          postSameDayClause
+        ));
     // When the action verb appears strictly AFTER the date (`เมื่อวันที่ 30 กันยายน 2569 บริษัทโอนกรรมสิทธิ์ในล็อต A...`),
     // NEVER concatenate verb-less pre-date preamble text (such as a multi-lot declaration schedule) into `effectiveClause`!
     const effectiveClause =
@@ -805,43 +810,68 @@ function extractDatesWithEventKinds(
         matchedKinds.push("REGISTRATION");
       }
 
+      // Strip undated delivery clauses before checking whether THIS date actually belongs to DELIVERY:
+      // 1) Non-goods service deliverable wording ("ส่งมอบซอฟต์แวร์/รายงาน/งาน/เอกสาร/ไฟล์/ทางออนไลน์") is not goods DELIVERY.
+      // 2) An undated delivery separated from a dated PAYMENT/INVOICE verb by "โดย", "แล้ว", ",", "ค่าบริการ", "มูลค่า"
+      //    (e.g. "ส่งมอบสินค้าให้ผู้ซื้อแล้ว โดยออกใบกำกับภาษีและรับชำระราคาเมื่อวันที่ 30 กันยายน 2569") must remain undated,
+      //    while explicitly dated goods delivery ("ส่งมอบสินค้าเมื่อวันที่ 29 ก.ย.", "ส่งมอบสินค้าและออกใบกำกับภาษีในวันที่ 5 พ.ย.") still binds DELIVERY!
+      const deliveryCheckClause = verbCheckClause
+        .replace(
+          /(?:ส่งมอบ(?:ซอฟต์แวร์|งาน(?:ซอฟต์แวร์)?|รายงาน|เอกสาร|ไฟล์|ผลงาน|ผล(?:ของ)?บริการ)[^\n.;,]{0,40}|ส่งมอบ[^\n.;,]{0,30}(?:ทางออนไลน์|ทางอีเมล|ออนไลน์|อีเมล)|ส่งมอบ[^\n.;]{0,50}โดยไม่(?:ได้)?ระบุวัน(?:ที่)?ส่งมอบ)/gi,
+          " "
+        )
+        .replace(
+          /(?:ส่งมอบ(?:สินค้า|ของ)?|ส่งของ|ส่งสินค้า)[^\n.;]{0,45}(?:แล้ว\s*(?:โดย|ซึ่ง|,|และ)?|ให้(?:แก่)?(?:ลูกค้า|ผู้ซื้อ|ผู้ว่าจ้าง)[^\n.;]{0,35}(?:โดย|ซึ่ง|และต่อมา|ค่าบริการ|มูลค่า))(?=\s*(?:ได้รับชำระ|รับชำระ|ชำระ|ออกใบกำกับ|บริษัท(?:ได้รับชำระ|ออกใบกำกับ)))/gi,
+          " "
+        )
+        .replace(
+          /\bdeliver(?:y|ed|s)?(?:\s+of)?(?:\s+(?:the\s+)?(?:software|report|work|deliverables?|goods|items?))?(?:\s+online|\s+by\s+email|\s+already|\s+without\s+(?:a\s+)?(?:stated\s+)?date)?\s*(?:,|;|\bwhile\b|\bwhereas\b|\band\s+(?:payment|the\s+invoice)\b)(?=[^\n.;]{0,40}\b(?:paid|payment|invoic))/gi,
+          " "
+        );
       const isGoodsDelivery =
         !options?.isImmovableTurn &&
-        deliveryVerbRe.test(verbCheckClause) &&
-        !/ส่งออก/.test(verbCheckClause);
+        deliveryVerbRe.test(deliveryCheckClause) &&
+        !/ส่งออก/.test(deliveryCheckClause) &&
+        !/ไม่(?:ได้)?ระบุวัน(?:ที่)?ส่งมอบ/.test(verbCheckClause);
       if (isGoodsDelivery) {
         matchedKinds.push("DELIVERY");
       }
 
+      // Require positive evidence tying THIS date to a service-use event — NEVER fabricate a `SERVICE_USE`
+      // date from an undated place-of-use clause (including foreign city offices like โตเกียว and Thai provincial branches).
+      const serviceUseCheckClause = verbCheckClause
+        .replace(
+          /(?:ซึ่ง|โดย|ที่|และ)?\s*(?:ลูกค้า|ผู้รับบริการ|ผู้ว่าจ้าง|บริษัท)?\s*(?:ได้)?(?:มีการ)?ใช้(?:ผล(?:ของ)?)?บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|บางส่วน|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ประเทศไทย|ราชอาณาจักร|ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|โตเกียว|โอซาก้า|โซล|ลอนดอน|นิวยอร์ก|ซิดนีย์|ปารีส|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|กรุงเทพ(?:มหานคร)?)|นอกราชอาณาจักร|ที่สาขา[ก-๙]+)(?:\s*(?:ทั้งหมด|เพียงอย่างเดียว|บางส่วน))?(?!\s*(?:เมื่อ|ใน|ตั้งแต่)?วันที่)/gi,
+          " "
+        )
+        .replace(
+          /\b(?:which\s+is\s+|that\s+is\s+)?(?:service\s+is\s+)?used\s+(?:entirely\s+|wholly\s+|exclusively\s+|partly\s+|partially\s+)?(?:in\s+thailand|abroad|overseas|outside\s+thailand|at\s+(?:the\s+)?[a-z\s]{2,25}(?:office|branch)|in\s+[a-z]+)(?!\s+on\b)/gi,
+          " "
+        );
+      const hasExplicitDatedServiceUseVerb =
+        /(?:เริ่มใช้(?:ผล(?:ของ)?)?บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|ใช้(?:ผล(?:ของ)?)?บริการ(?:จริง|ครั้งแรก)?\s*(?:เมื่อ|ใน|ตั้งแต่)?\s*วันที่|นำผล(?:ของ)?บริการ(?:ไป|มา)ใช้(?:จริง)?\s*(?:เมื่อ|ใน|ตั้งแต่)?\s*วันที่|began\s+using\s+the\s+service|started\s+using\s+the\s+service|service\s+(?:output\s+)?(?:was\s+)?(?:used|performed|completed)\s+on)/i.test(
+          serviceUseCheckClause
+        ) ||
+        (!isPaymentVerb &&
+          !isInvoiceIssuance &&
+          /(?:ใช้(?:ผล(?:ของ)?)?บริการ|ใช้ผล(?:ของ)?งาน|used\s+the\s+service)/i.test(
+            serviceUseCheckClause
+          ));
+
       if (isSettlementOfPriorInvoice) {
         matchedKinds.push("PAYMENT");
       } else {
-        if (isPaymentVerb || isEnglishContinuedPayment || isInstallmentPaymentHint) {
+        if (
+          isPaymentVerb ||
+          isEnglishContinuedPayment ||
+          (isInstallmentPaymentHint && !hasExplicitDatedServiceUseVerb)
+        ) {
           matchedKinds.push("PAYMENT");
         }
         if (isInvoiceIssuance) {
           matchedKinds.push("INVOICE");
         }
       }
-
-      // Require positive evidence tying THIS date to a service-use event — NEVER fabricate a `SERVICE_USE`
-      // date from an undated place-of-use clause (e.g. "ซึ่งใช้บริการทั้งหมดในประเทศไทย โดยออกใบกำกับภาษีและได้รับชำระค่าบริการเมื่อวันที่ 30 กันยายน 2569").
-      const serviceUseCheckClause = verbCheckClause
-        .replace(
-          /(?:ซึ่ง|โดย|ที่|และ)?\s*(?:ลูกค้า|ผู้รับบริการ|ผู้ว่าจ้าง|บริษัท)?\s*(?:ได้)?(?:มีการ)?ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|บางส่วน|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ประเทศไทย|ราชอาณาจักร|ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|กรุงเทพ(?:มหานคร)?)|นอกราชอาณาจักร)(?:\s*(?:ทั้งหมด|เพียงอย่างเดียว|บางส่วน))?(?!\s*(?:เมื่อ|ใน|ตั้งแต่)?วันที่)/gi,
-          " "
-        )
-        .replace(
-          /\b(?:which\s+is\s+|that\s+is\s+)?(?:service\s+is\s+)?used\s+(?:entirely\s+|wholly\s+|exclusively\s+|partly\s+|partially\s+)?(?:in\s+thailand|abroad|overseas|outside\s+thailand|in\s+[a-z]+)(?!\s+on\b)/gi,
-          " "
-        );
-      const hasExplicitDatedServiceUseVerb =
-        /(?:เริ่มใช้บริการ|ส่งมอบบริการ|ให้บริการเสร็จ|ใช้บริการ(?:จริง|ครั้งแรก)?\s*(?:เมื่อ|ใน|ตั้งแต่)?\s*วันที่|began\s+using\s+the\s+service|started\s+using\s+the\s+service|service\s+(?:was\s+)?(?:used|performed|completed)\s+on)/i.test(
-          serviceUseCheckClause
-        ) ||
-        (!isPaymentVerb &&
-          !isInvoiceIssuance &&
-          /(?:ใช้บริการ|used\s+the\s+service)/i.test(serviceUseCheckClause));
       if (hasExplicitDatedServiceUseVerb) {
         matchedKinds.push("SERVICE_USE");
       }
@@ -852,7 +882,7 @@ function extractDatesWithEventKinds(
         matchedKinds.push("QUESTION_DATE");
       }
       if (matchedKinds.length === 0) {
-        if (/(?:โอน|ยก|ให้|ขาย|ซื้อ)/.test(verbCheckClause) && !suppressOwnershipTransfer) {
+        if (/(?:โอน|ยก|ให้(?!บริการ)|ขาย|ซื้อ)/.test(verbCheckClause) && !suppressOwnershipTransfer) {
           matchedKinds.push("TRANSFER");
         } else {
           matchedKinds.push("STATED_TRANSACTION_DATE");
@@ -1080,14 +1110,25 @@ export interface ExtractedServiceUseLocation {
 }
 
 const OVERSEAS_LOCATION_TOKEN_SOURCE =
-  "(?:ต่างประเทศ|นอกราชอาณาจักร|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|ฝรั่งเศส|เกาหลีใต้|จีน|ไต้หวัน|อินเดีย|อินโดนีเซีย|ฟิลิปปินส์)|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|abroad|overseas|outside\\s+thailand|japan|singapore|hong\\s+kong|usa|united\\s+states|europe|uk|united\\s+kingdom|australia|malaysia|vietnam|germany|france|south\\s+korea|korea|china|taiwan|india)";
+  "(?:ต่างประเทศ|นอกราชอาณาจักร|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|ฝรั่งเศส|เกาหลีใต้|จีน|ไต้หวัน|อินเดีย|อินโดนีเซีย|ฟิลิปปินส์|สวิตเซอร์แลนด์|เนเธอร์แลนด์|แคนาดา|นิวซีแลนด์)|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|โตเกียว|โอซาก้า|โซล|ลอนดอน|นิวยอร์ก|ซิดนีย์|เมลเบิร์น|ปารีส|แฟรงก์เฟิร์ต|เซี่ยงไฮ้|ปักกิ่ง|ไทเป|กัวลาลัมเปอร์|โฮจิมินห์|ฮานอย|จาการ์ตา|มะนิลา|ซูริก|อัมสเตอร์ดัม|ดูไบ|มุมไบ|abroad|overseas|outside\\s+thailand|japan|tokyo|osaka|singapore|hong\\s+kong|usa|united\\s+states|new\\s+york|europe|london|uk|united\\s+kingdom|australia|sydney|melbourne|malaysia|kuala\\s+lumpur|vietnam|germany|frankfurt|france|paris|south\\s+korea|korea|seoul|china|shanghai|beijing|taiwan|taipei|india|dubai|zurich)";
+
+const THAILAND_LOCATION_TOKEN_SOURCE =
+  "(?:ประเทศไทย|ราชอาณาจักร|ไทย|กรุงเทพ(?:มหานคร)?|กทม\\.?|(?:จังหวัด|จ\\.)\\s*[ก-๙]{2,20}|(?:สำนักงาน(?:สาขา)?|สาขา)\\s*(?:เชียงใหม่|เชียงราย|ภูเก็ต|ชลบุรี|ระยอง|ขอนแก่น|นครราชสีมา|โคราช|หาดใหญ่|สงขลา|อุดรธานี|อุบลราชธานี|พิษณุโลก|สุราษฎร์ธานี|นครปฐม|นนทบุรี|ปทุมธานี|สมุทรปราการ|สมุทรสาคร|อยุธยา|พระนครศรีอยุธยา|พัทยา|หัวหิน|ลำปาง|ลำพูน|ตรัง|กระบี่|นครศรีธรรมราช|สระบุรี|ฉะเชิงเทรา|ปราจีนบุรี|ต่างจังหวัด|ในประเทศ(?:ไทย)?|ในจังหวัด[ก-๙]{2,20})|thailand|bangkok|chiang\\s+mai|phuket|chonburi|rayong|khon\\s+kaen|hat\\s+yai|songkhla|korat|pattaya|thai\\s+(?:provincial\\s+)?branch)";
+
+const TH_USE_VERB_SRC =
+  "(?:ใช้(?:ผล(?:ของ)?)?บริการ(?:นั้น|ดังกล่าว)?|ใช้ผล(?:ของ)?งาน(?:นั้น|ดังกล่าว)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?(?:นั้น|ดังกล่าว)?(?:กลับ)?(?:ไป|มา)?(?:ให้[^\\n.?]{0,25})?ใช้(?:งาน)?|ใช้(?:งาน)?)";
+
+const TH_OVERSEAS_PLACE_PHRASE_SRC = `(?:(?:ที่(?:สำนักงาน(?:ใหญ่|สาขา)?|สาขา|ออฟฟิศ)?\\s*(?:ใน|ณ)?\\s*|(?:ใน|ณ)\\s*(?:สำนักงาน(?:ใหญ่|สาขา)?(?:ใน|ที่)?\\s*)?)${OVERSEAS_LOCATION_TOKEN_SOURCE})`;
+const TH_DOMESTIC_PLACE_PHRASE_SRC = `(?:(?:ที่(?:สำนักงาน(?:ใหญ่|สาขา)?|สาขา|ออฟฟิศ)?\\s*(?:ใน|ณ)?\\s*|(?:ใน|ณ)\\s*)${THAILAND_LOCATION_TOKEN_SOURCE}|${THAILAND_LOCATION_TOKEN_SOURCE})`;
 
 /**
  * Shared deterministic service place-of-use classifier used identically on initial turns
  * AND follow-up corrections (`buildStructuredCaseFactLedger` and `applyFactDelta`).
  *
- * Strictly records ONLY the location(s) actually stated and leaves any unstated remainder unknown:
- * - Explicit use in BOTH Thailand and overseas -> `SERVICE_USED_MIXED_THAILAND_AND_ABROAD`
+ * Strictly binds ONLY to where the service or its output is actually USED (never where it was
+ * performed, delivered, or billed, and never inferring use from a foreign customer address alone),
+ * and leaves any unstated remainder unknown:
+ * - Explicit use in BOTH Thailand (incl. provincial branches) and overseas (incl. foreign offices/cities) -> `SERVICE_USED_MIXED_THAILAND_AND_ABROAD`
  * - Partial use in Thailand ONLY (remainder unstated) -> `SERVICE_USED_PARTIALLY_THAILAND_REMAINDER_UNKNOWN`
  * - Partial use in an overseas location ONLY (remainder unstated) -> `SERVICE_USED_PARTIALLY_ABROAD_REMAINDER_UNKNOWN`
  * - Explicitly unknown use location -> `SERVICE_USE_LOCATION_UNKNOWN`
@@ -1101,23 +1142,26 @@ export function extractServiceUseLocationFromText(
   if (!norm) return null;
 
   const normWithoutNegatedDomesticUse = norm.replace(
-    /(?:ไม่(?:มี|ได้)?(?:ส่วนใด(?:ของ(?:ผล)?บริการ)?(?:ที่)?|การ|ใดๆ)?(?:ถูก)?(?:นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?(?:เข้า)?มา)?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย|กรุงเทพ(?:มหานคร)?)(?:\s*เลย)?|มิได้(?:นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?(?:เข้า)?มา)?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย)|ปราศจากการใช้(?:บริการ|งาน)?(?:ใน|ที่)(?:ประเทศไทย|ราชอาณาจักร|ไทย)|\b(?:no|zero|without\s+any)\s+(?:domestic\s+)?use\s+in\s+thailand\b|\b(?:no\s+part|none)(?:\s+of\s+(?:the\s+)?service)?\s+(?:is|was|will\s+be)?\s*used\s+in\s+thailand\b|\bnot\s+(?:being\s+)?used\s+(?:at\s+all\s+)?in\s+thailand(?:\s+at\s+all)?\b)/gi,
-    " "
-  );
-
-  const normWithoutNegatedOverseasUse = norm.replace(
     new RegExp(
-      `(?:ไม่(?:มี|ได้)?(?:ส่วนใด(?:ของ(?:ผล)?บริการ)?(?:ที่)?|การ|ใดๆ)?(?:ถูก)?(?:นำ(?:ผล(?:ของ)?บริการ)?ไป)?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}(?:\\s*เลย)?|มิได้(?:นำ(?:ผล(?:ของ)?บริการ)?ไป)?ใช้(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|\\b(?:no|zero|without\\s+any)\\s+use\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\b(?:no\\s+part|none)(?:\\s+of\\s+(?:the\\s+)?service)?\\s+(?:is|was|will\\s+be)?\\s*used\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\bnot\\s+(?:being\\s+)?used\\s+(?:at\\s+all\\s+)?(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}(?:\\s+at\\s+all)?\\b)`,
+      `(?:ไม่(?:มี|ได้)?(?:ส่วนใด(?:ของ(?:ผล)?บริการ)?(?:ที่)?|การ|ใดๆ)?(?:ถูก)?(?:นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?(?:เข้า)?มา)?ใช้(?:ผล(?:ของ)?)?(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)${THAILAND_LOCATION_TOKEN_SOURCE}(?:\\s*เลย)?|มิได้(?:นำ(?:ผล(?:ของ)?บริการ)?(?:กลับ)?(?:เข้า)?มา)?ใช้(?:ผล(?:ของ)?)?(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)${THAILAND_LOCATION_TOKEN_SOURCE}|ปราศจากการใช้(?:บริการ|งาน)?(?:ใน|ที่)${THAILAND_LOCATION_TOKEN_SOURCE}|\\b(?:no|zero|without\\s+any)\\s+(?:domestic\\s+)?use\\s+in\\s+thailand\\b|\\b(?:no\\s+part|none)(?:\\s+of\\s+(?:the\\s+)?(?:service|output))?\\s+(?:is|was|will\\s+be)?\\s*used\\s+in\\s+thailand\\b|\\bnot\\s+(?:being\\s+)?used\\s+(?:at\\s+all\\s+)?in\\s+thailand(?:\\s+at\\s+all)?\\b)`,
       "gi"
     ),
     " "
   );
 
-  // 1. Explicit use in BOTH Thailand AND an overseas location (mixed use).
-  //    Anchored strictly on service-USE verbs so "performed in Thailand" + "used partly in Japan"
-  //    or "client in Singapore" + "used partly in Thailand" NEVER misclassifies as mixed!
+  const normWithoutNegatedOverseasUse = norm.replace(
+    new RegExp(
+      `(?:ไม่(?:มี|ได้)?(?:ส่วนใด(?:ของ(?:ผล)?บริการ)?(?:ที่)?|การ|ใดๆ)?(?:ถูก)?(?:นำ(?:ผล(?:ของ)?บริการ)?ไป)?ใช้(?:ผล(?:ของ)?)?(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}(?:\\s*เลย)?|มิได้(?:นำ(?:ผล(?:ของ)?บริการ)?ไป)?ใช้(?:ผล(?:ของ)?)?(?:บริการ|งาน)?(?:ใดๆ)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|\\b(?:no|zero|without\\s+any)\\s+use\\s+(?:in\\s+|at\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\b(?:no\\s+part|none)(?:\\s+of\\s+(?:the\\s+)?(?:service|output))?\\s+(?:is|was|will\\s+be)?\\s*used\\s+(?:in\\s+|at\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\bnot\\s+(?:being\\s+)?used\\s+(?:at\\s+all\\s+)?(?:in\\s+|at\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}(?:\\s+at\\s+all)?\\b)`,
+      "gi"
+    ),
+    " "
+  );
+
+  // 1. Explicit use in BOTH Thailand (including Thai provincial branches) AND an overseas location (including foreign city offices).
+  //    Anchored strictly on service-USE verbs so "performed in Thailand" + "used at Tokyo office"
+  //    or "client in Tokyo" + "used partly at Chiang Mai branch" NEVER misclassifies as mixed!
   const explicitBothLocationsRe = new RegExp(
-    `(?:(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?(?:กลับ)?มา(?:ให้[^\\n.?]{0,25})?ใช้(?:งาน)?)[^\\n.?]{0,40}(?:ทั้ง(?:บางส่วน)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)\\s*และ(?:บางส่วน)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|ร่วมกันทั้ง(?:สาขา|สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)\\s*และ(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนที่เหลือ|ส่วนหนึ่ง)[^\\n.?]{0,25}(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สำนักงาน|ที่สาขา)?(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนที่เหลือ|ส่วนหนึ่ง)[^\\n.?]{0,25}ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย))|(?:บางส่วน|ส่วนหนึ่ง)[^\\n.?]{0,20}ใช้(?:บริการ|งาน)?[^\\n.?]{0,15}ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนหนึ่ง|ส่วนที่เหลือ)[^\\n.?]{0,20}ใช้(?:บริการ|งาน)?[^\\n.?]{0,15}(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:บางส่วน|ส่วนหนึ่ง)[^\\n.?]{0,20}ใช้(?:บริการ|งาน)?[^\\n.?]{0,15}(?:ใน|ที่)?${OVERSEAS_LOCATION_TOKEN_SOURCE}[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนหนึ่ง|ส่วนที่เหลือ)[^\\n.?]{0,20}ใช้(?:บริการ|งาน)?[^\\n.?]{0,15}ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย)|\\bused\\s+(?:both\\s+in\\s+thailand\\s+and\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:partly|partially)\\s+in\\s+thailand\\s+and\\s+(?:(?:partly|partially|the\\s+rest|the\\s+remainder)\\s+)?(?:used\\s+)?(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:partly|partially)\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:(?:partly|partially|the\\s+rest|the\\s+remainder)\\s+)?(?:used\\s+)?in\\s+thailand)\\b|\\b(?:partly|partially)\\s+used\\s+in\\s+thailand\\s+and\\s+(?:partly|partially)\\s+(?:used\\s+)?(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\b(?:partly|partially)\\s+used\\s+(?:in\\s+)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:partly|partially)\\s+(?:used\\s+)?in\\s+thailand\\b)`,
+    `(?:${TH_USE_VERB_SRC}[^\\n.?]{0,35}(?:(?:ทั้ง|ร่วมกันทั้ง)(?:บางส่วน)?\\s*${TH_DOMESTIC_PLACE_PHRASE_SRC}\\s*และ(?:บางส่วน)?\\s*${TH_OVERSEAS_PLACE_PHRASE_SRC}|(?:ทั้ง|ร่วมกันทั้ง)(?:บางส่วน)?\\s*${TH_OVERSEAS_PLACE_PHRASE_SRC}\\s*และ(?:บางส่วน)?\\s*${TH_DOMESTIC_PLACE_PHRASE_SRC}|(?:บางส่วน|ส่วนหนึ่ง)\\s*${TH_DOMESTIC_PLACE_PHRASE_SRC}[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนที่เหลือ|ส่วนหนึ่ง)[^\\n.?]{0,20}${TH_OVERSEAS_PLACE_PHRASE_SRC}|(?:บางส่วน|ส่วนหนึ่ง)\\s*${TH_OVERSEAS_PLACE_PHRASE_SRC}[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนที่เหลือ|ส่วนหนึ่ง)[^\\n.?]{0,20}${TH_DOMESTIC_PLACE_PHRASE_SRC})|(?:บางส่วน|ส่วนหนึ่ง)[^\\n.?]{0,20}${TH_USE_VERB_SRC}[^\\n.?]{0,15}${TH_DOMESTIC_PLACE_PHRASE_SRC}[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนหนึ่ง|ส่วนที่เหลือ)[^\\n.?]{0,20}${TH_USE_VERB_SRC}[^\\n.?]{0,15}${TH_OVERSEAS_PLACE_PHRASE_SRC}|(?:บางส่วน|ส่วนหนึ่ง)[^\\n.?]{0,20}${TH_USE_VERB_SRC}[^\\n.?]{0,15}${TH_OVERSEAS_PLACE_PHRASE_SRC}[^\\n.?]{0,35}(?:และ|กับ)(?:อีก)?(?:บางส่วน|ส่วนหนึ่ง|ส่วนที่เหลือ)[^\\n.?]{0,20}${TH_USE_VERB_SRC}[^\\n.?]{0,15}${TH_DOMESTIC_PLACE_PHRASE_SRC}|\\bused\\s+(?:both\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|both\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\s+(?:office\\s+)?and\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}|(?:partly|partially)\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:(?:partly|partially|the\\s+rest|the\\s+remainder)\\s+)?(?:used\\s+)?(?:in\\s+|at\\s+(?:the\\s+)?)?${OVERSEAS_LOCATION_TOKEN_SOURCE}|(?:partly|partially)\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:(?:partly|partially|the\\s+rest|the\\s+remainder)\\s+)?(?:used\\s+)?(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE})\\b|\\b(?:partly|partially)\\s+used\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:partly|partially)\\s+(?:used\\s+)?(?:in\\s+|at\\s+(?:the\\s+)?)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\b(?:partly|partially)\\s+used\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\s+and\\s+(?:partly|partially)\\s+(?:used\\s+)?(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}\\b)`,
     "i"
   );
   if (
@@ -1132,13 +1176,15 @@ export function extractServiceUseLocationFromText(
     };
   }
 
-  // 2. Partial use in Thailand ONLY (remainder location NOT stated)
-  const partialThailandUseRe =
-    /(?:(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?(?:กลับ)?มา(?:ให้[^\n.?]{0,25})?ใช้(?:งาน)?)[^\n.?]{0,30}(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย|กรุงเทพ(?:มหานคร)?)|(?:บางส่วน|ส่วนหนึ่ง)(?:ของ(?:ผล)?บริการ)?(?:ถูก)?(?:นำ(?:กลับ)?มา)?ใช้(?:บริการ|งาน)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|ไทย|กรุงเทพ(?:มหานคร)?)|\b(?:(?:partly|partially)\s+used\s+in\s+thailand|used\s+(?:partly|partially|in\s+part)\s+in\s+thailand|partial\s+use\s+in\s+thailand|part\s+of\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used\s+in\s+thailand)\b)/i;
+  // 2. Partial use in Thailand ONLY (including Thai provincial branches, remainder location NOT stated)
+  const partialThailandUseRe = new RegExp(
+    `(?:${TH_USE_VERB_SRC}[^\\n.?]{0,25}(?:บางส่วน|ส่วนหนึ่ง)\\s*${TH_DOMESTIC_PLACE_PHRASE_SRC}|(?:บางส่วน|ส่วนหนึ่ง)(?:ของ(?:ผล)?บริการ)?(?:ถูก)?(?:นำ(?:กลับ)?มา)?${TH_USE_VERB_SRC}\\s*${TH_DOMESTIC_PLACE_PHRASE_SRC}|\\b(?:(?:partly|partially)\\s+used\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}|used\\s+(?:partly|partially|in\\s+part)\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}|partial\\s+use\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}|part\\s+of\\s+(?:the\\s+)?(?:service|output)\\s+(?:is|was|will\\s+be)\\s+used\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE})\\b)`,
+    "i"
+  );
 
-  // 3. Partial use in a stated overseas location ONLY (remainder location NOT stated)
+  // 3. Partial use in a stated overseas location ONLY (including foreign city offices, remainder location NOT stated)
   const partialOverseasUseRe = new RegExp(
-    `(?:(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|งาน|ซอฟต์แวร์)?ไปใช้(?:งาน)?)[^\\n.?]{0,30}(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สำนักงาน|ที่สาขา)?(?:ใน|ที่)?\\s*(${OVERSEAS_LOCATION_TOKEN_SOURCE})|(?:บางส่วน|ส่วนหนึ่ง)(?:ของ(?:ผล)?บริการ)?(?:ถูก)?(?:นำไป)?ใช้(?:บริการ|งาน)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน|ที่)?\\s*(${OVERSEAS_LOCATION_TOKEN_SOURCE})|\\b(?:(?:partly|partially)\\s+used\\s+(?:in\\s+)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|used\\s+(?:partly|partially|in\\s+part)\\s+(?:in\\s+)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|partial\\s+use\\s+(?:in\\s+)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|part\\s+of\\s+(?:the\\s+)?service\\s+(?:is|was|will\\s+be)\\s+used\\s+(?:in\\s+)?(${OVERSEAS_LOCATION_TOKEN_SOURCE}))\\b)`,
+    `(?:${TH_USE_VERB_SRC}[^\\n.?]{0,25}(?:บางส่วน|ส่วนหนึ่ง)(?:ที่สำนักงาน|ที่สาขา)?(?:ใน|ที่|ณ)?\\s*(${OVERSEAS_LOCATION_TOKEN_SOURCE})|(?:บางส่วน|ส่วนหนึ่ง)(?:ของ(?:ผล)?บริการ)?(?:ถูก)?(?:นำไป)?${TH_USE_VERB_SRC}(?:ที่สำนักงาน|ที่สาขา)?(?:ใน|ที่|ณ)?\\s*(${OVERSEAS_LOCATION_TOKEN_SOURCE})|\\b(?:(?:partly|partially)\\s+used\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|used\\s+(?:partly|partially|in\\s+part)\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|partial\\s+use\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?(${OVERSEAS_LOCATION_TOKEN_SOURCE})|part\\s+of\\s+(?:the\\s+)?(?:service|output)\\s+(?:is|was|will\\s+be)\\s+used\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?(${OVERSEAS_LOCATION_TOKEN_SOURCE}))\\b)`,
     "i"
   );
 
@@ -1188,7 +1234,7 @@ export function extractServiceUseLocationFromText(
 
   // 4. Explicitly unknown place of use
   const hasUnknownServiceUseCue =
-    /(?:ไม่ทราบว่า[^\n.?]{0,50}(?:ใช้(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|ซอฟต์แวร์|งาน)[^\n.?]{0,30}ใช้)[^\n.?]{0,40}(?:ที่ใด|ในประเทศไทยหรือ|ในไทยหรือ|หรือไม่)|ยังไม่ทราบ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:บริการ|งาน)|ไม่ระบุ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:บริการ|งาน)|unknown\s+where\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used|unclear\s+whether\s+(?:the\s+)?service\s+(?:is|was|will\s+be)\s+used\s+in\s+thailand)/i.test(
+    /(?:ไม่ทราบว่า[^\n.?]{0,50}(?:ใช้(?:ผล(?:ของ)?)?(?:บริการ|งาน)?|นำ(?:ผล(?:ของ)?บริการ|ซอฟต์แวร์|งาน)[^\n.?]{0,30}ใช้)[^\n.?]{0,40}(?:ที่ใด|ในประเทศไทยหรือ|ในไทยหรือ|หรือไม่)|ยังไม่ทราบ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:ผล(?:ของ)?)?(?:บริการ|งาน)|ไม่ระบุ(?:สถานที่|ประเทศ)(?:ที่)?ใช้(?:ผล(?:ของ)?)?(?:บริการ|งาน)|unknown\s+where\s+(?:the\s+)?(?:service|output)\s+(?:is|was|will\s+be)\s+used|unclear\s+whether\s+(?:the\s+)?(?:service|output)\s+(?:is|was|will\s+be)\s+used\s+in\s+thailand)/i.test(
       norm
     );
   if (hasUnknownServiceUseCue) {
@@ -1200,23 +1246,31 @@ export function extractServiceUseLocationFromText(
     };
   }
 
-  // 5. Entire/unqualified domestic use in Thailand
-  const hasDomesticServiceUseCue =
-    /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|กรุงเทพ(?:มหานคร)?)|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?(?:กลับ)?มาใช้(?:งาน)?(?:ทั้งหมด)?(?:ที่สาขา|ที่สำนักงาน)?ใน(?:ประเทศไทย|ราชอาณาจักร|กรุงเทพ(?:มหานคร)?)|ใช้(?:งาน)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ใช้ที่สาขากรุงเทพฯ|\bused\s+(?:entirely\s+|wholly\s+|exclusively\s+)?in\s+thailand\b|\bservice\s+(?:is|was)\s+used\s+in\s+thailand\b|\bdomestic\s+use\s+in\s+thailand\b)/i.test(
-      normWithoutNegatedDomesticUse
-    ) ||
-    (/(?:ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย)|ให้บริการ[^\n.?]{0,40}ในประเทศไทย)/.test(
-      normWithoutNegatedDomesticUse
-    ) &&
-      !/(?:ต่างประเทศ|นอกราชอาณาจักร|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|abroad|overseas|foreign)/i.test(
-        normWithoutNegatedDomesticUse
-      ));
+  // 5. Entire/unqualified domestic use in Thailand (anchored strictly to USE verbs — NEVER "performed in Thailand"
+  //    or "delivered/billed" when foreign clients/offices are mentioned!)
+  const hasAnyForeignMention = new RegExp(
+    `(?:${OVERSEAS_LOCATION_TOKEN_SOURCE}|foreign|ต่างประเทศ)`,
+    "i"
+  ).test(normWithoutNegatedDomesticUse);
 
-  // 6. Entire overseas use (export service)
-  const hasOverseasServiceUseCue =
-    /(?:ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ต่างประเทศ|ประเทศ(?:สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|อเมริกา|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี|ฝรั่งเศส|เกาหลีใต้|จีน|ไต้หวัน|อินเดีย)|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|นอกราชอาณาจักร)|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?ไปใช้(?:งาน)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+)|นอกราชอาณาจักร)|ใช้(?:งาน)?(?:ทั้งหมด)?ในต่างประเทศ|ใช้ในต่างประเทศทั้งหมด|\bused\s+(?:entirely|wholly|exclusively)\s+(?:abroad|overseas|outside\s+thailand|in\s+(?:singapore|japan|hong\s+kong|usa|united\s+states|europe|uk|australia))\b)/i.test(
-      normWithoutNegatedOverseasUse
-    );
+  const domesticUseAnchoredRe = new RegExp(
+    `(?:${TH_USE_VERB_SRC}(?:ทั้งหมด|เพียงอย่างเดียว)?\\s*${TH_DOMESTIC_PLACE_PHRASE_SRC}|\\b(?:service|output)\\s+(?:is|was)\\s+used\\s+(?:entirely\\s+|wholly\\s+|exclusively\\s+)?(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}\\b|\\bused\\s+(?:entirely\\s+|wholly\\s+|exclusively\\s+)?(?:in\\s+|at\\s+(?:the\\s+)?)?${THAILAND_LOCATION_TOKEN_SOURCE}\\b|\\bdomestic\\s+use\\s+in\\s+thailand\\b)`,
+    "i"
+  );
+  const hasDomesticServiceUseCue =
+    domesticUseAnchoredRe.test(normWithoutNegatedDomesticUse) ||
+    (!hasAnyForeignMention &&
+      /(?:ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย)|ให้บริการ[^\n.?]{0,40}ในประเทศไทย)/.test(
+        normWithoutNegatedDomesticUse
+      ) &&
+      !/(?:ส่งมอบ[^\n.?]{0,25}(?:ทางอีเมล|ออนไลน์)|วางบิล)/.test(normWithoutNegatedDomesticUse));
+
+  // 6. Entire overseas use (anchored strictly to USE verbs — NEVER foreign customer address, delivery, or billing alone!)
+  const overseasUseAnchoredRe = new RegExp(
+    `(?:${TH_USE_VERB_SRC}(?:ทั้งหมด|เพียงอย่างเดียว)?\\s*${TH_OVERSEAS_PLACE_PHRASE_SRC}(?:\\s*(?:ทั้งหมด|เพียงอย่างเดียว))?|\\bused\\s+(?:entirely|wholly|exclusively)\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b|\\b(?:service|output)\\s+(?:is|was)\\s+used\\s+(?:entirely|wholly|exclusively)\\s+(?:in\\s+|at\\s+(?:the\\s+)?)?${OVERSEAS_LOCATION_TOKEN_SOURCE}\\b)`,
+    "i"
+  );
+  const hasOverseasServiceUseCue = overseasUseAnchoredRe.test(normWithoutNegatedOverseasUse);
 
   // Explicit affirmative use in BOTH Thailand AND overseas in separate clauses -> Mixed use!
   if (hasDomesticServiceUseCue && hasOverseasServiceUseCue) {
@@ -1229,23 +1283,19 @@ export function extractServiceUseLocationFromText(
   }
 
   if (hasDomesticServiceUseCue) {
-    const m = normWithoutNegatedDomesticUse.match(
-      /(ใช้ที่สาขากรุงเทพฯ[^\n,.?]{0,30}|นำ(?:ผล(?:ของ)?บริการ)?(?:นั้น|ดังกล่าว)?(?:กลับ)?มาใช้(?:งาน)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด)?ใน(?:ประเทศไทย|ราชอาณาจักร)|used\s+(?:entirely\s+|wholly\s+)?in\s+thailand|ลูกค้าใน(?:กรุงเทพมหานคร|ประเทศไทย))/i
-    );
+    const m = normWithoutNegatedDomesticUse.match(domesticUseAnchoredRe);
     return {
       category: "SERVICE_USED_IN_THAILAND_DOMESTIC",
-      original_text_th: m ? m[1].trim() : "ใช้บริการในประเทศไทย",
+      original_text_th: m ? m[0].trim() : "ใช้บริการในประเทศไทย",
       stated_overseas_location: null,
     };
   }
 
   if (hasOverseasServiceUseCue) {
-    const m = normWithoutNegatedOverseasUse.match(
-      /(ใช้บริการ(?:นั้น|ดังกล่าว)?(?:ทั้งหมด|เพียงอย่างเดียว)?(?:ที่สำนักงาน|ที่สาขา)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+|สิงคโปร์|ญี่ปุ่น|ฮ่องกง|สหรัฐอเมริกา|ยุโรป|ออสเตรเลีย|มาเลเซีย|เวียดนาม|อังกฤษ|เยอรมนี)|นอกราชอาณาจักร)|นำ(?:ผล(?:ของ)?บริการ)?ไปใช้(?:งาน)?(?:ทั้งหมด)?(?:ใน(?:ต่างประเทศ|ประเทศ[ก-๙]+)|นอกราชอาณาจักร)|ใช้ในต่างประเทศทั้งหมด|used\s+(?:entirely|wholly|exclusively)\s+(?:abroad|overseas|outside\s+thailand|in\s+(?:singapore|japan|hong\s+kong|usa|united\s+states|europe|uk|australia)))/i
-    );
+    const m = normWithoutNegatedOverseasUse.match(overseasUseAnchoredRe);
     return {
       category: "SERVICE_USED_ENTIRELY_ABROAD_EXPORT",
-      original_text_th: m ? m[1].trim() : "ใช้บริการทั้งหมดในต่างประเทศ",
+      original_text_th: m ? m[0].trim() : "ใช้บริการทั้งหมดในต่างประเทศ",
       stated_overseas_location: null,
     };
   }
@@ -1351,7 +1401,7 @@ export function buildStructuredCaseFactLedger(input: {
       "gi"
     ),
     new RegExp(
-      `(?:เปลี่ยน|เลื่อน|แก้ไข)(?:วัน(?:ที่)?(?:เกิดเหตุการณ์|ส่งมอบ|โอนกรรมสิทธิ์|รับชำระ|ออกใบกำกับ(?:ภาษี)?)?|เหตุการณ์(?:ทั้งหมด)?)(?:[^.;\\n]{0,40}?)(?:จาก|ที่เดิม(?:เป็น|เกิดขึ้น(?:เมื่อ|ใน)?)?)\\s*(?:วันที่|วัน)?\\s*(${dateShiftTokenSrc})\\s*(?:ให้)?(?:เปลี่ยน|เลื่อน)?เป็น(?:เกิดขึ้น(?:เมื่อ|ใน)?)?\\s*(?:วันที่|วัน)?\\s*(${dateShiftTokenSrc})(?:\\s*แทน)?`,
+      `(?:เปลี่ยน|เลื่อน|แก้ไข)(?:\\s*เฉพาะ)?\\s*(?:วัน(?:ที่)?(?:เกิดเหตุการณ์|ส่งมอบ|โอนกรรมสิทธิ์|รับชำระ|ได้รับชำระ|ออกใบกำกับ(?:ภาษี)?|ใช้(?:ผล(?:ของ)?)?บริการ)?|เหตุการณ์(?:ทั้งหมด)?)(?:[^.;\\n]{0,85}?)(?:จาก|ที่เดิม(?:เป็น|เกิดขึ้น(?:เมื่อ|ใน)?)?)\\s*(?:เดิม)?(?:วันที่|วัน)?\\s*(${dateShiftTokenSrc})\\s*(?:ให้)?(?:เปลี่ยน|เลื่อน)?เป็น(?:เกิดขึ้น(?:เมื่อ|ใน)?)?\\s*(?:วันที่|วัน)?\\s*(${dateShiftTokenSrc})(?:\\s*แทน)?`,
       "gi"
     ),
     new RegExp(
@@ -1860,10 +1910,37 @@ export function buildStructuredCaseFactLedger(input: {
               ? new Set(shiftLotRefs.coveredLotIds)
               : null;
 
+          const shiftClause = sm[0];
+          const isAllEventsShift = /(?:เหตุการณ์ทั้งหมด|\ball\s+events?\b)/i.test(shiftClause);
+          const targetedShiftEventTypes = new Set<TemporalEventKind>();
+          if (!isAllEventsShift) {
+            if (/(?:ใบกำกับ(?:ภาษี)?|invoice)/i.test(shiftClause)) {
+              targetedShiftEventTypes.add("INVOICE");
+            }
+            if (/(?:รับชำระ|ชำระ|payment|paid)/i.test(shiftClause)) {
+              targetedShiftEventTypes.add("PAYMENT");
+            }
+            if (/(?:ส่งมอบ|delivery)/i.test(shiftClause)) {
+              targetedShiftEventTypes.add("DELIVERY");
+            }
+            if (/(?:โอนกรรมสิทธิ์|ownership|title)/i.test(shiftClause)) {
+              targetedShiftEventTypes.add("OWNERSHIP_TRANSFER");
+            }
+            if (/(?:ใช้(?:ผล(?:ของ)?)?บริการ|service\s+use)/i.test(shiftClause)) {
+              targetedShiftEventTypes.add("SERVICE_USE");
+            }
+          }
+
           let shiftedAny = false;
           for (let ei = 0; ei < allTemporalEvents.length; ei++) {
             const ev = allTemporalEvents[ei];
             if (ev.iso_date !== oldIso) continue;
+            if (
+              targetedShiftEventTypes.size > 0 &&
+              !targetedShiftEventTypes.has(ev.event_type)
+            ) {
+              continue;
+            }
             if (targetedLots) {
               const evLots = ev.covered_lot_ids || [];
               if (evLots.length > 0 && !evLots.some((id) => targetedLots.has(id))) {
@@ -3072,8 +3149,11 @@ export function buildStructuredCaseFactLedger(input: {
   } else if (isVatCase && factsMap.get("vat_transaction_type")?.normalized_category === "VAT_PROVISION_OF_SERVICE") {
     // Under Revenue Code §78/1(1), service VAT tax point is the EARLIEST of:
     // payment received, tax invoice issued, or use of service.
-    const activeServiceEvents =
-      latestTurnNonQuestionDates.length > 0 ? latestTurnNonQuestionDates : nonQuestionDates;
+    const activeServiceEvents = latestTurnWasDateShiftOverride
+      ? nonQuestionDates
+      : latestTurnNonQuestionDates.length > 0
+        ? latestTurnNonQuestionDates
+        : nonQuestionDates;
     const taxPointCandidates = activeServiceEvents.filter(
       (e) =>
         e.event_type === "PAYMENT" ||

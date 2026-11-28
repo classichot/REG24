@@ -1962,14 +1962,75 @@ function evaluateSubstantiveSupportAndExceptions(
     .map((p) => thaiDigitsToArabic(p.verbatim_text).replace(/\s+/g, " "))
     .join("\n");
 
+  const stripEditorialAnnotationsForExceptionCheck = (text: string): string =>
+    thaiDigitsToArabic(text || "")
+      // Filter parenthetical editorial cross-references such as "( ดูคำสั่งกรมสรรพากร ที่ ป.97/2543 )"
+      // and "( ดูประกาศอธิบดีกรมสรรพากร เกี่ยวกับภาษีมูลค่าเพิ่ม (ฉบับที่ 105) )" in linear O(N) time without altering the corpus!
+      .replace(
+        /\(\s*ดู(?:คำสั่ง|ประกาศอธิบดี|ประกาศ|กฎกระทรวง|พระราชกฤษฎีกา|พระราชบัญญัติ|หนังสือ)[^()\n]{0,140}(?:\([^()\n]{1,60}\)[^()\n]{0,80})?\)/g,
+        " "
+      )
+      .replace(
+        /\(\s*(?:แก้ไขเพิ่มเติมโดย|ความเดิม|ยกเลิกโดย|เพิ่มความโดย|พระราชบัญญัติแก้ไขเพิ่มเติม)[^()\n]{0,140}(?:\([^()\n]{1,60}\)[^()\n]{0,80})?\)/g,
+        " "
+      );
+
+  // Scope the exception check to the applicable enumerated subclause(s) when the claim cites a specific
+  // subclause of the passage's section (e.g. `มาตรา 80/1 (2)` vs `มาตรา 80/1 (1)`), so a goods-export
+  // carve-out in `(1)` (`§81(3)`) remains operative for `(1)` while NEVER bleeding into `(2)`!
+  const scopeSourceTextToCitedSubclauses = (rawDocs: string[]): string => {
+    const cleanedLines = rawDocs.map((d) => stripEditorialAnnotationsForExceptionCheck(d)).join("\n");
+    const docIdSecMatch = /^prov\.th\.rc\.([0-9]+(?:\/[0-9]+)?(?:_[ก-๙]+)?)$/.exec(
+      citedPassage.doc_id || ""
+    );
+    const citedSubclauseNums = new Set<string>();
+    if (docIdSecMatch) {
+      const secEsc = docIdSecMatch[1].replace(/_/g, "\\s*").replace("/", "\\/");
+      const subRe = new RegExp(`มาตรา\\s*${secEsc}\\s*\\(([0-9]{1,2})\\)`, "g");
+      let m: RegExpExecArray | null;
+      while ((m = subRe.exec(normClaim)) !== null) {
+        citedSubclauseNums.add(m[1]);
+      }
+    }
+    if (citedSubclauseNums.size === 0) {
+      return cleanedLines;
+    }
+    // Split passage text into preamble + enumerated subclause blocks `(1) ...`, `(2) ...`, `(3) ...`
+    const itemRe = /(?:^|\n)\s*\(([0-9]{1,2})\)\s/g;
+    const markers: Array<{ num: string; start: number }> = [];
+    let mk: RegExpExecArray | null;
+    while ((mk = itemRe.exec(cleanedLines)) !== null) {
+      markers.push({ num: mk[1], start: mk.index });
+    }
+    if (markers.length === 0) {
+      return cleanedLines;
+    }
+    const keptSlices: string[] = [cleanedLines.slice(0, markers[0].start)];
+    for (let i = 0; i < markers.length; i++) {
+      const end = i + 1 < markers.length ? markers[i + 1].start : cleanedLines.length;
+      if (citedSubclauseNums.has(markers[i].num)) {
+        keptSlices.push(cleanedLines.slice(markers[i].start, end));
+      }
+    }
+    return keptSlices.join("\n");
+  };
+
+  const scopedExceptionDocText = scopeSourceTextToCitedSubclauses(
+    siblingPassagesInSameVersion.length > 0
+      ? siblingPassagesInSameVersion.map((p) => p.verbatim_text)
+      : [citedPassage.verbatim_text]
+  );
+  const scopedExceptionDocNorm = scopedExceptionDocText.replace(/\s+/g, " ").trim();
+
   // 1. Direct negation / polarity contradiction between claim and passage
   const claimSaysAlwaysOrUnconditional =
     /(?:ทุกกรณีโดยไม่มีข้อยกเว้น|ไม่มีข้อยกเว้นใด|ไม่ต้องหักภาษีในทุกกรณี|ได้รับยกเว้นภาษีทุกกรณี|ห้ามขยายเวลาในทุกกรณี)/.test(
       normClaim
     );
   const sourceHasException =
-    /(?:เว้นแต่|ยกเว้น|แต่ไม่รวมถึง|มิให้ใช้บังคับแก่|ทั้งนี้\s*เฉพาะ)/.test(normPassage) ||
-    /(?:เว้นแต่|ยกเว้น|แต่ไม่รวมถึง|มิให้ใช้บังคับแก่)/.test(normAllDoc);
+    /(?:เว้นแต่|ยกเว้น|แต่ไม่รวมถึง|มิให้ใช้บังคับแก่|ทั้งนี้\s*เฉพาะ)/.test(
+      scopedExceptionDocNorm
+    );
 
   if (claimSaysAlwaysOrUnconditional && sourceHasException && !humanApprovedOverride) {
     return {
@@ -1980,32 +2041,40 @@ function evaluateSubstantiveSupportAndExceptions(
   }
 
   // 2. Specific scenario contradiction (T08): Claim asserts an entity/transaction is taxed/obligated
-  //    when the source passage contains an explicit `เว้นแต่` / `ยกเว้น` carving out that exact case
+  //    when the scoped applicable provision contains an explicit `เว้นแต่` / `ยกเว้น` carving out that exact case
   //    AND neither this claim nor a companion atomic claim in the same answer discloses the exception!
+  //    Preserve line/subclause boundaries so an exception in `(1)` never bleeds across `(2)`!
   const exceptionClauseMatches =
-    normAllDoc.match(/(?:เว้นแต่|ยกเว้น|มิให้ใช้บังคับแก่)([^。\n]{6,220})/g) || [];
+    scopedExceptionDocText.match(/(?:เว้นแต่|ยกเว้น|มิให้ใช้บังคับแก่)([^。\n]{6,220})/g) || [];
   const answerAlreadyDisclosesException =
     /(?:เว้นแต่|ยกเว้น|ทั้งนี้|ภายใต้เงื่อนไข|มิให้ใช้บังคับ)/.test(normClaim) ||
     /(?:เว้นแต่|ยกเว้น|ทั้งนี้|ภายใต้เงื่อนไข|มิให้ใช้บังคับ)/.test(normFullAnswer);
   if (exceptionClauseMatches.length > 0 && !answerAlreadyDisclosesException) {
     for (const rawExc of exceptionClauseMatches) {
-      // Stop the exception clause before an enumerated main-rule list such as `(1) การขายสินค้า (2) การให้บริการ`
-      // (e.g., Revenue Code §80's `เว้นแต่กรณีที่กำหนดไว้ในมาตรา 80/2 (1) การขายสินค้า (2) การให้บริการ (3) การนำเข้า`)
-      // so the main rule's enumerated taxable subjects are never misclassified as exception carve-outs.
+      // Stop the exception clause before any subsequent enumerated item `(1)`, `(2)`, `(3)`, ...
+      // so the main rule's enumerated taxable subjects or sibling clauses are never misclassified as carve-outs.
       const excBody = rawExc
         .replace(/^(?:เว้นแต่|ยกเว้น|มิให้ใช้บังคับแก่)\s*/, "")
-        .split(/\s*\((?:1|๑)\)\s*/)[0]
+        .split(/\s*\((?:[1-9]|๑|๒|๓|๔|๕|๖)\)\s*/)[0]
         .trim();
       const excTokens = excBody
         .split(/\s+/)
         .map((t) => t.replace(/[^\u0E00-\u0E7Fa-zA-Z0-9]/g, ""))
         .filter((t) => t.length >= 5);
+      // Also capture explicit carved-out statutory section references (e.g. `มาตรา 81 (3)`) inside the exception clause
+      const excSectionRefs = Array.from(
+        excBody.matchAll(/มาตรา\s*([0-9]+(?:\/[0-9]+)?(?:\s*\([0-9]{1,2}\))?)/g)
+      ).map((m) => m[0].replace(/\s+/g, " ").trim());
+      const normClaimCompactSec = normClaim.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")");
+      const matchedCarveoutSection = excSectionRefs.some((secRef) =>
+        normClaimCompactSec.includes(secRef.replace(/\(\s+/g, "(").replace(/\s+\)/g, ")"))
+      );
       // If the user's unqualified claim directly invokes the carved-out subject while asserting the opposite general rule!
       const matchedCarveoutTokens = excTokens.filter((tok) => normClaim.includes(tok));
       const claimAssertsGeneralDuty =
         /(?<!ไม่|มิ)ต้อง(?:หักภาษี|เสียภาษี|ยื่น|ขออนุญาต)/.test(normClaim);
       if (
-        matchedCarveoutTokens.length >= 1 &&
+        (matchedCarveoutTokens.length >= 1 || matchedCarveoutSection) &&
         claimAssertsGeneralDuty &&
         !humanApprovedOverride
       ) {

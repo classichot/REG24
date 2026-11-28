@@ -177,6 +177,8 @@ function selectRelevantPassagesForClaimWork(
     patterns.push(/มาตรา\s*4|\(6\)|\(ข\)|\(ค\)|\(ง\)/);
   } else if (workId === "subreg.th.rd.dg_vat.105") {
     patterns.push(/ข้อ\s*2|ต่างประเทศ|ร้อยละ\s*0/);
+  } else if (workId === "subreg.th.rd.dg_vat.181") {
+    patterns.push(/ข้อ\s*1|ข้อ\s*2|ต่างประเทศ|ฉบับที่\s*105/);
   } else if (workId === "prov.th.rc.47") {
     patterns.push(/60,000|30,000|120,000|บิดามารดา|คนพิการ|บริจาค/);
   } else if (/^subreg\.th\.rc\.royal_decree\.(780|790|799|807)$/.test(workId)) {
@@ -2063,18 +2065,30 @@ async function executeCoreKnowledgeQuery(
       }
 
       if (asksExportOrZeroRate || isActiveMixedOrUnknownServiceUse) {
-        vatCoreWorkIds.push("prov.th.rc.80/1", "subreg.th.rd.dg_vat.105", "prov.th.rc.77/2", "prov.th.rc.78/1");
+        vatCoreWorkIds.push(
+          "prov.th.rc.80/1",
+          "subreg.th.rd.dg_vat.105",
+          "subreg.th.rd.dg_vat.181",
+          "prov.th.rc.77/2",
+          "prov.th.rc.78/1"
+        );
       } else if (
         isActiveDomesticServiceUse &&
         (rawTextMentionsExportOrZeroRate ||
           factLedger.overrides.some((o) => o.fact_key.includes("vat_place_of_use") || o.fact_key.includes("set_service_use_location")))
       ) {
-        // After an Overseas -> Thailand domestic-use correction, export provisions (§80/1, DG VAT 105)
+        // After an Overseas -> Thailand domestic-use correction, export provisions (§80/1, DG VAT 105/181)
         // may be included ONLY as non-governing contrast to explain why zero-rating does NOT apply —
         // NEVER as governing support!
-        vatCoreWorkIds.push("prov.th.rc.77/2", "prov.th.rc.80/1", "subreg.th.rd.dg_vat.105");
+        vatCoreWorkIds.push(
+          "prov.th.rc.77/2",
+          "prov.th.rc.80/1",
+          "subreg.th.rd.dg_vat.105",
+          "subreg.th.rd.dg_vat.181"
+        );
         nonGoverningContrastWorkIds.add("prov.th.rc.80/1");
         nonGoverningContrastWorkIds.add("subreg.th.rd.dg_vat.105");
+        nonGoverningContrastWorkIds.add("subreg.th.rd.dg_vat.181");
       }
       if (isActiveOverseasServiceUse) {
         nonGoverningContrastWorkIds.add("subreg.th.rc.royal_decree.780");

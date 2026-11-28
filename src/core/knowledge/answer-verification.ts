@@ -1127,7 +1127,7 @@ export function evaluateSubstantiveClaimSupport(params: {
         (claimInstruments.includes("พรฎ.646") || /646/.test(normClaim))) ||
       (/^subreg\.th\.rd\.dg_vat\.([0-9]+)$/.test(srcGroup.docId) &&
         new RegExp(
-          `(?:ประกาศอธิบดี|อธิบดี|ภาษีมูลค่าเพิ่ม)[^\\n]{0,70}(?:ฉบับที่\\s*|no\\.?\\s*)${srcGroup.docId.split(".").pop()}(?![0-9])`,
+          `(?:ประกาศอธิบดี|อธิบดี|ภาษีมูลค่าเพิ่ม|แก้ไขเพิ่มเติมโดย)[^\\n]{0,110}(?:ฉบับที่\\s*|no\\.?\\s*)${srcGroup.docId.split(".").pop()}(?![0-9])`,
           "i"
         ).test(normClaimWithHeader));
     const groundsExplicitClaimIdentifier =
