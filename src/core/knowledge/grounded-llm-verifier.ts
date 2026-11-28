@@ -3035,6 +3035,75 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         trustedTokens.add("10,000,000");
         trustedTokens.add("10");
       }
+      // RC §48(4)(ก) & §48(4) statutory intermediate derivations when final PIT withholding tax cannot be
+      // computed (missing holding years or PIT progressive schedule, so proposed_calculation is null):
+      //  1) §48(4)(ก) 50% lump-sum expense deduction & remaining net income (`baseVal * 0.50`) — strictly
+      //     gated to inherited/gift acquisition (`ACQUIRED_BY_INHERITANCE_OR_GIFT`), bound §48(4)(ก) text
+      //     ("หักค่าใช้จ่ายร้อยละ 50"), and explicit 50% expense-deduction framing in the claim.
+      //  2) §48(4) statutory 20% tax ceiling (`baseVal * 0.20`) — strictly gated to bound §48(4) text
+      //     ("ไม่เกินร้อยละ 20") AND explicit ceiling/cap framing (`ไม่เกิน` / `เพดาน` / `สูงสุด`) near 20%
+      //     so an unframed 20% baht figure asserted as actual tax stays strictly blocked.
+      const acqMethodCategory =
+        params.factLedger.material_facts.find((f) => f.fact_key === "acquisition_method")
+          ?.normalized_category || null;
+      const isInheritedOrGiftAcquisition =
+        acqMethodCategory === "ACQUIRED_BY_INHERITANCE_OR_GIFT";
+      const citesSec48InIssue = citedPackItems.some((p) => p.work_id === "prov.th.rc.48");
+      const citesSec48FiftyPctExpense =
+        citesSec48InIssue &&
+        /หักค่าใช้จ่าย(?:เป็นการเหมา)?(?:อีก)?ร้อยละ\s*50/.test(citedVerbatimNorm);
+      const citesSec48TwentyPctCap =
+        citesSec48InIssue &&
+        (/ไม่เกินร้อยละ\s*20/.test(citedVerbatimNorm) ||
+          params.passagePack.some(
+            (p) =>
+              p.work_id === "prov.th.rc.48" &&
+              p.evidence_role === "governing" &&
+              /ไม่เกินร้อยละ\s*20/.test(thaiDigitsToArabic(p.verbatim_text))
+          ));
+      if (citesSec48FiftyPctExpense || citesSec48TwentyPctCap) {
+        const issueClaimTextNorm = thaiDigitsToArabic(
+          `${iss.conclusion_th || ""} ${iss.application_explanation_th || ""}`
+        );
+        const sec48Bases = extractMonetaryAmountsThb(
+          params.factLedger.material_facts
+            .filter(
+              (f) =>
+                f.fact_key === "official_appraised_value_thb" ||
+                f.fact_key === "appraised_value_thb" ||
+                f.fact_key === "stated_asset_value_thb"
+            )
+            .map((f) => f.original_text_th)
+            .join(" ")
+        );
+        if (
+          citesSec48FiftyPctExpense &&
+          isInheritedOrGiftAcquisition &&
+          /(?:ร้อยละ\s*50|50%|หักค่าใช้จ่าย)/.test(issueClaimTextNorm)
+        ) {
+          for (const baseVal of sec48Bases) {
+            if (baseVal > 0) {
+              const fiftyPctVal = Math.round(baseVal * 0.5 * 100) / 100;
+              trustedTokens.add(String(fiftyPctVal));
+              trustedTokens.add(fiftyPctVal.toLocaleString("en-US"));
+            }
+          }
+        }
+        if (
+          citesSec48TwentyPctCap &&
+          /(?:(?:ไม่เกิน|เพดาน|สูงสุด)[^.;\n]{0,55}(?:ร้อยละ\s*20|20%)|(?:ร้อยละ\s*20|20%)[^.;\n]{0,55}(?:ไม่เกิน|เพดาน|สูงสุด))/.test(
+            issueClaimTextNorm
+          )
+        ) {
+          for (const baseVal of sec48Bases) {
+            if (baseVal > 0) {
+              const twentyPctCapVal = Math.round(baseVal * 0.2 * 100) / 100;
+              trustedTokens.add(String(twentyPctCapVal));
+              trustedTokens.add(twentyPctCapVal.toLocaleString("en-US"));
+            }
+          }
+        }
+      }
     }
 
     const fullIssueClaimStatement = iss.application_explanation_th
@@ -3639,20 +3708,68 @@ export function verifyAndRenderGroundedLlmDraft(params: {
         )
         .map((p) => p.passage_id);
       if (sameWorkSiblingAdds.length > 0) {
-        const candidateIds = [...finalPassageIds, ...sameWorkSiblingAdds];
-        const candEntail = verifyClaimAgainstPassages(
-          {
-            statement: workingClaimStatement,
-            supporting_passage_ids: candidateIds,
-            verified_calculation_numeric_tokens: trustedTokensArr,
-            excluded_context_instruments: excludedContextInstruments,
-            case_asset_category: activeCaseAssetCategory,
-          },
-          allRawPassages
-        );
-        if (candEntail.allow_confident_answer) {
-          finalPassageIds = candidateIds;
-          entailmentCheck = candEntail;
+        const trySiblingCandidate = (addedIds: string[]): boolean => {
+          let candIds = [...finalPassageIds, ...addedIds];
+          let candEntail = verifyClaimAgainstPassages(
+            {
+              statement: workingClaimStatement,
+              supporting_passage_ids: candIds,
+              verified_calculation_numeric_tokens: trustedTokensArr,
+              excluded_context_instruments: excludedContextInstruments,
+              case_asset_category: activeCaseAssetCategory,
+            },
+            allRawPassages
+          );
+          let localPrunes = 0;
+          while (
+            !candEntail.allow_confident_answer &&
+            candIds.length > 1 &&
+            localPrunes < 4 &&
+            /IRRELEVANT_CITED_PASSAGE/.test(candEntail.reason || "")
+          ) {
+            const mPid = (candEntail.reason || "").match(/\((psg\.[a-zA-Z0-9._-]+)\)/);
+            if (!mPid || !candIds.includes(mPid[1])) break;
+            const prunedIds = candIds.filter((pid) => pid !== mPid[1]);
+            localPrunes++;
+            const prunedCheck = verifyClaimAgainstPassages(
+              {
+                statement: workingClaimStatement,
+                supporting_passage_ids: prunedIds,
+                verified_calculation_numeric_tokens: trustedTokensArr,
+                excluded_context_instruments: excludedContextInstruments,
+                case_asset_category: activeCaseAssetCategory,
+              },
+              allRawPassages
+            );
+            if (
+              /UNGROUNDED_LEGAL_IDENTIFIER|UNGROUNDED_NUMERIC_ASSERTION/.test(
+                prunedCheck.reason || ""
+              )
+            ) {
+              break;
+            }
+            candIds = prunedIds;
+            candEntail = prunedCheck;
+          }
+          if (candEntail.allow_confident_answer) {
+            finalPassageIds = candIds;
+            entailmentCheck = candEntail;
+            return true;
+          }
+          return false;
+        };
+
+        // Prefer minimal single-sibling binding first (e.g. RC §48 Unit 5 for Unit 4),
+        // then fall back to all same-work governing siblings if multiple units are required.
+        let siblingResolved = false;
+        for (const sibId of sameWorkSiblingAdds) {
+          if (trySiblingCandidate([sibId])) {
+            siblingResolved = true;
+            break;
+          }
+        }
+        if (!siblingResolved && sameWorkSiblingAdds.length > 1) {
+          trySiblingCandidate(sameWorkSiblingAdds);
         }
       }
     }
